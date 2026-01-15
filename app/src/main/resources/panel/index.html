@@ -1,0 +1,1519 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ModereX Control Panel</title>
+  
+  <!-- Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  
+  <!-- Font Awesome -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+
+  <!-- Main Stylesheet -->
+  <link rel="stylesheet" href="css/styles.css">
+
+  <!-- Favicon -->
+  <link rel="icon" type="image/png" href="537154108207028818e303ef9465c1f66717660d_96.png">
+  <link rel="apple-touch-icon" href="537154108207028818e303ef9465c1f66717660d_96.png">
+</head>
+<body>
+  <!-- Background -->
+  <canvas id="bgCanvas"></canvas>
+  <div class="bg-aurora"></div>
+  <div class="bg-lines"></div>
+  <div class="bg-noise"></div>
+  
+  <!-- Auth Overlay -->
+  <div class="authOverlay" id="authOverlay">
+    <div class="authBox">
+      <div class="logo logo-img"><img src="537154108207028818e303ef9465c1f66717660d_96.png" alt="ModereX logo"></div>
+      <h2>ModereX Control Panel</h2>
+
+      <!-- Status Display (shown during auto-auth) -->
+      <div class="auth-status-area" id="authStatusArea">
+        <div class="auth-spinner-wrap" id="authSpinnerWrap">
+          <div class="spinner" id="authSpinner"></div>
+          <div class="auth-success-check" id="authSuccessCheck">
+            <svg viewBox="0 0 52 52" class="checkmark-svg">
+              <circle class="checkmark-circle" cx="26" cy="26" r="25" fill="none"/>
+              <path class="checkmark-check" fill="none" d="M14 27l7 7 16-16"/>
+            </svg>
+          </div>
+        </div>
+        <div class="auth-status-text" id="authStatusText">Connecting...</div>
+        <div class="auth-status-sub" id="authStatusSub">Establishing secure connection</div>
+      </div>
+
+      <!-- Manual Auth Section (hidden until auto-auth fails) -->
+      <div class="auth-manual" id="authManualSection" style="display:none">
+        <!-- Server Connection (hidden when auto-detected) -->
+        <div class="auth-section" id="serverSection">
+          <label class="auth-label">Server Connection</label>
+          <div class="auth-row">
+            <input type="text" class="input" id="serverHost" placeholder="Server Host" value="localhost" style="flex:2">
+            <input type="number" class="input" id="serverPort" placeholder="Port" value="8765" style="flex:1;max-width:100px">
+          </div>
+        </div>
+
+        <!-- Auth Mode Selector -->
+        <div class="auth-section">
+          <label class="auth-label">Authentication Method</label>
+          <select class="input" id="authModeSelect">
+            <option value="minecraft">In-Game Connect Code</option>
+            <option value="token">Permanent Token</option>
+          </select>
+        </div>
+
+        <!-- Minecraft Auth Section -->
+        <div class="auth-section" id="authMinecraftSection">
+          <label class="auth-label">Connect Code</label>
+          <p class="auth-hint">Run <code>/mx connect</code> in-game to get your code</p>
+          <input type="text" class="input code-input" id="connectCode" placeholder="XXXXXX" maxlength="6" autocomplete="off" spellcheck="false">
+        </div>
+
+        <!-- Token Auth Section -->
+        <div class="auth-section" id="authTokenSection" style="display:none">
+          <label class="auth-label">Permanent Token</label>
+          <p class="auth-hint">Run <code>/mx gettoken</code> in-game to get your token</p>
+          <input type="password" class="input" id="authToken" placeholder="Paste your token here..." autocomplete="off" spellcheck="false">
+        </div>
+
+        <!-- Error Message -->
+        <div class="auth-error" id="authError" style="display:none"></div>
+
+        <!-- Auth Button -->
+        <button class="btn primary" id="authBtn" style="margin-top:16px"><i class="fa-solid fa-right-to-bracket"></i> Connect</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Access Denied Overlay -->
+  <div class="accessDeniedOverlay" id="accessDeniedOverlay">
+    <div class="accessDeniedBox">
+      <div class="logo logo-img"><img src="537154108207028818e303ef9465c1f66717660d_96.png" alt="ModereX logo"></div>
+      <h2>Access Denied</h2>
+      <p>You do not have permission to access the ModereX Control Panel.</p>
+      <p class="auth-hint">Contact your server administrator if you believe this is an error.</p>
+      <button class="btn ghost" style="margin-top:20px" onclick="location.reload()"><i class="fa-solid fa-rotate-right"></i> Try Again</button>
+    </div>
+  </div>
+
+  <!-- Connecting Overlay -->
+  <div class="connectOverlay" id="connectOverlay">
+    <div class="connectBox">
+      <div class="spinner large"></div>
+      <p id="connectingText">Connecting...</p>
+    </div>
+  </div>
+
+  <!-- Disconnect Overlay -->
+  <div class="disconnectOverlay" id="disconnectOverlay">
+    <div class="disconnectBox">
+      <div class="disconnectIcon">
+        <div class="logo-bg">
+          <img src="537154108207028818e303ef9465c1f66717660d_96.png" alt="ModereX">
+        </div>
+        <div class="x-badge"><i class="fa-solid fa-xmark"></i></div>
+      </div>
+      <h2>Disconnected</h2>
+      <div class="server-name">You have been disconnected from <span id="disconnectServerName">Server</span></div>
+      <p>The connection to the server was lost. This may be due to network issues or the server restarting.</p>
+      <button class="btn primary" onclick="attemptReconnect()"><i class="fa-solid fa-rotate-right"></i> Reconnect</button>
+    </div>
+  </div>
+
+  <!-- Alert Bar (slide down for watchlist/anticheat) -->
+  <div class="alertBar" id="alertBar">
+    <div class="alertBar-content" id="alertBarContent">
+      <div class="alertBar-left">
+        <div class="alertBar-icon" id="alertBarIcon"><i class="fa-solid fa-eye"></i></div>
+        <div class="alertBar-text">
+          <div class="alertBar-title" id="alertBarTitle">Alert</div>
+          <div class="alertBar-sub" id="alertBarSub">Details</div>
+        </div>
+      </div>
+      <div class="alertBar-actions">
+        <button class="mini" onclick="viewAlertPlayer()"><i class="fa-solid fa-user"></i> View</button>
+        <button class="mini" onclick="dismissAlertBar()"><i class="fa-solid fa-xmark"></i></button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Sidebar Overlay (mobile) -->
+  <div class="sidebarOverlay" id="sidebarOverlay" onclick="toggleSidebar()"></div>
+
+  <!-- Main App -->
+  <div class="app">
+    <!-- Sidebar -->
+    <aside class="sidebar">
+      <div class="sb-head">
+      <div class="logo logo-img"><img src="537154108207028818e303ef9465c1f66717660d_96.png" alt="ModereX logo"></div>
+        <div class="brand">
+          <b>ModereX</b>
+        </div>
+      </div>
+      
+      <div class="sb-scroll" id="sbScroll">
+        <div class="sb-group">
+          <div class="sb-label">Overview</div>
+          <div class="sb-item active" data-page="dashboard"><i class="fa-solid fa-gauge-high"></i> Dashboard</div>
+        </div>
+        
+        <div class="sb-group">
+          <div class="sb-label">Enforcement</div>
+          <div class="sb-item" data-page="players"><i class="fa-solid fa-users"></i> Player Management</div>
+          <div class="sb-item" data-page="punishments"><i class="fa-solid fa-gavel"></i> Punishments</div>
+          <div class="sb-item" data-page="templates"><i class="fa-solid fa-bookmark"></i> Templates</div>
+        </div>
+        
+        <div class="sb-group">
+          <div class="sb-label">Monitoring</div>
+          <div class="sb-item" data-page="automod"><i class="fa-solid fa-robot"></i> Automod Rules</div>
+          <div class="sb-item" data-page="anticheat"><i class="fa-solid fa-shield-halved"></i> Anticheat</div>
+          <div class="sb-item" data-page="watchlist"><i class="fa-solid fa-eye"></i> Watchlist</div>
+          <div class="sb-item" data-page="livelogs"><i class="fa-solid fa-terminal"></i> Live Logs</div>
+          <div class="sb-item" data-page="status"><i class="fa-solid fa-server"></i> Server Status</div>
+        </div>
+
+        <div class="sb-group">
+          <div class="sb-label">Communication</div>
+          <div class="sb-item" data-page="staffchat"><i class="fa-solid fa-comments"></i> Staff Chat</div>
+        </div>
+
+        <div class="sb-group">
+          <div class="sb-label">Configuration</div>
+          <div class="sb-item" data-page="mysettings"><i class="fa-solid fa-user-gear"></i> My Settings</div>
+          <div class="sb-item" data-page="messages"><i class="fa-solid fa-language"></i> Messages</div>
+          <div class="sb-item" data-page="actions"><i class="fa-solid fa-bolt"></i> Actions</div>
+          <div class="sb-item" data-page="integrations"><i class="fa-solid fa-plug"></i> Integrations</div>
+        </div>
+      </div>
+      
+      <div class="sb-foot">
+        <div class="status-card">
+          <div class="status-left">
+            <small>Server Status</small>
+            <div class="status-pill"><span class="dot" id="statusDot"></span> <span id="statusText">Online</span></div>
+          </div>
+          <span class="chip ok" id="serverChip"><i class="fa-solid fa-server"></i> <span id="serverNameText">Server</span></span>
+        </div>
+      </div>
+    </aside>
+    
+    <!-- Main Content -->
+    <main class="main">
+      <!-- Topbar -->
+      <header class="topbar">
+        <button class="sidebarToggle" id="sidebarToggle" onclick="toggleSidebar()"><i class="fa-solid fa-bars"></i></button>
+        <div class="gsearch-container">
+          <div class="gsearch">
+            <i class="fa-solid fa-magnifying-glass"></i>
+            <input type="text" id="globalSearch" placeholder="Search players, cases, settings... (Ctrl+K)" autocomplete="off">
+          </div>
+          <div class="gsearch-dropdown" id="searchDropdown" style="display:none">
+            <div class="gsearch-results" id="searchResults"></div>
+            <div class="gsearch-footer">
+              <span><kbd>Enter</kbd> to select</span>
+              <span><kbd>↑</kbd> <kbd>↓</kbd> to navigate</span>
+              <span><kbd>Esc</kbd> to close</span>
+            </div>
+          </div>
+        </div>
+        
+        <div class="top-actions">
+          <span class="chip" id="timeChip"><i class="fa-regular fa-clock"></i> --:--</span>
+          <span class="chip" id="statusChip" title="Connection status"><i class="fa-solid fa-signal"></i> <span id="pingText">--</span>ms</span>
+          <span class="chip warn" id="savingChip" style="display:none"><i class="fa-solid fa-spinner fa-spin"></i> Saving...</span>
+          <div class="top-profile" id="topProfile" style="display:none">
+            <div class="profile-avatar"><img id="topAvatar" src="" alt=""></div>
+            <div class="profile-meta">
+              <div class="profile-name" id="topName">Player</div>
+              <div class="profile-sub" id="topPlatform">Java</div>
+            </div>
+          </div>
+        </div>
+      </header>
+      
+      <!-- Content Area -->
+      <div class="content">
+        
+        <!-- Dashboard Page -->
+        <section class="page active" id="page-dashboard">
+          <div class="page-head">
+            <div class="page-title">
+              <h1>Dashboard</h1>
+              <p>Server moderation overview and recent activity summary.</p>
+            </div>
+          </div>
+          
+          <div class="panel pad">
+            <div class="grid cols-4">
+              <div class="stat">
+                <small>Active Punishments</small>
+                <b id="statActivePun">0</b>
+                <div class="hint" id="statPunHint">No active cases</div>
+                <i class="fa-solid fa-gavel icon"></i>
+              </div>
+              <div class="stat">
+                <small>Automod Events</small>
+                <b id="statAuto">0</b>
+                <div class="hint" id="statAutoHint">No events</div>
+                <i class="fa-solid fa-robot icon"></i>
+              </div>
+              <div class="stat">
+                <small>Watchlist Alerts</small>
+                <b id="statWatch">0</b>
+                <div class="hint" id="statWatchHint">None</div>
+                <i class="fa-solid fa-eye icon"></i>
+              </div>
+              <div class="stat">
+                <small>Players Online</small>
+                <b id="statOnline">0</b>
+                <div class="hint" id="statOnlineHint">0/0 total</div>
+                <i class="fa-solid fa-users icon"></i>
+              </div>
+            </div>
+            
+            <div class="grid cols-2wide" style="margin-top:20px">
+              <div class="card">
+                <h3><i class="fa-solid fa-clock-rotate-left" style="color:var(--primary-light)"></i> Recent Activity</h3>
+                <p>Latest moderation actions and system events.</p>
+                <div class="table-wrap" style="margin-top:12px;max-height:280px;overflow:auto">
+                  <table>
+                    <thead><tr><th>Time</th><th>Actor</th><th>Action</th><th>Target</th></tr></thead>
+                    <tbody id="activityRows"></tbody>
+                  </table>
+                </div>
+              </div>
+              
+              <div class="card">
+                <h3><i class="fa-solid fa-compass" style="color:var(--accent-light)"></i> Navigation</h3>
+                <p>Access primary management interfaces.</p>
+                <div class="block" style="margin-top:12px">
+                  <button class="btn" onclick="go('players')"><i class="fa-solid fa-users"></i> Player Management</button>
+                  <button class="btn" onclick="go('punishments')"><i class="fa-solid fa-gavel"></i> Punishments</button>
+                  <button class="btn" onclick="go('automod')"><i class="fa-solid fa-robot"></i> Automod Rules</button>
+                  <button class="btn" onclick="go('watchlist')"><i class="fa-solid fa-eye"></i> Watchlist</button>
+                </div>
+              </div>
+            </div>
+            
+            <div class="card">
+              <h3><i class="fa-solid fa-eye" style="color:var(--warn)"></i> Watchlist Highlights</h3>
+              <p>Players currently under active monitoring.</p>
+              <div id="watchlistHighlights" style="margin-top:12px;display:flex;flex-direction:column;gap:10px;max-height:280px;overflow:auto"></div>
+            </div>
+          </div>
+        </section>
+        
+        <!-- Players Page -->
+        <section class="page" id="page-players">
+          <div class="page-head">
+            <div class="page-title">
+              <h1>Player Management</h1>
+              <p>View and manage all registered players on the server.</p>
+            </div>
+            <span class="chip ok" id="playersOnlineChip"><i class="fa-solid fa-users"></i> 0 online</span>
+          </div>
+          
+          <div class="panel pad">
+            <div class="toolbar" style="margin-top:0">
+              <div class="left">
+            <div class="gsearch" style="width:100%;max-width:560px">
+              <i class="fa-solid fa-magnifying-glass"></i>
+              <input type="text" id="playerSearch" placeholder="Search by name, UUID, IP...">
+            </div>
+              </div>
+            </div>
+            
+            <div class="table-wrap" style="margin-top:16px;max-height:600px;overflow:auto">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Player</th>
+                    <th>Platform</th>
+                    <th>Status</th>
+                    <th>Last Seen</th>
+                    <th class="flag-cell">Flags</th>
+                    <th style="text-align:right">Actions</th>
+                  </tr>
+                </thead>
+                <tbody id="playerRows"></tbody>
+              </table>
+            </div>
+          </div>
+        </section>
+        
+        <!-- Punishments Page -->
+        <section class="page" id="page-punishments">
+          <div class="page-head">
+            <div class="page-title">
+              <h1>Punishment History</h1>
+              <p>View and manage all enforcement actions.</p>
+            </div>
+            <button class="btn primary" onclick="openPunishFromList()"><i class="fa-solid fa-gavel"></i> Punish Player</button>
+          </div>
+          
+          <div class="panel pad">
+            <div class="toolbar" style="margin-top:0">
+              <div class="left">
+                <div class="gsearch" style="width:100%;max-width:400px">
+                  <i class="fa-solid fa-magnifying-glass"></i>
+                  <input type="text" id="punishSearch" placeholder="Search cases...">
+                </div>
+              </div>
+              <div class="right">
+                <div class="filter-group">
+                  <button class="filter-btn active ban" id="filterBan" onclick="togglePunishFilter('BAN')"><i class="fa-solid fa-ban"></i> Ban</button>
+                  <button class="filter-btn active mute" id="filterMute" onclick="togglePunishFilter('MUTE')"><i class="fa-solid fa-volume-xmark"></i> Mute</button>
+                  <button class="filter-btn active warn" id="filterWarn" onclick="togglePunishFilter('WARN')"><i class="fa-solid fa-triangle-exclamation"></i> Warn</button>
+                  <button class="filter-btn active kick" id="filterKick" onclick="togglePunishFilter('KICK')"><i class="fa-solid fa-person-walking-arrow-right"></i> Kick</button>
+                </div>
+              </div>
+            </div>
+            
+            <div class="table-wrap" style="margin-top:16px;max-height:600px;overflow:auto">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Player</th>
+                    <th>Case ID</th>
+                    <th>Type</th>
+                    <th>Reason</th>
+                    <th>Date</th>
+                    <th>Duration</th>
+                    <th>Staff</th>
+                    <th style="text-align:right">Actions</th>
+                  </tr>
+                </thead>
+                <tbody id="punishRows"></tbody>
+              </table>
+            </div>
+          </div>
+        </section>
+        
+        <!-- Templates Page -->
+        <section class="page" id="page-templates">
+          <div class="page-head">
+            <div class="page-title">
+              <h1>Punishment Templates</h1>
+              <p>Pre-configured enforcement actions for quick application.</p>
+            </div>
+            <button class="btn primary" onclick="createTemplateUI()"><i class="fa-solid fa-plus"></i> Create Template</button>
+          </div>
+          
+          <div class="panel pad">
+            <div class="toolbar" style="margin-top:0">
+              <div class="left">
+                <div class="gsearch" style="width:100%;max-width:400px">
+                  <i class="fa-solid fa-magnifying-glass"></i>
+                  <input type="text" id="templateSearch" placeholder="Search templates...">
+                </div>
+              </div>
+            </div>
+            
+            <div class="table-wrap" style="margin-top:16px">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Name</th>
+                    <th>Type</th>
+                    <th>Duration</th>
+                    <th>Reason</th>
+                    <th style="text-align:right">Actions</th>
+                  </tr>
+                </thead>
+                <tbody id="templateRows"></tbody>
+              </table>
+            </div>
+          </div>
+        </section>
+        
+        <!-- Automod Page -->
+        <section class="page" id="page-automod">
+          <div class="page-head">
+            <div class="page-title">
+              <h1>Automod Rules</h1>
+              <p>Configure automated moderation triggers and responses.</p>
+            </div>
+            <div style="display:flex;gap:10px">
+              <button class="btn" onclick="toggleTesterPanel()"><i class="fa-solid fa-flask"></i> Automod Tester</button>
+              <button class="btn primary" onclick="addRuleUI()"><i class="fa-solid fa-plus"></i> Add Rule</button>
+            </div>
+          </div>
+          
+          <div class="panel pad">
+            <div class="card rules-embed" style="margin:0">
+              <h3><i class="fa-solid fa-robot" style="color:var(--primary-light)"></i> Rule Library</h3>
+              <p>Each rule can block the message and optionally auto-punish.</p>
+              <div id="rulesList" style="display:flex;flex-direction:column;gap:16px;margin-top:12px;max-height:520px;overflow:auto"></div>
+            </div>
+          </div>
+        </section>
+        
+        <!-- Watchlist Page -->
+        <section class="page" id="page-watchlist">
+          <div class="page-head">
+            <div class="page-title">
+              <h1>Watchlist</h1>
+              <p>Monitor specific players and receive alerts on their activity.</p>
+            </div>
+            <div style="display:flex;gap:10px;align-items:center">
+              <div class="toggle-wrap">
+                <button class="toggle" id="watchToastsToggle" onclick="toggleWatchToasts()"><span class="toggle-thumb"></span></button>
+                <div class="toggle-meta">
+                  <div class="toggle-title">Watchlist Toasts</div>
+                  <div class="toggle-sub" id="watchToastsHint">On</div>
+                </div>
+              </div>
+              <button class="btn" onclick="testWatchlistAlert()"><i class="fa-solid fa-flask"></i> Test Alert</button>
+              <button class="btn bad" onclick="clearWatchAlerts()"><i class="fa-solid fa-trash"></i> Clear Alerts</button>
+            </div>
+          </div>
+          
+          <div class="panel pad">
+            <div class="toolbar" style="margin-top:0">
+              <div class="left">
+                <div class="gsearch" style="width:100%;max-width:400px">
+                  <i class="fa-solid fa-magnifying-glass"></i>
+                  <input type="text" id="watchSearch" placeholder="Search watchlist...">
+                </div>
+              </div>
+              <div class="right" style="margin-left:auto">
+                <button class="btn primary" onclick="openWatchlistPicker()"><i class="fa-solid fa-plus"></i> Add Player</button>
+              </div>
+            </div>
+            
+            <div class="grid cols-2" style="margin-top:20px">
+              <div class="card" style="margin:0">
+                <h3><i class="fa-solid fa-eye" style="color:var(--warn)"></i> Monitored Players</h3>
+                <div id="watchPlayers" style="margin-top:12px;display:flex;flex-direction:column;gap:10px;max-height:400px;overflow:auto"></div>
+              </div>
+              
+              <div class="card" style="margin:0">
+                <h3><i class="fa-solid fa-bell" style="color:var(--bad)"></i> Recent Alerts</h3>
+                <div id="watchAlerts" style="margin-top:12px;display:flex;flex-direction:column;gap:10px;max-height:400px;overflow:auto"></div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- Live Logs Page -->
+        <section class="page" id="page-livelogs">
+          <div class="page-head">
+            <div class="page-title">
+              <h1>Live Logs</h1>
+              <p>Real-time server event stream and activity monitor.</p>
+            </div>
+            <div style="display:flex;gap:10px;align-items:center">
+              <button class="btn bad" onclick="clearLogs()"><i class="fa-solid fa-trash"></i> Clear</button>
+            </div>
+          </div>
+          
+          <div class="panel pad">
+            <div class="toolbar" style="margin-top:0">
+              <div class="left">
+                <div class="gsearch" style="width:100%;max-width:400px">
+                  <i class="fa-solid fa-magnifying-glass"></i>
+                  <input type="text" id="logsSearch" placeholder="Filter logs...">
+                </div>
+              </div>
+              <div class="right">
+                <button class="btn" id="logsFilterBtn" onclick="openLogsFilterPanel()"><i class="fa-solid fa-sliders"></i> Filters</button>
+                <select class="input" id="logsPageSize" style="width:110px">
+                  <option value="50">50 / page</option>
+                  <option value="100" selected>100 / page</option>
+                  <option value="200">200 / page</option>
+                </select>
+                <div class="page-controls">
+                  <button class="mini" id="logsPrev" onclick="logsPrevPage()"><i class="fa-solid fa-chevron-left"></i></button>
+                  <span class="chip" id="logsPageInfo">1 / 1</span>
+                  <button class="mini" id="logsNext" onclick="logsNextPage()"><i class="fa-solid fa-chevron-right"></i></button>
+                </div>
+              </div>
+            </div>
+            
+            <div class="logsBox" id="logsBox" style="margin-top:16px"></div>
+          </div>
+        </section>
+
+        <!-- Server Status Page -->
+        <section class="page" id="page-status">
+          <div class="page-head">
+            <div class="page-title">
+              <h1>Server Status</h1>
+              <p>Real-time performance monitoring, TPS tracking, and lag detection.</p>
+            </div>
+            <div style="display:flex;gap:10px;align-items:center">
+              <button class="btn" onclick="refreshServerStatus()"><i class="fa-solid fa-sync"></i> Refresh</button>
+            </div>
+          </div>
+
+          <!-- Performance Overview -->
+          <div class="grid cols-4">
+            <div class="card stat-card">
+              <div class="stat-icon tps"><i class="fa-solid fa-gauge-high"></i></div>
+              <div class="stat-info">
+                <div class="stat-value" id="statusTps">20.0</div>
+                <div class="stat-label">TPS</div>
+              </div>
+              <div class="stat-trend" id="statusTpsTrend"><i class="fa-solid fa-minus"></i></div>
+            </div>
+            <div class="card stat-card">
+              <div class="stat-icon memory"><i class="fa-solid fa-memory"></i></div>
+              <div class="stat-info">
+                <div class="stat-value" id="statusMemory">0 MB</div>
+                <div class="stat-label">Memory Usage</div>
+              </div>
+              <div class="stat-progress">
+                <div class="progress-bar" id="statusMemoryBar" style="width:0%"></div>
+              </div>
+            </div>
+            <div class="card stat-card">
+              <div class="stat-icon cpu"><i class="fa-solid fa-microchip"></i></div>
+              <div class="stat-info">
+                <div class="stat-value" id="statusCpu">0%</div>
+                <div class="stat-label">CPU Usage</div>
+              </div>
+              <div class="stat-progress">
+                <div class="progress-bar" id="statusCpuBar" style="width:0%"></div>
+              </div>
+            </div>
+            <div class="card stat-card">
+              <div class="stat-icon players"><i class="fa-solid fa-users"></i></div>
+              <div class="stat-info">
+                <div class="stat-value"><span id="statusOnline">0</span>/<span id="statusMax">0</span></div>
+                <div class="stat-label">Players Online</div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Network & Server Info -->
+          <div class="grid cols-4">
+            <div class="card stat-card">
+              <div class="stat-icon" style="background:linear-gradient(135deg, rgba(90, 156, 255, 0.2), rgba(90, 156, 255, 0.05));color:var(--primary-light);border:1px solid rgba(90, 156, 255, 0.3)">
+                <i class="fa-solid fa-signal"></i>
+              </div>
+              <div class="stat-info">
+                <div class="stat-value" id="statusAvgPing">0ms</div>
+                <div class="stat-label">Avg Ping</div>
+              </div>
+            </div>
+            <div class="card stat-card">
+              <div class="stat-icon" style="background:linear-gradient(135deg, rgba(16, 185, 129, 0.2), rgba(16, 185, 129, 0.05));color:var(--ok);border:1px solid rgba(16, 185, 129, 0.3)">
+                <i class="fa-solid fa-clock"></i>
+              </div>
+              <div class="stat-info">
+                <div class="stat-value" id="statusUptime">0m</div>
+                <div class="stat-label">Uptime</div>
+              </div>
+            </div>
+            <div class="card stat-card">
+              <div class="stat-icon" style="background:linear-gradient(135deg, rgba(168, 184, 216, 0.15), rgba(168, 184, 216, 0.05));color:var(--text-secondary);border:1px solid rgba(168, 184, 216, 0.2)">
+                <i class="fa-solid fa-cubes"></i>
+              </div>
+              <div class="stat-info">
+                <div class="stat-value" id="statusChunks">0</div>
+                <div class="stat-label">Loaded Chunks</div>
+              </div>
+            </div>
+            <div class="card stat-card">
+              <div class="stat-icon" style="background:linear-gradient(135deg, rgba(245, 158, 11, 0.2), rgba(245, 158, 11, 0.05));color:var(--warn);border:1px solid rgba(245, 158, 11, 0.3)">
+                <i class="fa-solid fa-ghost"></i>
+              </div>
+              <div class="stat-info">
+                <div class="stat-value" id="statusEntities">0</div>
+                <div class="stat-label">Entities</div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Server Details Bar -->
+          <div class="panel pad" style="padding:12px 20px">
+            <div style="display:flex;gap:32px;flex-wrap:wrap;font-size:13px;color:var(--text-secondary)">
+              <span><i class="fa-solid fa-server" style="color:var(--primary-light);margin-right:8px"></i> Version: <b id="statusVersion">Unknown</b></span>
+              <span><i class="fa-brands fa-java" style="color:var(--warn);margin-right:8px"></i> Java: <b id="statusJava">Unknown</b></span>
+              <span><i class="fa-solid fa-microchip" style="color:var(--accent-light);margin-right:8px"></i> Cores: <b id="statusProcessors">0</b></span>
+              <span><i class="fa-solid fa-signal" style="color:var(--ok);margin-right:8px"></i> Min Ping: <b id="statusMinPing">0ms</b></span>
+              <span><i class="fa-solid fa-signal" style="color:var(--bad);margin-right:8px"></i> Max Ping: <b id="statusMaxPing">0ms</b></span>
+            </div>
+          </div>
+
+          <div class="grid cols-2">
+            <!-- TPS Graph -->
+            <div class="panel pad">
+              <h2 style="margin:0 0 16px 0"><i class="fa-solid fa-chart-line"></i> TPS History</h2>
+              <div class="tps-graph-container">
+                <canvas id="tpsGraph" height="200"></canvas>
+              </div>
+              <div class="tps-legend">
+                <span class="tps-good"><i class="fa-solid fa-circle"></i> Good (18-20)</span>
+                <span class="tps-warn"><i class="fa-solid fa-circle"></i> Warning (15-18)</span>
+                <span class="tps-bad"><i class="fa-solid fa-circle"></i> Critical (&lt;15)</span>
+              </div>
+            </div>
+
+            <!-- World Info -->
+            <div class="panel pad">
+              <h2 style="margin:0 0 16px 0"><i class="fa-solid fa-globe"></i> World Statistics</h2>
+              <div class="world-stats" id="statusWorlds">
+                <div class="world-loading"><div class="spinner"></div> Loading...</div>
+              </div>
+            </div>
+          </div>
+
+          <div class="grid cols-2">
+            <!-- Laggy Chunks -->
+            <div class="panel pad">
+              <h2 style="margin:0 0 16px 0">
+                <i class="fa-solid fa-cubes"></i> Laggy Chunks
+                <span class="badge gray" id="laggyChunkCount">0</span>
+              </h2>
+              <div class="laggy-chunks-list" id="laggyChunksList">
+                <div class="empty-state small">
+                  <i class="fa-solid fa-check-circle" style="color:var(--good)"></i>
+                  <p>No laggy chunks detected</p>
+                </div>
+              </div>
+            </div>
+
+            <!-- Recent Alerts -->
+            <div class="panel pad">
+              <h2 style="margin:0 0 16px 0">
+                <i class="fa-solid fa-triangle-exclamation"></i> Recent Alerts
+                <span class="badge gray" id="alertCount">0</span>
+              </h2>
+              <div class="status-alerts-list" id="statusAlertsList">
+                <div class="empty-state small">
+                  <i class="fa-solid fa-check-circle" style="color:var(--good)"></i>
+                  <p>No recent performance alerts</p>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Online Players -->
+          <div class="panel pad">
+            <h2 style="margin:0 0 16px 0">
+              <i class="fa-solid fa-users"></i> Online Players
+              <span class="badge gray" id="playerListCount">0</span>
+            </h2>
+            <div class="player-status-list" id="statusPlayerList">
+              <div class="empty-state small">
+                <i class="fa-solid fa-users-slash" style="color:var(--muted)"></i>
+                <p>No players online</p>
+              </div>
+            </div>
+          </div>
+
+          <!-- Potential Lag Machines -->
+          <div class="panel pad">
+            <h2 style="margin:0 0 16px 0">
+              <i class="fa-solid fa-warning"></i> Potential Lag Machines
+              <span class="badge gray" id="lagMachineCount">0</span>
+            </h2>
+            <p style="color:var(--text-secondary);margin-bottom:16px">Players with unusually high entity/redstone counts in their area.</p>
+            <div class="lag-machines-list" id="lagMachinesList">
+              <div class="empty-state small">
+                <i class="fa-solid fa-check-circle" style="color:var(--good)"></i>
+                <p>No potential lag machines detected</p>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- Staff Chat Page -->
+        <section class="page" id="page-staffchat">
+          <div class="page-head">
+            <div class="page-title">
+              <h1>Staff Chat</h1>
+              <p>Communicate with your moderation team in real-time.</p>
+            </div>
+            <span class="chip ok" id="staffOnlineChip"><i class="fa-solid fa-users"></i> <span id="staffOnlineCount">0</span> staff online</span>
+          </div>
+
+          <div class="panel pad">
+            <div class="grid cols-3wide">
+              <div class="card staffchat-container" style="margin:0">
+                <div class="staffchat-messages" id="staffchatMessages">
+                  <div class="staffchat-empty">
+                    <i class="fa-solid fa-comments"></i>
+                    <p>No messages yet. Start the conversation!</p>
+                  </div>
+                </div>
+                <div class="staffchat-input">
+                  <input type="text" class="input" id="staffchatInput" placeholder="Type a message to staff..." autocomplete="off">
+                  <button class="btn primary" id="staffchatSend" onclick="sendStaffChat()">
+                    <i class="fa-solid fa-paper-plane"></i>
+                  </button>
+                </div>
+              </div>
+
+              <div class="card" style="margin:0">
+                <h3><i class="fa-solid fa-users" style="color:var(--primary-light)"></i> Online Staff</h3>
+                <p>Team members currently available.</p>
+                <div id="staffOnlineList" style="margin-top:14px">
+                  <div class="staff-member">
+                    <div class="profile-avatar"><img src="https://mc-heads.net/avatar/MHF_Steve/32" alt=""></div>
+                    <div class="staff-meta">
+                      <div class="staff-name">Waiting...</div>
+                      <div class="staff-role">Connect to see staff</div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- My Settings Page (Player-specific preferences) -->
+        <section class="page" id="page-mysettings">
+          <div class="page-head">
+            <div class="page-title">
+              <h1>My Settings</h1>
+              <p>Configure your personal panel alerts and notification preferences.</p>
+            </div>
+          </div>
+
+          <div class="panel pad">
+            <div class="grid cols-2">
+              <!-- Alerts Category -->
+              <div class="card" style="margin:0">
+                <h3><i class="fa-solid fa-bell" style="color:var(--primary-light)"></i> Alert Notifications</h3>
+                <p>Choose which events trigger panel notifications.</p>
+                <div class="settings-grid" style="margin-top:14px">
+                  <div class="settings-row">
+                    <div class="settings-row-left">
+                      <div class="settings-row-icon yellow"><i class="fa-solid fa-robot"></i></div>
+                      <div class="settings-row-text">
+                        <div class="settings-row-title">Automod</div>
+                        <div class="settings-row-sub">Chat filter & spam triggers</div>
+                      </div>
+                    </div>
+                    <button class="toggle on" id="alertAutomod" onclick="toggleMyAlert('automod')"><span class="toggle-thumb"></span></button>
+                  </div>
+                  <div class="settings-row">
+                    <div class="settings-row-left">
+                      <div class="settings-row-icon blue"><i class="fa-solid fa-terminal"></i></div>
+                      <div class="settings-row-text">
+                        <div class="settings-row-title">Commands</div>
+                        <div class="settings-row-sub">Player command executions</div>
+                      </div>
+                    </div>
+                    <button class="toggle" id="alertCommands" onclick="toggleMyAlert('commands')"><span class="toggle-thumb"></span></button>
+                  </div>
+                  <div class="settings-row">
+                    <div class="settings-row-left">
+                      <div class="settings-row-icon red"><i class="fa-solid fa-gavel"></i></div>
+                      <div class="settings-row-text">
+                        <div class="settings-row-title">Punishments</div>
+                        <div class="settings-row-sub">Bans, mutes, warns, kicks</div>
+                      </div>
+                    </div>
+                    <button class="toggle on" id="alertPunishments" onclick="toggleMyAlert('punishments')"><span class="toggle-thumb"></span></button>
+                  </div>
+                  <div class="settings-row">
+                    <div class="settings-row-left">
+                      <div class="settings-row-icon green"><i class="fa-solid fa-hand-holding-heart"></i></div>
+                      <div class="settings-row-text">
+                        <div class="settings-row-title">Pardons</div>
+                        <div class="settings-row-sub">Unbans, unmutes, pardon events</div>
+                      </div>
+                    </div>
+                    <button class="toggle on" id="alertPardons" onclick="toggleMyAlert('pardons')"><span class="toggle-thumb"></span></button>
+                  </div>
+                  <div class="settings-row">
+                    <div class="settings-row-left">
+                      <div class="settings-row-icon purple"><i class="fa-solid fa-door-open"></i></div>
+                      <div class="settings-row-text">
+                        <div class="settings-row-title">Joins / Leaves</div>
+                        <div class="settings-row-sub">Player connection events</div>
+                      </div>
+                    </div>
+                    <button class="toggle" id="alertJoins" onclick="toggleMyAlert('joins')"><span class="toggle-thumb"></span></button>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Anticheat Alerts -->
+              <div class="card" style="margin:0">
+                <h3><i class="fa-solid fa-shield-halved" style="color:var(--bad)"></i> Anticheat Alerts</h3>
+                <p>Configure anticheat detection notifications.</p>
+                <div class="settings-grid" style="margin-top:14px">
+                  <div class="settings-row" style="flex-direction:column;align-items:flex-start;gap:12px">
+                    <div class="settings-row-left">
+                      <div class="settings-row-icon red"><i class="fa-solid fa-shield-halved"></i></div>
+                      <div class="settings-row-text">
+                        <div class="settings-row-title">Anticheat Alert Mode</div>
+                        <div class="settings-row-sub">Choose when to receive anticheat alerts</div>
+                      </div>
+                    </div>
+                    <div class="radio-group" style="width:100%">
+                      <button class="radio-btn" id="acModeOff" onclick="setAnticheatMode('off')">
+                        <span class="radio-dot"></span> Off
+                      </button>
+                      <button class="radio-btn active" id="acModeWatchlist" onclick="setAnticheatMode('watchlist')">
+                        <span class="radio-dot"></span> Watchlist Only
+                      </button>
+                      <button class="radio-btn" id="acModeAll" onclick="setAnticheatMode('all')">
+                        <span class="radio-dot"></span> All Players
+                      </button>
+                    </div>
+                  </div>
+                </div>
+
+                <h3 style="margin-top:20px"><i class="fa-solid fa-eye" style="color:var(--warn)"></i> Watchlist Alert Style</h3>
+                <p>How watchlist alerts are displayed.</p>
+                <div class="settings-grid" style="margin-top:14px">
+                  <div class="settings-row" style="flex-direction:column;align-items:flex-start;gap:12px">
+                    <div class="settings-row-left">
+                      <div class="settings-row-icon yellow"><i class="fa-solid fa-bell"></i></div>
+                      <div class="settings-row-text">
+                        <div class="settings-row-title">Alert Display Style</div>
+                        <div class="settings-row-sub">Choose how watchlist alerts appear</div>
+                      </div>
+                    </div>
+                    <div class="radio-group" style="width:100%">
+                      <button class="radio-btn active" id="watchStyleBar" onclick="setWatchlistStyle('bar')">
+                        <span class="radio-dot"></span> Slide-down Bar
+                      </button>
+                      <button class="radio-btn" id="watchStyleToast" onclick="setWatchlistStyle('toast')">
+                        <span class="radio-dot"></span> Toast Notification
+                      </button>
+                      <button class="radio-btn" id="watchStyleBoth" onclick="setWatchlistStyle('both')">
+                        <span class="radio-dot"></span> Both
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Panel Sounds -->
+            <div class="card">
+              <h3><i class="fa-solid fa-volume-high" style="color:var(--accent-light)"></i> Panel Sounds</h3>
+              <p>Audio feedback for panel events and interactions.</p>
+              <div class="grid cols-2" style="margin-top:14px">
+                <div class="settings-row">
+                  <div class="settings-row-left">
+                    <div class="settings-row-icon purple"><i class="fa-solid fa-volume-high"></i></div>
+                    <div class="settings-row-text">
+                      <div class="settings-row-title">Sound Effects</div>
+                      <div class="settings-row-sub">Enable audio feedback for events</div>
+                    </div>
+                  </div>
+                  <button class="toggle on" id="soundsEnabled" onclick="togglePanelSounds()"><span class="toggle-thumb"></span></button>
+                </div>
+                <div class="settings-row">
+                  <div class="settings-row-left">
+                    <div class="settings-row-icon blue"><i class="fa-solid fa-sliders"></i></div>
+                    <div class="settings-row-text">
+                      <div class="settings-row-title">Volume</div>
+                      <div class="settings-row-sub" id="volumeHint">50%</div>
+                    </div>
+                  </div>
+                  <input type="range" min="0" max="100" value="50" id="volumeSlider" onchange="setVolume(this.value)" style="width:120px;accent-color:var(--primary)">
+                </div>
+              </div>
+            </div>
+
+            <!-- Device Trust & Auto Sign-in -->
+            <div class="card">
+              <h3><i class="fa-solid fa-shield-check" style="color:var(--good)"></i> Device Trust</h3>
+              <p>Automatically sign in from trusted devices.</p>
+              <div class="settings-row" style="margin-top:14px">
+                <div class="settings-row-left">
+                  <div class="settings-row-icon green"><i class="fa-solid fa-mobile-screen"></i></div>
+                  <div class="settings-row-text">
+                    <div class="settings-row-title">Auto Sign-in</div>
+                    <div class="settings-row-sub">Remember this device and sign in automatically</div>
+                  </div>
+                </div>
+                <button class="toggle" id="deviceTrustEnabled" onclick="toggleDeviceTrust()"><span class="toggle-thumb"></span></button>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- Messages Page -->
+        <section class="page" id="page-messages">
+          <div class="page-head">
+            <div class="page-title">
+              <h1>Messages &amp; Localization</h1>
+              <p>Configure plugin messages and language settings.</p>
+            </div>
+            <button class="btn" onclick="resetLang()"><i class="fa-solid fa-rotate-left"></i> Reset to Default</button>
+          </div>
+          
+          <div class="panel pad">
+            <div class="toolbar" style="margin-top:0">
+              <div class="left">
+                <select class="input" id="langSelect" onchange="setLanguage(this.value)" style="width:180px">
+                  <option value="en_US">English (US)</option>
+                  <option value="es_ES">Español</option>
+                  <option value="de_DE">Deutsch</option>
+                </select>
+                <div class="gsearch" style="width:100%;max-width:400px">
+                  <i class="fa-solid fa-magnifying-glass"></i>
+                  <input type="text" id="msgSearch" placeholder="Search message keys...">
+                </div>
+              </div>
+            </div>
+            
+            <div class="grid cols-2" style="margin-top:20px">
+              <div class="card" style="margin:0">
+                <h3><i class="fa-solid fa-list" style="color:var(--primary-light)"></i> Message Keys</h3>
+                <div class="table-wrap" style="margin-top:12px;max-height:400px;overflow:auto">
+                  <table>
+                    <thead><tr><th>Key</th><th>Value</th></tr></thead>
+                    <tbody id="msgRows"></tbody>
+                  </table>
+                </div>
+              </div>
+              
+              <div class="card" style="margin:0">
+                <h3><i class="fa-solid fa-eye" style="color:var(--accent-light)"></i> Ban Screen Preview</h3>
+                <pre id="banPreview" style="margin-top:12px;padding:16px;background:rgba(0,0,0,.3);border-radius:var(--radius);font-family:var(--font-mono);font-size:12px;white-space:pre-wrap;color:var(--text-secondary);border:1px solid var(--border)"></pre>
+              </div>
+            </div>
+          </div>
+        </section>
+        
+        <!-- Actions Page (renamed from Settings) -->
+        <section class="page" id="page-actions">
+          <div class="page-head">
+            <div class="page-title">
+              <h1>Server Actions</h1>
+              <p>Immediate server controls, chat management, and global actions.</p>
+            </div>
+          </div>
+
+          <div class="panel pad">
+            <div class="grid cols-3">
+              <div class="card" style="margin:0">
+                <h3><i class="fa-solid fa-lock" style="color:var(--bad)"></i> Chat Lockdown</h3>
+                <p>Disable chat for all non-staff players.</p>
+                <div class="toggle-wrap" style="margin-top:14px">
+                  <button class="toggle" id="togChat" onclick="toggleSetting('chatDisabled')"><span class="toggle-thumb"></span></button>
+                  <div class="toggle-meta">
+                    <div class="toggle-title">Chat Disabled</div>
+                    <div class="toggle-sub" id="togChatHint">Off</div>
+                  </div>
+                </div>
+              </div>
+
+              <div class="card" style="margin:0">
+                <h3><i class="fa-solid fa-hourglass-half" style="color:var(--warn)"></i> Slowmode</h3>
+                <p>Limit message frequency for all players.</p>
+                <div class="toggle-wrap" style="margin-top:14px">
+                  <button class="toggle" id="togSlow" onclick="toggleSetting('slowEnabled')"><span class="toggle-thumb"></span></button>
+                  <div class="toggle-meta">
+                    <div class="toggle-title">Slowmode Enabled</div>
+                    <div class="toggle-sub" id="togSlowHint">On</div>
+                  </div>
+                </div>
+                <div class="block" style="margin-top:10px">
+                  <input type="number" class="input" id="slowSeconds" value="3" min="1" max="120" style="width:120px">
+                  <span style="font-size:13px;color:var(--text-secondary)">seconds</span>
+                </div>
+              </div>
+
+              <div class="card" style="margin:0">
+                <h3><i class="fa-solid fa-broom" style="color:var(--ok)"></i> Clear Chat</h3>
+                <p>Remove all visible messages from chat.</p>
+                <div class="block" style="margin-top:14px">
+                  <button class="btn bad" onclick="clearChatNow()"><i class="fa-solid fa-trash"></i> Clear Now</button>
+                </div>
+              </div>
+            </div>
+
+            <!-- Kick All Section -->
+            <div class="card" style="margin-top:20px">
+              <h3><i class="fa-solid fa-person-walking-arrow-right" style="color:var(--warn)"></i> Kick All Players</h3>
+              <p>Immediately disconnect all players from the server (excluding yourself).</p>
+              <div style="margin-top:14px">
+                <div class="hintline" style="margin-top:0">Kick Reason (visible to players)</div>
+                <input type="text" class="input" id="kickAllReason" placeholder="Server maintenance" value="Server maintenance" style="max-width:500px">
+              </div>
+              <div class="block" style="margin-top:12px">
+                <button class="btn bad" onclick="kickAllPlayers()"><i class="fa-solid fa-people-group"></i> Kick All Players</button>
+                <span style="font-size:13px;color:var(--text-secondary);margin-left:12px">
+                  <i class="fa-solid fa-triangle-exclamation"></i> This will not be recorded as a punishment
+                </span>
+              </div>
+            </div>
+
+            <div class="grid cols-2" style="margin-top:20px">
+              <div class="card" style="margin:0">
+                <h3><i class="fa-solid fa-triangle-exclamation" style="color:var(--warn)"></i> Warn Settings</h3>
+                <p>Configure how warning events are surfaced to staff.</p>
+                <div class="toggle-wrap" style="margin-top:14px">
+                  <button class="toggle" id="warnNotifyToggle" onclick="toggleSetting('warnNotify')"><span class="toggle-thumb"></span></button>
+                  <div class="toggle-meta">
+                    <div class="toggle-title">Notify on Warn</div>
+                    <div class="toggle-sub" id="warnNotifyHint">On</div>
+                  </div>
+                </div>
+                <div class="toggle-wrap" style="margin-top:12px">
+                  <button class="toggle" id="warnEscalateToggle" onclick="toggleSetting('warnAutoEscalate')"><span class="toggle-thumb"></span></button>
+                  <div class="toggle-meta">
+                    <div class="toggle-title">Auto Escalate</div>
+                    <div class="toggle-sub" id="warnEscalateHint">Off</div>
+                  </div>
+                </div>
+              </div>
+
+              <div class="card" style="margin:0">
+                <h3><i class="fa-solid fa-volume-xmark" style="color:var(--primary-light)"></i> Mute Settings</h3>
+                <p>Define what muted players can do.</p>
+                <div class="grid cols-2" style="margin-top:14px">
+                  <div class="toggle-wrap">
+                    <button class="toggle" id="muteChatToggle" onclick="toggleSetting('muteChat')"><span class="toggle-thumb"></span></button>
+                    <div class="toggle-meta"><div class="toggle-title">Chat</div></div>
+                  </div>
+                  <div class="toggle-wrap">
+                    <button class="toggle" id="muteMsgToggle" onclick="toggleSetting('muteMsg')"><span class="toggle-thumb"></span></button>
+                    <div class="toggle-meta"><div class="toggle-title">/msg &amp; Whisper</div></div>
+                  </div>
+                  <div class="toggle-wrap">
+                    <button class="toggle" id="muteSignsToggle" onclick="toggleSetting('muteSigns')"><span class="toggle-thumb"></span></button>
+                    <div class="toggle-meta"><div class="toggle-title">Signs</div></div>
+                  </div>
+                  <div class="toggle-wrap">
+                    <button class="toggle" id="muteBooksToggle" onclick="toggleSetting('muteBooks')"><span class="toggle-thumb"></span></button>
+                    <div class="toggle-meta"><div class="toggle-title">Books</div></div>
+                  </div>
+                  <div class="toggle-wrap">
+                    <button class="toggle" id="muteBroadcastToggle" onclick="toggleSetting('muteBroadcast')"><span class="toggle-thumb"></span></button>
+                    <div class="toggle-meta"><div class="toggle-title">Broadcast</div></div>
+                  </div>
+                  <div class="toggle-wrap">
+                    <button class="toggle" id="muteVoiceToggle" onclick="toggleSetting('muteVoice')"><span class="toggle-thumb"></span></button>
+                    <div class="toggle-meta"><div class="toggle-title">Voice Chat</div></div>
+                  </div>
+                  <div class="toggle-wrap">
+                    <button class="toggle" id="muteVoiceJoinToggle" onclick="toggleSetting('muteVoiceJoin')"><span class="toggle-thumb"></span></button>
+                    <div class="toggle-meta"><div class="toggle-title">Voice Join</div></div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div class="card" style="margin-top:20px">
+              <h3><i class="fa-solid fa-shield-halved" style="color:var(--accent-light)"></i> Anticheat Integration</h3>
+              <p>Replace anticheat alerts with ModereX alerts.</p>
+              <div class="toggle-wrap" style="margin-top:12px">
+                <button class="toggle" id="anticheatReplaceToggle" onclick="toggleSetting('anticheatReplace')"><span class="toggle-thumb"></span></button>
+                <div class="toggle-meta">
+                  <div class="toggle-title">Replace Anticheat Alerts</div>
+                  <div class="toggle-sub" id="anticheatReplaceHint">Off</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- Anticheat Page -->
+        <section class="page" id="page-anticheat">
+          <div class="page-head">
+            <div class="page-title">
+              <h1>Anticheat Alerts</h1>
+              <p>Configure Grim alert routing and ModereX thresholds.</p>
+            </div>
+          </div>
+
+          <div class="panel pad">
+            <div class="card" id="anticheatDisabledCard" style="margin:0;display:none">
+              <h3><i class="fa-solid fa-shield-halved" style="color:var(--warn)"></i> Anticheat Alerts Disabled</h3>
+              <p>Enable “Replace Anticheat Alerts” in Settings to configure alert routing.</p>
+              <a href="#" onclick="go('settings')" style="color:var(--primary-light);font-size:13px">Open Settings</a>
+            </div>
+
+            <div id="anticheatConfig">
+              <div class="toolbar" style="margin-top:0">
+                <div class="left">
+                  <div class="gsearch" style="width:100%;max-width:420px">
+                    <i class="fa-solid fa-magnifying-glass"></i>
+                    <input type="text" id="anticheatSearch" placeholder="Search alert types...">
+                  </div>
+                </div>
+                <div class="right">
+                  <span class="badge purple"><i class="fa-solid fa-shield-halved"></i> Grim</span>
+                </div>
+              </div>
+
+              <div class="table-wrap" style="margin-top:16px;max-height:520px;overflow:auto">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>Alert</th>
+                      <th>Chat Alerts</th>
+                      <th>Toast Alerts</th>
+                      <th>Threshold</th>
+                      <th>Auto Punish</th>
+                    </tr>
+                  </thead>
+                  <tbody id="anticheatRows"></tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        </section>
+        
+        <!-- Integrations Page -->
+        <section class="page" id="page-integrations">
+          <div class="page-head">
+            <div class="page-title">
+              <h1>Integrations</h1>
+              <p>External plugin connections and third-party services.</p>
+            </div>
+          </div>
+
+          <div class="panel pad">
+            <!-- Permissions Integration -->
+            <div class="card" style="margin:0">
+              <h3><i class="fa-solid fa-user-shield" style="color:var(--accent-light)"></i> LuckPerms</h3>
+              <p>Permission management and group prefix/suffix display.</p>
+              <div style="margin-top:14px">
+                <div class="hintline">Status: <span class="badge" id="luckPermsStatus">Loading...</span></div>
+                <div id="luckPermsDetails" style="margin-top:8px;color:var(--text-secondary);font-size:13px"></div>
+              </div>
+            </div>
+
+            <!-- Anticheat Integrations -->
+            <div class="card">
+              <h3><i class="fa-solid fa-shield-halved" style="color:var(--warn)"></i> Anticheat Plugins</h3>
+              <p>Detected anticheat plugins with alert integration.</p>
+              <div id="anticheatList" style="margin-top:14px"></div>
+            </div>
+
+            <!-- Moderation Plugin Integrations -->
+            <div class="card">
+              <h3><i class="fa-solid fa-gavel" style="color:var(--primary-light)"></i> Moderation Plugins</h3>
+              <p>Import punishment history from other moderation plugins.</p>
+              <div id="moderationPluginsList" style="margin-top:14px"></div>
+            </div>
+
+            <!-- Discord Webhook -->
+            <div class="card">
+              <h3><i class="fa-brands fa-discord" style="color:#5865F2"></i> Discord Webhook</h3>
+              <p>Send moderation notifications to a Discord channel.</p>
+              <div style="margin-top:14px">
+                <div class="hintline" style="margin-top:0">Webhook URL</div>
+                <input type="text" class="input" id="discordWebhook" placeholder="https://discord.com/api/webhooks/...">
+              </div>
+              <div class="grid cols-2" style="margin-top:14px" id="webhookToggles"></div>
+              <div class="block" style="margin-top:14px">
+                <button class="btn primary" onclick="saveIntegrations()"><i class="fa-solid fa-floppy-disk"></i> Save</button>
+                <button class="btn" onclick="testWebhook()"><i class="fa-solid fa-paper-plane"></i> Test Webhook</button>
+              </div>
+            </div>
+
+            <!-- Other Integrations -->
+            <div class="grid cols-2">
+              <div class="card" style="margin:0">
+                <h3><i class="fa-solid fa-microphone" style="color:var(--primary-light)"></i> Simple Voice Chat</h3>
+                <p>Sync voice events with ModereX mute controls.</p>
+                <div class="hintline">Status: <span class="badge gray" id="voiceChatStatus">Not detected</span></div>
+              </div>
+
+              <div class="card" style="margin:0">
+                <h3><i class="fa-solid fa-plug" style="color:var(--good)"></i> Placeholder API</h3>
+                <p>Placeholder expansion for other plugins.</p>
+                <div class="hintline">Status: <span class="badge gray" id="placeholderAPIStatus">Not detected</span></div>
+              </div>
+            </div>
+          </div>
+        </section>
+        
+      </div>
+    </main>
+  </div>
+  
+  <!-- Player Drawer -->
+  <div class="drawerOverlay" id="drawerOverlay" onclick="closeDrawer()"></div>
+  <div class="drawer" id="playerDrawer">
+    <div class="drawer-top">
+      <div class="left player-profile">
+        <div class="phead" style="width:42px;height:42px"><img id="drawerAvatar" src="" alt=""></div>
+        <div>
+          <b id="drawerName">Player</b>
+          <div id="drawerMeta" style="font-size:11px;color:var(--text-secondary);margin-top:2px"></div>
+        </div>
+      </div>
+      <div style="display:flex;gap:10px;align-items:center">
+        <div class="toggle-wrap">
+          <button class="toggle" id="watchToggleBtn" onclick="toggleWatchlistSelected()" aria-pressed="false">
+            <span class="toggle-thumb"></span>
+          </button>
+          <div class="toggle-meta">
+            <div class="toggle-title">Watchlist</div>
+            <div class="toggle-sub" id="watchToggleHint">Not watching</div>
+          </div>
+        </div>
+        <button class="mini" onclick="closeDrawer()"><i class="fa-solid fa-xmark"></i></button>
+      </div>
+    </div>
+    <div class="drawer-actionbar" id="drawerActionBar"></div>
+    <div class="drawer-body">
+      <div class="drawer-sec">
+        <h3>Active Punishments</h3>
+        <div class="box" id="drawerActivePun"></div>
+      </div>
+      <div class="drawer-sec">
+        <h3>Past Violations</h3>
+        <div class="box" id="drawerViolations"></div>
+      </div>
+      <div class="drawer-sec">
+        <h3>Pardons</h3>
+        <div class="box" id="drawerPardons"></div>
+      </div>
+      <div class="drawer-sec">
+        <h3>IP Information</h3>
+        <div class="box" id="drawerIps"></div>
+      </div>
+      <div class="drawer-sec">
+        <h3>Recent Commands</h3>
+        <div class="box" id="drawerRecent"></div>
+      </div>
+      <div class="drawer-sec">
+        <h3>Automod Logs</h3>
+        <div class="box" id="drawerAutomod"></div>
+      </div>
+    </div>
+  </div>
+  
+  <!-- Punish Modal -->
+  <div class="overlay" id="punishOverlay">
+      <div class="modal punish-modal" onclick="event.stopPropagation()">
+        <div class="modal-top">
+          <div style="display:flex;align-items:center;gap:10px">
+            <i class="fa-solid fa-gavel" style="color:var(--warn)"></i>
+          <b id="punishTitle">Punish Player</b>
+          </div>
+          <button class="mini" onclick="closePunishModal()"><i class="fa-solid fa-xmark"></i></button>
+        </div>
+        <div class="modal-body">
+        <div class="grid cols-2" style="margin-top:0">
+          <div>
+            <div class="hintline" style="margin-top:0">Punishment</div>
+            <select class="input" id="punishTypeSelect">
+              <option value="WARN">Warn</option>
+              <option value="MUTE">Mute</option>
+              <option value="BAN">Ban</option>
+              <option value="KICK">Kick</option>
+            </select>
+          </div>
+          <div>
+            <div class="hintline" style="margin-top:0">Target Player</div>
+            <select class="input" id="punishTarget"></select>
+          </div>
+        </div>
+
+        <div class="grid cols-2" style="margin-top:12px">
+          <div>
+            <div class="hintline" style="margin-top:0">Template</div>
+            <select class="input" id="punishTemplate"></select>
+          </div>
+          <div>
+            <div class="hintline" style="margin-top:0">Duration</div>
+            <input type="text" class="input" id="punishDuration" placeholder="e.g. 7d, 1h, perm">
+          </div>
+        </div>
+        
+        <div style="margin-top:16px">
+          <div class="hintline" style="margin-top:0">Reason</div>
+          <textarea class="input" id="punishReason" placeholder="Enter reason for punishment..." rows="2"></textarea>
+        </div>
+        
+        <div style="margin-top:16px">
+          <div class="hintline" style="margin-top:0">Attach Evidence</div>
+          <select class="input" id="punishEvidencePick">
+            <option value="">(none)</option>
+          </select>
+          <div class="card" id="punishEvidencePreview" style="max-height:160px;overflow:auto">
+            <span style="color:var(--muted)">No evidence attached.</span>
+          </div>
+        </div>
+      </div>
+      <div class="modal-foot">
+        <span class="badge gray"><i class="fa-solid fa-circle-info"></i> Review before submitting</span>
+        <div style="display:flex;gap:10px">
+          <button class="btn ghost" onclick="closePunishModal()"><i class="fa-solid fa-xmark"></i> Cancel</button>
+          <button class="btn primary" onclick="submitPunishment()"><i class="fa-solid fa-check"></i> Execute</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Punish Create Modal -->
+  <div class="overlay" id="punishCreateOverlay">
+    <div class="modal punish-modal" onclick="event.stopPropagation()">
+      <div class="modal-top">
+        <div style="display:flex;align-items:center;gap:10px">
+          <i class="fa-solid fa-gavel" style="color:var(--warn)"></i>
+          <b id="punishCreateTitle">WARN -= Select Player</b>
+        </div>
+        <button class="mini" onclick="closePunishCreateModal()"><i class="fa-solid fa-xmark"></i></button>
+      </div>
+      <div class="modal-body">
+        <div>
+          <div class="hintline" style="margin-top:0">Target Player</div>
+          <div class="combo">
+            <input type="text" class="input" id="punishCreatePlayer" placeholder="Type a player name...">
+            <div class="combo-list" id="punishCreateList"></div>
+          </div>
+        </div>
+
+        <div class="grid cols-2" style="margin-top:12px">
+          <div>
+            <div class="hintline" style="margin-top:0">Punishment</div>
+            <select class="input" id="punishCreateType">
+              <option value="WARN">Warn</option>
+              <option value="MUTE">Mute</option>
+              <option value="BAN">Ban</option>
+              <option value="KICK">Kick</option>
+            </select>
+          </div>
+          <div>
+            <div class="hintline" style="margin-top:0">Template</div>
+            <select class="input" id="punishCreateTemplate"></select>
+          </div>
+        </div>
+
+        <div style="margin-top:12px">
+          <div class="hintline" style="margin-top:0">Duration</div>
+          <input type="text" class="input" id="punishCreateDuration" placeholder="e.g. 7d, 1h, perm">
+        </div>
+
+        <div style="margin-top:16px">
+          <div class="hintline" style="margin-top:0">Reason</div>
+          <textarea class="input" id="punishCreateReason" placeholder="Enter reason for punishment..." rows="2"></textarea>
+        </div>
+
+        <div style="margin-top:16px">
+          <div class="hintline" style="margin-top:0">Attach Evidence</div>
+          <select class="input" id="punishCreateEvidencePick">
+            <option value="">(none)</option>
+          </select>
+          <div class="card" id="punishCreateEvidencePreview" style="max-height:160px;overflow:auto">
+            <span style="color:var(--muted)">No evidence attached.</span>
+          </div>
+        </div>
+      </div>
+      <div class="modal-foot">
+        <span class="badge gray"><i class="fa-solid fa-circle-info"></i> Review before submitting</span>
+        <div style="display:flex;gap:10px">
+          <button class="btn ghost" onclick="closePunishCreateModal()"><i class="fa-solid fa-xmark"></i> Cancel</button>
+          <button class="btn primary" onclick="submitPunishCreate()"><i class="fa-solid fa-check"></i> Execute</button>
+        </div>
+      </div>
+    </div>
+  </div>
+  
+  <!-- Details Modal -->
+  <div class="overlay" id="detailsOverlay">
+    <div class="modal" onclick="event.stopPropagation()">
+      <div class="modal-top">
+        <div style="display:flex;align-items:center;gap:10px">
+          <i class="fa-solid fa-file-lines" style="color:var(--primary-light)"></i>
+          <b>Punishment Details</b>
+          <span class="badge gray" id="detailsCaseId"><i class="fa-solid fa-hashtag"></i> --------</span>
+        </div>
+        <button class="mini" onclick="closeDetailsModal()"><i class="fa-solid fa-xmark"></i></button>
+      </div>
+      <div class="modal-body" id="detailsBody"></div>
+      <div class="modal-foot">
+        <span class="badge gray"><i class="fa-solid fa-circle-info"></i> Case Information</span>
+        <div style="display:flex;gap:10px" id="detailsActions">
+          <button class="btn ghost" onclick="closeDetailsModal()"><i class="fa-solid fa-xmark"></i> Close</button>
+        </div>
+      </div>
+    </div>
+  </div>
+  
+  <!-- Wizard Modal -->
+  <div class="overlay" id="wizardOverlay">
+    <div class="modal" style="max-width:640px" onclick="event.stopPropagation()">
+      <div class="modal-top">
+        <div style="display:flex;align-items:center;gap:10px">
+          <i class="fa-solid fa-wand-magic-sparkles" style="color:var(--accent-light)"></i>
+          <b>Setup Wizard</b>
+          <span class="badge gray" id="wizStepChip"><i class="fa-solid fa-list-check"></i> Step 1/5</span>
+        </div>
+        <button class="mini" onclick="closeWizard()"><i class="fa-solid fa-xmark"></i></button>
+      </div>
+      <div class="modal-body" id="wizardBody"></div>
+      <div class="modal-foot">
+        <span class="badge gray" id="wizardHint"><i class="fa-solid fa-circle-info"></i> Configuration</span>
+        <div style="display:flex;gap:10px">
+          <button class="btn ghost" onclick="wizardBack()"><i class="fa-solid fa-arrow-left"></i> Back</button>
+          <button class="btn primary" onclick="wizardNext()"><i class="fa-solid fa-arrow-right"></i> Next</button>
+        </div>
+      </div>
+    </div>
+  </div>
+  
+  <!-- Support Button -->
+  <button class="fab" id="supportFab" onclick="openSupport()"><i class="fa-solid fa-headset"></i></button>
+
+  <!-- Automod Tester Panel -->
+  <div class="testerPanel" id="testerPanel">
+    <div class="testerTop">
+      <div style="display:flex;align-items:center;gap:10px">
+        <i class="fa-solid fa-flask" style="color:var(--accent-light)"></i>
+        <b>Automod Tester</b>
+      </div>
+      <button class="mini" onclick="toggleTesterPanel()"><i class="fa-solid fa-xmark"></i></button>
+    </div>
+    <div class="testerBody">
+      <div class="hintline" style="margin-top:0">Channel</div>
+      <select class="input" id="testChannel">
+        <option>global</option>
+        <option>trade</option>
+        <option>party</option>
+        <option>staff</option>
+      </select>
+      <div class="hintline">Test Message</div>
+      <div style="display:flex;gap:8px">
+        <input class="input" id="testMessage" placeholder="Enter test message...">
+        <button class="mini" onclick="seedTestMsg()"><i class="fa-solid fa-shuffle"></i></button>
+      </div>
+      <div class="block" style="margin-top:12px">
+        <button class="btn primary" onclick="runRuleTest()"><i class="fa-solid fa-play"></i> Run Test</button>
+        <button class="btn" onclick="saveRules()"><i class="fa-solid fa-floppy-disk"></i> Save Rules</button>
+      </div>
+      <div class="card" id="testResult" style="margin-top:12px">
+        <span style="color:var(--muted)">Enter a message and run the test to see matching rules.</span>
+      </div>
+    </div>
+  </div>
+  
+  <!-- Toast Container -->
+  <div id="toastContainer"></div>
+
+  <!-- Connect Overlay -->
+  <div class="overlay connect-overlay" id="connectOverlay">
+    <div class="connect-modal" onclick="event.stopPropagation()">
+      <div class="spinner"></div>
+      <div class="connect-title">Connecting to server...</div>
+      <div class="connect-sub">Establishing secure session</div>
+    </div>
+  </div>
+  
+  <!-- Scripts (load in order: utils -> state -> ui -> app -> extensions) -->
+  <script src="js/utils.js"></script>
+  <script src="js/websocket.js"></script>
+  <script src="js/state.js"></script>
+  <script src="js/ui.js"></script>
+  <script src="js/sounds.js"></script>
+  <script src="js/auth.js"></script>
+  <script src="js/app.js"></script>
+  <script src="js/status.js"></script>
+  <script src="js/extensions.js"></script>
+</body>
+</html>
