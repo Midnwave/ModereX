@@ -4,7 +4,7 @@ main: com.blockforge.moderex.ModereX
 api-version: '1.21'
 description: Advanced moderation plugin with GUI support, automod, and web panel integration
 authors:
-  - BlockForge
+  - BlockForge Studios
 website: https://github.com/blockforge/moderex
 
 dependencies:
@@ -18,51 +18,51 @@ dependencies:
       required: false
       join-classpath: true
     Grim:
-      load: AFTER
+      load: BEFORE
       required: false
       join-classpath: true
     Vulcan:
-      load: AFTER
+      load: BEFORE
       required: false
       join-classpath: true
     Matrix:
-      load: AFTER
+      load: BEFORE
       required: false
       join-classpath: true
     Spartan:
-      load: AFTER
+      load: BEFORE
       required: false
       join-classpath: true
     Intave:
-      load: AFTER
+      load: BEFORE
       required: false
       join-classpath: true
     Karhu:
-      load: AFTER
+      load: BEFORE
       required: false
       join-classpath: true
     Polar:
-      load: AFTER
+      load: BEFORE
       required: false
       join-classpath: true
     NoCheatPlus:
-      load: AFTER
+      load: BEFORE
       required: false
       join-classpath: true
     Essentials:
-      load: AFTER
+      load: BEFORE
       required: false
       join-classpath: true
     CMI:
-      load: AFTER
+      load: BEFORE
       required: false
       join-classpath: true
     LiteBans:
-      load: AFTER
+      load: BEFORE
       required: false
       join-classpath: true
     AdvancedBan:
-      load: AFTER
+      load: BEFORE
       required: false
       join-classpath: true
 
