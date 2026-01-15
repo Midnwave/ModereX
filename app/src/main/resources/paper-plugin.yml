@@ -1,0 +1,190 @@
+name: ModereX
+version: '${version}'
+main: com.blockforge.moderex.ModereX
+api-version: '1.21'
+description: Advanced moderation plugin with GUI support, automod, and web panel integration
+authors:
+  - BlockForge
+website: https://github.com/blockforge/moderex
+
+dependencies:
+  server:
+    LuckPerms:
+      load: BEFORE
+      required: false
+      join-classpath: true
+    PlaceholderAPI:
+      load: BEFORE
+      required: false
+      join-classpath: true
+    Grim:
+      load: AFTER
+      required: false
+      join-classpath: true
+    Vulcan:
+      load: AFTER
+      required: false
+      join-classpath: true
+    Matrix:
+      load: AFTER
+      required: false
+      join-classpath: true
+    Spartan:
+      load: AFTER
+      required: false
+      join-classpath: true
+    Intave:
+      load: AFTER
+      required: false
+      join-classpath: true
+    Karhu:
+      load: AFTER
+      required: false
+      join-classpath: true
+    Polar:
+      load: AFTER
+      required: false
+      join-classpath: true
+    NoCheatPlus:
+      load: AFTER
+      required: false
+      join-classpath: true
+    Essentials:
+      load: AFTER
+      required: false
+      join-classpath: true
+    CMI:
+      load: AFTER
+      required: false
+      join-classpath: true
+    LiteBans:
+      load: AFTER
+      required: false
+      join-classpath: true
+    AdvancedBan:
+      load: AFTER
+      required: false
+      join-classpath: true
+
+permissions:
+  moderex.command.*:
+    description: Access to all ModereX commands
+    default: op
+    children:
+      - moderex.command.mute
+      - moderex.command.unmute
+      - moderex.command.ban
+      - moderex.command.unban
+      - moderex.command.ipban
+      - moderex.command.kick
+      - moderex.command.kickall
+      - moderex.command.warn
+      - moderex.command.clearwarnings
+      - moderex.command.punish
+      - moderex.command.modlog
+      - moderex.command.staffchat
+      - moderex.command.vanish
+      - moderex.command.cmdblacklist
+      - moderex.command.cmdunblacklist
+      - moderex.command.cmdhistory
+      - moderex.command.admin
+  moderex.command.mute:
+    description: Mute players
+    default: op
+  moderex.command.unmute:
+    description: Unmute players
+    default: op
+  moderex.command.ban:
+    description: Ban players
+    default: op
+  moderex.command.unban:
+    description: Unban players
+    default: op
+  moderex.command.ipban:
+    description: IP ban players
+    default: op
+  moderex.command.kick:
+    description: Kick players
+    default: op
+  moderex.command.kickall:
+    description: Kick all players from the server
+    default: op
+  moderex.command.warn:
+    description: Warn players
+    default: op
+  moderex.command.clearwarnings:
+    description: Clear player warnings
+    default: op
+  moderex.command.punish:
+    description: Open punishment GUI
+    default: op
+  moderex.command.modlog:
+    description: View moderation logs
+    default: op
+  moderex.command.staffchat:
+    description: Use staff chat
+    default: op
+  moderex.command.staffhelp:
+    description: Request staff help
+    default: true
+  moderex.command.vanish:
+    description: Toggle vanish
+    default: op
+  moderex.command.cmdblacklist:
+    description: Blacklist commands for players
+    default: op
+  moderex.command.cmdunblacklist:
+    description: Remove command blacklists
+    default: op
+  moderex.command.cmdhistory:
+    description: View command history
+    default: op
+  moderex.command.admin:
+    description: Access /mx admin commands
+    default: op
+  moderex.bypass.*:
+    description: Bypass all restrictions
+    default: op
+    children:
+      - moderex.bypass.mute
+      - moderex.bypass.slowmode
+      - moderex.bypass.chatdisable
+      - moderex.bypass.automod
+  moderex.bypass.mute:
+    description: Chat while muted
+    default: false
+  moderex.bypass.slowmode:
+    description: Bypass chat slowmode
+    default: op
+  moderex.bypass.chatdisable:
+    description: Chat when disabled
+    default: op
+  moderex.bypass.automod:
+    description: Bypass automod filters
+    default: op
+  moderex.notify.*:
+    description: Receive all notifications
+    default: op
+    children:
+      - moderex.notify.punishments
+      - moderex.notify.automod
+      - moderex.notify.anticheat
+      - moderex.notify.staffchat
+  moderex.notify.punishments:
+    description: See punishment broadcasts
+    default: op
+  moderex.notify.automod:
+    description: See automod alerts
+    default: op
+  moderex.notify.anticheat:
+    description: See anticheat alerts
+    default: op
+  moderex.notify.staffchat:
+    description: Access staff chat
+    default: op
+  moderex.admin:
+    description: Access admin features
+    default: op
+  moderex.webpanel:
+    description: Connect to web panel
+    default: op

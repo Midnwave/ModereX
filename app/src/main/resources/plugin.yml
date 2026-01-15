@@ -1,0 +1,209 @@
+name: ModereX
+version: '${version}'
+main: com.blockforge.moderex.ModereX
+api-version: '1.21'
+description: Advanced moderation plugin with GUI support, automod, and web panel integration
+author: BlockForge
+website: https://github.com/blockforge/moderex
+softdepend:
+  - LuckPerms
+  - PlaceholderAPI
+  - Grim
+  - Vulcan
+  - Matrix
+  - Spartan
+  - Intave
+  - Karhu
+  - Polar
+  - NoCheatPlus
+
+commands:
+  moderex:
+    description: Main ModereX command
+    usage: /<command> [subcommand]
+    aliases: [mx]
+  mute:
+    description: Mute a player
+    usage: /<command> <player> [duration] [reason]
+    permission: moderex.command.mute
+  unmute:
+    description: Unmute a player
+    usage: /<command> <player> [reason]
+    permission: moderex.command.unmute
+  ban:
+    description: Ban a player
+    usage: /<command> <player> [duration] [reason]
+    permission: moderex.command.ban
+  unban:
+    description: Unban a player
+    usage: /<command> <player> [reason]
+    permission: moderex.command.unban
+  ipban:
+    description: IP ban a player
+    usage: /<command> <player> [duration] [reason]
+    permission: moderex.command.ipban
+  kick:
+    description: Kick a player
+    usage: /<command> <player> [reason]
+    permission: moderex.command.kick
+  warn:
+    description: Warn a player
+    usage: /<command> <player> [duration] [reason]
+    permission: moderex.command.warn
+  clearwarnings:
+    description: Clear all warnings for a player
+    usage: /<command> <player>
+    permission: moderex.command.clearwarnings
+  punish:
+    description: Open punishment GUI
+    usage: /<command> [player]
+    permission: moderex.command.punish
+  modlog:
+    description: View moderation log for a player
+    usage: /<command> <player> [filter]
+    permission: moderex.command.modlog
+  staffchat:
+    description: Staff chat toggle or message
+    usage: /<command> <on|off|message>
+    aliases: [sc]
+    permission: moderex.command.staffchat
+  staffhelp:
+    description: Request help from staff
+    usage: /<command>
+    permission: moderex.command.staffhelp
+  vanish:
+    description: Toggle vanish mode
+    usage: /<command>
+    aliases: [v]
+    permission: moderex.command.vanish
+  cmdblacklist:
+    description: Blacklist a command for a player
+    usage: /<command> <player> <command> [duration]
+    permission: moderex.command.cmdblacklist
+  cmdunblacklist:
+    description: Remove command blacklist from a player
+    usage: /<command> <player> <command>
+    permission: moderex.command.cmdunblacklist
+  cmdhistory:
+    description: View command history for a player
+    usage: /<command> <player> [page]
+    permission: moderex.command.cmdhistory
+
+permissions:
+  moderex.command.*:
+    description: Access to all ModereX commands
+    default: op
+    children:
+      moderex.command.mute: true
+      moderex.command.unmute: true
+      moderex.command.ban: true
+      moderex.command.unban: true
+      moderex.command.ipban: true
+      moderex.command.kick: true
+      moderex.command.warn: true
+      moderex.command.clearwarnings: true
+      moderex.command.punish: true
+      moderex.command.modlog: true
+      moderex.command.staffchat: true
+      moderex.command.vanish: true
+      moderex.command.cmdblacklist: true
+      moderex.command.cmdunblacklist: true
+      moderex.command.cmdhistory: true
+      moderex.command.admin: true
+  moderex.command.mute:
+    description: Mute players
+    default: op
+  moderex.command.unmute:
+    description: Unmute players
+    default: op
+  moderex.command.ban:
+    description: Ban players
+    default: op
+  moderex.command.unban:
+    description: Unban players
+    default: op
+  moderex.command.ipban:
+    description: IP ban players
+    default: op
+  moderex.command.kick:
+    description: Kick players
+    default: op
+  moderex.command.warn:
+    description: Warn players
+    default: op
+  moderex.command.clearwarnings:
+    description: Clear player warnings
+    default: op
+  moderex.command.punish:
+    description: Open punishment GUI
+    default: op
+  moderex.command.modlog:
+    description: View moderation logs
+    default: op
+  moderex.command.staffchat:
+    description: Use staff chat
+    default: op
+  moderex.command.staffhelp:
+    description: Request staff help
+    default: true
+  moderex.command.vanish:
+    description: Toggle vanish
+    default: op
+  moderex.command.cmdblacklist:
+    description: Blacklist commands for players
+    default: op
+  moderex.command.cmdunblacklist:
+    description: Remove command blacklists
+    default: op
+  moderex.command.cmdhistory:
+    description: View command history
+    default: op
+  moderex.command.admin:
+    description: Access /mx admin commands
+    default: op
+  moderex.bypass.*:
+    description: Bypass all restrictions
+    default: op
+    children:
+      moderex.bypass.mute: true
+      moderex.bypass.slowmode: true
+      moderex.bypass.chatdisable: true
+      moderex.bypass.automod: true
+  moderex.bypass.mute:
+    description: Chat while muted
+    default: false
+  moderex.bypass.slowmode:
+    description: Bypass chat slowmode
+    default: op
+  moderex.bypass.chatdisable:
+    description: Chat when disabled
+    default: op
+  moderex.bypass.automod:
+    description: Bypass automod filters
+    default: op
+  moderex.notify.*:
+    description: Receive all notifications
+    default: op
+    children:
+      moderex.notify.punishments: true
+      moderex.notify.automod: true
+      moderex.notify.anticheat: true
+      moderex.notify.staffchat: true
+  moderex.notify.punishments:
+    description: See punishment broadcasts
+    default: op
+  moderex.notify.automod:
+    description: See automod alerts
+    default: op
+  moderex.notify.anticheat:
+    description: See anticheat alerts
+    default: op
+  moderex.notify.staffchat:
+    description: Access staff chat
+    default: op
+  moderex.admin:
+    description: Access admin features
+    default: op
+  moderex.webpanel:
+    description: Connect to web panel
+    default: op

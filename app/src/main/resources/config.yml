@@ -1,0 +1,236 @@
+#        __  ___          __              _  __
+#       /  |/  /___  ____/ /__  ________ | |/ /
+#      / /|_/ / __ \/ __  / _ \/ ___/ _ \|   / 
+#     / /  / / /_/ / /_/ /  __/ /  /  __/   |  
+#    /_/  /_/\____/\__,_/\___/_/   \___/_/|_|  
+#                                              
+# ModereX Configuration
+# Advanced Moderation Plugin for Minecraft 1.21+
+
+# Configuration version - DO NOT MODIFY
+config-version: 5
+
+# ============================================
+# GENERAL SETTINGS
+# ============================================
+general:
+  # Default language (en_US, es_ES, de_DE, fr_FR, pt_BR, zh_CN)
+  language: en_US
+
+  # Timezone for date/time display (e.g., America/Chicago, UTC, Europe/London)
+  timezone: America/Chicago
+
+  # Enable debug mode for verbose logging
+  debug: false
+
+  # Use 1.21.6+ dialog system instead of chest GUIs when available
+  dialogs-enabled: true
+
+# ============================================
+# DATABASE SETTINGS
+# ============================================
+database:
+  # Database type: sqlite or mysql
+  type: sqlite
+
+  # MySQL settings (only used if type is mysql)
+  mysql:
+    host: localhost
+    port: 3306
+    database: moderex
+    username: root
+    password: ''
+    # Connection pool size
+    pool-size: 10
+
+# ============================================
+# WEB PANEL SETTINGS
+# ============================================
+webpanel:
+  # Enable web panel server (HTTP + WebSocket on same port)
+  enabled: false
+
+  # Server port for the web panel (serves both HTTP and WebSocket)
+  # Access the panel at: http://localhost:8080/
+  port: 8080
+
+  # Public host/IP for clients to connect (leave empty to auto-detect)
+  # Set this if your server is behind a proxy or has a custom domain
+  host: ''
+
+  # Server name displayed in the web panel
+  server-name: 'My Server'
+
+  # Authentication token (auto-generated if empty and enabled)
+  auth-token: ''
+
+  # EXPERIMENTAL: Host web panel on same port as Minecraft server
+  # Uses Netty injection to detect HTTP traffic on the game port
+  # Not recommended for production - use the dedicated port instead
+  # When enabled, you can access the panel at: http://your-server:25565/
+  same-port: false
+
+  # AI Assistant configuration
+  ai:
+    # Enable AI assistant in web panel
+    enabled: true
+
+    # Ollama endpoint (local or remote)
+    # Example for local: http://localhost:11434/api/chat
+    # Example for remote: http://192.168.1.100:11434/api/chat
+    endpoint: 'http://localhost:11434/api/chat'
+
+    # Model name to use (Ollama model)
+    model: 'devstral-2-123b-cloud'
+
+    # API key (leave empty for local Ollama, or set for cloud services)
+    api-key: ''
+
+# ============================================
+# PROXY SETTINGS
+# ============================================
+proxy:
+  # Enable proxy support for cross-server punishments
+  enabled: false
+
+  # Proxy type: bungeecord or velocity
+  type: bungeecord
+
+# ============================================
+# UPDATE CHECKER
+# ============================================
+update-checker:
+  # Check for updates on Modrinth
+  enabled: true
+
+# ============================================
+# ANTICHEAT INTEGRATION
+# ============================================
+anticheat:
+  # Auto-detect installed anticheat
+  auto-detect: true
+
+  # Manual anticheat selection (auto, grim, vulcan, matrix, spartan, intave, karhu, polar, nocheatplus)
+  provider: auto
+
+  # Replace anticheat alert messages with ModereX branding
+  rebrand-alerts: true
+
+  # Show anticheat alerts to staff
+  alerts-enabled: true
+
+# ============================================
+# STAFF SETTINGS
+# ============================================
+staff:
+  # Play sound when staff chat message is received
+  chat-sound-enabled: true
+
+  # Sound to play (Bukkit Sound enum name)
+  chat-sound: ENTITY_ITEM_PICKUP
+
+# ============================================
+# CHAT SETTINGS
+# ============================================
+chat:
+  # Default chat slowmode in seconds (0 = disabled)
+  default-slowmode: 0
+
+  # Is chat enabled by default
+  enabled: true
+
+# ============================================
+# MUTE SETTINGS
+# ============================================
+mute:
+  # Allow muted players to use commands (like /msg, /tell, /w)
+  allow-commands: false
+
+  # Allow muted players to write on signs
+  allow-signs: false
+
+  # Commands blocked while muted (if allow-commands is false)
+  blocked-commands:
+    - msg
+    - tell
+    - w
+    - whisper
+    - reply
+    - r
+    - me
+    - say
+    - broadcast
+
+# ============================================
+# VANISH SETTINGS
+# ============================================
+vanish:
+  # Hide vanished players from tab list
+  hide-from-tablist: true
+
+  # Open containers silently (no animation/sound for others)
+  silent-containers: true
+
+  # Disable footstep particles/sounds
+  no-footsteps: true
+
+# ============================================
+# WARNING SETTINGS
+# ============================================
+warnings:
+  # Default warning expiry time (e.g., 30d, 0 = never expire)
+  default-expiry: 30d
+
+  # Auto-punishments based on warning count
+  # These can also be configured in-game with /mx warningsettings
+  auto-punishments:
+    # After 3 warnings in 7 days, mute for 1 hour
+    3:
+      within: 7d
+      action: mute
+      duration: 1h
+    # After 5 warnings in 14 days, mute for 1 day
+    5:
+      within: 14d
+      action: mute
+      duration: 1d
+    # After 7 warnings in 30 days, temp ban for 7 days
+    7:
+      within: 30d
+      action: ban
+      duration: 7d
+    # After 10 warnings ever, permanent ban
+    10:
+      within: 0
+      action: ban
+      duration: permanent
+
+# ============================================
+# REPLAY SETTINGS
+# ============================================
+replay:
+  # Enable replay recording system
+  enabled: true
+
+  # Automatically record when anticheat alert is triggered
+  record-on-anticheat: true
+
+  # Automatically record watchlisted players
+  record-watchlist: true
+
+  # Radius to record nearby players (blocks)
+  nearby-radius: 20
+
+  # Maximum recording duration in seconds
+  max-duration-seconds: 300
+
+  # Maximum number of stored replays
+  max-stored: 1000
+
+#                                                                              
+#     _____ _         _   _____                    _____ _         _ _         
+#    | __  | |___ ___| |_|   __|___ ___ ___ ___   |   __| |_ _ _ _| |_|___ ___ 
+#    | __ -| | . |  _| '_|   __| . |  _| . | -_|  |__   |  _| | | . | | . |_ -|
+#    |_____|_|___|___|_,_|__|  |___|_| |_  |___|  |_____|_| |___|___|_|___|___|
+#                                      |___|                                   
+
