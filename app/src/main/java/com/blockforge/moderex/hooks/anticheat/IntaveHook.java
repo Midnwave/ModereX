@@ -1,12 +1,14 @@
 package com.blockforge.moderex.hooks.anticheat;
 
 import com.blockforge.moderex.ModereX;
+import org.bukkit.Bukkit;
 import org.bukkit.entity.Player;
 import org.bukkit.event.Event;
 import org.bukkit.event.EventPriority;
 import org.bukkit.event.HandlerList;
 import org.bukkit.event.Listener;
 import org.bukkit.plugin.EventExecutor;
+import org.bukkit.plugin.Plugin;
 
 import java.lang.reflect.Method;
 
@@ -14,6 +16,7 @@ public class IntaveHook extends AnticheatHook implements Listener {
 
     private static final String PLUGIN_NAME = "Intave";
     private Class<? extends Event> eventClass;
+    private Plugin intavePlugin;
 
     public IntaveHook(ModereX plugin) {
         super(plugin, "Intave");
@@ -22,34 +25,40 @@ public class IntaveHook extends AnticheatHook implements Listener {
     @Override
     @SuppressWarnings("unchecked")
     public boolean hook() {
-        if (!isPluginAvailable(PLUGIN_NAME)) {
-            return false;
+        intavePlugin = Bukkit.getPluginManager().getPlugin(PLUGIN_NAME);
+        if (intavePlugin == null) return false;
+
+        plugin.logDebug("[Anticheat] Found Intave v" + intavePlugin.getDescription().getVersion());
+        ClassLoader cl = intavePlugin.getClass().getClassLoader();
+
+        String[] classes = {
+            "de.jpx3.intave.access.api.event.IntaveViolationEvent",
+            "de.jpx3.intave.api.event.IntaveViolationEvent"
+        };
+
+        for (String className : classes) {
+            try {
+                eventClass = (Class<? extends Event>) Class.forName(className, true, cl);
+                break;
+            } catch (ClassNotFoundException ignored) {}
+        }
+
+        if (eventClass == null) {
+            enabled = true;
+            plugin.log("Intave detected - passive mode");
+            return true;
         }
 
         try {
-            eventClass = (Class<? extends Event>) Class.forName("de.jpx3.intave.access.api.event.IntaveViolationEvent");
-
             EventExecutor executor = (listener, event) -> {
-                if (!enabled) return;
-                if (!eventClass.isInstance(event)) return;
+                if (!enabled || !eventClass.isInstance(event)) return;
                 handleIntaveEvent(event);
             };
-
-            plugin.getServer().getPluginManager().registerEvent(
-                    eventClass,
-                    this,
-                    EventPriority.MONITOR,
-                    executor,
-                    plugin,
-                    true
-            );
-
+            plugin.getServer().getPluginManager().registerEvent(eventClass, this, EventPriority.MONITOR, executor, plugin, true);
             enabled = true;
             return true;
-        } catch (ClassNotFoundException e) {
-            return false;
         } catch (Exception e) {
-            plugin.logError("Failed to hook into Intave", e);
+            plugin.logError("Failed to hook Intave", e);
             return false;
         }
     }
@@ -64,17 +73,34 @@ public class IntaveHook extends AnticheatHook implements Listener {
 
     private void handleIntaveEvent(Event event) {
         try {
-            Method getPlayerMethod = event.getClass().getMethod("getPlayer");
-            Method getCheckNameMethod = event.getClass().getMethod("getCheckName");
-            Method getViolationLevelMethod = event.getClass().getMethod("getViolationLevel");
+            Player player = null;
+            String checkName = "Unknown";
+            double vl = 1;
 
-            Player player = (Player) getPlayerMethod.invoke(event);
-            String checkName = (String) getCheckNameMethod.invoke(event);
-            double vl = (double) getViolationLevelMethod.invoke(event);
+            for (String m : new String[]{"getPlayer", "player"}) {
+                try {
+                    Object r = event.getClass().getMethod(m).invoke(event);
+                    if (r instanceof Player) { player = (Player) r; break; }
+                } catch (NoSuchMethodException ignored) {}
+            }
 
-            handleAlert(new AnticheatAlert(
-                    getName(), player, checkName, "A", (int) vl, vl, "Intave detection"
-            ));
+            for (String m : new String[]{"getCheckName", "getCheck"}) {
+                try {
+                    Object r = event.getClass().getMethod(m).invoke(event);
+                    if (r instanceof String) { checkName = (String) r; break; }
+                } catch (NoSuchMethodException ignored) {}
+            }
+
+            for (String m : new String[]{"getViolationLevel", "getVl", "getViolations"}) {
+                try {
+                    Object r = event.getClass().getMethod(m).invoke(event);
+                    if (r instanceof Number) { vl = ((Number) r).doubleValue(); break; }
+                } catch (NoSuchMethodException ignored) {}
+            }
+
+            if (player != null) {
+                handleAlert(new AnticheatAlert(getName(), player, checkName, "A", (int) vl, vl, "Intave detection"));
+            }
         } catch (Exception ignored) {}
     }
 }
