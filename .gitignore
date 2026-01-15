@@ -31,6 +31,9 @@ nul
 # Build outputs (keep source, exclude compiled)
 *.jar
 !gradle-wrapper.jar
+app/bin/
+app/build/
+bin/
 
 # Database
 *.db
