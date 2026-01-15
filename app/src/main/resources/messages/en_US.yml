@@ -1,0 +1,206 @@
+# ModereX Messages - English (US)
+# You can use MiniMessage formatting: https://docs.advntr.dev/minimessage/format.html
+# Placeholders are wrapped in <> like <player>, <reason>, <duration>
+
+# ============================================
+# GENERAL
+# ============================================
+general:
+  prefix: "<gradient:#FF6B6B:#4ECDC4>[ModereX]</gradient> "
+  no-permission: "<red>You don't have permission to do that."
+  player-not-found: "<red>Player not found: <white><player>"
+  player-only: "<red>This command can only be used by players."
+  invalid-duration: "<red>Invalid duration format. Use: 1mo, 3d, 1h, 30m, 15s, or permanent"
+  invalid-arguments: "<red>Invalid arguments. Usage: <white><usage>"
+  reload-success: "<green>Configuration reloaded successfully!"
+  plugin-info: "<gray>ModereX v<version> by BlockForge"
+
+# ============================================
+# MUTE
+# ============================================
+mute:
+  success: "<green>Successfully muted <yellow><player></yellow> for <white><duration></white>."
+  broadcast: "<gray><staff> <gold>muted</gold> <yellow><player></yellow> for <white><duration></white>. Reason: <white><reason>"
+  message: "<red>You have been muted for <white><duration></white>.\n<gray>Reason: <white><reason>"
+  already-muted: "<red><player> is already muted."
+  chat-attempt: "<red>You are muted for <white><duration></white>.\n<gray>Reason: <white><reason>"
+
+unmute:
+  success: "<green>Successfully unmuted <yellow><player></yellow>."
+  broadcast: "<gray><staff> <green>unmuted</green> <yellow><player></yellow>."
+  not-muted: "<red><player> is not muted."
+
+# ============================================
+# BAN
+# ============================================
+ban:
+  success: "<green>Successfully banned <yellow><player></yellow> for <white><duration></white>."
+  broadcast: "<gray><staff> <dark_red>banned</dark_red> <yellow><player></yellow> for <white><duration></white>. Reason: <white><reason>"
+  already-banned: "<red><player> is already banned."
+  disconnect: |
+    <gradient:#FF6B6B:#4ECDC4>[ModereX]</gradient>
+
+    <red><bold>You have been Banned!</bold></red>
+
+    <gray>Banned on: <white><date></white>
+    <gray>Banned by: <white><staff></white>
+    <gray>Duration: <white><duration></white>
+    <gray>Reason: <white><reason></white>
+
+    <yellow>Appeal at: discord.gg/example
+
+unban:
+  success: "<green>Successfully unbanned <yellow><player></yellow>."
+  broadcast: "<gray><staff> <green>unbanned</green> <yellow><player></yellow>."
+  not-banned: "<red><player> is not banned."
+
+# ============================================
+# IP BAN
+# ============================================
+ipban:
+  success: "<green>Successfully IP banned <yellow><player></yellow> for <white><duration></white>."
+  broadcast: "<gray><staff> <dark_red>IP banned</dark_red> <yellow><player></yellow> for <white><duration></white>. Reason: <white><reason>"
+  disconnect: |
+    <gradient:#FF6B6B:#4ECDC4>[ModereX]</gradient>
+
+    <red><bold>You have been IP Banned!</bold></red>
+
+    <gray>Banned on: <white><date></white>
+    <gray>Banned by: <white><staff></white>
+    <gray>Duration: <white><duration></white>
+    <gray>Reason: <white><reason></white>
+
+    <yellow>Appeal at: discord.gg/example
+
+# ============================================
+# KICK
+# ============================================
+kick:
+  success: "<green>Successfully kicked <yellow><player></yellow>."
+  broadcast: "<gray><staff> <red>kicked</red> <yellow><player></yellow>. Reason: <white><reason>"
+  disconnect: |
+    <gradient:#FF6B6B:#4ECDC4>[ModereX]</gradient>
+
+    <red><bold>You have been Kicked!</bold></red>
+
+    <gray>Kicked by: <white><staff></white>
+    <gray>Reason: <white><reason></white>
+
+# ============================================
+# WARN
+# ============================================
+warn:
+  success: "<green>Successfully warned <yellow><player></yellow>."
+  broadcast: "<gray><staff> <gold>warned</gold> <yellow><player></yellow>. Reason: <white><reason>"
+  message: "<red><bold>WARNING!</bold></red> <gray>You have been warned.\n<gray>Reason: <white><reason>"
+  cleared: "<green>Successfully cleared all warnings for <yellow><player></yellow>."
+  cleared-broadcast: "<gray><staff> cleared all warnings for <yellow><player></yellow>."
+
+# ============================================
+# STAFF CHAT
+# ============================================
+staffchat:
+  format: "<light_purple><bold>Staff</bold></light_purple> <dark_gray>|</dark_gray> <#FF6B6B><underlined><player></underlined></#FF6B6B><gray>: <white><message>"
+  enabled: "<green>Staff chat <bold>enabled</bold>. All messages will go to staff chat."
+  disabled: "<red>Staff chat <bold>disabled</bold>."
+  help-request: "<red><bold>STAFF HELP</bold></red> <dark_gray>|</dark_gray> <yellow><player></yellow> <gray>needs assistance!"
+
+# ============================================
+# VANISH
+# ============================================
+vanish:
+  enabled: "<green>You are now <bold>vanished</bold>."
+  disabled: "<red>You are no longer <bold>vanished</bold>."
+
+# ============================================
+# CHAT
+# ============================================
+chat:
+  disabled: "<green>Chat has been <bold>disabled</bold>."
+  enabled: "<green>Chat has been <bold>enabled</bold>."
+  slowmode-set: "<green>Chat slowmode set to <yellow><seconds></yellow> seconds."
+  slowmode-message: "<red>Slow down! Wait <white><seconds></white> seconds before chatting again."
+  cleared: "<gray>Chat has been cleared by <yellow><player></yellow>."
+  disabled-message: "<red>Chat is currently disabled."
+
+# ============================================
+# COMMAND BLACKLIST
+# ============================================
+cmdblacklist:
+  success: "<green>Successfully blacklisted <yellow><command></yellow> for <white><player></white>."
+  removed: "<green>Successfully removed command blacklist from <yellow><player></yellow>."
+  blocked: "<red>You are not allowed to use this command."
+
+# ============================================
+# MOD LOG
+# ============================================
+modlog:
+  header: "<gold><strikethrough>     </strikethrough> Modlog for <yellow><player></yellow> <strikethrough>     </strikethrough>"
+  entry: "<gray>[<white><date></white>] <type_color><type></type_color>: <white><reason></white> <gray>(by <yellow><staff></yellow>) - <white><duration>"
+  empty: "<gray>No moderation history found for <yellow><player></yellow>."
+  footer: "<gold><strikethrough>     </strikethrough> Page <yellow><page></yellow>/<yellow><total></yellow> <strikethrough>     </strikethrough>"
+
+# ============================================
+# AUTOMOD
+# ============================================
+automod:
+  blocked: "<red>Your message was blocked by automod."
+  alert: "<red>[Automod]</red> <yellow><player></yellow> <gray>triggered rule: <white><rule>"
+  spam-blocked: "<red>Please don't spam!"
+
+# ============================================
+# ANTICHEAT
+# ============================================
+anticheat:
+  alert: "<red>[AC]</red> <yellow><player></yellow> <gray>failed <white><check></white> <gray>x<white><count></white>"
+
+# ============================================
+# WATCHLIST
+# ============================================
+watchlist:
+  alert: "<gold>[Watchlist]</gold> <yellow><player></yellow> <gray><action>"
+
+# ============================================
+# WEB PANEL
+# ============================================
+webpanel:
+  connected: "<green>Connected to web panel."
+  disconnected: "<red>Disconnected from web panel."
+
+# ============================================
+# UPDATE
+# ============================================
+update:
+  available: "<green>A new version of ModereX is available: <yellow><version></yellow>\n<gray>Download at: <aqua><click:open_url:'https://modrinth.com/plugin/moderex'>modrinth.com/plugin/moderex</click>"
+  current: "<gray>You are running the latest version of ModereX."
+
+# ============================================
+# COMMAND HISTORY
+# ============================================
+cmdhistory:
+  header: "<gold><strikethrough>     </strikethrough> Command History for <yellow><player></yellow> <strikethrough>     </strikethrough>"
+  entry: "<gray>[<white><date></white>] <white><command>"
+  empty: "<gray>No command history found for <yellow><player></yellow>."
+  footer: "<gold><strikethrough>     </strikethrough> Page <yellow><page></yellow>/<yellow><total></yellow> <strikethrough>     </strikethrough>"
+
+# ============================================
+# ANALYTICS
+# ============================================
+analytics:
+  header: "<gold><strikethrough>     </strikethrough> ModereX Analytics <strikethrough>     </strikethrough>"
+
+# ============================================
+# GUI TITLES
+# ============================================
+gui:
+  punish:
+    title: "<dark_gray>Punish Player"
+    select-title: "<dark_gray>Select Player"
+  mute:
+    title: "<dark_gray>Mute <yellow><player>"
+  ban:
+    title: "<dark_gray>Ban <yellow><player>"
+  automod:
+    title: "<dark_gray>Automod Settings"
+  settings:
+    title: "<dark_gray>ModereX Settings"
