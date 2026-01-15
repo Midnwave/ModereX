@@ -93,7 +93,7 @@ public class GrimHook extends AnticheatHook implements Listener {
         // Last resort: just mark as enabled since Grim is present
         // Alerts will come through chat/console parsing if needed
         enabled = true;
-        plugin.log("Grim detected but event hooking unavailable - using passive mode");
+        plugin.getLogger().info("Grim detected but event hooking unavailable - using passive mode");
         return true;
     }
 

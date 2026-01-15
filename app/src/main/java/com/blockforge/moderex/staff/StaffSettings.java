@@ -4,6 +4,10 @@ import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 import com.google.gson.JsonObject;
 
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 
 public class StaffSettings {
@@ -14,6 +18,12 @@ public class StaffSettings {
     private long updatedAt;
 
     // ========== Notification Settings ==========
+
+    // Join/Leave messages (all, staff only, off)
+    private JoinLeaveLevel joinLeaveMessages = JoinLeaveLevel.ALL;
+
+    // Moderation action notifications
+    private boolean moderationActionsEnabled = true;
 
     // Punishment notifications
     private AlertLevel punishmentAlerts = AlertLevel.EVERYONE;
@@ -30,7 +40,10 @@ public class StaffSettings {
 
     // Anticheat notifications
     private AlertLevel anticheatAlerts = AlertLevel.EVERYONE;
-    private int anticheatMinVL = 10; // Minimum violation level to show
+    private int anticheatMinVL = 10;
+
+    // Per-anticheat check preferences (which checks to show)
+    private Map<String, AnticheatPreference> anticheatPreferences = new HashMap<>();
 
     // Staff chat
     private boolean staffChatEnabled = true;
@@ -122,6 +135,103 @@ public class StaffSettings {
         }
     }
 
+    // ========== Join/Leave Level Enum ==========
+
+    public enum JoinLeaveLevel {
+        ALL("All Players", "See join/leave for everyone"),
+        STAFF_ONLY("Staff Only", "Only see staff join/leave"),
+        OFF("Off", "Hide all join/leave messages");
+
+        private final String displayName;
+        private final String description;
+
+        JoinLeaveLevel(String displayName, String description) {
+            this.displayName = displayName;
+            this.description = description;
+        }
+
+        public String getDisplayName() {
+            return displayName;
+        }
+
+        public String getDescription() {
+            return description;
+        }
+
+        public JoinLeaveLevel next() {
+            JoinLeaveLevel[] values = values();
+            return values[(ordinal() + 1) % values.length];
+        }
+
+        public String getColor() {
+            return switch (this) {
+                case ALL -> "<green>";
+                case STAFF_ONLY -> "<yellow>";
+                case OFF -> "<red>";
+            };
+        }
+    }
+
+    // ========== Anticheat Preference Class ==========
+
+    public static class AnticheatPreference {
+        private String anticheat;
+        private boolean enabled = true;
+        private int minVL = 5;
+        private Set<String> disabledChecks = new HashSet<>();
+
+        public AnticheatPreference() {}
+
+        public AnticheatPreference(String anticheat) {
+            this.anticheat = anticheat;
+        }
+
+        public String getAnticheat() {
+            return anticheat;
+        }
+
+        public void setAnticheat(String anticheat) {
+            this.anticheat = anticheat;
+        }
+
+        public boolean isEnabled() {
+            return enabled;
+        }
+
+        public void setEnabled(boolean enabled) {
+            this.enabled = enabled;
+        }
+
+        public int getMinVL() {
+            return minVL;
+        }
+
+        public void setMinVL(int minVL) {
+            this.minVL = minVL;
+        }
+
+        public Set<String> getDisabledChecks() {
+            return disabledChecks;
+        }
+
+        public void setDisabledChecks(Set<String> disabledChecks) {
+            this.disabledChecks = disabledChecks;
+        }
+
+        public boolean isCheckEnabled(String checkName) {
+            return enabled && !disabledChecks.contains(checkName.toLowerCase());
+        }
+
+        public void toggleCheck(String checkName) {
+            String lower = checkName.toLowerCase();
+            if (disabledChecks.contains(lower)) {
+                disabledChecks.remove(lower);
+            } else {
+                disabledChecks.add(lower);
+            }
+        }
+    }
+
     // ========== Getters and Setters ==========
 
     public UUID getStaffUuid() {
@@ -138,6 +248,24 @@ public class StaffSettings {
 
     public void setUpdatedAt(long updatedAt) {
         this.updatedAt = updatedAt;
+    }
+
+    // Join/Leave messages
+    public JoinLeaveLevel getJoinLeaveMessages() {
+        return joinLeaveMessages;
+    }
+
+    public void setJoinLeaveMessages(JoinLeaveLevel joinLeaveMessages) {
+        this.joinLeaveMessages = joinLeaveMessages;
+    }
+
+    // Moderation actions
+    public boolean isModerationActionsEnabled() {
+        return moderationActionsEnabled;
+    }
+
+    public void setModerationActionsEnabled(boolean moderationActionsEnabled) {
+        this.moderationActionsEnabled = moderationActionsEnabled;
     }
 
     // Punishment alerts
@@ -229,6 +357,26 @@ public class StaffSettings {
 
     public void setAnticheatMinVL(int anticheatMinVL) {
         this.anticheatMinVL = anticheatMinVL;
+    }
+
+    // Per-anticheat preferences
+    public Map<String, AnticheatPreference> getAnticheatPreferences() {
+        return anticheatPreferences;
+    }
+
+    public AnticheatPreference getAnticheatPreference(String anticheat) {
+        return anticheatPreferences.computeIfAbsent(
+            anticheat.toLowerCase(),
+            k -> new AnticheatPreference(anticheat)
+        );
+    }
+
+    public boolean isAnticheatCheckEnabled(String anticheat, String checkName, int vl) {
+        AnticheatPreference pref = anticheatPreferences.get(anticheat.toLowerCase());
+        if (pref == null) {
+            return vl >= anticheatMinVL;
+        }
+        return pref.isCheckEnabled(checkName) && vl >= pref.getMinVL();
     }
 
     // Staff chat

@@ -45,7 +45,7 @@ public class IntaveHook extends AnticheatHook implements Listener {
 
         if (eventClass == null) {
             enabled = true;
-            plugin.log("Intave detected - passive mode");
+            plugin.getLogger().info("Intave detected - passive mode");
             return true;
         }
 

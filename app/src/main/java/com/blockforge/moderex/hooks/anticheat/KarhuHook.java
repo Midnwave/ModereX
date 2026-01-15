@@ -45,7 +45,7 @@ public class KarhuHook extends AnticheatHook implements Listener {
 
         if (eventClass == null) {
             enabled = true;
-            plugin.log("Karhu detected - passive mode");
+            plugin.getLogger().info("Karhu detected - passive mode");
             return true;
         }
 

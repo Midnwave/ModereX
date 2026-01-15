@@ -1,7 +1,6 @@
 package com.blockforge.moderex.hooks.anticheat;
 
 import com.blockforge.moderex.ModereX;
-import com.blockforge.moderex.automod.AutomodManager;
 import com.blockforge.moderex.util.TextUtil;
 import net.kyori.adventure.text.Component;
 import org.bukkit.entity.Player;
@@ -16,13 +15,18 @@ public class AnticheatManager {
     private final ModereX plugin;
     private final Map<String, AnticheatHook> hooks = new HashMap<>();
     private final List<String> enabledAnticheats = new ArrayList<>();
+    private AnticheatAlertManager alertManager;
 
     public AnticheatManager(ModereX plugin) {
         this.plugin = plugin;
+        this.alertManager = new AnticheatAlertManager(plugin);
     }
 
     public void initialize() {
         plugin.getLogger().info("Initializing anticheat integrations...");
+
+        // Load alert manager
+        alertManager.load();
 
         // Register all anticheat hooks
         plugin.logDebug("[Anticheat] Registering anticheat hooks...");
@@ -92,29 +96,42 @@ public class AnticheatManager {
     }
 
     private void handleAlert(AnticheatHook.AnticheatAlert alert) {
+        Player target = alert.getPlayer();
+        String anticheat = alert.getAnticheat();
+        String checkName = alert.getCheckName();
+        int vl = (int) alert.getVlLevel();
+
+        // Process through alert manager for auto-punishments
+        alertManager.processAlert(alert);
+
+        // Check if alert should be shown (threshold check)
+        if (!alertManager.shouldShowAlert(target, anticheat, checkName, vl)) {
+            return;
+        }
+
         // Pass to automod for rule processing
         plugin.getAutomodManager().handleAnticheatAlert(
-                alert.getPlayer(),
-                alert.getAnticheat(),
-                alert.getCheckName(),
+                target,
+                anticheat,
+                checkName,
                 alert.getCheckType(),
                 alert.getViolations(),
                 alert.getVlLevel()
         );
 
-        // Notify staff with permission
+        // Notify staff with permission (filtered by preferences)
         notifyStaff(alert);
 
         // Notify watchlist if player is watched
-        if (plugin.getWatchlistManager().isWatched(alert.getPlayer().getUniqueId())) {
-            plugin.getWatchlistManager().onAnticheatAlert(alert.getPlayer(), alert.toString());
+        if (plugin.getWatchlistManager().isWatched(target.getUniqueId())) {
+            plugin.getWatchlistManager().onAnticheatAlert(target, alert.toString());
         }
 
         // Trigger replay recording
         if (plugin.getReplayManager() != null) {
             plugin.getReplayManager().onAnticheatAlert(
-                    alert.getPlayer(),
-                    alert.getCheckName(),
+                    target,
+                    checkName,
                     alert.getViolations()
             );
         }
@@ -142,17 +159,47 @@ public class AnticheatManager {
             return;
         }
 
-        Component message = TextUtil.parse(
-                "<dark_gray>[<red>" + alert.getAnticheat() + "<dark_gray>] <white>" +
-                        alert.getPlayer().getName() + " <gray>failed <yellow>" +
-                        alert.getCheckName() + " <gray>(<white>" + alert.getCheckType() +
-                        "<gray>) <red>VL: " + String.format("%.1f", alert.getVlLevel())
-        );
+        Player target = alert.getPlayer();
+        String anticheat = alert.getAnticheat();
+        String checkName = alert.getCheckName();
+        int vl = (int) alert.getVlLevel();
+        boolean rebrand = plugin.getConfigManager().getSettings().isAnticheatRebrandAlerts();
+
+        // Build the alert message (rebranded or original)
+        Component message;
+        if (rebrand) {
+            // ModereX branded message
+            message = TextUtil.parse(
+                    "<dark_gray>[<gradient:#ff6b6b:#ee5a5a>ModereX<dark_gray>] <white>" +
+                            target.getName() + " <gray>flagged <yellow>" +
+                            checkName + " <dark_gray>(<gray>" + anticheat +
+                            "<dark_gray>) <red>x" + vl
+            );
+        } else {
+            // Original anticheat format
+            message = TextUtil.parse(
+                    "<dark_gray>[<red>" + anticheat + "<dark_gray>] <white>" +
+                            target.getName() + " <gray>failed <yellow>" +
+                            checkName + " <gray>(<white>" + alert.getCheckType() +
+                            "<gray>) <red>VL: " + String.format("%.1f", alert.getVlLevel())
+            );
+        }
 
         for (Player staff : plugin.getServer().getOnlinePlayers()) {
-            if (staff.hasPermission("moderex.notify.anticheat")) {
-                staff.sendMessage(message);
+            if (!staff.hasPermission("moderex.notify.anticheat")) {
+                continue;
             }
+
+            // Check per-staff preferences
+            if (!alertManager.shouldShowAlertToStaff(staff, target, anticheat, checkName, vl)) {
+                continue;
+            }
+
+            staff.sendMessage(message);
         }
+    }
+
+    public AnticheatAlertManager getAlertManager() {
+        return alertManager;
     }
 }

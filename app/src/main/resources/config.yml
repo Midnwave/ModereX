@@ -107,17 +107,64 @@ update-checker:
 # ANTICHEAT INTEGRATION
 # ============================================
 anticheat:
-  # Auto-detect installed anticheat
+  # Auto-detect installed anticheat plugins
   auto-detect: true
 
-  # Manual anticheat selection (auto, grim, vulcan, matrix, spartan, intave, karhu, polar, nocheatplus)
+  # Manual selection (auto, grim, vulcan, matrix, spartan, intave, karhu, polar, ncp)
   provider: auto
 
   # Replace anticheat alert messages with ModereX branding
+  # When true, ModereX shows its own styled alerts instead of original format
+  # NOTE: For full rebranding, also disable alerts in your anticheat's config
+  # Example for Grim: set alerts.enabled to false in grim.yml
   rebrand-alerts: true
 
-  # Show anticheat alerts to staff
-  alerts-enabled: true
+  # Attempt to block original anticheat messages
+  # Works best with anticheats that use events (Vulcan, Matrix)
+  # For others, disable their built-in alerts in their config
+  block-original-messages: true
+
+  # Alert settings
+  alerts:
+    # Global toggle
+    enabled: true
+
+    # Minimum VL before showing alert (prevents spam)
+    min-vl: 5
+
+    # Default alert threshold (X alerts in Y time before showing)
+    default-threshold:
+      count: 3
+      duration: 60s
+
+    # Cooldown between alerts for same player/check (seconds)
+    cooldown: 5
+
+  # Per-anticheat settings (override defaults)
+  grim:
+    enabled: true
+    min-vl: 5
+  vulcan:
+    enabled: true
+    min-vl: 10
+  matrix:
+    enabled: true
+    min-vl: 5
+  spartan:
+    enabled: true
+    min-vl: 10
+  polar:
+    enabled: true
+    min-vl: 5
+  karhu:
+    enabled: true
+    min-vl: 5
+  intave:
+    enabled: true
+    min-vl: 5
+  ncp:
+    enabled: true
+    min-vl: 10
 
 # ============================================
 # STAFF SETTINGS

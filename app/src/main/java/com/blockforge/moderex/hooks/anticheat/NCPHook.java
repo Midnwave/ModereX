@@ -45,7 +45,7 @@ public class NCPHook extends AnticheatHook implements Listener {
 
         if (eventClass == null) {
             enabled = true;
-            plugin.log("NCP detected - passive mode");
+            plugin.getLogger().info("NCP detected - passive mode");
             return true;
         }
 

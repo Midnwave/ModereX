@@ -50,7 +50,7 @@ public class MatrixHook extends AnticheatHook implements Listener {
 
         if (eventClass == null) {
             enabled = true;
-            plugin.log("Matrix detected but event hooking unavailable - using passive mode");
+            plugin.getLogger().info("Matrix detected but event hooking unavailable - using passive mode");
             return true;
         }
 

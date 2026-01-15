@@ -50,7 +50,7 @@ public class SpartanHook extends AnticheatHook implements Listener {
 
         if (eventClass == null) {
             enabled = true;
-            plugin.log("Spartan detected but event hooking unavailable - using passive mode");
+            plugin.getLogger().info("Spartan detected but event hooking unavailable - using passive mode");
             return true;
         }
 

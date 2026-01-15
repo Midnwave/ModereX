@@ -52,7 +52,7 @@ public class VulcanHook extends AnticheatHook implements Listener {
         if (eventClass == null) {
             plugin.logDebug("[Anticheat] No Vulcan event class found");
             enabled = true;
-            plugin.log("Vulcan detected but event hooking unavailable - using passive mode");
+            plugin.getLogger().info("Vulcan detected but event hooking unavailable - using passive mode");
             return true;
         }
 

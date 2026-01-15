@@ -13,8 +13,9 @@ repositories {
     maven { url 'https://jitpack.io' }
     maven { url 'https://maven.citizensnpcs.co/repo' }
     maven { url 'https://maven.playpro.com' }
-    // Libby repository (Citizens transitive dependency)
     maven { url 'https://repo.alessiodp.com/releases/' }
+    // Local libs folder for optional anticheat API JARs
+    flatDir { dirs '../libs' }
 }
 
 dependencies {
@@ -59,8 +60,10 @@ dependencies {
     // Netty (provided by Minecraft server, used for same-port HTTP handling)
     compileOnly 'io.netty:netty-all:4.1.97.Final'
 
-    // Note: Anticheat APIs are accessed via reflection since most don't have public Maven repos
-    // This allows the plugin to work with or without any specific anticheat installed
+    // Optional: Anticheat API JARs in /libs folder for direct API access
+    // ModereX uses reflection by default, so these are NOT required
+    // Place anticheat plugin JARs in /libs if you want compile-time API access
+    compileOnly fileTree(dir: '../libs', include: ['*.jar'])
 
     // Testing
     testImplementation 'org.junit.jupiter:junit-jupiter:5.10.2'

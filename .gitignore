@@ -39,6 +39,9 @@ bin/
 *.db
 *.sqlite
 
+# Libs folder (local anticheat JARs)
+libs/
+
 # Plugin output
 out/
 target/

@@ -3,6 +3,7 @@ package com.blockforge.moderex.gui;
 import com.blockforge.moderex.ModereX;
 import com.blockforge.moderex.staff.StaffSettings;
 import com.blockforge.moderex.staff.StaffSettings.AlertLevel;
+import com.blockforge.moderex.staff.StaffSettings.JoinLeaveLevel;
 import com.blockforge.moderex.util.TextUtil;
 import org.bukkit.Material;
 import org.bukkit.Sound;
@@ -13,7 +14,7 @@ import java.util.List;
 
 public class StaffSettingsGui extends BaseGui {
 
-    private SettingsTab currentTab = SettingsTab.PERSONAL;
+    private SettingsTab currentTab = SettingsTab.NOTIFICATIONS;
     private StaffSettings settings;
 
     public StaffSettingsGui(ModereX plugin) {
@@ -27,18 +28,28 @@ public class StaffSettingsGui extends BaseGui {
 
         fillBorder(Material.GRAY_STAINED_GLASS_PANE);
 
-        // Tab buttons
-        setItem(2, createTabButton(SettingsTab.PERSONAL, Material.PLAYER_HEAD), () -> {
-            currentTab = SettingsTab.PERSONAL;
+        // Tab buttons (5 tabs)
+        setItem(1, createTabButton(SettingsTab.NOTIFICATIONS, Material.BELL), () -> {
+            currentTab = SettingsTab.NOTIFICATIONS;
             refresh();
         });
 
-        setItem(4, createTabButton(SettingsTab.ALERTS, Material.BELL), () -> {
+        setItem(2, createTabButton(SettingsTab.ALERTS, Material.COMPARATOR), () -> {
             currentTab = SettingsTab.ALERTS;
             refresh();
         });
 
-        setItem(6, createTabButton(SettingsTab.PLUGIN, Material.COMMAND_BLOCK), () -> {
+        setItem(3, createTabButton(SettingsTab.ANTICHEAT, Material.IRON_SWORD), () -> {
+            currentTab = SettingsTab.ANTICHEAT;
+            refresh();
+        });
+
+        setItem(5, createTabButton(SettingsTab.PERSONAL, Material.PLAYER_HEAD), () -> {
+            currentTab = SettingsTab.PERSONAL;
+            refresh();
+        });
+
+        setItem(7, createTabButton(SettingsTab.PLUGIN, Material.COMMAND_BLOCK), () -> {
             if (viewer.hasPermission("moderex.admin")) {
                 currentTab = SettingsTab.PLUGIN;
                 refresh();
@@ -49,8 +60,10 @@ public class StaffSettingsGui extends BaseGui {
 
         // Render current tab content
         switch (currentTab) {
-            case PERSONAL -> renderPersonalSettings();
+            case NOTIFICATIONS -> renderNotificationSettings();
             case ALERTS -> renderAlertSettings();
+            case ANTICHEAT -> renderAnticheatSettings();
+            case PERSONAL -> renderPersonalSettings();
             case PLUGIN -> renderPluginSettings();
         }
 
@@ -85,6 +98,161 @@ public class StaffSettingsGui extends BaseGui {
                 (selected ? "<green>" : "<gray>") + tab.displayName,
                 lore
         );
+    }
+
+    // ========== Notification Settings Tab ==========
+
+    private void renderNotificationSettings() {
+        // Join/Leave Messages
+        setItem(10, createItem(Material.OAK_DOOR, "<aqua>Join/Leave Messages",
+                "<gray>Control player connection messages"));
+
+        setItem(19, createJoinLeaveLevelButton("Join/Leave Messages",
+                settings.getJoinLeaveMessages(), Material.OAK_DOOR), () -> {
+            settings.setJoinLeaveMessages(settings.getJoinLeaveMessages().next());
+            refresh();
+        });
+
+        // Moderation Actions
+        setItem(12, createItem(Material.IRON_AXE, "<gold>Moderation Actions",
+                "<gray>See when staff take actions"));
+
+        setItem(21, createToggle("Moderation Actions",
+                settings.isModerationActionsEnabled(),
+                "See staff moderation actions",
+                Material.IRON_AXE), () -> {
+            settings.setModerationActionsEnabled(!settings.isModerationActionsEnabled());
+            refresh();
+        });
+
+        // Punishment Notifications
+        setItem(14, createItem(Material.BARRIER, "<red>Punishment Alerts",
+                "<gray>Get notified about punishments"));
+
+        setItem(23, createAlertLevelButton("Punishment Alerts",
+                settings.getPunishmentAlerts(), Material.BARRIER), () -> {
+            settings.setPunishmentAlerts(settings.getPunishmentAlerts().next());
+            refresh();
+        });
+
+        // Staff Chat
+        setItem(16, createItem(Material.DIAMOND, "<light_purple>Staff Chat",
+                "<gray>Staff communication settings"));
+
+        setItem(25, createToggle("Staff Chat",
+                settings.isStaffChatEnabled(),
+                "Receive staff chat messages",
+                Material.DIAMOND), () -> {
+            settings.setStaffChatEnabled(!settings.isStaffChatEnabled());
+            refresh();
+        });
+
+        // Watchlist Join Alerts
+        setItem(28, createToggle("Watchlist Join",
+                settings.isWatchlistJoinAlerts(),
+                "Alert when watched players join",
+                Material.SPYGLASS), () -> {
+            settings.setWatchlistJoinAlerts(!settings.isWatchlistJoinAlerts());
+            refresh();
+        });
+
+        // Watchlist Quit Alerts
+        setItem(29, createToggle("Watchlist Quit",
+                settings.isWatchlistQuitAlerts(),
+                "Alert when watched players leave",
+                Material.ENDER_EYE), () -> {
+            settings.setWatchlistQuitAlerts(!settings.isWatchlistQuitAlerts());
+            refresh();
+        });
+
+        // Watchlist Activity Alerts
+        setItem(30, createToggle("Watchlist Activity",
+                settings.isWatchlistActivityAlerts(),
+                "Alert on watched player activity",
+                Material.TRIPWIRE_HOOK), () -> {
+            settings.setWatchlistActivityAlerts(!settings.isWatchlistActivityAlerts());
+            refresh();
+        });
+
+        // Staff Chat Sound
+        setItem(34, createToggle("Chat Sound",
+                settings.isStaffChatSound(),
+                "Play sound on staff chat",
+                Material.BELL), () -> {
+            settings.setStaffChatSound(!settings.isStaffChatSound());
+            refresh();
+        });
+    }
+
+    // ========== Anticheat Settings Tab ==========
+
+    private void renderAnticheatSettings() {
+        // Global Anticheat Toggle
+        setItem(10, createItem(Material.IRON_SWORD, "<red>Anticheat Alerts",
+                "<gray>Global anticheat notification settings"));
+
+        setItem(19, createAlertLevelButton("Anticheat Alerts",
+                settings.getAnticheatAlerts(), Material.IRON_SWORD), () -> {
+            settings.setAnticheatAlerts(settings.getAnticheatAlerts().next());
+            refresh();
+        });
+
+        // Minimum VL
+        setItem(20, createItem(Material.EXPERIENCE_BOTTLE,
+                "<yellow>Min VL: <white>" + settings.getAnticheatMinVL(),
+                "<gray>Minimum violation level to show",
+                "",
+                "<yellow>Left-click: +5",
+                "<yellow>Right-click: -5",
+                "<yellow>Shift-click: Reset to 10"), clickType -> {
+            if (clickType.isShiftClick()) {
+                settings.setAnticheatMinVL(10);
+            } else if (clickType.isLeftClick()) {
+                settings.setAnticheatMinVL(Math.min(100, settings.getAnticheatMinVL() + 5));
+            } else if (clickType.isRightClick()) {
+                settings.setAnticheatMinVL(Math.max(0, settings.getAnticheatMinVL() - 5));
+            }
+            refresh();
+        });
+
+        // Per-anticheat settings
+        List<String> enabledACs = plugin.getAnticheatManager().getEnabledAnticheats();
+        int slot = 28;
+
+        for (String acName : enabledACs) {
+            if (slot > 34) break;
+
+            StaffSettings.AnticheatPreference pref = settings.getAnticheatPreference(acName);
+            boolean enabled = pref.isEnabled();
+
+            setItem(slot, createItem(
+                    enabled ? Material.LIME_DYE : Material.RED_DYE,
+                    (enabled ? "<green>" : "<red>") + acName,
+                    "<gray>Toggle alerts from " + acName,
+                    "",
+                    enabled ? "<green>✓ Enabled" : "<red>✗ Disabled",
+                    "",
+                    "<yellow>Click to toggle"
+            ), () -> {
+                pref.setEnabled(!pref.isEnabled());
+                refresh();
+            });
+
+            slot++;
+        }
+
+        if (enabledACs.isEmpty()) {
+            setItem(31, createItem(Material.GRAY_DYE, "<gray>No Anticheats",
+                    "<gray>No anticheat plugins detected"));
+        }
+
+        // Info
+        setItem(22, createItem(Material.BOOK, "<aqua>Anticheat Info",
+                "<gray>Configure per-anticheat settings",
+                "",
+                "<gray>Detected: <white>" + enabledACs.size(),
+                "<gray>Check the automod GUI for",
+                "<gray>per-check configurations"));
     }
 
     // ========== Personal Settings Tab ==========
@@ -458,10 +626,23 @@ public class StaffSettingsGui extends BaseGui {
         return createItem(icon, level.getColor() + name, lore);
     }
 
+    private ItemStack createJoinLeaveLevelButton(String name, JoinLeaveLevel level, Material icon) {
+        List<String> lore = new ArrayList<>();
+        lore.add("<gray>" + level.getDescription());
+        lore.add("");
+        lore.add("<white>Current: " + level.getColor() + level.getDisplayName());
+        lore.add("");
+        lore.add("<yellow>Click to cycle");
+
+        return createItem(icon, level.getColor() + name, lore);
+    }
+
     private enum SettingsTab {
-        PERSONAL("Personal Settings", "<gray>Your personal preferences"),
-        ALERTS("Alert Settings", "<gray>Configure notifications"),
-        PLUGIN("Plugin Settings", "<gray>Server-wide configuration");
+        NOTIFICATIONS("Notifications", "<gray>Join/Leave and alert settings"),
+        ALERTS("Alert Types", "<gray>Configure alert types"),
+        ANTICHEAT("Anticheat", "<gray>Per-check settings"),
+        PERSONAL("Personal", "<gray>Your preferences"),
+        PLUGIN("Plugin", "<gray>Server-wide config");
 
         final String displayName;
         final String description;

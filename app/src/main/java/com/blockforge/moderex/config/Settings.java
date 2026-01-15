@@ -42,6 +42,7 @@ public class Settings {
     private boolean anticheatAutoDetect = true;
     private String anticheatProvider = "auto"; // auto, grim, vulcan, matrix, etc.
     private boolean anticheatRebrandAlerts = true;
+    private boolean anticheatBlockOriginalMessages = true;
     private boolean anticheatAlertsEnabled = true;
 
     // Staff settings
@@ -294,6 +295,14 @@ public class Settings {
 
     public void setAnticheatRebrandAlerts(boolean anticheatRebrandAlerts) {
         this.anticheatRebrandAlerts = anticheatRebrandAlerts;
+    }
+
+    public boolean isAnticheatBlockOriginalMessages() {
+        return anticheatBlockOriginalMessages;
+    }
+
+    public void setAnticheatBlockOriginalMessages(boolean anticheatBlockOriginalMessages) {
+        this.anticheatBlockOriginalMessages = anticheatBlockOriginalMessages;
     }
 
     public boolean isAnticheatAlertsEnabled() {

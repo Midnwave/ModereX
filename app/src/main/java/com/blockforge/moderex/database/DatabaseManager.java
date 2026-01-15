@@ -165,6 +165,21 @@ public class DatabaseManager {
                     )
                     """.formatted(isMySQL ? "AUTO_INCREMENT" : "AUTOINCREMENT"));
 
+            // Anticheat rules table (per-check configuration)
+            stmt.execute("""
+                    CREATE TABLE IF NOT EXISTS moderex_anticheat_rules (
+                        id INTEGER PRIMARY KEY %s,
+                        anticheat VARCHAR(32) NOT NULL,
+                        check_name VARCHAR(64) NOT NULL,
+                        enabled BOOLEAN DEFAULT TRUE,
+                        min_vl INTEGER DEFAULT 0,
+                        threshold_count INTEGER DEFAULT 0,
+                        threshold_duration BIGINT DEFAULT 0,
+                        auto_punishment TEXT,
+                        UNIQUE(anticheat, check_name)
+                    )
+                    """.formatted(isMySQL ? "AUTO_INCREMENT" : "AUTOINCREMENT"));
+
             // Staff settings table
             stmt.execute("""
                     CREATE TABLE IF NOT EXISTS moderex_staff_settings (

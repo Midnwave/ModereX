@@ -50,7 +50,7 @@ public class PolarHook extends AnticheatHook implements Listener {
 
         if (eventClass == null) {
             enabled = true;
-            plugin.log("Polar detected but event hooking unavailable - using passive mode");
+            plugin.getLogger().info("Polar detected but event hooking unavailable - using passive mode");
             return true;
         }
 
