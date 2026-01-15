@@ -1,0 +1,48 @@
+# Gradle
+.gradle/
+build/
+!gradle/wrapper/gradle-wrapper.jar
+!**/src/main/**/build/
+!**/src/test/**/build/
+
+# IDE
+.idea/
+*.iml
+*.ipr
+*.iws
+.vscode/
+*.code-workspace
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+
+# Temporary files
+*.tmp
+*.bak
+*.swp
+*~
+tmpclaude-*
+nul
+
+# Build outputs (keep source, exclude compiled)
+*.jar
+!gradle-wrapper.jar
+
+# Database
+*.db
+*.sqlite
+
+# Plugin output
+out/
+target/
+
+# Test outputs
+.test-output/
+
+# Crash logs
+hs_err_pid*.log
+replay_pid*.log

@@ -1,0 +1,112 @@
+plugins {
+    id 'java'
+    id 'com.gradleup.shadow' version '9.0.0-beta4'
+}
+
+group = 'com.blockforge'
+version = '2.0.0'
+
+repositories {
+    mavenCentral()
+    maven { url 'https://repo.papermc.io/repository/maven-public/' }
+    maven { url 'https://repo.extendedclip.com/content/repositories/placeholderapi/' }
+    maven { url 'https://jitpack.io' }
+    maven { url 'https://maven.citizensnpcs.co/repo' }
+    maven { url 'https://maven.playpro.com' }
+    // Libby repository (Citizens transitive dependency)
+    maven { url 'https://repo.alessiodp.com/releases/' }
+}
+
+dependencies {
+    // Paper API for Minecraft 1.21
+    compileOnly 'io.papermc.paper:paper-api:1.21.1-R0.1-SNAPSHOT'
+
+    // LuckPerms API
+    compileOnly 'net.luckperms:api:5.4'
+
+    // PlaceholderAPI
+    compileOnly 'me.clip:placeholderapi:2.11.6'
+
+    // Citizens API for NPC replays
+    compileOnly 'net.citizensnpcs:citizens-main:2.0.35-SNAPSHOT'
+
+    // CoreProtect API for block logging integration
+    compileOnly 'net.coreprotect:coreprotect:23.1'
+
+    // Database - HikariCP connection pool
+    implementation 'com.zaxxer:HikariCP:5.1.0'
+
+    // SLF4J for HikariCP logging
+    implementation 'org.slf4j:slf4j-api:2.0.12'
+    implementation 'org.slf4j:slf4j-simple:2.0.12'
+
+    // SQLite JDBC driver
+    implementation 'org.xerial:sqlite-jdbc:3.45.3.0'
+
+    // MySQL Connector
+    implementation 'com.mysql:mysql-connector-j:8.3.0'
+
+    // WebSocket server
+    implementation 'org.java-websocket:Java-WebSocket:1.5.6'
+
+    // JSON processing
+    implementation 'com.google.code.gson:gson:2.11.0'
+
+    // Adventure API (included in Paper but good to have explicit)
+    compileOnly 'net.kyori:adventure-api:4.17.0'
+    compileOnly 'net.kyori:adventure-text-minimessage:4.17.0'
+
+    // Netty (provided by Minecraft server, used for same-port HTTP handling)
+    compileOnly 'io.netty:netty-all:4.1.97.Final'
+
+    // Note: Anticheat APIs are accessed via reflection since most don't have public Maven repos
+    // This allows the plugin to work with or without any specific anticheat installed
+
+    // Testing
+    testImplementation 'org.junit.jupiter:junit-jupiter:5.10.2'
+    testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+}
+
+java {
+    toolchain {
+        languageVersion = JavaLanguageVersion.of(21)
+    }
+}
+
+tasks.named('test') {
+    useJUnitPlatform()
+}
+
+shadowJar {
+    archiveClassifier.set('')
+    archiveFileName.set("ModereX-${version}.jar")
+
+    relocate 'com.zaxxer.hikari', 'com.blockforge.moderex.lib.hikari'
+    relocate 'org.java_websocket', 'com.blockforge.moderex.lib.websocket'
+    relocate 'com.google.gson', 'com.blockforge.moderex.lib.gson'
+    relocate 'org.slf4j', 'com.blockforge.moderex.lib.slf4j'
+
+    // Don't minimize - include all dependency classes to avoid ClassNotFound errors
+    // minimize() can aggressively remove classes that are loaded via reflection
+}
+
+tasks.named('build') {
+    dependsOn shadowJar
+}
+
+processResources {
+    def props = [version: version]
+    inputs.properties props
+    filteringCharset 'UTF-8'
+    filesMatching(['plugin.yml', 'paper-plugin.yml']) {
+        expand props
+    }
+}
+
+// auto-commit on build
+task gitPublish(type: Exec) {
+    commandLine 'cmd', '/c', 'cd c:\\projects\\Moderex && git add app/src/ app/build.gradle gradle/ gradlew gradlew.bat settings.gradle .gitignore && git commit -m "build update" && git push'
+    ignoreExitValue = true
+}
+
+build.finalizedBy gitPublish
