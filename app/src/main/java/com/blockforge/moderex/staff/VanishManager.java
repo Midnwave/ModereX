@@ -46,6 +46,10 @@ public class VanishManager {
         for (Player other : Bukkit.getOnlinePlayers()) {
             if (!other.equals(player) && !other.hasPermission("moderex.command.vanish")) {
                 other.hidePlayer(plugin, player);
+                /* TODO: Add a reflection hook (nms) for proper vanishing
+                    (methods are protocol specific, just choose one, and
+                     i'll do all the rest)
+                */
             }
         }
 
