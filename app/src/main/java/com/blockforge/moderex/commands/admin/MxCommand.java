@@ -62,6 +62,7 @@ public class MxCommand extends BaseCommand {
             case "sessions" -> handleSessions(sender);
             case "automod" -> handleAutomod(sender);
             case "anticheat", "ac" -> handleAnticheat(sender);
+            case "sendalert" -> handleSendAlert(sender, subArgs);
             case "chat" -> handleChat(sender, subArgs);
             case "settings" -> handleSettings(sender);
             case "analytics" -> handleAnalytics(sender);
@@ -648,6 +649,47 @@ public class MxCommand extends BaseCommand {
         }
 
         plugin.getGuiManager().open(player, new AnticheatRulesGui(plugin));
+    }
+
+    private void handleSendAlert(CommandSender sender, String[] args) {
+        if (!sender.hasPermission("moderex.command.admin")) {
+            sendMessage(sender, MessageKey.NO_PERMISSION);
+            return;
+        }
+
+        // Usage: /mx sendalert <player> <anticheat> <check> [vl]
+        if (args.length < 3) {
+            sendMessage(sender, "<red>Usage: /mx sendalert <player> <anticheat> <check> [vl]");
+            sendMessage(sender, "<gray>Example: /mx sendalert " + sender.getName() + " Grim KillAura 25");
+            return;
+        }
+
+        Player target = Bukkit.getPlayer(args[0]);
+        if (target == null) {
+            sendMessage(sender, "<red>Player not found: " + args[0]);
+            return;
+        }
+
+        String anticheat = args[1];
+        String checkName = args[2];
+        int vl = 10;
+
+        if (args.length >= 4) {
+            try {
+                vl = Integer.parseInt(args[3]);
+            } catch (NumberFormatException e) {
+                sendMessage(sender, "<red>Invalid VL number: " + args[3]);
+                return;
+            }
+        }
+
+        sendMessage(sender, "<yellow>Sending test alert: " + target.getName() + " flagged " +
+                anticheat + ":" + checkName + " x" + vl);
+
+        // Use the anticheat manager to send the alert through normal channels
+        plugin.getAnticheatManager().notifyStaff(target, anticheat, checkName, vl);
+
+        sendMessage(sender, "<green>Test alert sent! Check console for debug info if debug mode is enabled.");
     }
 
     private void handleChat(CommandSender sender, String[] args) {
@@ -1287,6 +1329,7 @@ public class MxCommand extends BaseCommand {
                 completions.add("replay");
                 completions.add("replays");
                 completions.add("gentoken");
+                completions.add("sendalert");
             }
             if (sender.hasPermission("moderex.webpanel")) {
                 completions.add("connect");
@@ -1310,10 +1353,16 @@ public class MxCommand extends BaseCommand {
                 case "replay", "replays", "rec", "recording" -> {
                     return filterCompletions(Arrays.asList("start", "stop", "play", "list", "search", "delete", "status", "help"), args[1]);
                 }
+                case "sendalert" -> {
+                    return filterCompletions(getOnlinePlayerNames(sender), args[1]);
+                }
             }
         }
         if (args.length == 3) {
             String sub = args[0].toLowerCase();
+            if (sub.equals("sendalert")) {
+                return filterCompletions(Arrays.asList("Grim", "Vulcan", "Matrix", "Spartan", "NCP", "Themis", "FoxAddition", "LightAC"), args[2]);
+            }
             if (sub.equals("ban") || sub.equals("mute") || sub.equals("warn") || sub.equals("ipban")) {
                 return filterCompletions(Arrays.asList("1h", "1d", "7d", "30d", "permanent"), args[2]);
             }
@@ -1322,6 +1371,20 @@ public class MxCommand extends BaseCommand {
                 if (action.equals("start") || action.equals("stop") || action.equals("search")) {
                     return filterCompletions(getOnlinePlayerNames(sender), args[2]);
                 }
+            }
+        }
+        if (args.length == 4) {
+            String sub = args[0].toLowerCase();
+            if (sub.equals("sendalert")) {
+                // Check names
+                return filterCompletions(Arrays.asList("KillAura", "Reach", "Speed", "Fly", "NoSlow", "Timer", "Velocity", "Scaffold", "FastBreak", "AutoClicker"), args[3]);
+            }
+        }
+        if (args.length == 5) {
+            String sub = args[0].toLowerCase();
+            if (sub.equals("sendalert")) {
+                // VL suggestions
+                return filterCompletions(Arrays.asList("5", "10", "15", "20", "25", "50"), args[4]);
             }
         }
 

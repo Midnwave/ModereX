@@ -155,18 +155,26 @@ public class AnticheatManager {
     }
 
     private void notifyStaff(AnticheatHook.AnticheatAlert alert) {
+        notifyStaff(alert.getPlayer(), alert.getAnticheat(), alert.getCheckName(), (int) alert.getVlLevel());
+    }
+
+    /**
+     * Notify staff about an anticheat alert. Can be called directly for testing.
+     */
+    public void notifyStaff(Player target, String anticheat, String checkName, int vl) {
         if (!plugin.getConfigManager().getSettings().isAnticheatAlertsEnabled()) {
+            plugin.logDebug("[AC] Alerts disabled globally, skipping alert for " + target.getName());
             return;
         }
 
-        Player target = alert.getPlayer();
-        String anticheat = alert.getAnticheat();
-        String checkName = alert.getCheckName();
-        int vl = (int) alert.getVlLevel();
         boolean isWatched = plugin.getWatchlistManager().isWatched(target.getUniqueId());
+        boolean debug = plugin.getConfigManager().getSettings().isDebugMode();
 
         for (Player staff : plugin.getServer().getOnlinePlayers()) {
             if (!staff.hasPermission("moderex.notify.anticheat")) {
+                if (debug) {
+                    plugin.logDebug("[AC] " + staff.getName() + " lacks moderex.notify.anticheat permission");
+                }
                 continue;
             }
 
@@ -176,14 +184,28 @@ public class AnticheatManager {
 
             // If not configured, skip (default is OFF/unconfigured)
             if (!checkPref.isConfigured()) {
+                if (debug) {
+                    plugin.logDebug("[AC] " + staff.getName() + " has no config for " + anticheat + ":" + checkName + " (skipped)");
+                }
                 continue;
             }
 
             // Check alert level
             switch (checkPref.getAlertLevel()) {
-                case OFF -> { continue; }
+                case OFF -> {
+                    if (debug) {
+                        plugin.logDebug("[AC] " + staff.getName() + " has " + anticheat + ":" + checkName + " set to OFF");
+                    }
+                    continue;
+                }
                 case WATCHLIST_ONLY -> {
-                    if (!isWatched) continue;
+                    if (!isWatched) {
+                        if (debug) {
+                            plugin.logDebug("[AC] " + staff.getName() + " has " + anticheat + ":" + checkName +
+                                    " set to WATCHLIST_ONLY, but " + target.getName() + " is not watched");
+                        }
+                        continue;
+                    }
                 }
                 case EVERYONE -> {} // proceed
             }
@@ -191,6 +213,10 @@ public class AnticheatManager {
             // Track alert and check if threshold is met
             if (!alertManager.shouldSendAlertToStaff(staff.getUniqueId(), anticheat, checkName,
                     checkPref.getThresholdCount(), checkPref.getTimeWindowSeconds())) {
+                if (debug) {
+                    plugin.logDebug("[AC] " + staff.getName() + " threshold not met for " + anticheat + ":" + checkName +
+                            " (need " + checkPref.getThresholdCount() + " in " + checkPref.getTimeWindowSeconds() + "s)");
+                }
                 continue;
             }
 
@@ -203,6 +229,11 @@ public class AnticheatManager {
             );
 
             staff.sendMessage(message);
+
+            if (debug) {
+                plugin.logDebug("[AC] Sent alert to " + staff.getName() + " for " + target.getName() +
+                        " " + anticheat + ":" + checkName + " x" + vl);
+            }
         }
     }
 
