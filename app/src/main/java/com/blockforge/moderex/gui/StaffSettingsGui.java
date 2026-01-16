@@ -309,9 +309,13 @@ public class StaffSettingsGui extends BaseGui {
             refresh();
         });
 
-        setItem(24, createItem(Material.BOOK, "<aqua>Per-Check Settings",
-                "<gray>Configure individual checks in",
-                "<gray>the Automod GUI or Web Panel"));
+        setItem(24, createItem(Material.COMPARATOR, "<gold>Anticheat Rules",
+                "<gray>Configure check rules,",
+                "<gray>thresholds, and auto-punishments",
+                "",
+                "<yellow>Click to open"), () -> {
+            plugin.getGuiManager().open(viewer, new AnticheatRulesGui(plugin));
+        });
 
         // Per-anticheat toggles - Row 2 & 3 (centered)
         List<String> enabledACs = plugin.getAnticheatManager().getEnabledAnticheats();
