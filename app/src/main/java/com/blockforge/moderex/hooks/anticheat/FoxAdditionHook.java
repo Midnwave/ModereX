@@ -15,16 +15,8 @@ import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
- * Hook for FoxAddition Anticheat by zoruafan
- * API: zoruafan.foxanticheat.api.events.FoxFlagEvent
- *
- * FoxFlagEvent provides:
- * - getPlayer() -> Player
- * - getCheckType() -> String (check name)
- * - getVLS() -> int (violation level)
- * - getDetails() -> String (additional info)
- * - getModule() -> String (module name)
- * - getLog() -> String (log message)
+ * Hook for FoxAddition Anticheat using their FoxFlagEvent API
+ * Event gives us player, check type, VLS level, module name, and extra details
  */
 public class FoxAdditionHook extends AnticheatHook implements Listener {
 

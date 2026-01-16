@@ -1,0 +1,59 @@
+# ------------------------------------------------------------------------------------------- #
+#              ______                        _      _  _  _    _                              #
+#              |  ____|             /\       | |    | |(_)| |  (_)                            #
+#              | |__  ___ __  __   /  \    __| |  __| | _ | |_  _   ___   _ __                #
+#              |  __|/ _ \\ \/ /  / /\ \  / _` | / _` || || __|| | / _ \ | '_ \               #
+#              | |  | (_) |>  <  / ____ \| (_| || (_| || || |_ | || (_) || | | |              #
+#              |_|   \___//_/\_\/_/    \_\\__,_| \__,_||_| \__||_| \___/ |_| |_|              #
+#                                                                                             #
+#                                          [v1.2.0]                                           #
+#                                                                                             #
+# ------------------------------------------------------------------------------------------- #
+# If you has questions, you can join to the discord server in:
+# https://discord.com/invite/FTtVXfj or you can use the Discussion page in https://www.spigotmc.org/threads/612025/.
+
+# You can define the prefix to show in messages here.
+prefix: '&8[&6&lFA&8]&r'
+
+# Modify here some messages of the plugin, this configuration
+# file, can be updated in a future to add more editable options.
+# You can use \n or %nl% for new lines.
+messages:
+    # This messages is used to show in the hover in the help command.
+    help:
+      reload: 'Reload the configuration files.'
+      notify: 'Send an alert with the anticheat.'
+      verbose: 'Enable/disable verbose mode.'
+      discordtest: 'Send a message to test DiscordSRV integration.'
+    command:
+      notify:
+        noargs: '{prefix} You need add the message to notify.'
+      reload:
+        message: '{prefix} All files of the configuration has been reloaded.'
+      discordtest:
+        nohook: '{prefix} DiscordSRV is not hooked to test.'
+        ingame: '{prefix} You need to test it in-game.'
+        success: '{prefix} The test of Discord Integration has been sended.'
+      verbose:
+        enable: '{prefix} &aYou enabled the verbose mode.'
+        disable: '{prefix} &cYou disabled the verbose mode.'
+        # Available placeholders by FoxAddition:
+        # (this also support PlaceholderAPI)
+        #
+        # {player} - Return player name.
+        # {module} - Return new modules names.
+        # {details} - Return the information of logs.
+        # {vls} - Return new vls value.
+        # {vls_added} - Return the vls added.
+        format: '{prefix} &6[VERBOSE] &b{player} &7failed &2{module} &7check &8| &7{details} &8| &7vl:{vls}&a(+{vls_added})'
+    # This messages are used when the player is kicked because
+    # the anti-exploits checks in Misc.
+    exploits:
+      illegalpitch: 'Disconnected'
+      fakespectate: 'Invalid packet!'
+      fakecreative: 'Invalid packet!'
+      invalidabilities: 'Invalid packet!'
+      invalidposition: 'Invalid position!'
+      nulladdress: 'Disconnected'
+       
+version: 3

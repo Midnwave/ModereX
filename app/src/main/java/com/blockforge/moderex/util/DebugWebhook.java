@@ -14,18 +14,15 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.regex.Pattern;
 
 /**
- * Utility class for sending debug logs to a Discord webhook.
- * Logs are formatted with diff syntax for color coding:
- * - "-" prefix for error messages (red)
- * - "+" prefix for success messages (green)
- * - No prefix for debug messages (gray)
+ * Sends debug logs to a Discord webhook using diff syntax for colors
+ * Errors get a minus sign (red), successes get a plus (green), debug is plain (gray)
  */
 public class DebugWebhook {
 
     public enum LogLevel {
-        DEBUG,   // No prefix - gray text
-        SUCCESS, // + prefix - green text
-        ERROR    // - prefix - red text
+        DEBUG,   // plain gray
+        SUCCESS, // green with +
+        ERROR    // red with
     }
 
     // Pattern to match IP addresses (IPv4)

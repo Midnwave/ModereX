@@ -15,15 +15,8 @@ import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
- * Hook for LightAntiCheat by Vekster
- * API: me.vekster.lightanticheat.api.event.LACViolationEvent
- *
- * LACViolationEvent provides:
- * - getPlayer() -> Player
- * - getCheckType() -> CheckType enum (has getName())
- * - getCheckSubType() -> String (sub-type like "A", "B")
- * - getBuffer() -> double (violation buffer/level)
- * - isCancelled() / setCancelled(boolean)
+ * Hook for LightAntiCheat using their LACViolationEvent API
+ * Event gives us player, check type/subtype, violation buffer, and we can cancel it
  */
 public class LightAntiCheatHook extends AnticheatHook implements Listener {
 

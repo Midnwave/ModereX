@@ -1,0 +1,45 @@
+name: Themis
+version: 0.17.7
+description: A free Anti Cheat focused on Accuracy, Efficiency and Simplicity
+author: Olexorus
+main: com.gmail.olexorus.themis.Themis
+softdepend:
+  - floodgate
+  - floodgate-bukkit
+  - PlaceholderAPI
+  - ProtocolLib
+  - ProtocolSupport
+  - ViaVersion
+  - ViaBackwards
+  - ViaRewind
+  - Geyser-Spigot
+api-version: 1.17
+
+permissions:
+  themis.bypass:
+    description: Bypass all of Themis' checks
+    default: false
+  themis.silent:
+    description: Make Themis' checks silent, i.e. they won't block hacks
+    default: false
+  themis.notifications:
+    description: Receive detection notifications
+    default: op
+  themis.technical:
+    description: Receive technical notifications, for example about updates or detected problems
+    default: op
+  themis.command.base:
+    description: Use /themis
+    default: true
+  themis.command.help:
+    description: Use /themis help
+    default: true
+  themis.command.info:
+    description: use /themis info
+    default: op
+  themis.command.notify:
+    description: Use /themis notify
+    default: false
+  themis.command.reload:
+    description: Use /themis reload
+    default: op

@@ -15,14 +15,8 @@ import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
- * Hook for Themis Anticheat by olexorus
- * API: com.gmail.olexorus.themis.api.ViolationEvent
- *
- * ViolationEvent provides:
- * - getPlayer() -> Player
- * - getType() -> CheckType enum (has getCheckName(), getDescription())
- * - getSeverity() -> double (violation level)
- * - getDragback() -> boolean
+ * Hook for Themis Anticheat using their ViolationEvent API
+ * Event gives us player, check type, severity level, and dragback status
  */
 public class ThemisHook extends AnticheatHook implements Listener {
 
