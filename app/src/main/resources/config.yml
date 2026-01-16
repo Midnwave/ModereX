@@ -110,7 +110,7 @@ anticheat:
   # Auto-detect installed anticheat plugins
   auto-detect: true
 
-  # Manual selection (auto, grim, vulcan, matrix, spartan, intave, karhu, polar, ncp)
+  # Manual selection (auto, grim, vulcan, matrix, spartan, ncp, themis, foxaddition, lightac)
   provider: auto
 
   # Replace anticheat alert messages with ModereX branding
@@ -153,18 +153,18 @@ anticheat:
   spartan:
     enabled: true
     min-vl: 10
-  polar:
-    enabled: true
-    min-vl: 5
-  karhu:
-    enabled: true
-    min-vl: 5
-  intave:
-    enabled: true
-    min-vl: 5
   ncp:
     enabled: true
     min-vl: 10
+  themis:
+    enabled: true
+    min-vl: 5
+  foxaddition:
+    enabled: true
+    min-vl: 5
+  lightac:
+    enabled: true
+    min-vl: 5
 
 # ============================================
 # STAFF SETTINGS

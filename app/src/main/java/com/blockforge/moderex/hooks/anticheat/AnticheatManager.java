@@ -34,10 +34,10 @@ public class AnticheatManager {
         registerHook(new VulcanHook(plugin));
         registerHook(new MatrixHook(plugin));
         registerHook(new SpartanHook(plugin));
-        registerHook(new IntaveHook(plugin));
-        registerHook(new KarhuHook(plugin));
-        registerHook(new PolarHook(plugin));
         registerHook(new NCPHook(plugin));
+        registerHook(new ThemisHook(plugin));
+        registerHook(new FoxAdditionHook(plugin));
+        registerHook(new LightAntiCheatHook(plugin));
         plugin.logDebug("[Anticheat] Registered " + hooks.size() + " hooks: " + String.join(", ", hooks.keySet()));
 
         // Try to hook into each anticheat
