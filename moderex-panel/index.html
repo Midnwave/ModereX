@@ -688,11 +688,11 @@
         <section class="page" id="page-anticheat">
           <div class="page-head">
             <div class="page-title">
-              <h1>Anticheat Alert Settings</h1>
-              <p>Configure which anticheat checks you receive alerts for.</p>
+              <h1>Anticheat Alerts</h1>
+              <p id="anticheatSubtitle">Configure anticheat alert routing and ModereX thresholds.</p>
             </div>
             <div style="display:flex;gap:10px;align-items:center">
-              <span class="chip info" id="anticheatCountChip"><i class="fa-solid fa-shield-halved"></i> <span id="anticheatCheckCount">0</span> checks detected</span>
+              <div id="anticheatBadges" style="display:flex;gap:6px"></div>
             </div>
           </div>
 
@@ -707,11 +707,8 @@
                 <div class="left">
                   <div class="gsearch" style="width:100%;max-width:420px">
                     <i class="fa-solid fa-magnifying-glass"></i>
-                    <input type="text" id="anticheatSearch" placeholder="Search checks...">
+                    <input type="text" id="anticheatSearch" placeholder="Search alert types...">
                   </div>
-                </div>
-                <div class="right">
-                  <div id="anticheatBadges" style="display:flex;gap:6px"></div>
                 </div>
               </div>
 
@@ -719,25 +716,15 @@
                 <table>
                   <thead>
                     <tr>
-                      <th>Anticheat</th>
-                      <th>Check</th>
-                      <th>Alert Level</th>
-                      <th>Threshold</th>
-                      <th>Time Window</th>
+                      <th>ALERT</th>
+                      <th>CHAT ALERTS</th>
+                      <th>TOAST ALERTS</th>
+                      <th>THRESHOLD</th>
+                      <th>AUTO PUNISH</th>
                     </tr>
                   </thead>
                   <tbody id="anticheatRows"></tbody>
                 </table>
-              </div>
-
-              <div class="card" style="margin-top:16px">
-                <h3><i class="fa-solid fa-circle-info" style="color:var(--primary-light)"></i> How it works</h3>
-                <p style="margin-top:8px;color:var(--text-secondary);font-size:13px">
-                  <b>Alert Level:</b> Choose when to receive alerts - Everyone (all players), Watchlist Only (only watched players), or Off (no alerts).<br>
-                  <b>Threshold:</b> Number of violations required before you receive an alert.<br>
-                  <b>Time Window:</b> The threshold must be met within this time period (in seconds).<br><br>
-                  <i>Unconfigured checks (gray) will not send you any alerts. Click a row to configure.</i>
-                </p>
               </div>
             </div>
           </div>

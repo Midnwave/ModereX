@@ -1312,7 +1312,7 @@
 
     // Update local state immediately for responsiveness
     if (!state.anticheatPreferences[checkKey]) {
-      state.anticheatPreferences[checkKey] = { alertLevel: 'OFF', thresholdCount: 5, timeWindowSeconds: 60 };
+      state.anticheatPreferences[checkKey] = { chatAlerts: true, toastAlerts: true, thresholdCount: 6, timeWindowMins: 2, autoPunish: 'none' };
     }
     state.anticheatPreferences[checkKey][field] = value;
     ui.renderAnticheat();

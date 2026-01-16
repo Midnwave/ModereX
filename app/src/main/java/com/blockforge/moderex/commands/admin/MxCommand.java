@@ -660,14 +660,28 @@ public class MxCommand extends BaseCommand {
         // Usage: /mx sendalert <player> <anticheat> <check> [vl]
         if (args.length < 3) {
             sendMessage(sender, "<red>Usage: /mx sendalert <player> <anticheat> <check> [vl]");
-            sendMessage(sender, "<gray>Example: /mx sendalert " + sender.getName() + " Grim KillAura 25");
+            // Show a proper example with an online player
+            String examplePlayer = Bukkit.getOnlinePlayers().isEmpty() ? "PlayerName" :
+                    Bukkit.getOnlinePlayers().iterator().next().getName();
+            sendMessage(sender, "<gray>Example: /mx sendalert " + examplePlayer + " Grim KillAura 25");
             return;
         }
 
         Player target = Bukkit.getPlayer(args[0]);
+
+        // If target not found by name, check if it's "CONSOLE" or if sender is a player
         if (target == null) {
-            sendMessage(sender, "<red>Player not found: " + args[0]);
-            return;
+            // If CONSOLE or invalid name was used, try to use sender if they're a player
+            if (sender instanceof Player p && (args[0].equalsIgnoreCase("CONSOLE") || args[0].equalsIgnoreCase(sender.getName()))) {
+                target = p;
+            } else {
+                // List online players to help
+                String online = Bukkit.getOnlinePlayers().isEmpty() ? "No players online" :
+                        String.join(", ", Bukkit.getOnlinePlayers().stream().limit(5).map(Player::getName).toList());
+                sendMessage(sender, "<red>Player not found: " + args[0]);
+                sendMessage(sender, "<gray>Online players: " + online);
+                return;
+            }
         }
 
         String anticheat = args[1];

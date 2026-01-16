@@ -138,8 +138,8 @@
       anticheatRows: $('#anticheatRows'),
       anticheatConfig: $('#anticheatConfig'),
       anticheatNoHooksCard: $('#anticheatNoHooksCard'),
-      anticheatCheckCount: $('#anticheatCheckCount'),
-      anticheatBadges: $('#anticheatBadges')
+      anticheatBadges: $('#anticheatBadges'),
+      anticheatSubtitle: $('#anticheatSubtitle')
     };
   }
 
@@ -467,8 +467,10 @@
     if (dom.anticheatConfig) dom.anticheatConfig.style.display = hasHooks ? 'block' : 'none';
     if (dom.anticheatNoHooksCard) dom.anticheatNoHooksCard.style.display = hasHooks ? 'none' : 'block';
 
-    // Update check count
-    if (dom.anticheatCheckCount) dom.anticheatCheckCount.textContent = checks.length;
+    // Update subtitle with detected anticheat
+    if (dom.anticheatSubtitle && enabledAnticheats.length > 0) {
+      dom.anticheatSubtitle.textContent = `Configure ${enabledAnticheats.join(', ')} alert routing and ModereX thresholds.`;
+    }
 
     // Render anticheat badges
     if (dom.anticheatBadges) {
@@ -485,34 +487,37 @@
 
     dom.anticheatRows.innerHTML = filtered.map(c => {
       const key = c.key || `${c.anticheat.toLowerCase()}:${c.checkName.toLowerCase()}`;
-      const pref = prefs[key] || { alertLevel: 'OFF', thresholdCount: 5, timeWindowSeconds: 60 };
-      const configured = pref.alertLevel !== 'OFF';
-      const rowClass = configured ? '' : 'style="opacity:0.6"';
-
-      const levelColors = { 'EVERYONE': 'ok', 'WATCHLIST_ONLY': 'warn', 'OFF': 'gray' };
-      const levelLabels = { 'EVERYONE': 'Everyone', 'WATCHLIST_ONLY': 'Watchlist', 'OFF': 'Off' };
+      const pref = prefs[key] || { chatAlerts: true, toastAlerts: true, thresholdCount: 6, timeWindowMins: 2, autoPunish: 'none' };
 
       return `
-        <tr ${rowClass}>
-          <td><span class="badge ${levelColors[pref.alertLevel] || 'gray'}">${escapeHtml(c.anticheat)}</span></td>
+        <tr>
           <td><b>${escapeHtml(c.checkName)}</b></td>
           <td>
-            <select class="input" style="width:130px" onchange="updateAnticheatPref('${escapeHtml(key)}', 'alertLevel', this.value)">
-              ${['OFF', 'EVERYONE', 'WATCHLIST_ONLY'].map(opt =>
-                `<option value="${opt}" ${pref.alertLevel === opt ? 'selected' : ''}>${levelLabels[opt]}</option>`
+            <button class="toggle ${pref.chatAlerts ? 'on' : ''}" onclick="updateAnticheatPref('${escapeHtml(key)}', 'chatAlerts', ${!pref.chatAlerts})">
+              <span class="toggle-thumb"></span>
+            </button>
+          </td>
+          <td>
+            <button class="toggle ${pref.toastAlerts ? 'on' : ''}" onclick="updateAnticheatPref('${escapeHtml(key)}', 'toastAlerts', ${!pref.toastAlerts})">
+              <span class="toggle-thumb"></span>
+            </button>
+          </td>
+          <td>
+            <div class="block" style="margin-top:0;gap:6px">
+              <input class="input" style="width:60px" type="number" min="1" max="100" value="${pref.thresholdCount || 6}"
+                onchange="updateAnticheatPref('${escapeHtml(key)}', 'thresholdCount', parseInt(this.value) || 6)">
+              <span style="font-size:12px;color:var(--text-secondary)">in</span>
+              <input class="input" style="width:60px" type="number" min="1" max="60" value="${pref.timeWindowMins || 2}"
+                onchange="updateAnticheatPref('${escapeHtml(key)}', 'timeWindowMins', parseInt(this.value) || 2)">
+              <span style="font-size:12px;color:var(--text-secondary)">mins</span>
+            </div>
+          </td>
+          <td>
+            <select class="input" style="width:100px" onchange="updateAnticheatPref('${escapeHtml(key)}', 'autoPunish', this.value)">
+              ${['none', 'warn', 'mute', 'kick', 'ban'].map(opt =>
+                `<option value="${opt}" ${(pref.autoPunish || 'none') === opt ? 'selected' : ''}>${opt}</option>`
               ).join('')}
             </select>
-          </td>
-          <td>
-            <input class="input" style="width:70px" type="number" min="1" max="100" value="${pref.thresholdCount}"
-              onchange="updateAnticheatPref('${escapeHtml(key)}', 'thresholdCount', parseInt(this.value) || 5)">
-          </td>
-          <td>
-            <div class="block" style="margin-top:0">
-              <input class="input" style="width:70px" type="number" min="1" max="600" value="${pref.timeWindowSeconds}"
-                onchange="updateAnticheatPref('${escapeHtml(key)}', 'timeWindowSeconds', parseInt(this.value) || 60)">
-              <span style="font-size:12px;color:var(--text-secondary)">sec</span>
-            </div>
           </td>
         </tr>
       `;

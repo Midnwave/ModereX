@@ -8,8 +8,10 @@ import java.net.HttpURLConnection;
 import java.net.URI;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
+import java.util.concurrent.BlockingQueue;
+import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.regex.Pattern;
 
 /**
  * Utility class for sending debug logs to a Discord webhook.
@@ -26,17 +28,28 @@ public class DebugWebhook {
         ERROR    // - prefix - red text
     }
 
+    // Pattern to match IP addresses (IPv4)
+    private static final Pattern IP_PATTERN = Pattern.compile(
+        "\\b(?:\\d{1,3}\\.){3}\\d{1,3}\\b"
+    );
+
+    // Pattern to match IPv6 addresses
+    private static final Pattern IPV6_PATTERN = Pattern.compile(
+        "\\b(?:[0-9a-fA-F]{1,4}:){7}[0-9a-fA-F]{1,4}\\b|" +
+        "\\b(?:[0-9a-fA-F]{1,4}:){1,7}:\\b|" +
+        "\\b::(?:[0-9a-fA-F]{1,4}:){0,6}[0-9a-fA-F]{1,4}\\b"
+    );
+
     private final ModereX plugin;
-    private final ExecutorService executor;
+    private final BlockingQueue<QueuedMessage> messageQueue;
+    private final AtomicBoolean running;
+    private Thread workerThread;
     private String webhookUrl;
 
     public DebugWebhook(ModereX plugin) {
         this.plugin = plugin;
-        this.executor = Executors.newSingleThreadExecutor(r -> {
-            Thread t = new Thread(r, "ModereX-DebugWebhook");
-            t.setDaemon(true);
-            return t;
-        });
+        this.messageQueue = new LinkedBlockingQueue<>();
+        this.running = new AtomicBoolean(false);
         this.webhookUrl = "";
     }
 
@@ -45,6 +58,13 @@ public class DebugWebhook {
      */
     public void setWebhookUrl(String url) {
         this.webhookUrl = url != null ? url.trim() : "";
+
+        // Start or stop worker thread based on URL
+        if (isEnabled() && !running.get()) {
+            startWorker();
+        } else if (!isEnabled() && running.get()) {
+            stopWorker();
+        }
     }
 
     /**
@@ -83,15 +103,73 @@ public class DebugWebhook {
             return;
         }
 
-        executor.submit(() -> {
-            try {
-                String formattedMessage = formatMessage(message, level);
-                sendToWebhook(formattedMessage);
-            } catch (Exception e) {
-                // Log locally but don't spam if webhook is failing
-                plugin.getLogger().warning("[DebugWebhook] Failed to send: " + e.getMessage());
+        // Skip messages containing IP addresses
+        if (containsIpAddress(message)) {
+            return;
+        }
+
+        // Queue the message for rate-limited sending
+        messageQueue.offer(new QueuedMessage(message, level));
+
+        // Ensure worker is running
+        if (!running.get()) {
+            startWorker();
+        }
+    }
+
+    /**
+     * Check if a message contains an IP address.
+     */
+    private boolean containsIpAddress(String message) {
+        return IP_PATTERN.matcher(message).find() || IPV6_PATTERN.matcher(message).find();
+    }
+
+    /**
+     * Start the worker thread that processes the message queue.
+     */
+    private synchronized void startWorker() {
+        if (running.get()) {
+            return;
+        }
+
+        running.set(true);
+        workerThread = new Thread(() -> {
+            while (running.get()) {
+                try {
+                    QueuedMessage msg = messageQueue.take();
+
+                    if (!running.get()) {
+                        break;
+                    }
+
+                    try {
+                        String formattedMessage = formatMessage(msg.message, msg.level);
+                        sendToWebhook(formattedMessage);
+                    } catch (Exception e) {
+                        plugin.getLogger().warning("[DebugWebhook] Failed to send: " + e.getMessage());
+                    }
+
+                    // Wait 1 second before processing next message to avoid rate limiting
+                    Thread.sleep(1000);
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                    break;
+                }
             }
-        });
+        }, "ModereX-DebugWebhook");
+        workerThread.setDaemon(true);
+        workerThread.start();
+    }
+
+    /**
+     * Stop the worker thread.
+     */
+    private synchronized void stopWorker() {
+        running.set(false);
+        if (workerThread != null) {
+            workerThread.interrupt();
+            workerThread = null;
+        }
     }
 
     /**
@@ -153,9 +231,23 @@ public class DebugWebhook {
     }
 
     /**
-     * Shutdown the executor service.
+     * Shutdown the webhook system.
      */
     public void shutdown() {
-        executor.shutdown();
+        stopWorker();
+        messageQueue.clear();
+    }
+
+    /**
+     * Internal class to hold queued messages.
+     */
+    private static class QueuedMessage {
+        final String message;
+        final LogLevel level;
+
+        QueuedMessage(String message, LogLevel level) {
+            this.message = message;
+            this.level = level;
+        }
     }
 }
