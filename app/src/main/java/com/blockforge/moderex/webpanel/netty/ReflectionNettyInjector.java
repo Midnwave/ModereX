@@ -32,14 +32,12 @@ public class ReflectionNettyInjector implements NettyInjector {
                 return false;
             }
 
-            // Find the list of channel futures
             channelFutures = findChannelFutures(serverConnection);
             if (channelFutures == null || channelFutures.isEmpty()) {
                 plugin.logDebug("[Netty] Could not find channel futures");
                 return false;
             }
 
-            // Inject into each channel's pipeline
             int successCount = 0;
             for (ChannelFuture future : channelFutures) {
                 if (injectIntoChannel(future.channel())) {
@@ -66,11 +64,9 @@ public class ReflectionNettyInjector implements NettyInjector {
         try {
             Object server = plugin.getServer();
 
-            // Get the CraftServer's handle (MinecraftServer)
             Method getServerMethod = server.getClass().getMethod("getServer");
             Object minecraftServer = getServerMethod.invoke(server);
 
-            // Modern Paper (1.20.5+) - Try getConnection method first
             try {
                 Method getConnectionMethod = minecraftServer.getClass().getMethod("getConnection");
                 Object connection = getConnectionMethod.invoke(minecraftServer);
@@ -80,7 +76,6 @@ public class ReflectionNettyInjector implements NettyInjector {
                 }
             } catch (NoSuchMethodException ignored) {}
 
-            // Fallback: Search through fields
             Class<?> clazz = minecraftServer.getClass();
             while (clazz != null && clazz != Object.class) {
                 for (Field field : clazz.getDeclaredFields()) {
@@ -109,7 +104,6 @@ public class ReflectionNettyInjector implements NettyInjector {
     @SuppressWarnings("unchecked")
     private List<ChannelFuture> findChannelFutures(Object serverConnection) {
         try {
-            // Search all fields for List<ChannelFuture>
             Class<?> clazz = serverConnection.getClass();
             while (clazz != null && clazz != Object.class) {
                 for (Field field : clazz.getDeclaredFields()) {
@@ -128,7 +122,6 @@ public class ReflectionNettyInjector implements NettyInjector {
                 clazz = clazz.getSuperclass();
             }
 
-            // Alternative: look for "channels" or "endpoints" field names
             clazz = serverConnection.getClass();
             while (clazz != null && clazz != Object.class) {
                 for (Field field : clazz.getDeclaredFields()) {
@@ -156,10 +149,7 @@ public class ReflectionNettyInjector implements NettyInjector {
         try {
             ChannelPipeline pipeline = channel.pipeline();
 
-            // Method 1: Add our handler directly to existing pipeline at the front
-            // This works for server bootstrap channels
             if (pipeline.get("moderex_http_detector") == null) {
-                // Find a safe position to inject (after encoder if present)
                 ChannelHandler first = pipeline.first();
                 if (first != null) {
                     pipeline.addFirst("moderex_http_detector", new HttpDetectorHandler(handler));
@@ -169,7 +159,6 @@ public class ReflectionNettyInjector implements NettyInjector {
                 }
             }
 
-            // Method 2: If it's a ChannelInitializer, wrap it
             ChannelHandler existingHandler = pipeline.first();
             if (existingHandler instanceof ChannelInitializer) {
                 ChannelInitializer<?> oldInit = (ChannelInitializer<?>) existingHandler;
@@ -177,7 +166,6 @@ public class ReflectionNettyInjector implements NettyInjector {
                 pipeline.replace(existingHandler, "moderex_wrapper", new ChannelInitializer<Channel>() {
                     @Override
                     protected void initChannel(Channel ch) throws Exception {
-                        // Call original initializer via reflection
                         try {
                             Method initMethod = ChannelInitializer.class.getDeclaredMethod("initChannel", Channel.class);
                             initMethod.setAccessible(true);
@@ -186,7 +174,6 @@ public class ReflectionNettyInjector implements NettyInjector {
                             plugin.logDebug("[Netty] Error calling original initializer: " + e.getMessage());
                         }
 
-                        // Add our HTTP detector at the front
                         if (ch.pipeline().get("moderex_http_detector") == null) {
                             ch.pipeline().addFirst("moderex_http_detector", new HttpDetectorHandler(handler));
                         }
@@ -213,13 +200,11 @@ public class ReflectionNettyInjector implements NettyInjector {
                 try {
                     ChannelPipeline pipeline = channel.pipeline();
 
-                    // Remove our handler
                     if (pipeline.get("moderex_http_detector") != null) {
                         pipeline.remove("moderex_http_detector");
                         removedCount++;
                     }
 
-                    // Remove wrapper if present
                     if (pipeline.get("moderex_wrapper") != null) {
                         pipeline.remove("moderex_wrapper");
                     }

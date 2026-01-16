@@ -15,17 +15,14 @@ public class ServerVersionUtil {
         String versionString = Bukkit.getServer().getVersion();
         String bukkitVersion = Bukkit.getBukkitVersion();
 
-        // Parse version like "1.21.1-R0.1-SNAPSHOT"
         String[] parts = bukkitVersion.split("-")[0].split("\\.");
         MAJOR_VERSION = parts.length > 0 ? parseInt(parts[0], 1) : 1;
         MINOR_VERSION = parts.length > 1 ? parseInt(parts[1], 0) : 0;
         VERSION = MAJOR_VERSION + "." + MINOR_VERSION;
 
-        // Detect Paper
         IS_PAPER = hasClass("io.papermc.paper.configuration.Configuration") ||
                    hasClass("com.destroystokyo.paper.PaperConfig");
 
-        // Detect Folia
         IS_FOLIA = hasClass("io.papermc.paper.threadedregions.RegionizedServer");
     }
 
@@ -72,13 +69,10 @@ public class ServerVersionUtil {
 
     public static String getNmsVersion() {
         String packageName = Bukkit.getServer().getClass().getPackage().getName();
-        // org.bukkit.craftbukkit.v1_21_R1 -> v1_21_R1
-        // Modern Paper uses org.bukkit.craftbukkit without version
         String[] parts = packageName.split("\\.");
         if (parts.length > 3 && parts[3].startsWith("v")) {
             return parts[3];
         }
-        // Modern Paper (1.20.5+) doesn't use versioned packages
         return null;
     }
 
@@ -96,7 +90,6 @@ public class ServerVersionUtil {
             return null;
         }
 
-        // Return a composite injector that tries multiple methods
         return new CompositeNettyInjector();
     }
 
@@ -105,7 +98,6 @@ public class ServerVersionUtil {
 
         @Override
         public boolean inject(ModereX plugin, HttpRequestHandler httpHandler) {
-            // Try Paper API first if available
             if (IS_PAPER && hasRelocatedNetty()) {
                 PaperNettyInjector paperInjector = new PaperNettyInjector();
                 if (paperInjector.inject(plugin, httpHandler)) {
@@ -115,7 +107,6 @@ public class ServerVersionUtil {
                 plugin.logDebug("[Netty] Paper API injection failed, trying reflection...");
             }
 
-            // Fall back to reflection
             ReflectionNettyInjector reflectionInjector = new ReflectionNettyInjector();
             if (reflectionInjector.inject(plugin, httpHandler)) {
                 activeInjector = reflectionInjector;

@@ -52,3 +52,7 @@ target/
 # Crash logs
 hs_err_pid*.log
 replay_pid*.log
+
+# Decompiled jars
+*_Decompiler.com/
+*_Decompiler.com.zip
