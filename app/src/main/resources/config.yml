@@ -8,7 +8,7 @@
 # Advanced Moderation Plugin for Minecraft 1.21+
 
 # Configuration version - DO NOT MODIFY
-config-version: 5
+config-version: 6
 
 # ============================================
 # GENERAL SETTINGS
@@ -22,6 +22,10 @@ general:
 
   # Enable debug mode for verbose logging
   debug: false
+
+  # Discord webhook URL for debug logs (leave empty to disable)
+  # Logs are formatted with diff syntax: - for errors, + for success, plain for debug
+  debug-webhook: ''
 
   # Use 1.21.6+ dialog system instead of chest GUIs when available
   dialogs-enabled: true

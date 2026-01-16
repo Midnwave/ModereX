@@ -6,6 +6,7 @@ public class Settings {
     private String language = "en_US";
     private String timezone = "America/Chicago";
     private boolean debugMode = false;
+    private String debugWebhookUrl = "";
     private boolean dialogsEnabled = true;
 
     // Database settings
@@ -103,6 +104,14 @@ public class Settings {
 
     public void setDebugMode(boolean debugMode) {
         this.debugMode = debugMode;
+    }
+
+    public String getDebugWebhookUrl() {
+        return debugWebhookUrl;
+    }
+
+    public void setDebugWebhookUrl(String debugWebhookUrl) {
+        this.debugWebhookUrl = debugWebhookUrl;
     }
 
     public boolean isDialogsEnabled() {

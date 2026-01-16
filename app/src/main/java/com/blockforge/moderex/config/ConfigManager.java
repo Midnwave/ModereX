@@ -15,7 +15,7 @@ import java.util.UUID;
 
 public class ConfigManager {
 
-    private static final int CURRENT_CONFIG_VERSION = 5;
+    private static final int CURRENT_CONFIG_VERSION = 6;
 
     private final ModereX plugin;
     private final Settings settings;
@@ -108,6 +108,7 @@ public class ConfigManager {
         settings.setLanguage(config.getString("general.language", "en_US"));
         settings.setTimezone(config.getString("general.timezone", "America/Chicago"));
         settings.setDebugMode(config.getBoolean("general.debug", false));
+        settings.setDebugWebhookUrl(config.getString("general.debug-webhook", ""));
         settings.setDialogsEnabled(config.getBoolean("general.dialogs-enabled", true));
 
         // Database
@@ -211,6 +212,9 @@ public class ConfigManager {
         if (oldVersion < 5) {
             migrateToV5();
         }
+        if (oldVersion < 6) {
+            migrateToV6();
+        }
 
         // Load default config to get any remaining new values
         InputStream defaultConfigStream = plugin.getResource("config.yml");
@@ -278,6 +282,15 @@ public class ConfigManager {
             config.set("webpanel.ai.endpoint", "http://localhost:11434/api/chat");
             config.set("webpanel.ai.model", "devstral-2-123b-cloud");
             config.set("webpanel.ai.api-key", "");
+        }
+    }
+
+    private void migrateToV6() {
+        plugin.getLogger().info("Adding debug webhook configuration (v6 migration)...");
+
+        // Add debug-webhook if not present
+        if (!config.contains("general.debug-webhook")) {
+            config.set("general.debug-webhook", "");
         }
     }
 

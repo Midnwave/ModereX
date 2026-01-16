@@ -16,6 +16,7 @@ import com.blockforge.moderex.replay.ReplayManager;
 import com.blockforge.moderex.staff.StaffChatManager;
 import com.blockforge.moderex.staff.StaffSettingsManager;
 import com.blockforge.moderex.staff.VanishManager;
+import com.blockforge.moderex.util.DebugWebhook;
 import com.blockforge.moderex.util.UpdateChecker;
 import com.blockforge.moderex.util.VersionUtil;
 import com.blockforge.moderex.watchlist.WatchlistManager;
@@ -56,6 +57,7 @@ public final class ModereX extends JavaPlugin {
     private TemplateManager templateManager;
     private com.blockforge.moderex.monitor.ServerStatusManager serverStatusManager;
     private StaffSettingsManager staffSettingsManager;
+    private DebugWebhook debugWebhook;
 
     @Override
     public void onEnable() {
@@ -73,6 +75,10 @@ public final class ModereX extends JavaPlugin {
             getServer().getPluginManager().disablePlugin(this);
             return;
         }
+
+        // Initialize debug webhook (after config is loaded)
+        this.debugWebhook = new DebugWebhook(this);
+        debugWebhook.setWebhookUrl(configManager.getSettings().getDebugWebhookUrl());
 
         // Initialize language manager
         logStartup("Loading language files...");
@@ -242,8 +248,14 @@ public final class ModereX extends JavaPlugin {
             anticheatManager.shutdown();
         }
 
+        // Shutdown debug webhook
+        if (debugWebhook != null) {
+            debugWebhook.success("[ModereX] Plugin disabled.");
+            debugWebhook.shutdown();
+        }
+
         instance = null;
-        logStartup("ModereX disabled.");
+        getLogger().info("ModereX disabled.");
     }
 
     public void reload() {
@@ -253,6 +265,11 @@ public final class ModereX extends JavaPlugin {
         configManager.load();
         languageManager.load();
         automodManager.load();
+
+        // Update debug webhook URL
+        if (debugWebhook != null) {
+            debugWebhook.setWebhookUrl(configManager.getSettings().getDebugWebhookUrl());
+        }
 
         // Stop existing web panel services
         if (hybridPanelServer != null) {
@@ -299,16 +316,32 @@ public final class ModereX extends JavaPlugin {
 
     private void logStartup(String message) {
         getLogger().info(message);
+        // Send success messages to webhook (plugin startup messages are success)
+        if (debugWebhook != null && debugWebhook.isEnabled()) {
+            debugWebhook.success("[ModereX] " + message);
+        }
     }
 
     public void logDebug(String message) {
         if (configManager != null && configManager.getSettings().isDebugMode()) {
             getLogger().info("[DEBUG] " + message);
+            // Send debug messages to webhook
+            if (debugWebhook != null && debugWebhook.isEnabled()) {
+                debugWebhook.debug("[DEBUG] " + message);
+            }
         }
     }
 
     public void logError(String message, Throwable throwable) {
         getLogger().log(Level.SEVERE, message, throwable);
+        // Send error messages to webhook
+        if (debugWebhook != null && debugWebhook.isEnabled()) {
+            String errorMsg = message;
+            if (throwable != null) {
+                errorMsg += ": " + throwable.getMessage();
+            }
+            debugWebhook.error("[ERROR] " + errorMsg);
+        }
     }
 
     // Getters for all managers
