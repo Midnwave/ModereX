@@ -105,11 +105,3 @@ processResources {
         expand props
     }
 }
-
-// auto-commit on build
-task gitPublish(type: Exec) {
-    commandLine 'cmd', '/c', 'cd c:\\projects\\Moderex && git add app/src/ app/build.gradle gradle/ gradlew gradlew.bat settings.gradle .gitignore && git commit -m "build update" && git push'
-    ignoreExitValue = true
-}
-
-build.finalizedBy gitPublish

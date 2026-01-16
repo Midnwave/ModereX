@@ -260,6 +260,99 @@ public class AnticheatAlertManager {
         return rules;
     }
 
+    /**
+     * Get all known checks for an anticheat (from registry + detected)
+     * This includes predefined checks that haven't been detected yet
+     */
+    public List<CheckWithInfo> getAllChecksForAnticheat(String anticheat) {
+        List<CheckWithInfo> result = new ArrayList<>();
+        Set<String> addedChecks = new HashSet<>();
+
+        // First add all predefined checks from the registry
+        for (AnticheatChecks.CheckInfo info : AnticheatChecks.getChecks(anticheat)) {
+            AnticheatCheckRule rule = checkRules.get(anticheat.toLowerCase() + ":" + info.getName());
+            result.add(new CheckWithInfo(info, rule));
+            addedChecks.add(info.getName());
+        }
+
+        // Then add any detected checks that aren't in the registry
+        String prefix = anticheat.toLowerCase() + ":";
+        for (Map.Entry<String, AnticheatCheckRule> entry : checkRules.entrySet()) {
+            if (entry.getKey().startsWith(prefix)) {
+                String checkName = entry.getKey().substring(prefix.length());
+                if (!addedChecks.contains(checkName)) {
+                    // Create a dynamic CheckInfo for this detected check
+                    AnticheatChecks.Category category = AnticheatChecks.getCategory(anticheat, checkName);
+                    AnticheatChecks.CheckInfo dynamicInfo = new AnticheatChecks.CheckInfo(
+                        checkName, checkName, category, "Detected check"
+                    );
+                    result.add(new CheckWithInfo(dynamicInfo, entry.getValue()));
+                }
+            }
+        }
+
+        // Sort by category then name
+        result.sort((a, b) -> {
+            int catCompare = a.getInfo().getCategory().ordinal() - b.getInfo().getCategory().ordinal();
+            if (catCompare != 0) return catCompare;
+            return a.getInfo().getDisplayName().compareToIgnoreCase(b.getInfo().getDisplayName());
+        });
+
+        return result;
+    }
+
+    /**
+     * Get all checks grouped by category
+     */
+    public Map<AnticheatChecks.Category, List<CheckWithInfo>> getChecksByCategory(String anticheat) {
+        Map<AnticheatChecks.Category, List<CheckWithInfo>> result = new LinkedHashMap<>();
+        for (AnticheatChecks.Category cat : AnticheatChecks.Category.values()) {
+            result.put(cat, new ArrayList<>());
+        }
+
+        for (CheckWithInfo check : getAllChecksForAnticheat(anticheat)) {
+            result.get(check.getInfo().getCategory()).add(check);
+        }
+
+        // Remove empty categories
+        result.entrySet().removeIf(e -> e.getValue().isEmpty());
+
+        return result;
+    }
+
+    /**
+     * Wrapper class combining check info with its rule (if any)
+     */
+    public static class CheckWithInfo {
+        private final AnticheatChecks.CheckInfo info;
+        private final AnticheatCheckRule rule;
+
+        public CheckWithInfo(AnticheatChecks.CheckInfo info, AnticheatCheckRule rule) {
+            this.info = info;
+            this.rule = rule;
+        }
+
+        public AnticheatChecks.CheckInfo getInfo() {
+            return info;
+        }
+
+        public AnticheatCheckRule getRule() {
+            return rule;
+        }
+
+        public boolean hasRule() {
+            return rule != null;
+        }
+
+        public boolean isEnabled() {
+            return rule == null || rule.isEnabled();
+        }
+
+        public boolean wasDetected() {
+            return rule != null;
+        }
+    }
+
     public void clearPlayerData(UUID uuid) {
         String prefix = uuid.toString() + ":";
         alertHistory.keySet().removeIf(k -> k.startsWith(prefix));

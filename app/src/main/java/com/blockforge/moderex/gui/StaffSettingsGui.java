@@ -17,6 +17,12 @@ public class StaffSettingsGui extends BaseGui {
     private SettingsTab currentTab = SettingsTab.NOTIFICATIONS;
     private StaffSettings settings;
 
+    // Layout constants for a centered 6-row GUI
+    // Row 0: Border
+    // Row 1: Tabs (centered)
+    // Row 2-4: Content area (slots 19-25, 28-34, 37-43)
+    // Row 5: Navigation (save/close)
+
     public StaffSettingsGui(ModereX plugin) {
         super(plugin, "<gradient:#a855f7:#ec4899>Staff Settings</gradient>", 6);
     }
@@ -26,30 +32,36 @@ public class StaffSettingsGui extends BaseGui {
         // Load settings
         settings = plugin.getStaffSettingsManager().getSettings(viewer);
 
-        fillBorder(Material.GRAY_STAINED_GLASS_PANE);
+        // Fill with dark background
+        fillEmpty(Material.BLACK_STAINED_GLASS_PANE);
 
-        // Tab buttons (5 tabs)
-        setItem(1, createTabButton(SettingsTab.NOTIFICATIONS, Material.BELL), () -> {
+        // Tab row (row 1, centered) - slots 10-16
+        setItem(10, createTabButton(SettingsTab.NOTIFICATIONS, Material.BELL), () -> {
             currentTab = SettingsTab.NOTIFICATIONS;
             refresh();
         });
 
-        setItem(2, createTabButton(SettingsTab.ALERTS, Material.COMPARATOR), () -> {
+        setItem(11, createTabButton(SettingsTab.ALERTS, Material.COMPARATOR), () -> {
             currentTab = SettingsTab.ALERTS;
             refresh();
         });
 
-        setItem(3, createTabButton(SettingsTab.ANTICHEAT, Material.IRON_SWORD), () -> {
+        setItem(12, createTabButton(SettingsTab.ANTICHEAT, Material.IRON_SWORD), () -> {
             currentTab = SettingsTab.ANTICHEAT;
             refresh();
         });
 
-        setItem(5, createTabButton(SettingsTab.PERSONAL, Material.PLAYER_HEAD), () -> {
+        setItem(13, createTabButton(SettingsTab.PERSONAL, Material.ARMOR_STAND), () -> {
             currentTab = SettingsTab.PERSONAL;
             refresh();
         });
 
-        setItem(7, createTabButton(SettingsTab.PLUGIN, Material.COMMAND_BLOCK), () -> {
+        setItem(14, createTabButton(SettingsTab.VANISH, Material.POTION), () -> {
+            currentTab = SettingsTab.VANISH;
+            refresh();
+        });
+
+        setItem(16, createTabButton(SettingsTab.PLUGIN, Material.COMMAND_BLOCK), () -> {
             if (viewer.hasPermission("moderex.admin")) {
                 currentTab = SettingsTab.PLUGIN;
                 refresh();
@@ -64,10 +76,13 @@ public class StaffSettingsGui extends BaseGui {
             case ALERTS -> renderAlertSettings();
             case ANTICHEAT -> renderAnticheatSettings();
             case PERSONAL -> renderPersonalSettings();
+            case VANISH -> renderVanishSettings();
             case PLUGIN -> renderPluginSettings();
         }
 
-        // Save button
+        // Bottom row navigation
+        setItem(45, createItem(Material.ARROW, "<red>Close", "<gray>Close this menu"), this::close);
+
         setItem(49, createItem(Material.LIME_CONCRETE, "<green>Save Settings",
                 "<gray>Save your current settings",
                 "",
@@ -77,47 +92,42 @@ public class StaffSettingsGui extends BaseGui {
             viewer.playSound(viewer.getLocation(), Sound.ENTITY_EXPERIENCE_ORB_PICKUP, 1f, 1f);
         });
 
-        // Close button
-        setItem(53, createCloseButton(), this::close);
+        setItem(53, createItem(Material.BOOK, "<aqua>Help",
+                "<gray>Hover over items to see",
+                "<gray>what each setting does"));
     }
 
     private ItemStack createTabButton(SettingsTab tab, Material icon) {
         boolean selected = (currentTab == tab);
 
         List<String> lore = new ArrayList<>();
-        lore.add(tab.description);
+        lore.add("<gray>" + tab.description);
         lore.add("");
-        lore.add(selected ? "<green>Currently viewing" : "<yellow>Click to view");
+        lore.add(selected ? "<green>▶ Currently viewing" : "<yellow>Click to view");
 
         if (tab == SettingsTab.PLUGIN && !viewer.hasPermission("moderex.admin")) {
-            lore.add("<red>Requires admin permission");
+            lore.add("<red>⚠ Requires admin permission");
         }
 
-        return createItem(
-                selected ? Material.LIME_STAINED_GLASS_PANE : icon,
-                (selected ? "<green>" : "<gray>") + tab.displayName,
-                lore
-        );
+        Material displayIcon = selected ? Material.LIME_STAINED_GLASS_PANE : icon;
+        String color = selected ? "<green>" : "<white>";
+
+        return createItem(displayIcon, color + tab.displayName, lore);
     }
 
     // ========== Notification Settings Tab ==========
 
     private void renderNotificationSettings() {
-        // Join/Leave Messages
-        setItem(10, createItem(Material.OAK_DOOR, "<aqua>Join/Leave Messages",
-                "<gray>Control player connection messages"));
+        // Center content area: slots 20-24, 29-33, 38-42
 
-        setItem(19, createJoinLeaveLevelButton("Join/Leave Messages",
+        // Row 1 - Core notifications
+        setItem(20, createJoinLeaveLevelButton("Join/Leave",
                 settings.getJoinLeaveMessages(), Material.OAK_DOOR), () -> {
             settings.setJoinLeaveMessages(settings.getJoinLeaveMessages().next());
             refresh();
         });
 
-        // Moderation Actions
-        setItem(12, createItem(Material.IRON_AXE, "<gold>Moderation Actions",
-                "<gray>See when staff take actions"));
-
-        setItem(21, createToggle("Moderation Actions",
+        setItem(21, createToggle("Mod Actions",
                 settings.isModerationActionsEnabled(),
                 "See staff moderation actions",
                 Material.IRON_AXE), () -> {
@@ -125,21 +135,13 @@ public class StaffSettingsGui extends BaseGui {
             refresh();
         });
 
-        // Punishment Notifications
-        setItem(14, createItem(Material.BARRIER, "<red>Punishment Alerts",
-                "<gray>Get notified about punishments"));
-
-        setItem(23, createAlertLevelButton("Punishment Alerts",
+        setItem(22, createAlertLevelButton("Punishments",
                 settings.getPunishmentAlerts(), Material.BARRIER), () -> {
             settings.setPunishmentAlerts(settings.getPunishmentAlerts().next());
             refresh();
         });
 
-        // Staff Chat
-        setItem(16, createItem(Material.DIAMOND, "<light_purple>Staff Chat",
-                "<gray>Staff communication settings"));
-
-        setItem(25, createToggle("Staff Chat",
+        setItem(23, createToggle("Staff Chat",
                 settings.isStaffChatEnabled(),
                 "Receive staff chat messages",
                 Material.DIAMOND), () -> {
@@ -147,26 +149,32 @@ public class StaffSettingsGui extends BaseGui {
             refresh();
         });
 
-        // Watchlist Join Alerts
-        setItem(28, createToggle("Watchlist Join",
+        setItem(24, createToggle("Chat Sound",
+                settings.isStaffChatSound(),
+                "Play sound on staff chat",
+                Material.BELL), () -> {
+            settings.setStaffChatSound(!settings.isStaffChatSound());
+            refresh();
+        });
+
+        // Row 2 - Watchlist settings
+        setItem(29, createToggle("WL Join Alert",
                 settings.isWatchlistJoinAlerts(),
                 "Alert when watched players join",
-                Material.SPYGLASS), () -> {
+                Material.LIME_DYE), () -> {
             settings.setWatchlistJoinAlerts(!settings.isWatchlistJoinAlerts());
             refresh();
         });
 
-        // Watchlist Quit Alerts
-        setItem(29, createToggle("Watchlist Quit",
+        setItem(30, createToggle("WL Quit Alert",
                 settings.isWatchlistQuitAlerts(),
                 "Alert when watched players leave",
-                Material.ENDER_EYE), () -> {
+                Material.RED_DYE), () -> {
             settings.setWatchlistQuitAlerts(!settings.isWatchlistQuitAlerts());
             refresh();
         });
 
-        // Watchlist Activity Alerts
-        setItem(30, createToggle("Watchlist Activity",
+        setItem(31, createToggle("WL Activity",
                 settings.isWatchlistActivityAlerts(),
                 "Alert on watched player activity",
                 Material.TRIPWIRE_HOOK), () -> {
@@ -174,31 +182,80 @@ public class StaffSettingsGui extends BaseGui {
             refresh();
         });
 
-        // Staff Chat Sound
-        setItem(34, createToggle("Chat Sound",
-                settings.isStaffChatSound(),
-                "Play sound on staff chat",
-                Material.BELL), () -> {
-            settings.setStaffChatSound(!settings.isStaffChatSound());
+        setItem(32, createAlertLevelButton("Commands",
+                settings.getCommandAlerts(), Material.COMMAND_BLOCK), () -> {
+            settings.setCommandAlerts(settings.getCommandAlerts().next());
+            refresh();
+        });
+
+        setItem(33, createAlertLevelButton("Private Msgs",
+                settings.getPrivateMessageAlerts(), Material.WRITABLE_BOOK), () -> {
+            settings.setPrivateMessageAlerts(settings.getPrivateMessageAlerts().next());
             refresh();
         });
     }
 
-    // ========== Anticheat Settings Tab ==========
+    // ========== Alert Settings Tab ==========
 
-    private void renderAnticheatSettings() {
-        // Global Anticheat Toggle
-        setItem(10, createItem(Material.IRON_SWORD, "<red>Anticheat Alerts",
-                "<gray>Global anticheat notification settings"));
+    private void renderAlertSettings() {
+        // Punishment alerts - Row 1
+        setItem(19, createAlertLevelButton("Warn",
+                settings.getWarnAlerts(), Material.PAPER), () -> {
+            settings.setWarnAlerts(settings.getWarnAlerts().next());
+            refresh();
+        });
 
-        setItem(19, createAlertLevelButton("Anticheat Alerts",
+        setItem(20, createAlertLevelButton("Mute",
+                settings.getMuteAlerts(), Material.BARRIER), () -> {
+            settings.setMuteAlerts(settings.getMuteAlerts().next());
+            refresh();
+        });
+
+        setItem(21, createAlertLevelButton("Ban",
+                settings.getBanAlerts(), Material.IRON_DOOR), () -> {
+            settings.setBanAlerts(settings.getBanAlerts().next());
+            refresh();
+        });
+
+        setItem(22, createAlertLevelButton("Kick",
+                settings.getKickAlerts(), Material.LEATHER_BOOTS), () -> {
+            settings.setKickAlerts(settings.getKickAlerts().next());
+            refresh();
+        });
+
+        setItem(23, createAlertLevelButton("Pardon",
+                settings.getPardonAlerts(), Material.EMERALD), () -> {
+            settings.setPardonAlerts(settings.getPardonAlerts().next());
+            refresh();
+        });
+
+        // Automod alerts - Row 2
+        setItem(29, createAlertLevelButton("Automod",
+                settings.getAutomodAlerts(), Material.COMPARATOR), () -> {
+            settings.setAutomodAlerts(settings.getAutomodAlerts().next());
+            refresh();
+        });
+
+        setItem(30, createAlertLevelButton("Spam",
+                settings.getSpamAlerts(), Material.REPEATER), () -> {
+            settings.setSpamAlerts(settings.getSpamAlerts().next());
+            refresh();
+        });
+
+        setItem(31, createAlertLevelButton("Filter",
+                settings.getFilterAlerts(), Material.HOPPER), () -> {
+            settings.setFilterAlerts(settings.getFilterAlerts().next());
+            refresh();
+        });
+
+        // Anticheat alerts - Row 2 continued
+        setItem(33, createAlertLevelButton("Anticheat",
                 settings.getAnticheatAlerts(), Material.IRON_SWORD), () -> {
             settings.setAnticheatAlerts(settings.getAnticheatAlerts().next());
             refresh();
         });
 
-        // Minimum VL
-        setItem(20, createItem(Material.EXPERIENCE_BOTTLE,
+        setItem(34, createItem(Material.EXPERIENCE_BOTTLE,
                 "<yellow>Min VL: <white>" + settings.getAnticheatMinVL(),
                 "<gray>Minimum violation level to show",
                 "",
@@ -215,17 +272,59 @@ public class StaffSettingsGui extends BaseGui {
             refresh();
         });
 
-        // Per-anticheat settings
+        // Show blacklisted commands - Row 3
+        setItem(40, createToggle("Blacklist Cmds",
+                settings.isShowBlacklistedCommands(),
+                "Show blacklisted command attempts",
+                Material.STRUCTURE_VOID), () -> {
+            settings.setShowBlacklistedCommands(!settings.isShowBlacklistedCommands());
+            refresh();
+        });
+    }
+
+    // ========== Anticheat Settings Tab ==========
+
+    private void renderAnticheatSettings() {
+        // Global settings - Row 1
+        setItem(20, createAlertLevelButton("AC Alerts",
+                settings.getAnticheatAlerts(), Material.IRON_SWORD), () -> {
+            settings.setAnticheatAlerts(settings.getAnticheatAlerts().next());
+            refresh();
+        });
+
+        setItem(22, createItem(Material.EXPERIENCE_BOTTLE,
+                "<yellow>Min VL: <white>" + settings.getAnticheatMinVL(),
+                "<gray>Minimum violation level to show",
+                "",
+                "<yellow>Left-click: +5",
+                "<yellow>Right-click: -5",
+                "<yellow>Shift-click: Reset to 10"), clickType -> {
+            if (clickType.isShiftClick()) {
+                settings.setAnticheatMinVL(10);
+            } else if (clickType.isLeftClick()) {
+                settings.setAnticheatMinVL(Math.min(100, settings.getAnticheatMinVL() + 5));
+            } else if (clickType.isRightClick()) {
+                settings.setAnticheatMinVL(Math.max(0, settings.getAnticheatMinVL() - 5));
+            }
+            refresh();
+        });
+
+        setItem(24, createItem(Material.BOOK, "<aqua>Per-Check Settings",
+                "<gray>Configure individual checks in",
+                "<gray>the Automod GUI or Web Panel"));
+
+        // Per-anticheat toggles - Row 2 & 3 (centered)
         List<String> enabledACs = plugin.getAnticheatManager().getEnabledAnticheats();
-        int slot = 28;
+        int[] slots = {29, 30, 31, 32, 33, 38, 39, 40, 41, 42};
+        int slotIndex = 0;
 
         for (String acName : enabledACs) {
-            if (slot > 34) break;
+            if (slotIndex >= slots.length) break;
 
             StaffSettings.AnticheatPreference pref = settings.getAnticheatPreference(acName);
             boolean enabled = pref.isEnabled();
 
-            setItem(slot, createItem(
+            setItem(slots[slotIndex], createItem(
                     enabled ? Material.LIME_DYE : Material.RED_DYE,
                     (enabled ? "<green>" : "<red>") + acName,
                     "<gray>Toggle alerts from " + acName,
@@ -238,45 +337,27 @@ public class StaffSettingsGui extends BaseGui {
                 refresh();
             });
 
-            slot++;
+            slotIndex++;
         }
 
         if (enabledACs.isEmpty()) {
-            setItem(31, createItem(Material.GRAY_DYE, "<gray>No Anticheats",
-                    "<gray>No anticheat plugins detected"));
+            setItem(31, createItem(Material.GRAY_DYE, "<gray>No Anticheats Detected",
+                    "<gray>Install an anticheat plugin"));
         }
-
-        // Info
-        setItem(22, createItem(Material.BOOK, "<aqua>Anticheat Info",
-                "<gray>Configure per-anticheat settings",
-                "",
-                "<gray>Detected: <white>" + enabledACs.size(),
-                "<gray>Check the automod GUI for",
-                "<gray>per-check configurations"));
     }
 
     // ========== Personal Settings Tab ==========
 
     private void renderPersonalSettings() {
-        // Staff Chat Toggle
-        setItem(19, createToggle("Staff Chat",
-                settings.isStaffChatEnabled(),
-                "Receive and send staff chat messages",
-                Material.DIAMOND), () -> {
-            settings.setStaffChatEnabled(!settings.isStaffChatEnabled());
+        // Display settings - Row 1
+        setItem(20, createToggle("Compact Mode",
+                settings.isCompactMode(),
+                "Show alerts in compact format",
+                Material.BOOK), () -> {
+            settings.setCompactMode(!settings.isCompactMode());
             refresh();
         });
 
-        // Staff Chat Sound
-        setItem(20, createToggle("Staff Chat Sound",
-                settings.isStaffChatSound(),
-                "Play sound on staff chat messages",
-                Material.BELL), () -> {
-            settings.setStaffChatSound(!settings.isStaffChatSound());
-            refresh();
-        });
-
-        // Sound Enabled
         setItem(21, createToggle("Alert Sounds",
                 settings.isSoundEnabled(),
                 "Play sounds for alerts",
@@ -285,17 +366,7 @@ public class StaffSettingsGui extends BaseGui {
             refresh();
         });
 
-        // Compact Mode
-        setItem(22, createToggle("Compact Mode",
-                settings.isCompactMode(),
-                "Show alerts in compact format",
-                Material.BOOK), () -> {
-            settings.setCompactMode(!settings.isCompactMode());
-            refresh();
-        });
-
-        // Chat Alerts
-        setItem(28, createToggle("Chat Alerts",
+        setItem(22, createToggle("Chat Alerts",
                 settings.isChatAlerts(),
                 "Show alerts in chat",
                 Material.PAPER), () -> {
@@ -303,204 +374,70 @@ public class StaffSettingsGui extends BaseGui {
             refresh();
         });
 
-        // Action Bar Alerts
-        setItem(29, createToggle("Action Bar Alerts",
+        setItem(23, createToggle("Action Bar",
                 settings.isActionBarAlerts(),
-                "Show quick alerts in action bar",
+                "Show alerts in action bar",
                 Material.NAME_TAG), () -> {
             settings.setActionBarAlerts(!settings.isActionBarAlerts());
             refresh();
         });
 
-        // Boss Bar Alerts
-        setItem(30, createToggle("Boss Bar Alerts",
+        setItem(24, createToggle("Boss Bar",
                 settings.isBossBarAlerts(),
-                "Show important alerts as boss bars",
+                "Show alerts as boss bars",
                 Material.DRAGON_HEAD), () -> {
             settings.setBossBarAlerts(!settings.isBossBarAlerts());
             refresh();
         });
+    }
 
-        // Vanish Settings Header
-        setItem(23, createItem(Material.POTION, "<aqua>Vanish Settings",
-                "<gray>Configure vanish behavior"));
+    // ========== Vanish Settings Tab ==========
 
-        // Auto Vanish on Join
-        setItem(32, createToggle("Auto Vanish",
+    private void renderVanishSettings() {
+        // Vanish settings - centered
+        setItem(20, createToggle("Auto Vanish",
                 settings.isAutoVanishOnJoin(),
-                "Automatically vanish when joining",
+                "Auto-vanish when joining server",
                 Material.ENDER_EYE), () -> {
             settings.setAutoVanishOnJoin(!settings.isAutoVanishOnJoin());
             refresh();
         });
 
-        // Vanish Night Vision
-        setItem(33, createToggle("Vanish Night Vision",
+        setItem(22, createToggle("Night Vision",
                 settings.isVanishNightVision(),
-                "Apply night vision while vanished",
+                "Get night vision while vanished",
                 Material.GOLDEN_CARROT), () -> {
             settings.setVanishNightVision(!settings.isVanishNightVision());
             refresh();
         });
 
-        // Vanish Show Self
-        setItem(34, createToggle("Show Self in Vanish",
+        setItem(24, createToggle("Show Particles",
                 settings.isVanishShowSelf(),
                 "Show particle effects to yourself",
                 Material.BLAZE_POWDER), () -> {
             settings.setVanishShowSelf(!settings.isVanishShowSelf());
             refresh();
         });
-    }
 
-    // ========== Alert Settings Tab ==========
-
-    private void renderAlertSettings() {
-        // Punishment Alerts Section
-        setItem(10, createItem(Material.BARRIER, "<red>Punishment Alerts",
-                "<gray>Configure punishment notifications"));
-
-        setItem(19, createAlertLevelButton("Warn Alerts",
-                settings.getWarnAlerts(), Material.BOOK), () -> {
-            settings.setWarnAlerts(settings.getWarnAlerts().next());
-            refresh();
-        });
-
-        setItem(20, createAlertLevelButton("Mute Alerts",
-                settings.getMuteAlerts(), Material.PAPER), () -> {
-            settings.setMuteAlerts(settings.getMuteAlerts().next());
-            refresh();
-        });
-
-        setItem(21, createAlertLevelButton("Ban Alerts",
-                settings.getBanAlerts(), Material.BARRIER), () -> {
-            settings.setBanAlerts(settings.getBanAlerts().next());
-            refresh();
-        });
-
-        setItem(22, createAlertLevelButton("Kick Alerts",
-                settings.getKickAlerts(), Material.LEATHER_BOOTS), () -> {
-            settings.setKickAlerts(settings.getKickAlerts().next());
-            refresh();
-        });
-
-        setItem(23, createAlertLevelButton("Pardon Alerts",
-                settings.getPardonAlerts(), Material.EMERALD), () -> {
-            settings.setPardonAlerts(settings.getPardonAlerts().next());
-            refresh();
-        });
-
-        // Automod Alerts Section
-        setItem(12, createItem(Material.COMPARATOR, "<gold>Automod Alerts",
-                "<gray>Configure automod notifications"));
-
-        setItem(28, createAlertLevelButton("Automod Alerts",
-                settings.getAutomodAlerts(), Material.COMPARATOR), () -> {
-            settings.setAutomodAlerts(settings.getAutomodAlerts().next());
-            refresh();
-        });
-
-        setItem(29, createAlertLevelButton("Spam Alerts",
-                settings.getSpamAlerts(), Material.REPEATER), () -> {
-            settings.setSpamAlerts(settings.getSpamAlerts().next());
-            refresh();
-        });
-
-        setItem(30, createAlertLevelButton("Filter Alerts",
-                settings.getFilterAlerts(), Material.HOPPER), () -> {
-            settings.setFilterAlerts(settings.getFilterAlerts().next());
-            refresh();
-        });
-
-        // Anticheat Alerts Section
-        setItem(14, createItem(Material.IRON_SWORD, "<aqua>Anticheat Alerts",
-                "<gray>Configure anticheat notifications"));
-
-        setItem(32, createAlertLevelButton("Anticheat Alerts",
-                settings.getAnticheatAlerts(), Material.IRON_SWORD), () -> {
-            settings.setAnticheatAlerts(settings.getAnticheatAlerts().next());
-            refresh();
-        });
-
-        setItem(33, createItem(Material.EXPERIENCE_BOTTLE,
-                "<yellow>Min VL: <white>" + settings.getAnticheatMinVL(),
-                "<gray>Minimum violation level to show",
-                "",
-                "<yellow>Left-click: +5",
-                "<yellow>Right-click: -5",
-                "<yellow>Shift-click: Reset to 10"), clickType -> {
-            if (clickType.isShiftClick()) {
-                settings.setAnticheatMinVL(10);
-            } else if (clickType.isLeftClick()) {
-                settings.setAnticheatMinVL(Math.min(100, settings.getAnticheatMinVL() + 5));
-            } else if (clickType.isRightClick()) {
-                settings.setAnticheatMinVL(Math.max(0, settings.getAnticheatMinVL() - 5));
-            }
-            refresh();
-        });
-
-        // Watchlist Alerts Section
-        setItem(16, createItem(Material.SPYGLASS, "<light_purple>Watchlist Alerts",
-                "<gray>Configure watchlist notifications"));
-
-        setItem(37, createToggle("Join Alerts",
-                settings.isWatchlistJoinAlerts(),
-                "Alert when watched players join",
-                Material.OAK_DOOR), () -> {
-            settings.setWatchlistJoinAlerts(!settings.isWatchlistJoinAlerts());
-            refresh();
-        });
-
-        setItem(38, createToggle("Quit Alerts",
-                settings.isWatchlistQuitAlerts(),
-                "Alert when watched players leave",
-                Material.IRON_DOOR), () -> {
-            settings.setWatchlistQuitAlerts(!settings.isWatchlistQuitAlerts());
-            refresh();
-        });
-
-        setItem(39, createToggle("Activity Alerts",
-                settings.isWatchlistActivityAlerts(),
-                "Alert on watched player activity",
-                Material.TRIPWIRE_HOOK), () -> {
-            settings.setWatchlistActivityAlerts(!settings.isWatchlistActivityAlerts());
-            refresh();
-        });
-
-        // Command & PM Alerts
-        setItem(41, createAlertLevelButton("Command Alerts",
-                settings.getCommandAlerts(), Material.COMMAND_BLOCK), () -> {
-            settings.setCommandAlerts(settings.getCommandAlerts().next());
-            refresh();
-        });
-
-        setItem(42, createAlertLevelButton("PM Alerts",
-                settings.getPrivateMessageAlerts(), Material.WRITABLE_BOOK), () -> {
-            settings.setPrivateMessageAlerts(settings.getPrivateMessageAlerts().next());
-            refresh();
-        });
-
-        setItem(43, createToggle("Blacklist Cmds",
-                settings.isShowBlacklistedCommands(),
-                "Show blacklisted command attempts",
-                Material.STRUCTURE_VOID), () -> {
-            settings.setShowBlacklistedCommands(!settings.isShowBlacklistedCommands());
-            refresh();
-        });
+        // Info
+        setItem(31, createItem(Material.POTION, "<aqua>Vanish Info",
+                "<gray>These settings control your",
+                "<gray>vanish behavior when using",
+                "<gray>/mx vanish or /v"));
     }
 
     // ========== Plugin Settings Tab ==========
 
     private void renderPluginSettings() {
         if (!viewer.hasPermission("moderex.admin")) {
-            setItem(22, createItem(Material.BARRIER, "<red>Access Denied",
-                    "<gray>You need admin permission to view this"));
+            setItem(31, createItem(Material.BARRIER, "<red>Access Denied",
+                    "<gray>You need admin permission"));
             return;
         }
 
-        // Chat Control
+        // Chat & Slowmode - Row 1
         boolean chatEnabled = plugin.getConfigManager().getSettings().isChatEnabled();
-        setItem(19, createToggle("Global Chat",
+        setItem(20, createToggle("Global Chat",
                 chatEnabled,
                 "Enable/disable server chat",
                 Material.OAK_SIGN), () -> {
@@ -511,15 +448,14 @@ public class StaffSettingsGui extends BaseGui {
             refresh();
         });
 
-        // Slowmode
         int slowmode = plugin.getConfigManager().getSettings().getDefaultSlowmodeSeconds();
-        setItem(20, createItem(Material.CLOCK,
+        setItem(22, createItem(Material.CLOCK,
                 "<gold>Slowmode: " + (slowmode > 0 ? slowmode + "s" : "Off"),
                 "<gray>Chat cooldown between messages",
                 "",
                 "<yellow>Left-click: +5s",
                 "<yellow>Right-click: -5s",
-                "<yellow>Shift-click: Reset"), clickType -> {
+                "<yellow>Shift-click: Disable"), clickType -> {
             int current = plugin.getConfigManager().getSettings().getDefaultSlowmodeSeconds();
             if (clickType.isShiftClick()) {
                 plugin.getConfigManager().getSettings().setDefaultSlowmodeSeconds(0);
@@ -534,9 +470,8 @@ public class StaffSettingsGui extends BaseGui {
             refresh();
         });
 
-        // Debug Mode
         boolean debugMode = plugin.getConfigManager().getSettings().isDebugMode();
-        setItem(21, createToggle("Debug Mode",
+        setItem(24, createToggle("Debug Mode",
                 debugMode,
                 "Enable debug logging",
                 Material.COMMAND_BLOCK), () -> {
@@ -544,16 +479,16 @@ public class StaffSettingsGui extends BaseGui {
             refresh();
         });
 
-        // Replay Settings
-        setItem(28, createToggle("Replay System",
+        // Replay settings - Row 2
+        setItem(29, createToggle("Replay System",
                 plugin.getReplayManager().isEnabled(),
-                "Enable replay recording system",
+                "Enable replay recording",
                 Material.JUKEBOX), () -> {
             plugin.getReplayManager().setEnabled(!plugin.getReplayManager().isEnabled());
             refresh();
         });
 
-        setItem(29, createToggle("AC Recording",
+        setItem(30, createToggle("AC Recording",
                 plugin.getReplayManager().isRecordOnAnticheatAlert(),
                 "Record on anticheat alerts",
                 Material.IRON_SWORD), () -> {
@@ -561,33 +496,25 @@ public class StaffSettingsGui extends BaseGui {
             refresh();
         });
 
-        setItem(30, createToggle("Watchlist Record",
+        setItem(31, createToggle("WL Recording",
                 plugin.getReplayManager().isRecordWatchlistPlayers(),
-                "Auto-record watchlist players",
+                "Record watchlist players",
                 Material.SPYGLASS), () -> {
             plugin.getReplayManager().setRecordWatchlistPlayers(!plugin.getReplayManager().isRecordWatchlistPlayers());
             refresh();
         });
 
-        // Web Panel Status
+        // Server info - Row 2 continued
         boolean webPanelEnabled = plugin.getConfigManager().getSettings().isWebPanelEnabled();
         int webPanelPort = plugin.getConfigManager().getSettings().getWebPanelPort();
-        setItem(32, createItem(Material.END_PORTAL_FRAME,
-                webPanelEnabled ? "<green>Web Panel: Active" : "<red>Web Panel: Disabled",
+        setItem(33, createItem(Material.END_PORTAL_FRAME,
+                webPanelEnabled ? "<green>Web Panel: Active" : "<red>Web Panel: Off",
                 "<gray>Port: <white>" + webPanelPort,
                 "",
                 "<gray>Requires restart to change"));
 
-        // Proxy Mode
-        boolean proxyEnabled = plugin.getConfigManager().getSettings().isProxyEnabled();
-        setItem(33, createItem(Material.ENDER_PEARL,
-                proxyEnabled ? "<green>Proxy Mode: Active" : "<gray>Proxy Mode: Off",
-                "<gray>BungeeCord/Velocity support",
-                "",
-                "<gray>Requires restart to change"));
-
-        // Reload Button
-        setItem(43, createItem(Material.REDSTONE, "<yellow>Reload Config",
+        // Reload button - Row 3
+        setItem(40, createItem(Material.REDSTONE, "<yellow>Reload Config",
                 "<gray>Reload configuration files",
                 "",
                 "<yellow>Click to reload"), () -> {
@@ -623,7 +550,13 @@ public class StaffSettingsGui extends BaseGui {
         lore.add("");
         lore.add("<yellow>Click to cycle");
 
-        return createItem(icon, level.getColor() + name, lore);
+        Material displayIcon = switch (level) {
+            case EVERYONE -> Material.LIME_DYE;
+            case WATCHLIST_ONLY -> Material.YELLOW_DYE;
+            case OFF -> Material.RED_DYE;
+        };
+
+        return createItem(displayIcon, level.getColor() + name, lore);
     }
 
     private ItemStack createJoinLeaveLevelButton(String name, JoinLeaveLevel level, Material icon) {
@@ -634,15 +567,22 @@ public class StaffSettingsGui extends BaseGui {
         lore.add("");
         lore.add("<yellow>Click to cycle");
 
-        return createItem(icon, level.getColor() + name, lore);
+        Material displayIcon = switch (level) {
+            case ALL -> Material.LIME_DYE;
+            case STAFF_ONLY -> Material.YELLOW_DYE;
+            case OFF -> Material.RED_DYE;
+        };
+
+        return createItem(displayIcon, level.getColor() + name, lore);
     }
 
     private enum SettingsTab {
-        NOTIFICATIONS("Notifications", "<gray>Join/Leave and alert settings"),
-        ALERTS("Alert Types", "<gray>Configure alert types"),
-        ANTICHEAT("Anticheat", "<gray>Per-check settings"),
-        PERSONAL("Personal", "<gray>Your preferences"),
-        PLUGIN("Plugin", "<gray>Server-wide config");
+        NOTIFICATIONS("Notifications", "Join/Leave and alert settings"),
+        ALERTS("Alert Types", "Configure which alerts to see"),
+        ANTICHEAT("Anticheat", "Anticheat alert settings"),
+        PERSONAL("Display", "Display and UI preferences"),
+        VANISH("Vanish", "Vanish behavior settings"),
+        PLUGIN("Server", "Server-wide configuration");
 
         final String displayName;
         final String description;

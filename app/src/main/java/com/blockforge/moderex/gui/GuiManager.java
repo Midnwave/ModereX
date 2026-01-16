@@ -69,14 +69,18 @@ public class GuiManager {
 
         event.setCancelled(true);
         event.setResult(org.bukkit.event.Event.Result.DENY);
-        Inventory topInv = event.getView().getTopInventory();
-        if (!topInv.equals(gui.getInventory())) {
-            plugin.logDebug("[GUI] handleClick - inventory mismatch for " + player.getName());
-            return;
-        }
 
+        // Check if click is in the top inventory (the GUI)
         int slot = event.getRawSlot();
-        if (slot < 0 || slot >= gui.getInventory().getSize()) {
+        Inventory topInv = event.getView().getTopInventory();
+        Inventory guiInv = gui.getInventory();
+
+        // Use identity check or size check as fallback
+        boolean isGuiInventory = (topInv == guiInv) ||
+                                 (topInv.getSize() == guiInv.getSize() && slot < topInv.getSize());
+
+        if (!isGuiInventory || slot < 0 || slot >= guiInv.getSize()) {
+            // Click is in player inventory, ignore
             return;
         }
 

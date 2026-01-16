@@ -196,7 +196,19 @@ public abstract class BaseGui {
     }
 
     protected void refresh() {
-        build();
+        // Clear existing handlers and repopulate without creating new inventory
+        clickHandlers.clear();
+        inventory.clear();
+        populate();
+        plugin.logDebug("[GUI] Refreshed " + getClass().getSimpleName() +
+                       " with " + clickHandlers.size() + " click handlers");
+    }
+
+    /**
+     * Reopen the GUI with a fresh inventory (use when title changes or major rebuild needed)
+     */
+    protected void reopen() {
+        plugin.getGuiManager().open(viewer, this);
     }
 
     protected void openGui(BaseGui gui) {

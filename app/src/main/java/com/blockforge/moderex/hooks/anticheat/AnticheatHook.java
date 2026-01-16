@@ -47,7 +47,9 @@ public abstract class AnticheatHook {
         private final String anticheat;
         private final Player player;
         private final String checkName;
+        private final String normalizedCheckName;
         private final String checkType;
+        private final AnticheatChecks.Category category;
         private final int violations;
         private final double vlLevel;
         private final String details;
@@ -61,6 +63,10 @@ public abstract class AnticheatHook {
             this.violations = violations;
             this.vlLevel = vlLevel;
             this.details = details;
+
+            // Normalize check name and get category using the registry
+            this.normalizedCheckName = AnticheatChecks.normalizeCheckName(anticheat, checkName);
+            this.category = AnticheatChecks.getCategory(anticheat, checkName);
         }
 
         public String getAnticheat() {
@@ -75,8 +81,22 @@ public abstract class AnticheatHook {
             return checkName;
         }
 
+        /**
+         * Get the normalized/display name for this check
+         */
+        public String getNormalizedCheckName() {
+            return normalizedCheckName;
+        }
+
         public String getCheckType() {
             return checkType;
+        }
+
+        /**
+         * Get the category this check belongs to (Combat, Movement, etc.)
+         */
+        public AnticheatChecks.Category getCategory() {
+            return category;
         }
 
         public int getViolations() {
@@ -93,8 +113,9 @@ public abstract class AnticheatHook {
 
         @Override
         public String toString() {
-            return String.format("[%s] %s failed %s (%s) VL: %.1f - %s",
-                    anticheat, player.getName(), checkName, checkType, vlLevel, details);
+            return String.format("[%s] %s failed %s (%s) [%s] VL: %.1f - %s",
+                    anticheat, player.getName(), normalizedCheckName, checkType,
+                    category.getDisplayName(), vlLevel, details);
         }
     }
 }
