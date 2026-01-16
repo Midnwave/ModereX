@@ -232,6 +232,75 @@ public class StaffSettings {
         }
     }
 
+    // ========== Per-Check Alert Preference ==========
+
+    public static class CheckAlertPreference {
+        private String checkKey; // format: "anticheat:checkname"
+        private AlertLevel alertLevel = AlertLevel.OFF; // Default OFF (unconfigured)
+        private int thresholdCount = 5; // Send alert after X triggers
+        private int timeWindowSeconds = 60; // Within Y seconds
+
+        public CheckAlertPreference() {}
+
+        public CheckAlertPreference(String checkKey) {
+            this.checkKey = checkKey;
+        }
+
+        public String getCheckKey() {
+            return checkKey;
+        }
+
+        public void setCheckKey(String checkKey) {
+            this.checkKey = checkKey;
+        }
+
+        public AlertLevel getAlertLevel() {
+            return alertLevel;
+        }
+
+        public void setAlertLevel(AlertLevel alertLevel) {
+            this.alertLevel = alertLevel;
+        }
+
+        public int getThresholdCount() {
+            return thresholdCount;
+        }
+
+        public void setThresholdCount(int thresholdCount) {
+            this.thresholdCount = Math.max(1, thresholdCount);
+        }
+
+        public int getTimeWindowSeconds() {
+            return timeWindowSeconds;
+        }
+
+        public void setTimeWindowSeconds(int timeWindowSeconds) {
+            this.timeWindowSeconds = Math.max(1, timeWindowSeconds);
+        }
+
+        public boolean isConfigured() {
+            return alertLevel != AlertLevel.OFF;
+        }
+    }
+
+    // Per-check alert preferences map (checkKey -> preference)
+    private Map<String, CheckAlertPreference> checkAlertPreferences = new HashMap<>();
+
+    public Map<String, CheckAlertPreference> getCheckAlertPreferences() {
+        return checkAlertPreferences;
+    }
+
+    public CheckAlertPreference getCheckAlertPreference(String anticheat, String checkName) {
+        String key = anticheat.toLowerCase() + ":" + checkName.toLowerCase();
+        return checkAlertPreferences.computeIfAbsent(key, CheckAlertPreference::new);
+    }
+
+    public void setCheckAlertPreference(String anticheat, String checkName, CheckAlertPreference pref) {
+        String key = anticheat.toLowerCase() + ":" + checkName.toLowerCase();
+        pref.setCheckKey(key);
+        checkAlertPreferences.put(key, pref);
+    }
+
     // ========== Getters and Setters ==========
 
     public UUID getStaffUuid() {

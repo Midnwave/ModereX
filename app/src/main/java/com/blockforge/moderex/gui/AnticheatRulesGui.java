@@ -1,599 +1,442 @@
 package com.blockforge.moderex.gui;
 
 import com.blockforge.moderex.ModereX;
-import com.blockforge.moderex.automod.AutomodRule;
 import com.blockforge.moderex.hooks.anticheat.AnticheatAlertManager;
 import com.blockforge.moderex.hooks.anticheat.AnticheatAlertManager.AnticheatCheckRule;
-import com.blockforge.moderex.hooks.anticheat.AnticheatAlertManager.CheckWithInfo;
-import com.blockforge.moderex.hooks.anticheat.AnticheatChecks;
-import com.blockforge.moderex.hooks.anticheat.AnticheatChecks.Category;
-import com.blockforge.moderex.hooks.anticheat.AnticheatChecks.CheckInfo;
-import com.blockforge.moderex.punishment.PunishmentType;
-import com.blockforge.moderex.util.DurationParser;
+import com.blockforge.moderex.staff.StaffSettings;
+import com.blockforge.moderex.staff.StaffSettings.AlertLevel;
+import com.blockforge.moderex.staff.StaffSettings.CheckAlertPreference;
 import com.blockforge.moderex.util.TextUtil;
+import net.kyori.adventure.text.serializer.legacy.LegacyComponentSerializer;
 import org.bukkit.Material;
 import org.bukkit.Sound;
+import org.bukkit.conversations.*;
 import org.bukkit.inventory.ItemStack;
 
 import java.util.*;
 
+/**
+ * Per-staff anticheat alert configuration GUI.
+ * Shows all detected checks in a paginated list.
+ * Staff can configure: alert level, threshold count, time window for each check.
+ */
 public class AnticheatRulesGui extends BaseGui {
 
-    private String selectedAnticheat = null;
-    private Category selectedCategory = null;
-    private int checkPage = 0;
-    private static final int CHECKS_PER_PAGE = 21;
+    private int currentPage = 0;
+    private static final int CHECKS_PER_PAGE = 28; // 4 rows of 7
+    private StaffSettings staffSettings;
+    private List<DetectedCheck> allChecks = new ArrayList<>();
 
     public AnticheatRulesGui(ModereX plugin) {
-        super(plugin, "<gradient:#ff6b6b:#ee5a5a><bold>ANTICHEAT RULES</bold></gradient>", 6);
+        super(plugin, "<gradient:#ff6b6b:#ee5a5a><bold>ANTICHEAT ALERTS</bold></gradient>", 6);
     }
 
     @Override
     protected void populate() {
+        staffSettings = plugin.getStaffSettingsManager().getSettings(viewer);
+        loadAllChecks();
+
         fillEmpty(Material.BLACK_STAINED_GLASS_PANE);
 
-        AnticheatAlertManager alertManager = plugin.getAnticheatManager().getAlertManager();
-        List<String> enabledAnticheats = plugin.getAnticheatManager().getEnabledAnticheats();
-
-        if (selectedAnticheat == null) {
-            // Show anticheat selection
-            renderAnticheatSelection(enabledAnticheats);
-        } else if (selectedCategory == null) {
-            // Show category selection
-            renderCategorySelection();
-        } else {
-            // Show checks for selected category
-            renderChecks();
+        // Title row info
+        int configured = 0;
+        for (DetectedCheck check : allChecks) {
+            CheckAlertPreference pref = staffSettings.getCheckAlertPreference(check.anticheat, check.checkName);
+            if (pref.isConfigured()) configured++;
         }
 
-        // Bottom navigation
-        int lastRow = rows * 9 - 9;
-
-        if (selectedCategory != null) {
-            setItem(lastRow, createItem(Material.ARROW, "<yellow>Back to Categories",
-                    "<gray>Return to category selection"), () -> {
-                selectedCategory = null;
-                checkPage = 0;
-                refresh();
-            });
-        } else if (selectedAnticheat != null) {
-            setItem(lastRow, createItem(Material.ARROW, "<yellow>Back to Anticheats",
-                    "<gray>Return to anticheat selection"), () -> {
-                selectedAnticheat = null;
-                refresh();
-            });
-        } else {
-            setItem(lastRow, createItem(Material.ARROW, "<yellow>Back",
-                    "<gray>Return to main menu"), () -> {
-                plugin.getGuiManager().open(viewer, new StaffSettingsGui(plugin));
-            });
-        }
-
-        setItem(lastRow + 8, createItem(Material.BARRIER, "<red>Close", "<gray>Close this menu"), this::close);
-    }
-
-    private void renderAnticheatSelection(List<String> enabledAnticheats) {
-        // Title
-        setItem(4, createItem(Material.IRON_SWORD, "<gold><bold>Select Anticheat</bold>",
-                "<gray>Choose an anticheat to configure",
+        setItem(4, createItem(Material.IRON_SWORD, "<gold><bold>Your Alert Settings</bold>",
+                "<gray>Configure which anticheat alerts",
+                "<gray>you want to receive in chat.",
                 "",
-                "<white>" + enabledAnticheats.size() + " anticheat(s) detected"));
+                "<white>" + allChecks.size() + " <gray>checks detected",
+                "<green>" + configured + " <gray>configured",
+                "",
+                "<dark_gray>Unconfigured = No alerts"));
 
-        if (enabledAnticheats.isEmpty()) {
-            setItem(22, createItem(Material.GRAY_DYE, "<red>No Anticheats Detected",
-                    "<gray>Install an anticheat plugin",
-                    "<gray>to configure check rules",
-                    "",
-                    "<dark_gray>Supported: Grim, Vulcan, Matrix,",
-                    "<dark_gray>Spartan, NCP, Themis, FoxAddition, LightAC"));
-            return;
-        }
-
-        // Display enabled anticheats in center
-        int[] slots = getCenteredSlots(enabledAnticheats.size(), 3);
-        for (int i = 0; i < enabledAnticheats.size() && i < slots.length; i++) {
-            String anticheat = enabledAnticheats.get(i);
-            int ruleCount = alertManager().getRulesForAnticheat(anticheat).size();
-
-            setItem(slots[i], createItem(getMaterialForAnticheat(anticheat),
-                    "<green>" + anticheat,
-                    "<gray>Click to configure",
-                    "",
-                    "<white>" + ruleCount + " <gray>rules configured",
-                    "",
-                    "<yellow>Click to select"), () -> {
-                selectedAnticheat = anticheat;
-                refresh();
-            });
-        }
-
-        // Show supported but not detected
-        List<String> notDetected = new ArrayList<>();
-        for (String supported : AnticheatChecks.getSupportedAnticheats()) {
-            if (!enabledAnticheats.stream().anyMatch(e -> e.equalsIgnoreCase(supported))) {
-                notDetected.add(supported);
-            }
-        }
-
-        if (!notDetected.isEmpty()) {
-            String notDetectedStr = String.join(", ", notDetected);
-            setItem(49, createItem(Material.GRAY_DYE, "<gray>Not Detected",
-                    "<dark_gray>" + notDetectedStr));
-        }
-    }
-
-    private void renderCategorySelection() {
-        // Title
-        setItem(4, createItem(getMaterialForAnticheat(selectedAnticheat),
-                "<gold><bold>" + selectedAnticheat.toUpperCase() + "</bold>",
-                "<gray>Select a category to configure"));
-
-        Map<Category, List<CheckWithInfo>> checksByCategory =
-                alertManager().getChecksByCategory(selectedAnticheat);
-
-        // Display categories centered
-        int slot = 19;
-        for (Category category : Category.values()) {
-            List<CheckWithInfo> checks = checksByCategory.getOrDefault(category, Collections.emptyList());
-            if (checks.isEmpty()) continue;
-
-            long enabledCount = checks.stream().filter(CheckWithInfo::isEnabled).count();
-            long detectedCount = checks.stream().filter(CheckWithInfo::wasDetected).count();
-
-            setItem(slot, createItem(getMaterialForCategory(category),
-                    getColorForCategory(category) + category.getDisplayName(),
-                    "<gray>" + category.getDescription(),
-                    "",
-                    "<white>" + checks.size() + " <gray>checks",
-                    "<green>" + enabledCount + " enabled <dark_gray>| <yellow>" + detectedCount + " detected",
-                    "",
-                    "<yellow>Click to configure"), () -> {
-                selectedCategory = category;
-                checkPage = 0;
-                refresh();
-            });
-
-            slot++;
-            if (slot == 26) slot = 28; // Skip to next row
-        }
-
-        // Quick stats
-        Collection<AnticheatCheckRule> allRules = alertManager().getRulesForAnticheat(selectedAnticheat);
-        long withPunishment = allRules.stream()
-                .filter(r -> r.getAutoPunishment() != null && r.getAutoPunishment().isEnabled())
-                .count();
-
-        setItem(40, createItem(Material.PAPER, "<aqua>Statistics",
-                "<gray>Total rules: <white>" + allRules.size(),
-                "<gray>With auto-punishment: <white>" + withPunishment));
-    }
-
-    private void renderChecks() {
-        // Title
-        setItem(4, createItem(getMaterialForCategory(selectedCategory),
-                getColorForCategory(selectedCategory) + "<bold>" + selectedCategory.getDisplayName().toUpperCase() + "</bold>",
-                "<gray>" + selectedAnticheat + " - " + selectedCategory.getDescription()));
-
-        List<CheckWithInfo> checks = alertManager().getAllChecksForAnticheat(selectedAnticheat)
-                .stream()
-                .filter(c -> c.getInfo().getCategory() == selectedCategory)
-                .toList();
-
-        int totalPages = (int) Math.ceil(checks.size() / (double) CHECKS_PER_PAGE);
-        if (totalPages == 0) totalPages = 1;
-
-        // Display checks
+        // Render checks (slots 10-16, 19-25, 28-34, 37-43)
         int[] slots = {
             10, 11, 12, 13, 14, 15, 16,
             19, 20, 21, 22, 23, 24, 25,
-            28, 29, 30, 31, 32, 33, 34
+            28, 29, 30, 31, 32, 33, 34,
+            37, 38, 39, 40, 41, 42, 43
         };
 
-        int startIndex = checkPage * CHECKS_PER_PAGE;
-        for (int i = 0; i < slots.length && (startIndex + i) < checks.size(); i++) {
-            CheckWithInfo check = checks.get(startIndex + i);
+        int totalPages = (int) Math.ceil(allChecks.size() / (double) CHECKS_PER_PAGE);
+        if (totalPages == 0) totalPages = 1;
+
+        int startIndex = currentPage * CHECKS_PER_PAGE;
+        for (int i = 0; i < slots.length && (startIndex + i) < allChecks.size(); i++) {
+            DetectedCheck check = allChecks.get(startIndex + i);
             setItem(slots[i], createCheckItem(check), clickType -> {
-                if (clickType.isShiftClick()) {
-                    // Toggle enabled
-                    toggleCheck(check);
-                } else {
-                    // Open editor
-                    openCheckEditor(check);
-                }
+                openCheckEditor(check);
             });
         }
 
-        if (checks.isEmpty()) {
-            setItem(22, createItem(Material.GRAY_DYE, "<gray>No Checks",
-                    "<gray>No checks in this category"));
+        if (allChecks.isEmpty()) {
+            setItem(22, createItem(Material.GRAY_DYE, "<gray>No Checks Detected",
+                    "<gray>Join a server with an anticheat",
+                    "<gray>and trigger some alerts first"));
         }
 
-        // Pagination
-        int lastRow = rows * 9 - 9;
+        // Bottom navigation
+        int lastRow = 45;
 
-        if (checkPage > 0) {
-            setItem(lastRow + 3, createItem(Material.ARROW, "<green>Previous Page",
-                    "<gray>Go to page " + checkPage), () -> {
-                checkPage--;
+        // Back button
+        setItem(lastRow, createItem(Material.ARROW, "<yellow>Back",
+                "<gray>Return to staff settings"), () -> {
+            plugin.getGuiManager().open(viewer, new StaffSettingsGui(plugin));
+        });
+
+        // Previous page
+        if (currentPage > 0) {
+            setItem(lastRow + 2, createItem(Material.ARROW, "<green>Previous",
+                    "<gray>Page " + currentPage), () -> {
+                currentPage--;
                 refresh();
             });
         }
 
+        // Page indicator
         setItem(lastRow + 4, createItem(Material.PAPER,
-                "<gold>Page " + (checkPage + 1) + "/" + totalPages,
-                "<gray>" + checks.size() + " checks"));
+                "<gold>Page " + (currentPage + 1) + "/" + totalPages,
+                "<gray>" + allChecks.size() + " total checks"));
 
-        if (checkPage < totalPages - 1) {
-            setItem(lastRow + 5, createItem(Material.ARROW, "<green>Next Page",
-                    "<gray>Go to page " + (checkPage + 2)), () -> {
-                checkPage++;
+        // Next page
+        if (currentPage < totalPages - 1) {
+            setItem(lastRow + 6, createItem(Material.ARROW, "<green>Next",
+                    "<gray>Page " + (currentPage + 2)), () -> {
+                currentPage++;
                 refresh();
             });
         }
 
-        // Bulk actions
-        setItem(lastRow + 6, createItem(Material.LIME_DYE, "<green>Enable All",
-                "<gray>Enable all checks in category"), () -> {
-            for (CheckWithInfo check : checks) {
-                if (check.hasRule()) {
-                    check.getRule().setEnabled(true);
-                    alertManager().saveRule(check.getRule());
-                }
+        // Close button
+        setItem(lastRow + 8, createItem(Material.BARRIER, "<red>Close"), this::close);
+
+        // Enable all button
+        setItem(lastRow + 1, createItem(Material.LIME_DYE, "<green>Enable All",
+                "<gray>Set all checks to Everyone",
+                "<gray>with default thresholds"), () -> {
+            for (DetectedCheck check : allChecks) {
+                CheckAlertPreference pref = staffSettings.getCheckAlertPreference(check.anticheat, check.checkName);
+                pref.setAlertLevel(AlertLevel.EVERYONE);
             }
+            plugin.getStaffSettingsManager().saveSettings(staffSettings);
             viewer.playSound(viewer.getLocation(), Sound.ENTITY_EXPERIENCE_ORB_PICKUP, 1f, 1f);
             refresh();
         });
 
+        // Disable all button
         setItem(lastRow + 7, createItem(Material.RED_DYE, "<red>Disable All",
-                "<gray>Disable all checks in category"), () -> {
-            for (CheckWithInfo check : checks) {
-                AnticheatCheckRule rule = alertManager()
-                        .getOrCreateRule(selectedAnticheat, check.getInfo().getName());
-                rule.setEnabled(false);
-                alertManager().saveRule(rule);
+                "<gray>Turn off all alerts"), () -> {
+            for (DetectedCheck check : allChecks) {
+                CheckAlertPreference pref = staffSettings.getCheckAlertPreference(check.anticheat, check.checkName);
+                pref.setAlertLevel(AlertLevel.OFF);
             }
+            plugin.getStaffSettingsManager().saveSettings(staffSettings);
             viewer.playSound(viewer.getLocation(), Sound.BLOCK_NOTE_BLOCK_BASS, 1f, 0.5f);
             refresh();
         });
     }
 
-    private ItemStack createCheckItem(CheckWithInfo check) {
-        CheckInfo info = check.getInfo();
-        AnticheatCheckRule rule = check.getRule();
-        boolean enabled = check.isEnabled();
-        boolean detected = check.wasDetected();
+    private void loadAllChecks() {
+        allChecks.clear();
+
+        // Get all rules from alert manager (these are detected checks)
+        AnticheatAlertManager alertManager = plugin.getAnticheatManager().getAlertManager();
+        for (AnticheatCheckRule rule : alertManager.getRules()) {
+            allChecks.add(new DetectedCheck(rule.getAnticheat(), rule.getCheckName()));
+        }
+
+        // Sort by anticheat then check name
+        allChecks.sort((a, b) -> {
+            int acCompare = a.anticheat.compareToIgnoreCase(b.anticheat);
+            if (acCompare != 0) return acCompare;
+            return a.checkName.compareToIgnoreCase(b.checkName);
+        });
+    }
+
+    private ItemStack createCheckItem(DetectedCheck check) {
+        CheckAlertPreference pref = staffSettings.getCheckAlertPreference(check.anticheat, check.checkName);
+        boolean configured = pref.isConfigured();
 
         List<String> lore = new ArrayList<>();
-        lore.add("<gray>" + info.getDescription());
+        lore.add("<dark_gray>" + check.anticheat);
         lore.add("");
 
-        if (detected) {
-            lore.add("<green>Detected");
-            if (rule != null) {
-                lore.add("<gray>Min VL: <white>" + (rule.getMinVL() > 0 ? rule.getMinVL() : "default"));
-                lore.add("<gray>Threshold: <white>" + (rule.getThresholdCount() > 0 ?
-                        rule.getThresholdCount() + " alerts" : "default"));
-
-                if (rule.getAutoPunishment() != null && rule.getAutoPunishment().isEnabled()) {
-                    AutomodRule.AutoPunishment punishment = rule.getAutoPunishment();
-                    String duration = punishment.getDuration() == -1 ? "permanent" :
-                            DurationParser.format(punishment.getDuration());
-                    lore.add("");
-                    lore.add("<gold>Auto-Punishment:");
-                    lore.add("<gray>  Type: <white>" + punishment.getType().name());
-                    if (punishment.getType() != PunishmentType.KICK &&
-                        punishment.getType() != PunishmentType.WARN) {
-                        lore.add("<gray>  Duration: <white>" + duration);
-                    }
-                    lore.add("<gray>  After: <white>" + punishment.getTriggerCount() + " violations");
-                }
-            }
+        if (configured) {
+            lore.add("<gray>Alert Level: " + pref.getAlertLevel().getColor() + pref.getAlertLevel().getDisplayName());
+            lore.add("<gray>After: <white>" + pref.getThresholdCount() + " alerts");
+            lore.add("<gray>Within: <white>" + pref.getTimeWindowSeconds() + " seconds");
+            lore.add("");
+            lore.add("<green>Configured");
         } else {
-            lore.add("<yellow>Not detected yet");
-            lore.add("<dark_gray>Will be configured when first alert received");
+            lore.add("<red>Not configured");
+            lore.add("<dark_gray>You won't receive alerts");
         }
 
         lore.add("");
-        lore.add(enabled ? "<green>Enabled" : "<red>Disabled");
-        lore.add("");
-        lore.add("<yellow>Click to edit");
-        lore.add("<yellow>Shift+click to toggle");
+        lore.add("<yellow>Click to configure");
 
         Material material;
-        if (!enabled) {
-            material = Material.RED_DYE;
-        } else if (rule != null && rule.getAutoPunishment() != null &&
-                   rule.getAutoPunishment().isEnabled()) {
-            material = Material.ORANGE_DYE;
-        } else if (detected) {
-            material = Material.LIME_DYE;
-        } else {
+        String color;
+        if (!configured) {
             material = Material.GRAY_DYE;
+            color = "<gray>";
+        } else {
+            switch (pref.getAlertLevel()) {
+                case EVERYONE -> {
+                    material = Material.LIME_DYE;
+                    color = "<green>";
+                }
+                case WATCHLIST_ONLY -> {
+                    material = Material.YELLOW_DYE;
+                    color = "<yellow>";
+                }
+                default -> {
+                    material = Material.RED_DYE;
+                    color = "<red>";
+                }
+            }
         }
 
-        String title = (enabled ? "<green>" : "<red>") + info.getDisplayName();
-
-        return createItem(material, title, lore);
+        return createItem(material, color + check.checkName, lore);
     }
 
-    private void toggleCheck(CheckWithInfo check) {
-        AnticheatCheckRule rule = alertManager()
-                .getOrCreateRule(selectedAnticheat, check.getInfo().getName());
-        rule.setEnabled(!rule.isEnabled());
-        alertManager().saveRule(rule);
-        viewer.playSound(viewer.getLocation(), Sound.UI_BUTTON_CLICK, 1f, 1f);
-        refresh();
+    private void openCheckEditor(DetectedCheck check) {
+        plugin.getGuiManager().open(viewer, new CheckEditorGui(plugin, check.anticheat, check.checkName, this));
     }
 
-    private void openCheckEditor(CheckWithInfo check) {
-        AnticheatCheckRule rule = alertManager()
-                .getOrCreateRule(selectedAnticheat, check.getInfo().getName());
-        plugin.getGuiManager().open(viewer, new CheckEditorGui(plugin, rule, check.getInfo(), this));
-    }
+    // Simple holder for detected check info
+    private static class DetectedCheck {
+        final String anticheat;
+        final String checkName;
 
-    private AnticheatAlertManager alertManager() {
-        return plugin.getAnticheatManager().getAlertManager();
-    }
-
-    private int[] getCenteredSlots(int count, int row) {
-        int startSlot = row * 9;
-        return switch (count) {
-            case 1 -> new int[]{startSlot + 4};
-            case 2 -> new int[]{startSlot + 3, startSlot + 5};
-            case 3 -> new int[]{startSlot + 2, startSlot + 4, startSlot + 6};
-            case 4 -> new int[]{startSlot + 1, startSlot + 3, startSlot + 5, startSlot + 7};
-            case 5 -> new int[]{startSlot + 2, startSlot + 3, startSlot + 4, startSlot + 5, startSlot + 6};
-            case 6 -> new int[]{startSlot + 1, startSlot + 2, startSlot + 3, startSlot + 5, startSlot + 6, startSlot + 7};
-            case 7 -> new int[]{startSlot + 1, startSlot + 2, startSlot + 3, startSlot + 4, startSlot + 5, startSlot + 6, startSlot + 7};
-            default -> new int[]{startSlot + 1, startSlot + 2, startSlot + 3, startSlot + 4, startSlot + 5, startSlot + 6, startSlot + 7};
-        };
-    }
-
-    private Material getMaterialForAnticheat(String anticheat) {
-        return switch (anticheat.toLowerCase()) {
-            case "grim" -> Material.NETHERITE_SWORD;
-            case "vulcan" -> Material.DIAMOND_SWORD;
-            case "matrix" -> Material.IRON_SWORD;
-            case "spartan" -> Material.GOLDEN_SWORD;
-            case "ncp", "nocheatplus" -> Material.STONE_SWORD;
-            case "themis" -> Material.TRIDENT;
-            case "foxaddition", "fox" -> Material.CROSSBOW;
-            case "lightac", "lightanticheat", "lac" -> Material.BOW;
-            default -> Material.IRON_SWORD;
-        };
-    }
-
-    private Material getMaterialForCategory(Category category) {
-        return switch (category) {
-            case COMBAT -> Material.DIAMOND_SWORD;
-            case MOVEMENT -> Material.FEATHER;
-            case PLAYER -> Material.PLAYER_HEAD;
-            case WORLD -> Material.GRASS_BLOCK;
-            case MISC -> Material.COMPASS;
-        };
-    }
-
-    private String getColorForCategory(Category category) {
-        return switch (category) {
-            case COMBAT -> "<red>";
-            case MOVEMENT -> "<aqua>";
-            case PLAYER -> "<yellow>";
-            case WORLD -> "<green>";
-            case MISC -> "<gray>";
-        };
+        DetectedCheck(String anticheat, String checkName) {
+            this.anticheat = anticheat;
+            this.checkName = checkName;
+        }
     }
 
     // ========== Check Editor GUI ==========
 
     public static class CheckEditorGui extends BaseGui {
 
-        private final AnticheatCheckRule rule;
-        private final CheckInfo checkInfo;
+        private final String anticheat;
+        private final String checkName;
         private final AnticheatRulesGui parent;
+        private StaffSettings staffSettings;
+        private CheckAlertPreference pref;
 
-        public CheckEditorGui(ModereX plugin, AnticheatCheckRule rule, CheckInfo checkInfo, AnticheatRulesGui parent) {
-            super(plugin, "<gradient:#ff6b6b:#ee5a5a>Edit: " + checkInfo.getDisplayName() + "</gradient>", 5);
-            this.rule = rule;
-            this.checkInfo = checkInfo;
+        public CheckEditorGui(ModereX plugin, String anticheat, String checkName, AnticheatRulesGui parent) {
+            super(plugin, "<gradient:#ff6b6b:#ee5a5a>Configure: " + checkName + "</gradient>", 4);
+            this.anticheat = anticheat;
+            this.checkName = checkName;
             this.parent = parent;
         }
 
         @Override
         protected void populate() {
+            staffSettings = plugin.getStaffSettingsManager().getSettings(viewer);
+            pref = staffSettings.getCheckAlertPreference(anticheat, checkName);
+
             fillEmpty(Material.BLACK_STAINED_GLASS_PANE);
 
-            // Title / Info
-            setItem(4, createItem(Material.IRON_SWORD, "<gold>" + checkInfo.getDisplayName(),
-                    "<gray>" + checkInfo.getDescription(),
+            // Title
+            setItem(4, createItem(Material.IRON_SWORD, "<gold>" + checkName,
+                    "<dark_gray>" + anticheat,
                     "",
-                    "<dark_gray>Anticheat: " + rule.getAnticheat(),
-                    "<dark_gray>Category: " + checkInfo.getCategory().getDisplayName()));
+                    "<gray>Configure when you receive",
+                    "<gray>alerts for this check"));
 
-            // Enabled toggle
-            setItem(19, createItem(
-                    rule.isEnabled() ? Material.LIME_DYE : Material.RED_DYE,
-                    rule.isEnabled() ? "<green>Enabled" : "<red>Disabled",
-                    "<gray>Toggle check notifications",
-                    "",
-                    "<yellow>Click to toggle"), () -> {
-                rule.setEnabled(!rule.isEnabled());
+            // Alert Level (slot 11)
+            setItem(11, createAlertLevelItem(), () -> {
+                pref.setAlertLevel(pref.getAlertLevel().next());
                 saveAndRefresh();
             });
 
-            // Min VL
-            setItem(21, createItem(Material.EXPERIENCE_BOTTLE,
-                    "<gold>Minimum VL: " + (rule.getMinVL() > 0 ? rule.getMinVL() : "default"),
-                    "<gray>Only show alerts above this VL",
-                    "",
-                    "<yellow>Left: +5 | Right: -5",
-                    "<yellow>Shift+click: Reset to default"), clickType -> {
-                if (clickType.isShiftClick()) {
-                    rule.setMinVL(0);
-                } else if (clickType.isLeftClick()) {
-                    rule.setMinVL(Math.min(100, rule.getMinVL() + 5));
-                } else if (clickType.isRightClick()) {
-                    rule.setMinVL(Math.max(0, rule.getMinVL() - 5));
-                }
-                saveAndRefresh();
-            });
-
-            // Threshold count
-            setItem(23, createItem(Material.REDSTONE,
-                    "<gold>Threshold: " + (rule.getThresholdCount() > 0 ? rule.getThresholdCount() + " alerts" : "default"),
-                    "<gray>Alerts required before showing",
+            // Threshold Count (slot 13)
+            setItem(13, createItem(Material.REDSTONE,
+                    "<gold>Alert After: <white>" + pref.getThresholdCount() + " triggers",
+                    "<gray>How many times the check must",
+                    "<gray>trigger before you get an alert",
                     "",
                     "<yellow>Left: +1 | Right: -1",
-                    "<yellow>Shift+click: Reset to default"), clickType -> {
-                if (clickType.isShiftClick()) {
-                    rule.setThresholdCount(0);
-                } else if (clickType.isLeftClick()) {
-                    rule.setThresholdCount(Math.min(20, rule.getThresholdCount() + 1));
+                    "<yellow>Shift: +/-5"), clickType -> {
+                int delta = clickType.isShiftClick() ? 5 : 1;
+                if (clickType.isLeftClick()) {
+                    pref.setThresholdCount(Math.min(50, pref.getThresholdCount() + delta));
                 } else if (clickType.isRightClick()) {
-                    rule.setThresholdCount(Math.max(0, rule.getThresholdCount() - 1));
+                    pref.setThresholdCount(Math.max(1, pref.getThresholdCount() - delta));
                 }
                 saveAndRefresh();
             });
 
-            // Threshold duration
-            String durationStr = rule.getThresholdDuration() > 0 ?
-                    DurationParser.format(rule.getThresholdDuration()) : "default";
-            setItem(25, createItem(Material.CLOCK,
-                    "<gold>Time Window: " + durationStr,
-                    "<gray>Time window for threshold",
+            // Time Window (slot 15)
+            setItem(15, createItem(Material.CLOCK,
+                    "<gold>Within: <white>" + pref.getTimeWindowSeconds() + " seconds",
+                    "<gray>Time window for counting triggers",
                     "",
-                    "<yellow>Left: +30s | Right: -30s",
-                    "<yellow>Shift+click: Reset to default"), clickType -> {
-                if (clickType.isShiftClick()) {
-                    rule.setThresholdDuration(0);
+                    "<yellow>Click to enter custom time",
+                    "<yellow>Left: +10s | Right: -10s"), clickType -> {
+                if (clickType == org.bukkit.event.inventory.ClickType.MIDDLE || clickType == org.bukkit.event.inventory.ClickType.DROP) {
+                    promptTimeWindow();
                 } else if (clickType.isLeftClick()) {
-                    rule.setThresholdDuration(Math.min(600000, rule.getThresholdDuration() + 30000));
+                    pref.setTimeWindowSeconds(Math.min(600, pref.getTimeWindowSeconds() + 10));
+                    saveAndRefresh();
                 } else if (clickType.isRightClick()) {
-                    rule.setThresholdDuration(Math.max(0, rule.getThresholdDuration() - 30000));
+                    pref.setTimeWindowSeconds(Math.max(5, pref.getTimeWindowSeconds() - 10));
+                    saveAndRefresh();
                 }
+            });
+
+            // Enter custom time button
+            setItem(22, createItem(Material.NAME_TAG, "<aqua>Enter Custom Time",
+                    "<gray>Click to type a custom",
+                    "<gray>time window in seconds"), this::promptTimeWindow);
+
+            // Quick presets row
+            setItem(19, createPresetItem("Quick", AlertLevel.EVERYONE, 3, 30), () -> {
+                pref.setAlertLevel(AlertLevel.EVERYONE);
+                pref.setThresholdCount(3);
+                pref.setTimeWindowSeconds(30);
                 saveAndRefresh();
             });
 
-            // ========== Auto-Punishment Section ==========
-            AutomodRule.AutoPunishment punishment = rule.getAutoPunishment();
-            boolean hasPunishment = punishment != null && punishment.isEnabled();
-
-            setItem(31, createItem(
-                    hasPunishment ? Material.LIME_DYE : Material.RED_DYE,
-                    hasPunishment ? "<green>Auto-Punish: ON" : "<red>Auto-Punish: OFF",
-                    "<gray>Automatically punish when",
-                    "<gray>this check is triggered",
-                    "",
-                    "<yellow>Click to toggle"), () -> {
-                if (punishment == null) {
-                    AutomodRule.AutoPunishment newPunishment = new AutomodRule.AutoPunishment();
-                    newPunishment.setEnabled(true);
-                    newPunishment.setType(PunishmentType.WARN);
-                    newPunishment.setDuration(0);
-                    newPunishment.setTriggerCount(5);
-                    newPunishment.setTimeWindow(300000);
-                    rule.setAutoPunishment(newPunishment);
-                } else {
-                    punishment.setEnabled(!punishment.isEnabled());
-                }
+            setItem(20, createPresetItem("Normal", AlertLevel.EVERYONE, 5, 60), () -> {
+                pref.setAlertLevel(AlertLevel.EVERYONE);
+                pref.setThresholdCount(5);
+                pref.setTimeWindowSeconds(60);
                 saveAndRefresh();
             });
 
-            if (hasPunishment) {
-                // Punishment type
-                setItem(29, createItem(Material.IRON_SWORD,
-                        "<gold>Type: " + punishment.getType().name(),
-                        "<gray>What punishment to apply",
-                        "",
-                        "<yellow>Click to cycle"), () -> {
-                    PunishmentType[] types = {PunishmentType.WARN, PunishmentType.MUTE,
-                            PunishmentType.KICK, PunishmentType.BAN};
-                    int current = 0;
-                    for (int i = 0; i < types.length; i++) {
-                        if (types[i] == punishment.getType()) {
-                            current = i;
-                            break;
-                        }
-                    }
-                    punishment.setType(types[(current + 1) % types.length]);
-                    saveAndRefresh();
-                });
+            setItem(21, createPresetItem("Relaxed", AlertLevel.EVERYONE, 10, 120), () -> {
+                pref.setAlertLevel(AlertLevel.EVERYONE);
+                pref.setThresholdCount(10);
+                pref.setTimeWindowSeconds(120);
+                saveAndRefresh();
+            });
 
-                // Duration (for mute/ban)
-                if (punishment.getType() == PunishmentType.MUTE || punishment.getType() == PunishmentType.BAN) {
-                    String pDuration = punishment.getDuration() == -1 ? "Permanent" :
-                            punishment.getDuration() == 0 ? "Not set" : DurationParser.format(punishment.getDuration());
-                    setItem(30, createItem(Material.HOPPER,
-                            "<gold>Duration: " + pDuration,
-                            "<gray>Punishment duration",
-                            "",
-                            "<yellow>Left: +1h | Right: -1h",
-                            "<yellow>Shift+click: Toggle permanent"), clickType -> {
-                        if (clickType.isShiftClick()) {
-                            punishment.setDuration(punishment.getDuration() == -1 ? 3600000 : -1);
-                        } else if (clickType.isLeftClick()) {
-                            if (punishment.getDuration() != -1) {
-                                punishment.setDuration(punishment.getDuration() + 3600000);
-                            }
-                        } else if (clickType.isRightClick()) {
-                            if (punishment.getDuration() > 3600000) {
-                                punishment.setDuration(punishment.getDuration() - 3600000);
-                            } else if (punishment.getDuration() != -1) {
-                                punishment.setDuration(3600000);
-                            }
-                        }
-                        saveAndRefresh();
-                    });
-                }
+            setItem(23, createPresetItem("Watchlist", AlertLevel.WATCHLIST_ONLY, 3, 60), () -> {
+                pref.setAlertLevel(AlertLevel.WATCHLIST_ONLY);
+                pref.setThresholdCount(3);
+                pref.setTimeWindowSeconds(60);
+                saveAndRefresh();
+            });
 
-                // Trigger count
-                setItem(32, createItem(Material.TNT,
-                        "<gold>After: " + punishment.getTriggerCount() + " violations",
-                        "<gray>Violations before punishing",
-                        "",
-                        "<yellow>Left: +1 | Right: -1"), clickType -> {
-                    if (clickType.isLeftClick()) {
-                        punishment.setTriggerCount(Math.min(50, punishment.getTriggerCount() + 1));
-                    } else if (clickType.isRightClick()) {
-                        punishment.setTriggerCount(Math.max(1, punishment.getTriggerCount() - 1));
-                    }
-                    saveAndRefresh();
-                });
+            setItem(24, createPresetItem("Off", AlertLevel.OFF, 5, 60), () -> {
+                pref.setAlertLevel(AlertLevel.OFF);
+                saveAndRefresh();
+            });
 
-                // Time window for violations
-                String vWindow = DurationParser.format(punishment.getTimeWindow());
-                setItem(33, createItem(Material.REPEATER,
-                        "<gold>Window: " + vWindow,
-                        "<gray>Reset violations after this",
-                        "",
-                        "<yellow>Left: +1m | Right: -1m"), clickType -> {
-                    if (clickType.isLeftClick()) {
-                        punishment.setTimeWindow(Math.min(3600000, punishment.getTimeWindow() + 60000));
-                    } else if (clickType.isRightClick()) {
-                        punishment.setTimeWindow(Math.max(60000, punishment.getTimeWindow() - 60000));
-                    }
-                    saveAndRefresh();
-                });
-            }
-
-            // Navigation
-            setItem(36, createItem(Material.ARROW, "<yellow>Back",
+            // Bottom navigation
+            setItem(27, createItem(Material.ARROW, "<yellow>Back",
                     "<gray>Return to check list"), () -> {
                 plugin.getGuiManager().open(viewer, parent);
             });
 
-            setItem(44, createItem(Material.LIME_CONCRETE, "<green>Save & Close",
-                    "<gray>Save changes and return"), () -> {
-                plugin.getAnticheatManager().getAlertManager().saveRule(rule);
-                viewer.sendMessage(TextUtil.parse("<green>Check rule saved!"));
+            setItem(35, createItem(Material.LIME_CONCRETE, "<green>Save & Close",
+                    "<gray>Save and return"), () -> {
+                plugin.getStaffSettingsManager().saveSettings(staffSettings);
+                viewer.sendMessage(TextUtil.parse("<green>Settings saved for " + checkName + "!"));
                 viewer.playSound(viewer.getLocation(), Sound.ENTITY_EXPERIENCE_ORB_PICKUP, 1f, 1f);
                 plugin.getGuiManager().open(viewer, parent);
             });
         }
 
+        private ItemStack createAlertLevelItem() {
+            AlertLevel level = pref.getAlertLevel();
+            Material material = switch (level) {
+                case EVERYONE -> Material.LIME_DYE;
+                case WATCHLIST_ONLY -> Material.YELLOW_DYE;
+                case OFF -> Material.RED_DYE;
+            };
+
+            List<String> lore = new ArrayList<>();
+            lore.add("<gray>" + level.getDescription());
+            lore.add("");
+            for (AlertLevel l : AlertLevel.values()) {
+                String prefix = l == level ? "<white>▶ " : "<dark_gray>  ";
+                lore.add(prefix + l.getColor() + l.getDisplayName());
+            }
+            lore.add("");
+            lore.add("<yellow>Click to cycle");
+
+            return createItem(material, level.getColor() + "Alert Level: " + level.getDisplayName(), lore);
+        }
+
+        private ItemStack createPresetItem(String name, AlertLevel level, int threshold, int window) {
+            String color = switch (level) {
+                case EVERYONE -> "<green>";
+                case WATCHLIST_ONLY -> "<yellow>";
+                case OFF -> "<red>";
+            };
+
+            List<String> lore = new ArrayList<>();
+            lore.add("<gray>Level: " + color + level.getDisplayName());
+            if (level != AlertLevel.OFF) {
+                lore.add("<gray>After: <white>" + threshold + " triggers");
+                lore.add("<gray>Within: <white>" + window + "s");
+            }
+            lore.add("");
+            lore.add("<yellow>Click to apply");
+
+            return createItem(Material.PAPER, color + name + " Preset", lore);
+        }
+
+        private void promptTimeWindow() {
+            close();
+            viewer.sendMessage(TextUtil.parse("<aqua>Enter time window in seconds (5-600):"));
+            viewer.sendMessage(TextUtil.parse("<gray>Type 'cancel' to cancel"));
+
+            new ConversationFactory(plugin)
+                    .withModality(true)
+                    .withFirstPrompt(new StringPrompt() {
+                        @Override
+                        public String getPromptText(ConversationContext context) {
+                            return "";
+                        }
+
+                        @Override
+                        public Prompt acceptInput(ConversationContext context, String input) {
+                            if (input.equalsIgnoreCase("cancel")) {
+                                context.getForWhom().sendRawMessage(toLegacy("<red>Cancelled."));
+                            } else {
+                                try {
+                                    int seconds = Integer.parseInt(input.trim());
+                                    if (seconds >= 5 && seconds <= 600) {
+                                        pref.setTimeWindowSeconds(seconds);
+                                        plugin.getStaffSettingsManager().saveSettings(staffSettings);
+                                        context.getForWhom().sendRawMessage(toLegacy("<green>Time window set to " + seconds + " seconds."));
+                                    } else {
+                                        context.getForWhom().sendRawMessage(toLegacy("<red>Must be between 5 and 600 seconds."));
+                                    }
+                                } catch (NumberFormatException e) {
+                                    context.getForWhom().sendRawMessage(toLegacy("<red>Invalid number."));
+                                }
+                            }
+
+                            plugin.getServer().getScheduler().runTask(plugin, () -> {
+                                plugin.getGuiManager().open(viewer, CheckEditorGui.this);
+                            });
+                            return Prompt.END_OF_CONVERSATION;
+                        }
+                    })
+                    .withLocalEcho(false)
+                    .withTimeout(60)
+                    .buildConversation(viewer)
+                    .begin();
+        }
+
         private void saveAndRefresh() {
-            plugin.getAnticheatManager().getAlertManager().saveRule(rule);
+            plugin.getStaffSettingsManager().saveSettings(staffSettings);
             viewer.playSound(viewer.getLocation(), Sound.UI_BUTTON_CLICK, 1f, 1f);
             refresh();
+        }
+
+        private static String toLegacy(String miniMessage) {
+            return LegacyComponentSerializer.legacySection().serialize(TextUtil.parse(miniMessage));
         }
     }
 }

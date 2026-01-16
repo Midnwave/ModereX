@@ -4,6 +4,7 @@ import com.blockforge.moderex.ModereX;
 import com.blockforge.moderex.commands.BaseCommand;
 import com.blockforge.moderex.config.lang.MessageKey;
 import com.blockforge.moderex.gui.AnalyticsGui;
+import com.blockforge.moderex.gui.AnticheatRulesGui;
 import com.blockforge.moderex.gui.AutomodGui;
 import com.blockforge.moderex.gui.MainMenuGui;
 import com.blockforge.moderex.gui.ReplayGui;
@@ -60,6 +61,7 @@ public class MxCommand extends BaseCommand {
             case "revoketoken" -> handleRevokeToken(sender);
             case "sessions" -> handleSessions(sender);
             case "automod" -> handleAutomod(sender);
+            case "anticheat", "ac" -> handleAnticheat(sender);
             case "chat" -> handleChat(sender, subArgs);
             case "settings" -> handleSettings(sender);
             case "analytics" -> handleAnalytics(sender);
@@ -632,6 +634,20 @@ public class MxCommand extends BaseCommand {
         }
 
         plugin.getGuiManager().open(player, new AutomodGui(plugin));
+    }
+
+    private void handleAnticheat(CommandSender sender) {
+        if (!sender.hasPermission("moderex.notify.anticheat")) {
+            sendMessage(sender, MessageKey.NO_PERMISSION);
+            return;
+        }
+
+        if (!(sender instanceof Player player)) {
+            sendMessage(sender, MessageKey.PLAYER_ONLY);
+            return;
+        }
+
+        plugin.getGuiManager().open(player, new AnticheatRulesGui(plugin));
     }
 
     private void handleChat(CommandSender sender, String[] args) {
@@ -1226,6 +1242,7 @@ public class MxCommand extends BaseCommand {
         sendMessage(sender, "<yellow>/mx sessions <gray>- View web session status");
         sendMessage(sender, "<yellow>/mx chat <enable|disable|slowmode|clear> <gray>- Chat control");
         sendMessage(sender, "<yellow>/mx automod <gray>- Open automod settings");
+        sendMessage(sender, "<yellow>/mx anticheat <gray>- Configure anticheat alerts");
         sendMessage(sender, "");
         sendMessage(sender, "<gradient:#a855f7:#ec4899>━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━</gradient>");
     }
@@ -1254,6 +1271,10 @@ public class MxCommand extends BaseCommand {
             if (sender.hasPermission("moderex.command.vanish")) {
                 completions.add("vanish");
                 completions.add("v");
+            }
+            if (sender.hasPermission("moderex.notify.anticheat")) {
+                completions.add("anticheat");
+                completions.add("ac");
             }
             if (sender.hasPermission("moderex.command.admin")) {
                 completions.add("reload");

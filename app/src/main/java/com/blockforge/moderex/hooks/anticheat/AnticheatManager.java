@@ -163,37 +163,44 @@ public class AnticheatManager {
         String anticheat = alert.getAnticheat();
         String checkName = alert.getCheckName();
         int vl = (int) alert.getVlLevel();
-        boolean rebrand = plugin.getConfigManager().getSettings().isAnticheatRebrandAlerts();
-
-        // Build the alert message (rebranded or original)
-        Component message;
-        if (rebrand) {
-            // ModereX branded message
-            message = TextUtil.parse(
-                    "<dark_gray>[<gradient:#ff6b6b:#ee5a5a>ModereX<dark_gray>] <white>" +
-                            target.getName() + " <gray>flagged <yellow>" +
-                            checkName + " <dark_gray>(<gray>" + anticheat +
-                            "<dark_gray>) <red>x" + vl
-            );
-        } else {
-            // Original anticheat format
-            message = TextUtil.parse(
-                    "<dark_gray>[<red>" + anticheat + "<dark_gray>] <white>" +
-                            target.getName() + " <gray>failed <yellow>" +
-                            checkName + " <gray>(<white>" + alert.getCheckType() +
-                            "<gray>) <red>VL: " + String.format("%.1f", alert.getVlLevel())
-            );
-        }
+        boolean isWatched = plugin.getWatchlistManager().isWatched(target.getUniqueId());
 
         for (Player staff : plugin.getServer().getOnlinePlayers()) {
             if (!staff.hasPermission("moderex.notify.anticheat")) {
                 continue;
             }
 
-            // Check per-staff preferences
-            if (!alertManager.shouldShowAlertToStaff(staff, target, anticheat, checkName, vl)) {
+            // Get staff's preference for this specific check
+            var staffSettings = plugin.getStaffSettingsManager().getSettings(staff);
+            var checkPref = staffSettings.getCheckAlertPreference(anticheat, checkName);
+
+            // If not configured, skip (default is OFF/unconfigured)
+            if (!checkPref.isConfigured()) {
                 continue;
             }
+
+            // Check alert level
+            switch (checkPref.getAlertLevel()) {
+                case OFF -> { continue; }
+                case WATCHLIST_ONLY -> {
+                    if (!isWatched) continue;
+                }
+                case EVERYONE -> {} // proceed
+            }
+
+            // Track alert and check if threshold is met
+            if (!alertManager.shouldSendAlertToStaff(staff.getUniqueId(), anticheat, checkName,
+                    checkPref.getThresholdCount(), checkPref.getTimeWindowSeconds())) {
+                continue;
+            }
+
+            // Always use ModereX prefix for alerts
+            Component message = TextUtil.parse(
+                    "<dark_gray>[<gradient:#ff6b6b:#ee5a5a>ModereX</gradient><dark_gray>] <white>" +
+                            target.getName() + " <gray>flagged <yellow>" +
+                            checkName + " <dark_gray>(<gray>" + anticheat +
+                            "<dark_gray>) <red>x" + vl
+            );
 
             staff.sendMessage(message);
         }

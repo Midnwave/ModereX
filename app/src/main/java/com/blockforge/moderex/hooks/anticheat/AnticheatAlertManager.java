@@ -25,6 +25,9 @@ public class AnticheatAlertManager {
     // Cooldown tracking: playerUUID:anticheat:checkName -> last alert time
     private final Map<String, Long> lastAlertTime = new ConcurrentHashMap<>();
 
+    // Per-staff alert tracking: staffUUID:anticheat:checkName -> list of timestamps
+    private final Map<String, List<Long>> staffAlertHistory = new ConcurrentHashMap<>();
+
     // Default threshold settings
     private int defaultThresholdCount = 3;
     private long defaultThresholdDuration = 60000; // 60s
@@ -357,6 +360,34 @@ public class AnticheatAlertManager {
         String prefix = uuid.toString() + ":";
         alertHistory.keySet().removeIf(k -> k.startsWith(prefix));
         lastAlertTime.keySet().removeIf(k -> k.startsWith(prefix));
+    }
+
+    /**
+     * Track an alert for a staff member and return whether threshold is met.
+     * @return true if the staff should receive an alert now
+     */
+    public boolean shouldSendAlertToStaff(UUID staffUuid, String anticheat, String checkName,
+                                          int thresholdCount, int timeWindowSeconds) {
+        String key = staffUuid.toString() + ":" + anticheat.toLowerCase() + ":" + checkName.toLowerCase();
+        long now = System.currentTimeMillis();
+        long windowMs = timeWindowSeconds * 1000L;
+
+        List<Long> timestamps = staffAlertHistory.computeIfAbsent(key, k -> new ArrayList<>());
+
+        // Remove old timestamps outside the window
+        timestamps.removeIf(t -> (now - t) > windowMs);
+
+        // Add current timestamp
+        timestamps.add(now);
+
+        // Check if threshold is met
+        if (timestamps.size() >= thresholdCount) {
+            // Reset the count after sending alert
+            timestamps.clear();
+            return true;
+        }
+
+        return false;
     }
 
     public static class AnticheatCheckRule {
