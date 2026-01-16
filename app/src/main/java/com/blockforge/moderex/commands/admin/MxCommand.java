@@ -57,7 +57,6 @@ public class MxCommand extends BaseCommand {
             case "reload" -> handleReload(sender);
             case "connect" -> handleConnect(sender);
             case "gettoken" -> handleGetToken(sender);
-            case "gentoken" -> handleGenToken(sender, subArgs);
             case "revoketoken" -> handleRevokeToken(sender);
             case "sessions" -> handleSessions(sender);
             case "automod" -> handleAutomod(sender);
@@ -391,52 +390,6 @@ public class MxCommand extends BaseCommand {
         sendMessage(sender, "<green>Your token has been generated!");
         sendMessage(sender, "<gray>A secure book has been opened with your token.");
         sendMessage(sender, "<yellow>Click the token in the book to copy it.");
-        sendMessage(sender, "<gradient:#a855f7:#ec4899>━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━</gradient>");
-        sendMessage(sender, "");
-    }
-
-    private void handleGenToken(CommandSender sender, String[] args) {
-        if (sender instanceof Player && !sender.hasPermission("moderex.command.admin")) {
-            sendMessage(sender, MessageKey.NO_PERMISSION);
-            return;
-        }
-
-        if (plugin.getWebAuthManager() == null) {
-            sendMessage(sender, "<red>Web authentication is not initialized.");
-            return;
-        }
-
-        if (args.length < 1) {
-            sendMessage(sender, "<yellow>Usage: /mx gentoken <uuid> [username]");
-            sendMessage(sender, "<gray>Example: /mx gentoken 069a79f4-44e9-4726-a5be-fca90e38aaf5 Notch");
-            return;
-        }
-
-        UUID uuid;
-        try {
-            uuid = UUID.fromString(args[0]);
-        } catch (IllegalArgumentException e) {
-            sendMessage(sender, "<red>Invalid UUID format. Use: xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx");
-            return;
-        }
-
-        String username = args.length > 1 ? args[1] : "Unknown";
-
-        // Check if already has token
-        if (plugin.getWebAuthManager().hasPermanentToken(uuid)) {
-            sendMessage(sender, "<yellow>UUID " + uuid + " already has a token.");
-            sendMessage(sender, "<gray>Use /mx revoketoken to revoke it first (player must be online).");
-            return;
-        }
-        String token = plugin.getWebAuthManager().generatePermanentToken(uuid);
-
-        sendMessage(sender, "");
-        sendMessage(sender, "<gradient:#a855f7:#ec4899>━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━</gradient>");
-        sendMessage(sender, "<green>Token generated for: <white>" + username + " <gray>(" + uuid + ")");
-        sendMessage(sender, "");
-        sendMessage(sender, "<yellow>Token: <white>" + token);
-        sendMessage(sender, "");
-        sendMessage(sender, "<red><bold>WARNING:</bold> <gray>This token will not be shown again!");
         sendMessage(sender, "<gradient:#a855f7:#ec4899>━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━</gradient>");
         sendMessage(sender, "");
     }
@@ -1342,7 +1295,6 @@ public class MxCommand extends BaseCommand {
                 completions.add("warningsettings");
                 completions.add("replay");
                 completions.add("replays");
-                completions.add("gentoken");
                 completions.add("sendalert");
             }
             if (sender.hasPermission("moderex.webpanel")) {
