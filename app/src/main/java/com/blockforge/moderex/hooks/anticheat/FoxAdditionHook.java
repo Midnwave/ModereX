@@ -10,6 +10,20 @@ import org.bukkit.event.Listener;
 import org.bukkit.plugin.EventExecutor;
 import org.bukkit.plugin.Plugin;
 
+import java.lang.reflect.Method;
+
+/**
+ * Hook for FoxAddition Anticheat by zoruafan
+ * API: zoruafan.foxanticheat.api.events.FoxFlagEvent
+ *
+ * FoxFlagEvent provides:
+ * - getPlayer() -> Player
+ * - getCheckType() -> String (check name)
+ * - getVLS() -> int (violation level)
+ * - getDetails() -> String (additional info)
+ * - getModule() -> String (module name)
+ * - getLog() -> String (log message)
+ */
 public class FoxAdditionHook extends AnticheatHook implements Listener {
 
     private static final String[] PLUGIN_NAMES = {"FoxAddition", "FoxEdition", "Fox"};
@@ -35,10 +49,11 @@ public class FoxAdditionHook extends AnticheatHook implements Listener {
             return false;
         }
 
+        // FoxAddition API class paths (current version first)
         String[] eventClasses = {
-            "de.idcteam.foxaddition.api.event.FoxFlagEvent",
-            "de.idcteam.foxaddition.api.events.PlayerFlagEvent",
-            "de.idcteam.fox.api.event.FlagEvent"
+            "zoruafan.foxanticheat.api.events.FoxFlagEvent",  // Current FoxAddition
+            "de.idcteam.foxaddition.api.event.FoxFlagEvent",  // IDCTeam fork
+            "de.idcteam.foxaddition.api.events.PlayerFlagEvent"
         };
 
         ClassLoader classLoader = foxPlugin.getClass().getClassLoader();
@@ -48,13 +63,12 @@ public class FoxAdditionHook extends AnticheatHook implements Listener {
                 eventClass = (Class<? extends Event>) Class.forName(className, true, classLoader);
                 plugin.logDebug("[Anticheat] Found Fox event class: " + className);
                 break;
-            } catch (ClassNotFoundException ignored) {
-            }
+            } catch (ClassNotFoundException ignored) {}
         }
 
         if (eventClass == null) {
             enabled = true;
-            plugin.getLogger().info("FoxAddition detected - passive mode");
+            plugin.getLogger().info("FoxAddition detected - passive mode (no API event found)");
             return true;
         }
 
@@ -65,6 +79,7 @@ public class FoxAdditionHook extends AnticheatHook implements Listener {
             };
             plugin.getServer().getPluginManager().registerEvent(eventClass, this, EventPriority.MONITOR, executor, plugin, true);
             enabled = true;
+            plugin.logDebug("[Anticheat] Successfully hooked into FoxAddition API");
             return true;
         } catch (Exception e) {
             plugin.logError("Failed to hook FoxAddition", e);
@@ -84,33 +99,72 @@ public class FoxAdditionHook extends AnticheatHook implements Listener {
         try {
             Player player = null;
             String checkName = "Unknown";
-            int vl = 1;
+            String module = "";
+            int vls = 1;
+            String details = "";
 
-            for (String m : new String[]{"getPlayer", "player"}) {
-                try {
-                    Object r = event.getClass().getMethod(m).invoke(event);
-                    if (r instanceof Player) { player = (Player) r; break; }
-                } catch (NoSuchMethodException ignored) {}
-            }
+            // Get player - FoxFlagEvent.getPlayer() returns Player
+            try {
+                Method getPlayer = event.getClass().getMethod("getPlayer");
+                Object result = getPlayer.invoke(event);
+                if (result instanceof Player) {
+                    player = (Player) result;
+                }
+            } catch (NoSuchMethodException ignored) {}
 
-            for (String m : new String[]{"getCheckName", "getCheck", "getType"}) {
-                try {
-                    Object r = event.getClass().getMethod(m).invoke(event);
-                    if (r instanceof String) { checkName = (String) r; break; }
-                    else if (r != null) { checkName = r.toString(); break; }
-                } catch (NoSuchMethodException ignored) {}
-            }
+            // Get check type - FoxFlagEvent.getCheckType() returns String
+            try {
+                Method getCheckType = event.getClass().getMethod("getCheckType");
+                Object result = getCheckType.invoke(event);
+                if (result instanceof String) {
+                    checkName = (String) result;
+                }
+            } catch (NoSuchMethodException ignored) {}
 
-            for (String m : new String[]{"getViolations", "getVl", "getViolation"}) {
-                try {
-                    Object r = event.getClass().getMethod(m).invoke(event);
-                    if (r instanceof Number) { vl = ((Number) r).intValue(); break; }
-                } catch (NoSuchMethodException ignored) {}
-            }
+            // Get VLS - FoxFlagEvent.getVLS() returns int
+            try {
+                Method getVLS = event.getClass().getMethod("getVLS");
+                Object result = getVLS.invoke(event);
+                if (result instanceof Number) {
+                    vls = ((Number) result).intValue();
+                }
+            } catch (NoSuchMethodException ignored) {}
+
+            // Get module - FoxFlagEvent.getModule() returns String
+            try {
+                Method getModule = event.getClass().getMethod("getModule");
+                Object result = getModule.invoke(event);
+                if (result instanceof String) {
+                    module = (String) result;
+                }
+            } catch (NoSuchMethodException ignored) {}
+
+            // Get details - FoxFlagEvent.getDetails() returns String
+            try {
+                Method getDetails = event.getClass().getMethod("getDetails");
+                Object result = getDetails.invoke(event);
+                if (result instanceof String) {
+                    details = (String) result;
+                }
+            } catch (NoSuchMethodException ignored) {}
 
             if (player != null) {
-                handleAlert(new AnticheatAlert(getName(), player, checkName, "A", vl, vl, "FoxAddition detection"));
+                // Format check name with module if available
+                String fullCheckName = module.isEmpty() ? checkName : module + "/" + checkName;
+                String info = details.isEmpty() ? "FoxAddition detection" : details;
+
+                handleAlert(new AnticheatAlert(
+                    getName(),
+                    player,
+                    fullCheckName,
+                    "A",
+                    vls,
+                    vls,
+                    info
+                ));
             }
-        } catch (Exception ignored) {}
+        } catch (Exception e) {
+            plugin.logDebug("[Anticheat] Error handling FoxAddition event: " + e.getMessage());
+        }
     }
 }

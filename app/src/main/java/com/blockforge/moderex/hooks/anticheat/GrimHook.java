@@ -12,7 +12,18 @@ import org.bukkit.plugin.Plugin;
 
 import java.lang.reflect.Method;
 
+/**
+ * Hook for GrimAC Anticheat
+ * API: ac.grim.grimac.api.events.FlagEvent
+ *
+ * FlagEvent provides:
+ * - getPlayer() -> GrimUser (has getBukkitPlayer(), getName(), getUniqueId())
+ * - getCheck() -> AbstractCheck (has getCheckName(), getViolations())
+ * - getVerbose() -> String (detailed info about the flag)
+ * - isCancelled() / setCancelled(boolean)
+ */
 public class GrimHook extends AnticheatHook implements Listener {
+
     private static final String[] PLUGIN_NAMES = {"Grim", "GrimAC"};
     private Class<? extends Event> eventClass;
     private Plugin grimPlugin;
@@ -37,20 +48,14 @@ public class GrimHook extends AnticheatHook implements Listener {
             return false;
         }
 
-        // Try to find event class from Grim's classloader
-        String[] eventClasses = {
-            // GrimAC 2.3.x+
-            "ac.grim.grimac.events.FlagEvent",
-            "ac.grim.grimac.api.events.FlagEvent",
-            // Older versions
-            "ac.grim.grimac.events.packets.PacketPlayerAbilities",
-            // GrimAPI
-            "com.github.grimanticheat.grimapi.events.FlagEvent",
-            // Alternative event names
-            "ac.grim.grimac.events.CompletePredictionEvent"
-        };
-
         ClassLoader grimClassLoader = grimPlugin.getClass().getClassLoader();
+
+        // GrimAPI event classes (current versions first)
+        String[] eventClasses = {
+            "ac.grim.grimac.api.events.FlagEvent",      // GrimAPI 2.3.x+
+            "ac.grim.grimac.events.FlagEvent",          // Older direct package
+            "ac.grim.grimac.api.events.CheckFlagEvent", // Alternative name
+        };
 
         for (String className : eventClasses) {
             try {
@@ -72,71 +77,21 @@ public class GrimHook extends AnticheatHook implements Listener {
                 };
 
                 plugin.getServer().getPluginManager().registerEvent(
-                        eventClass, this, EventPriority.MONITOR, executor, plugin, true
+                    eventClass, this, EventPriority.MONITOR, executor, plugin, true
                 );
 
                 enabled = true;
-                plugin.logDebug("[Anticheat] Successfully hooked into Grim via " + eventClass.getSimpleName());
+                plugin.logDebug("[Anticheat] Successfully hooked into Grim API via " + eventClass.getSimpleName());
                 return true;
             } catch (Exception e) {
                 plugin.logDebug("[Anticheat] Failed to register Grim event: " + e.getMessage());
             }
         }
 
-        // Fallback: Listen to all Grim events by scanning
-        try {
-            return tryReflectiveHook(grimClassLoader);
-        } catch (Exception e) {
-            plugin.logDebug("[Anticheat] Reflective hook failed: " + e.getMessage());
-        }
-
-        // Last resort: just mark as enabled since Grim is present
-        // Alerts will come through chat/console parsing if needed
+        // Mark as enabled in passive mode if plugin is present
         enabled = true;
-        plugin.getLogger().info("Grim detected but event hooking unavailable - using passive mode");
+        plugin.getLogger().info("Grim detected - passive mode (no API event found)");
         return true;
-    }
-
-    @SuppressWarnings("unchecked")
-    private boolean tryReflectiveHook(ClassLoader classLoader) {
-        // Try to find any Event class in Grim's packages
-        String[] packages = {
-            "ac.grim.grimac.events",
-            "ac.grim.grimac.api.events",
-            "ac.grim.grimac.checks"
-        };
-
-        for (String pkg : packages) {
-            try {
-                // Try common event naming patterns
-                String[] suffixes = {"FlagEvent", "ViolationEvent", "AlertEvent", "CheckEvent"};
-                for (String suffix : suffixes) {
-                    try {
-                        String className = pkg + "." + suffix;
-                        Class<?> clazz = Class.forName(className, true, classLoader);
-                        if (Event.class.isAssignableFrom(clazz)) {
-                            eventClass = (Class<? extends Event>) clazz;
-
-                            EventExecutor executor = (listener, event) -> {
-                                if (!enabled) return;
-                                handleGrimEvent(event);
-                            };
-
-                            plugin.getServer().getPluginManager().registerEvent(
-                                    eventClass, this, EventPriority.MONITOR, executor, plugin, true
-                            );
-
-                            enabled = true;
-                            plugin.logDebug("[Anticheat] Hooked Grim via reflective scan: " + className);
-                            return true;
-                        }
-                    } catch (ClassNotFoundException ignored) {
-                    }
-                }
-            } catch (Exception ignored) {
-            }
-        }
-        return false;
     }
 
     @Override
@@ -152,107 +107,103 @@ public class GrimHook extends AnticheatHook implements Listener {
             Player player = null;
             String checkName = "Unknown";
             int violations = 1;
-            String details = "";
+            String verbose = "";
 
-            // Try to get player
-            for (String methodName : new String[]{"getPlayer", "getUser", "player", "getGrimPlayer"}) {
-                try {
-                    Method method = event.getClass().getMethod(methodName);
-                    Object result = method.invoke(event);
-                    if (result instanceof Player) {
-                        player = (Player) result;
-                        break;
-                    } else if (result != null) {
-                        // GrimPlayer object - try to get bukkit player from it
+            // Get player - FlagEvent.getPlayer() returns GrimUser
+            // GrimUser has getBukkitPlayer() method
+            try {
+                Method getPlayer = event.getClass().getMethod("getPlayer");
+                Object grimUser = getPlayer.invoke(event);
+                if (grimUser != null) {
+                    // Try getBukkitPlayer() first
+                    try {
+                        Method getBukkitPlayer = grimUser.getClass().getMethod("getBukkitPlayer");
+                        Object bp = getBukkitPlayer.invoke(grimUser);
+                        if (bp instanceof Player) {
+                            player = (Player) bp;
+                        }
+                    } catch (NoSuchMethodException e) {
+                        // Try getPlayer() on GrimUser
                         try {
-                            Method getBukkitPlayer = result.getClass().getMethod("getBukkitPlayer");
-                            Object bp = getBukkitPlayer.invoke(result);
-                            if (bp instanceof Player) {
-                                player = (Player) bp;
-                                break;
-                            }
-                        } catch (Exception ignored) {}
-                        try {
-                            Method getPlayer = result.getClass().getMethod("getPlayer");
-                            Object p = getPlayer.invoke(result);
+                            Method getPlayerFromUser = grimUser.getClass().getMethod("getPlayer");
+                            Object p = getPlayerFromUser.invoke(grimUser);
                             if (p instanceof Player) {
                                 player = (Player) p;
-                                break;
                             }
-                        } catch (Exception ignored) {}
+                        } catch (NoSuchMethodException ignored) {}
                     }
-                } catch (NoSuchMethodException ignored) {
-                }
-            }
 
-            // Try to get check name
-            for (String methodName : new String[]{"getCheckName", "getCheck", "checkName", "check", "getCheckType"}) {
-                try {
-                    Method method = event.getClass().getMethod(methodName);
-                    Object result = method.invoke(event);
-                    if (result instanceof String) {
-                        checkName = (String) result;
-                        break;
-                    } else if (result != null) {
-                        // Check object - get its name
+                    // If still no player but we have GrimUser, try getName() for lookup
+                    if (player == null) {
                         try {
-                            Method getName = result.getClass().getMethod("getName");
-                            checkName = (String) getName.invoke(result);
-                            break;
-                        } catch (Exception ignored) {
-                            try {
-                                Method getCheckName = result.getClass().getMethod("getCheckName");
-                                checkName = (String) getCheckName.invoke(result);
-                                break;
-                            } catch (Exception ignored2) {
-                                checkName = result.getClass().getSimpleName();
-                                break;
-                            }
+                            Method getName = grimUser.getClass().getMethod("getName");
+                            String playerName = (String) getName.invoke(grimUser);
+                            player = Bukkit.getPlayer(playerName);
+                        } catch (NoSuchMethodException ignored) {}
+                    }
+                }
+            } catch (NoSuchMethodException ignored) {}
+
+            // Get check - FlagEvent.getCheck() returns AbstractCheck
+            // AbstractCheck has getCheckName() and getViolations()
+            try {
+                Method getCheck = event.getClass().getMethod("getCheck");
+                Object check = getCheck.invoke(event);
+                if (check != null) {
+                    // Get check name
+                    try {
+                        Method getCheckName = check.getClass().getMethod("getCheckName");
+                        Object name = getCheckName.invoke(check);
+                        if (name instanceof String) {
+                            checkName = (String) name;
                         }
+                    } catch (NoSuchMethodException e) {
+                        // Fallback to class name
+                        checkName = check.getClass().getSimpleName();
                     }
-                } catch (NoSuchMethodException ignored) {
-                }
-            }
 
-            // Try to get violations
-            for (String methodName : new String[]{"getViolations", "getVl", "violations", "vl", "getViolation"}) {
-                try {
-                    Method method = event.getClass().getMethod(methodName);
-                    Object result = method.invoke(event);
-                    if (result instanceof Number) {
-                        violations = ((Number) result).intValue();
-                        break;
+                    // Get violations from check
+                    try {
+                        Method getViolations = check.getClass().getMethod("getViolations");
+                        Object vl = getViolations.invoke(check);
+                        if (vl instanceof Number) {
+                            violations = ((Number) vl).intValue();
+                        }
+                    } catch (NoSuchMethodException e) {
+                        // Try getVl
+                        try {
+                            Method getVl = check.getClass().getMethod("getVl");
+                            Object vl = getVl.invoke(check);
+                            if (vl instanceof Number) {
+                                violations = ((Number) vl).intValue();
+                            }
+                        } catch (NoSuchMethodException ignored) {}
                     }
-                } catch (NoSuchMethodException ignored) {
                 }
-            }
+            } catch (NoSuchMethodException ignored) {}
 
-            // Try to get details/verbose
-            for (String methodName : new String[]{"getVerbose", "getMessage", "getDetails", "verbose"}) {
-                try {
-                    Method method = event.getClass().getMethod(methodName);
-                    Object result = method.invoke(event);
-                    if (result instanceof String) {
-                        details = (String) result;
-                        break;
-                    }
-                } catch (NoSuchMethodException ignored) {
+            // Get verbose info - FlagEvent.getVerbose() returns String
+            try {
+                Method getVerbose = event.getClass().getMethod("getVerbose");
+                Object result = getVerbose.invoke(event);
+                if (result instanceof String) {
+                    verbose = (String) result;
                 }
-            }
+            } catch (NoSuchMethodException ignored) {}
 
             if (player != null) {
                 handleAlert(new AnticheatAlert(
-                        getName(),
-                        player,
-                        checkName,
-                        "A",
-                        violations,
-                        violations,
-                        details.isEmpty() ? "Grim detection" : details
+                    getName(),
+                    player,
+                    checkName,
+                    "A",
+                    violations,
+                    violations,
+                    verbose.isEmpty() ? "Grim detection" : verbose
                 ));
             }
         } catch (Exception e) {
-            // Silent fail
+            plugin.logDebug("[Anticheat] Error handling Grim event: " + e.getMessage());
         }
     }
 }

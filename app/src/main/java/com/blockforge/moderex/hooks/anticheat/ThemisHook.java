@@ -10,6 +10,18 @@ import org.bukkit.event.Listener;
 import org.bukkit.plugin.EventExecutor;
 import org.bukkit.plugin.Plugin;
 
+import java.lang.reflect.Method;
+
+/**
+ * Hook for Themis Anticheat by olexorus
+ * API: com.gmail.olexorus.themis.api.ViolationEvent
+ *
+ * ViolationEvent provides:
+ * - getPlayer() -> Player
+ * - getType() -> CheckType enum (has getCheckName(), getDescription())
+ * - getSeverity() -> double (violation level)
+ * - getDragback() -> boolean
+ */
 public class ThemisHook extends AnticheatHook implements Listener {
 
     private static final String PLUGIN_NAME = "Themis";
@@ -29,26 +41,24 @@ public class ThemisHook extends AnticheatHook implements Listener {
         plugin.logDebug("[Anticheat] Found Themis v" + themisPlugin.getDescription().getVersion());
         ClassLoader cl = themisPlugin.getClass().getClassLoader();
 
+        // Themis API class paths (current version first)
         String[] classes = {
-            // Themis API ViolationEvent (primary)
-            "com.jedk1.themis.api.ViolationEvent",
-            "com.jedk1.themis.api.event.ViolationEvent",
-            "me.jedk1.themis.api.event.ViolationEvent",
-            // Alternative patterns
-            "com.jedk1.themis.event.ViolationEvent",
-            "me.jedk1.themis.event.ViolationEvent"
+            "com.gmail.olexorus.themis.api.ViolationEvent",  // Current Themis 0.17.x+
+            "com.jedk1.themis.api.ViolationEvent",           // Legacy versions
+            "com.jedk1.themis.api.event.ViolationEvent"
         };
 
         for (String className : classes) {
             try {
                 eventClass = (Class<? extends Event>) Class.forName(className, true, cl);
+                plugin.logDebug("[Anticheat] Found Themis event class: " + className);
                 break;
             } catch (ClassNotFoundException ignored) {}
         }
 
         if (eventClass == null) {
             enabled = true;
-            plugin.getLogger().info("Themis detected - passive mode");
+            plugin.getLogger().info("Themis detected - passive mode (no API event found)");
             return true;
         }
 
@@ -59,6 +69,7 @@ public class ThemisHook extends AnticheatHook implements Listener {
             };
             plugin.getServer().getPluginManager().registerEvent(eventClass, this, EventPriority.MONITOR, executor, plugin, true);
             enabled = true;
+            plugin.logDebug("[Anticheat] Successfully hooked into Themis API");
             return true;
         } catch (Exception e) {
             plugin.logError("Failed to hook Themis", e);
@@ -78,33 +89,59 @@ public class ThemisHook extends AnticheatHook implements Listener {
         try {
             Player player = null;
             String checkName = "Unknown";
-            int vl = 1;
+            double severity = 1;
 
-            for (String m : new String[]{"getPlayer", "player"}) {
-                try {
-                    Object r = event.getClass().getMethod(m).invoke(event);
-                    if (r instanceof Player) { player = (Player) r; break; }
-                } catch (NoSuchMethodException ignored) {}
-            }
+            // Get player - ViolationEvent.getPlayer() returns Player
+            try {
+                Method getPlayer = event.getClass().getMethod("getPlayer");
+                Object result = getPlayer.invoke(event);
+                if (result instanceof Player) {
+                    player = (Player) result;
+                }
+            } catch (NoSuchMethodException ignored) {}
 
-            for (String m : new String[]{"getCheckType", "getCheck", "getType"}) {
-                try {
-                    Object r = event.getClass().getMethod(m).invoke(event);
-                    if (r instanceof String) { checkName = (String) r; break; }
-                    else if (r != null) { checkName = r.toString(); break; }
-                } catch (NoSuchMethodException ignored) {}
-            }
+            // Get check type - ViolationEvent.getType() returns CheckType enum
+            // CheckType has getCheckName() method
+            try {
+                Method getType = event.getClass().getMethod("getType");
+                Object checkType = getType.invoke(event);
+                if (checkType != null) {
+                    // Try to get the check name from CheckType enum
+                    try {
+                        Method getCheckName = checkType.getClass().getMethod("getCheckName");
+                        Object name = getCheckName.invoke(checkType);
+                        if (name instanceof String) {
+                            checkName = (String) name;
+                        }
+                    } catch (NoSuchMethodException e) {
+                        // Fallback to enum name or toString
+                        checkName = checkType.toString();
+                    }
+                }
+            } catch (NoSuchMethodException ignored) {}
 
-            for (String m : new String[]{"getViolations", "getVl", "getViolation"}) {
-                try {
-                    Object r = event.getClass().getMethod(m).invoke(event);
-                    if (r instanceof Number) { vl = ((Number) r).intValue(); break; }
-                } catch (NoSuchMethodException ignored) {}
-            }
+            // Get severity - ViolationEvent.getSeverity() returns double
+            try {
+                Method getSeverity = event.getClass().getMethod("getSeverity");
+                Object result = getSeverity.invoke(event);
+                if (result instanceof Number) {
+                    severity = ((Number) result).doubleValue();
+                }
+            } catch (NoSuchMethodException ignored) {}
 
             if (player != null) {
-                handleAlert(new AnticheatAlert(getName(), player, checkName, "A", vl, vl, "Themis detection"));
+                handleAlert(new AnticheatAlert(
+                    getName(),
+                    player,
+                    checkName,
+                    "A",
+                    (int) Math.ceil(severity),
+                    severity,
+                    "Themis detection"
+                ));
             }
-        } catch (Exception ignored) {}
+        } catch (Exception e) {
+            plugin.logDebug("[Anticheat] Error handling Themis event: " + e.getMessage());
+        }
     }
 }
