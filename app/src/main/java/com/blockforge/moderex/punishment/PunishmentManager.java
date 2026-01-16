@@ -195,6 +195,60 @@ public class PunishmentManager {
         });
     }
 
+    public CompletableFuture<Boolean> removePunishmentByCaseId(String caseId, UUID staffUuid, String staffName, String reason) {
+        return CompletableFuture.supplyAsync(() -> {
+            try {
+                // First get the punishment to know the player and type for broadcasting
+                Punishment punishment = plugin.getDatabaseManager().query("""
+                        SELECT * FROM moderex_punishments WHERE case_id = ?
+                        """,
+                        rs -> rs.next() ? mapPunishment(rs) : null,
+                        caseId
+                );
+
+                if (punishment == null) {
+                    return false;
+                }
+
+                int rows = plugin.getDatabaseManager().update("""
+                        UPDATE moderex_punishments
+                        SET active = FALSE, removed_by_uuid = ?, removed_by_name = ?,
+                            removed_at = ?, removed_reason = ?
+                        WHERE case_id = ? AND active = TRUE
+                        """,
+                        staffUuid != null ? staffUuid.toString() : null,
+                        staffName,
+                        System.currentTimeMillis(),
+                        reason,
+                        caseId
+                );
+
+                if (rows > 0) {
+                    // Clear from cache
+                    punishmentCache.remove(punishment.getPlayerUuid());
+
+                    // Broadcast
+                    MessageKey broadcastKey = switch (punishment.getType()) {
+                        case MUTE -> MessageKey.UNMUTE_BROADCAST;
+                        case BAN, IPBAN -> MessageKey.UNBAN_BROADCAST;
+                        default -> null;
+                    };
+
+                    if (broadcastKey != null) {
+                        broadcastToStaff(plugin.getLanguageManager().get(broadcastKey,
+                                "staff", staffName,
+                                "player", punishment.getPlayerName()));
+                    }
+
+                    return true;
+                }
+            } catch (SQLException e) {
+                plugin.logError("Failed to remove punishment by case ID", e);
+            }
+            return false;
+        });
+    }
+
     public boolean isBanned(UUID playerUuid) {
         return getActivePunishment(playerUuid, PunishmentType.BAN) != null;
     }

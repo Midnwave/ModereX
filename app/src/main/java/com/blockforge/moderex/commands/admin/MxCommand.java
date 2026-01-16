@@ -1263,6 +1263,9 @@ public class MxCommand extends BaseCommand {
                 completions.add("analytics");
                 completions.add("mutesettings");
                 completions.add("warningsettings");
+                completions.add("replay");
+                completions.add("replays");
+                completions.add("gentoken");
             }
             if (sender.hasPermission("moderex.webpanel")) {
                 completions.add("connect");
@@ -1283,12 +1286,21 @@ public class MxCommand extends BaseCommand {
                 case "chat" -> {
                     return filterCompletions(Arrays.asList("enable", "disable", "slowmode", "clear"), args[1]);
                 }
+                case "replay", "replays", "rec", "recording" -> {
+                    return filterCompletions(Arrays.asList("start", "stop", "play", "list", "search", "delete", "status", "help"), args[1]);
+                }
             }
         }
         if (args.length == 3) {
             String sub = args[0].toLowerCase();
             if (sub.equals("ban") || sub.equals("mute") || sub.equals("warn") || sub.equals("ipban")) {
                 return filterCompletions(Arrays.asList("1h", "1d", "7d", "30d", "permanent"), args[2]);
+            }
+            if (sub.equals("replay") || sub.equals("replays")) {
+                String action = args[1].toLowerCase();
+                if (action.equals("start") || action.equals("stop") || action.equals("search")) {
+                    return filterCompletions(getOnlinePlayerNames(sender), args[2]);
+                }
             }
         }
 

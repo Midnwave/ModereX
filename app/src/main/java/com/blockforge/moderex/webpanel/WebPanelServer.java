@@ -845,22 +845,27 @@ public class WebPanelServer extends WebSocketServer {
             return;
         }
 
-        plugin.getPunishmentManager().getPunishmentByCaseId(caseId).thenAccept(punishment -> {
-            if (punishment == null) {
-                sendError(conn, "NOT_FOUND", "Punishment not found: " + caseId);
-                return;
+        plugin.getPunishmentManager().removePunishmentByCaseId(
+            caseId,
+            session.playerUuid,
+            session.playerName,
+            "Revoked via Web Panel"
+        ).thenAccept(success -> {
+            if (success) {
+                sendSuccess(conn, "Punishment revoked: " + caseId);
+                plugin.getLogger().info("[WebPanel] " + session.playerName + " revoked punishment " + caseId);
+
+                // Broadcast the revocation to all connected clients
+                JsonObject broadcast = new JsonObject();
+                broadcast.addProperty("type", "PUNISHMENT_REVOKED");
+                JsonObject broadcastData = new JsonObject();
+                broadcastData.addProperty("caseId", caseId);
+                broadcastData.addProperty("revokedBy", session.playerName);
+                broadcast.add("data", broadcastData);
+                broadcastToAuthenticated(GSON.toJson(broadcast));
+            } else {
+                sendError(conn, "NOT_FOUND", "Punishment not found or already revoked: " + caseId);
             }
-
-            plugin.getPunishmentManager().removePunishment(
-                punishment.getPlayerUuid(),
-                punishment.getType(),
-                session.playerUuid,
-                session.playerName,
-                "Revoked via Web Panel"
-            );
-            sendSuccess(conn, "Punishment revoked: " + caseId);
-
-            plugin.getLogger().info("[WebPanel] " + session.playerName + " revoked punishment " + caseId);
         });
     }
 
