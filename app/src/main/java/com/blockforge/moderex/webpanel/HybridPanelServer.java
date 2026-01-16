@@ -2352,10 +2352,20 @@ public class HybridPanelServer {
     }
 
     private void broadcast(String message) {
-        for (WebSocketConnection conn : connections) {
-            if (sessions.containsKey(conn)) {
-                conn.send(message);
-            }
+        // Run broadcasts async to prevent main thread blocking on slow/dead connections
+        if (executor != null && !executor.isShutdown()) {
+            executor.submit(() -> {
+                for (WebSocketConnection conn : connections) {
+                    if (sessions.containsKey(conn)) {
+                        if (!conn.sendAsync(message)) {
+                            // Connection failed - remove it
+                            connections.remove(conn);
+                            sessions.remove(conn);
+                            conn.close();
+                        }
+                    }
+                }
+            });
         }
     }
 
@@ -2839,6 +2849,13 @@ public class HybridPanelServer {
         }
 
         void send(String message) {
+            sendAsync(message);
+        }
+
+        /**
+         * Send a message with timeout protection. Returns true if successful, false if failed.
+         */
+        boolean sendAsync(String message) {
             try {
                 byte[] data = message.getBytes(StandardCharsets.UTF_8);
                 ByteArrayOutputStream baos = new ByteArrayOutputStream();
@@ -2860,11 +2877,21 @@ public class HybridPanelServer {
 
                 baos.write(data);
 
-                synchronized (out) {
-                    out.write(baos.toByteArray());
-                    out.flush();
+                // Set a write timeout to prevent blocking forever
+                int originalTimeout = socket.getSoTimeout();
+                try {
+                    socket.setSoTimeout(5000); // 5 second timeout for writes
+                    synchronized (out) {
+                        out.write(baos.toByteArray());
+                        out.flush();
+                    }
+                    return true;
+                } finally {
+                    socket.setSoTimeout(originalTimeout);
                 }
-            } catch (IOException ignored) {}
+            } catch (IOException e) {
+                return false; // Connection is dead
+            }
         }
 
         void close() {
