@@ -975,6 +975,9 @@ public class HybridPanelServer {
             case "CREATE_AUTOMOD_RULE" -> createAutomodRule(conn, data, session);
             case "DELETE_AUTOMOD_RULE" -> deleteAutomodRule(conn, data, session);
             case "GET_ANTICHEAT_INFO" -> sendAnticheatInfo(conn);
+            case "GET_ANTICHEAT_CHECKS" -> sendAnticheatChecks(conn);
+            case "GET_STAFF_ANTICHEAT_SETTINGS" -> sendStaffAnticheatSettings(conn, session);
+            case "UPDATE_STAFF_ANTICHEAT_SETTING" -> updateStaffAnticheatSetting(conn, data, session);
             case "GET_WATCHLIST" -> sendWatchlist(conn);
             case "GET_SETTINGS" -> sendSettings(conn);
             case "GET_USER_SETTINGS" -> sendUserSettings(conn, session);
@@ -1328,6 +1331,130 @@ public class HybridPanelServer {
 
         response.add("data", data);
         conn.send(GSON.toJson(response));
+    }
+
+    /**
+     * Send all detected anticheat checks to the web panel.
+     * Returns all checks from all connected anticheats.
+     */
+    private void sendAnticheatChecks(WebSocketConnection conn) {
+        JsonObject response = new JsonObject();
+        response.addProperty("type", "ANTICHEAT_CHECKS");
+        JsonObject data = new JsonObject();
+
+        var alertManager = plugin.getAnticheatManager().getAlertManager();
+        JsonArray checksArray = new JsonArray();
+
+        // For each enabled anticheat, get all detected checks
+        for (String anticheat : plugin.getAnticheatManager().getEnabledAnticheats()) {
+            for (var rule : alertManager.getRulesForAnticheat(anticheat)) {
+                JsonObject checkObj = new JsonObject();
+                checkObj.addProperty("anticheat", rule.getAnticheat());
+                checkObj.addProperty("checkName", rule.getCheckName());
+                checkObj.addProperty("key", rule.getKey());
+                checkObj.addProperty("enabled", rule.isEnabled());
+                checkObj.addProperty("minVL", rule.getMinVL());
+                checkObj.addProperty("thresholdCount", rule.getThresholdCount());
+                checkObj.addProperty("thresholdDuration", rule.getThresholdDuration());
+                checksArray.add(checkObj);
+            }
+        }
+
+        data.add("checks", checksArray);
+        data.add("enabledAnticheats", GSON.toJsonTree(plugin.getAnticheatManager().getEnabledAnticheats()));
+        response.add("data", data);
+        conn.send(GSON.toJson(response));
+    }
+
+    /**
+     * Send the staff member's anticheat alert preferences.
+     */
+    private void sendStaffAnticheatSettings(WebSocketConnection conn, WebPanelSession session) {
+        JsonObject response = new JsonObject();
+        response.addProperty("type", "STAFF_ANTICHEAT_SETTINGS");
+        JsonObject data = new JsonObject();
+
+        // Get the staff member's settings
+        var staffSettings = plugin.getStaffSettingsManager().getSettings(session.playerUuid);
+        if (staffSettings == null) {
+            staffSettings = new com.blockforge.moderex.staff.StaffSettings(session.playerUuid);
+        }
+
+        // Get all check alert preferences
+        JsonArray preferencesArray = new JsonArray();
+        for (var entry : staffSettings.getCheckAlertPreferences().entrySet()) {
+            var pref = entry.getValue();
+            JsonObject prefObj = new JsonObject();
+            prefObj.addProperty("checkKey", pref.getCheckKey());
+            prefObj.addProperty("alertLevel", pref.getAlertLevel().name());
+            prefObj.addProperty("thresholdCount", pref.getThresholdCount());
+            prefObj.addProperty("timeWindowSeconds", pref.getTimeWindowSeconds());
+            prefObj.addProperty("configured", pref.isConfigured());
+            preferencesArray.add(prefObj);
+        }
+
+        data.add("preferences", preferencesArray);
+        data.addProperty("globalAnticheatAlerts", staffSettings.getAnticheatAlerts().name());
+        data.addProperty("anticheatMinVL", staffSettings.getAnticheatMinVL());
+        response.add("data", data);
+        conn.send(GSON.toJson(response));
+    }
+
+    /**
+     * Update a single anticheat check preference for the staff member.
+     */
+    private void updateStaffAnticheatSetting(WebSocketConnection conn, JsonObject data, WebPanelSession session) {
+        try {
+            String checkKey = data.get("checkKey").getAsString();
+            String[] parts = checkKey.split(":", 2);
+            if (parts.length != 2) {
+                sendError(conn, "INVALID_CHECK_KEY", "Invalid check key format");
+                return;
+            }
+            String anticheat = parts[0];
+            String checkName = parts[1];
+
+            // Get or create staff settings
+            var staffSettings = plugin.getStaffSettingsManager().getSettings(session.playerUuid);
+            if (staffSettings == null) {
+                staffSettings = new com.blockforge.moderex.staff.StaffSettings(session.playerUuid);
+            }
+
+            var pref = staffSettings.getCheckAlertPreference(anticheat, checkName);
+
+            // Update preference fields
+            if (data.has("alertLevel")) {
+                String levelStr = data.get("alertLevel").getAsString();
+                pref.setAlertLevel(com.blockforge.moderex.staff.StaffSettings.AlertLevel.valueOf(levelStr));
+            }
+            if (data.has("thresholdCount")) {
+                pref.setThresholdCount(data.get("thresholdCount").getAsInt());
+            }
+            if (data.has("timeWindowSeconds")) {
+                pref.setTimeWindowSeconds(data.get("timeWindowSeconds").getAsInt());
+            }
+
+            // Save the settings
+            staffSettings.setCheckAlertPreference(anticheat, checkName, pref);
+            plugin.getStaffSettingsManager().saveSettings(staffSettings);
+
+            // Send success response with updated preference
+            JsonObject response = new JsonObject();
+            response.addProperty("type", "STAFF_ANTICHEAT_SETTING_UPDATED");
+            JsonObject responseData = new JsonObject();
+            responseData.addProperty("checkKey", checkKey);
+            responseData.addProperty("alertLevel", pref.getAlertLevel().name());
+            responseData.addProperty("thresholdCount", pref.getThresholdCount());
+            responseData.addProperty("timeWindowSeconds", pref.getTimeWindowSeconds());
+            response.add("data", responseData);
+            conn.send(GSON.toJson(response));
+
+            plugin.logDebug("[WebPanel] " + session.playerName + " updated anticheat setting for " + checkKey);
+
+        } catch (Exception e) {
+            plugin.logError("Failed to update staff anticheat setting", e);
+            sendError(conn, "UPDATE_FAILED", "Failed to update anticheat setting: " + e.getMessage());
+        }
     }
 
     private void sendWatchlist(WebSocketConnection conn) {
