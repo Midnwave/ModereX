@@ -11,6 +11,8 @@ import org.bukkit.plugin.EventExecutor;
 import org.bukkit.plugin.Plugin;
 
 import java.lang.reflect.Method;
+import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * Hook for GrimAC Anticheat
@@ -27,6 +29,9 @@ public class GrimHook extends AnticheatHook implements Listener {
     private static final String[] PLUGIN_NAMES = {"Grim", "GrimAC"};
     private Class<? extends Event> eventClass;
     private Plugin grimPlugin;
+
+    // Track discovered check names for web panel
+    private final Set<String> discoveredChecks = ConcurrentHashMap.newKeySet();
 
     public GrimHook(ModereX plugin) {
         super(plugin, "Grim");
@@ -76,8 +81,10 @@ public class GrimHook extends AnticheatHook implements Listener {
                     handleGrimEvent(event);
                 };
 
+                // Use HIGHEST priority so we run before Grim sends its messages,
+                // and can cancel the event to block those messages
                 plugin.getServer().getPluginManager().registerEvent(
-                    eventClass, this, EventPriority.MONITOR, executor, plugin, true
+                    eventClass, this, EventPriority.HIGHEST, executor, plugin, true
                 );
 
                 enabled = true;
@@ -104,6 +111,8 @@ public class GrimHook extends AnticheatHook implements Listener {
 
     private void handleGrimEvent(Event event) {
         try {
+            plugin.logDebug("[Grim] Received FlagEvent: " + event.getClass().getName());
+
             Player player = null;
             String checkName = "Unknown";
             int violations = 1;
@@ -114,6 +123,8 @@ public class GrimHook extends AnticheatHook implements Listener {
             try {
                 Method getPlayer = event.getClass().getMethod("getPlayer");
                 Object grimUser = getPlayer.invoke(event);
+                plugin.logDebug("[Grim] Got GrimUser: " + (grimUser != null ? grimUser.getClass().getName() : "null"));
+
                 if (grimUser != null) {
                     // Try getBukkitPlayer() first
                     try {
@@ -121,6 +132,7 @@ public class GrimHook extends AnticheatHook implements Listener {
                         Object bp = getBukkitPlayer.invoke(grimUser);
                         if (bp instanceof Player) {
                             player = (Player) bp;
+                            plugin.logDebug("[Grim] Got player via getBukkitPlayer(): " + player.getName());
                         }
                     } catch (NoSuchMethodException e) {
                         // Try getPlayer() on GrimUser
@@ -129,6 +141,7 @@ public class GrimHook extends AnticheatHook implements Listener {
                             Object p = getPlayerFromUser.invoke(grimUser);
                             if (p instanceof Player) {
                                 player = (Player) p;
+                                plugin.logDebug("[Grim] Got player via getPlayer(): " + player.getName());
                             }
                         } catch (NoSuchMethodException ignored) {}
                     }
@@ -139,16 +152,23 @@ public class GrimHook extends AnticheatHook implements Listener {
                             Method getName = grimUser.getClass().getMethod("getName");
                             String playerName = (String) getName.invoke(grimUser);
                             player = Bukkit.getPlayer(playerName);
+                            if (player != null) {
+                                plugin.logDebug("[Grim] Got player via getName() lookup: " + player.getName());
+                            }
                         } catch (NoSuchMethodException ignored) {}
                     }
                 }
-            } catch (NoSuchMethodException ignored) {}
+            } catch (NoSuchMethodException e) {
+                plugin.logDebug("[Grim] No getPlayer() method found on event");
+            }
 
             // Get check - FlagEvent.getCheck() returns AbstractCheck
             // AbstractCheck has getCheckName() and getViolations()
             try {
                 Method getCheck = event.getClass().getMethod("getCheck");
                 Object check = getCheck.invoke(event);
+                plugin.logDebug("[Grim] Got check: " + (check != null ? check.getClass().getName() : "null"));
+
                 if (check != null) {
                     // Get check name
                     try {
@@ -160,6 +180,14 @@ public class GrimHook extends AnticheatHook implements Listener {
                     } catch (NoSuchMethodException e) {
                         // Fallback to class name
                         checkName = check.getClass().getSimpleName();
+                    }
+
+                    plugin.logDebug("[Grim] Check name: " + checkName);
+
+                    // Track discovered checks for web panel
+                    if (!discoveredChecks.contains(checkName)) {
+                        discoveredChecks.add(checkName);
+                        plugin.logDebug("[Grim] Discovered new check type: " + checkName);
                     }
 
                     // Get violations from check
@@ -179,8 +207,12 @@ public class GrimHook extends AnticheatHook implements Listener {
                             }
                         } catch (NoSuchMethodException ignored) {}
                     }
+
+                    plugin.logDebug("[Grim] Violations: " + violations);
                 }
-            } catch (NoSuchMethodException ignored) {}
+            } catch (NoSuchMethodException e) {
+                plugin.logDebug("[Grim] No getCheck() method found on event");
+            }
 
             // Get verbose info - FlagEvent.getVerbose() returns String
             try {
@@ -188,10 +220,23 @@ public class GrimHook extends AnticheatHook implements Listener {
                 Object result = getVerbose.invoke(event);
                 if (result instanceof String) {
                     verbose = (String) result;
+                    plugin.logDebug("[Grim] Verbose: " + verbose);
                 }
             } catch (NoSuchMethodException ignored) {}
 
+            // Cancel the event to prevent Grim from sending its own alert messages
+            try {
+                Method setCancelled = event.getClass().getMethod("setCancelled", boolean.class);
+                setCancelled.invoke(event, true);
+                plugin.logDebug("[Grim] Cancelled event to block Grim's native message");
+            } catch (NoSuchMethodException e) {
+                plugin.logDebug("[Grim] setCancelled method not found - Grim messages may still show");
+            } catch (Exception e) {
+                plugin.logDebug("[Grim] Failed to cancel event: " + e.getMessage());
+            }
+
             if (player != null) {
+                plugin.logDebug("[Grim] Creating alert for " + player.getName() + " - " + checkName + " x" + violations);
                 handleAlert(new AnticheatAlert(
                     getName(),
                     player,
@@ -201,9 +246,19 @@ public class GrimHook extends AnticheatHook implements Listener {
                     violations,
                     verbose.isEmpty() ? "Grim detection" : verbose
                 ));
+            } else {
+                plugin.logDebug("[Grim] Could not determine player for alert");
             }
         } catch (Exception e) {
             plugin.logDebug("[Anticheat] Error handling Grim event: " + e.getMessage());
+            e.printStackTrace();
         }
+    }
+
+    /**
+     * Get all check names that have been discovered during runtime
+     */
+    public Set<String> getDiscoveredChecks() {
+        return discoveredChecks;
     }
 }

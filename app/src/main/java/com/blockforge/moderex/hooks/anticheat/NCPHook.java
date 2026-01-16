@@ -11,12 +11,15 @@ import org.bukkit.plugin.EventExecutor;
 import org.bukkit.plugin.Plugin;
 
 import java.lang.reflect.Method;
+import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 
 public class NCPHook extends AnticheatHook implements Listener {
 
     private static final String PLUGIN_NAME = "NoCheatPlus";
     private Class<? extends Event> eventClass;
     private Plugin ncpPlugin;
+    private final Set<String> discoveredChecks = ConcurrentHashMap.newKeySet();
 
     public NCPHook(ModereX plugin) {
         super(plugin, "NCP");
@@ -54,8 +57,10 @@ public class NCPHook extends AnticheatHook implements Listener {
                 if (!enabled || !eventClass.isInstance(event)) return;
                 handleNCPEvent(event);
             };
-            plugin.getServer().getPluginManager().registerEvent(eventClass, this, EventPriority.MONITOR, executor, plugin, true);
+            // Use HIGHEST priority to run before NCP sends messages and allow cancellation
+            plugin.getServer().getPluginManager().registerEvent(eventClass, this, EventPriority.HIGHEST, executor, plugin, true);
             enabled = true;
+            plugin.logDebug("[Anticheat] Successfully hooked into NCP");
             return true;
         } catch (Exception e) {
             plugin.logError("Failed to hook NCP", e);
@@ -73,6 +78,8 @@ public class NCPHook extends AnticheatHook implements Listener {
 
     private void handleNCPEvent(Event event) {
         try {
+            plugin.logDebug("[NCP] Received event: " + event.getClass().getName());
+
             Player player = null;
             String checkType = "Unknown";
             double vl = 1;
@@ -80,7 +87,11 @@ public class NCPHook extends AnticheatHook implements Listener {
             for (String m : new String[]{"getPlayer", "player"}) {
                 try {
                     Object r = event.getClass().getMethod(m).invoke(event);
-                    if (r instanceof Player) { player = (Player) r; break; }
+                    if (r instanceof Player) {
+                        player = (Player) r;
+                        plugin.logDebug("[NCP] Got player via " + m + "(): " + player.getName());
+                        break;
+                    }
                 } catch (NoSuchMethodException ignored) {}
             }
 
@@ -92,16 +103,49 @@ public class NCPHook extends AnticheatHook implements Listener {
                 } catch (NoSuchMethodException ignored) {}
             }
 
+            plugin.logDebug("[NCP] Check type: " + checkType);
+
+            // Track discovered checks
+            if (!discoveredChecks.contains(checkType)) {
+                discoveredChecks.add(checkType);
+                plugin.logDebug("[NCP] Discovered new check type: " + checkType);
+            }
+
             for (String m : new String[]{"getAddedVL", "getVL", "getViolations"}) {
                 try {
                     Object r = event.getClass().getMethod(m).invoke(event);
-                    if (r instanceof Number) { vl = ((Number) r).doubleValue(); break; }
+                    if (r instanceof Number) {
+                        vl = ((Number) r).doubleValue();
+                        break;
+                    }
                 } catch (NoSuchMethodException ignored) {}
             }
 
-            if (player != null) {
-                handleAlert(new AnticheatAlert(getName(), player, checkType, "A", (int) vl, vl, "NCP detection"));
+            plugin.logDebug("[NCP] Violations: " + vl);
+
+            // Cancel the event to prevent NCP from sending its own alert messages
+            try {
+                Method setCancelled = event.getClass().getMethod("setCancelled", boolean.class);
+                setCancelled.invoke(event, true);
+                plugin.logDebug("[NCP] Cancelled event to block NCP's native message");
+            } catch (NoSuchMethodException e) {
+                plugin.logDebug("[NCP] setCancelled method not found - NCP messages may still show");
+            } catch (Exception e) {
+                plugin.logDebug("[NCP] Failed to cancel event: " + e.getMessage());
             }
-        } catch (Exception ignored) {}
+
+            if (player != null) {
+                plugin.logDebug("[NCP] Creating alert for " + player.getName() + " - " + checkType + " x" + (int) vl);
+                handleAlert(new AnticheatAlert(getName(), player, checkType, "A", (int) vl, vl, "NCP detection"));
+            } else {
+                plugin.logDebug("[NCP] Could not determine player for alert");
+            }
+        } catch (Exception e) {
+            plugin.logDebug("[NCP] Error handling event: " + e.getMessage());
+        }
+    }
+
+    public Set<String> getDiscoveredChecks() {
+        return discoveredChecks;
     }
 }

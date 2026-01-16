@@ -11,12 +11,15 @@ import org.bukkit.plugin.EventExecutor;
 import org.bukkit.plugin.Plugin;
 
 import java.lang.reflect.Method;
+import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 
 public class VulcanHook extends AnticheatHook implements Listener {
 
     private static final String PLUGIN_NAME = "Vulcan";
     private Class<? extends Event> eventClass;
     private Plugin vulcanPlugin;
+    private final Set<String> discoveredChecks = ConcurrentHashMap.newKeySet();
 
     public VulcanHook(ModereX plugin) {
         super(plugin, "Vulcan");
@@ -63,8 +66,9 @@ public class VulcanHook extends AnticheatHook implements Listener {
                 handleVulcanEvent(event);
             };
 
+            // Use HIGHEST priority to run before Vulcan sends messages and allow cancellation
             plugin.getServer().getPluginManager().registerEvent(
-                    eventClass, this, EventPriority.MONITOR, executor, plugin, true
+                    eventClass, this, EventPriority.HIGHEST, executor, plugin, true
             );
 
             enabled = true;
@@ -86,6 +90,8 @@ public class VulcanHook extends AnticheatHook implements Listener {
 
     private void handleVulcanEvent(Event event) {
         try {
+            plugin.logDebug("[Vulcan] Received event: " + event.getClass().getName());
+
             Player player = null;
             String checkName = "Unknown";
             String checkType = "A";
@@ -98,6 +104,7 @@ public class VulcanHook extends AnticheatHook implements Listener {
                     Object result = method.invoke(event);
                     if (result instanceof Player) {
                         player = (Player) result;
+                        plugin.logDebug("[Vulcan] Got player via " + methodName + "(): " + player.getName());
                         break;
                     }
                 } catch (NoSuchMethodException ignored) {}
@@ -128,6 +135,14 @@ public class VulcanHook extends AnticheatHook implements Listener {
                 } catch (NoSuchMethodException ignored) {}
             }
 
+            plugin.logDebug("[Vulcan] Check: " + checkName + " (type: " + checkType + ")");
+
+            // Track discovered checks
+            if (!discoveredChecks.contains(checkName)) {
+                discoveredChecks.add(checkName);
+                plugin.logDebug("[Vulcan] Discovered new check type: " + checkName);
+            }
+
             // Get VL
             for (String methodName : new String[]{"getVl", "getVL", "getViolations", "vl"}) {
                 try {
@@ -140,11 +155,33 @@ public class VulcanHook extends AnticheatHook implements Listener {
                 } catch (NoSuchMethodException ignored) {}
             }
 
+            plugin.logDebug("[Vulcan] Violations: " + vl);
+
+            // Cancel the event to prevent Vulcan from sending its own alert messages
+            try {
+                Method setCancelled = event.getClass().getMethod("setCancelled", boolean.class);
+                setCancelled.invoke(event, true);
+                plugin.logDebug("[Vulcan] Cancelled event to block Vulcan's native message");
+            } catch (NoSuchMethodException e) {
+                plugin.logDebug("[Vulcan] setCancelled method not found - Vulcan messages may still show");
+            } catch (Exception e) {
+                plugin.logDebug("[Vulcan] Failed to cancel event: " + e.getMessage());
+            }
+
             if (player != null) {
+                plugin.logDebug("[Vulcan] Creating alert for " + player.getName() + " - " + checkName + " x" + vl);
                 handleAlert(new AnticheatAlert(
                         getName(), player, checkName, checkType, vl, vl, "Vulcan detection"
                 ));
+            } else {
+                plugin.logDebug("[Vulcan] Could not determine player for alert");
             }
-        } catch (Exception ignored) {}
+        } catch (Exception e) {
+            plugin.logDebug("[Vulcan] Error handling event: " + e.getMessage());
+        }
+    }
+
+    public Set<String> getDiscoveredChecks() {
+        return discoveredChecks;
     }
 }

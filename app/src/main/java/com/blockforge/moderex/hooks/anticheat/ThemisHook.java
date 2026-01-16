@@ -11,6 +11,8 @@ import org.bukkit.plugin.EventExecutor;
 import org.bukkit.plugin.Plugin;
 
 import java.lang.reflect.Method;
+import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * Hook for Themis Anticheat by olexorus
@@ -27,6 +29,7 @@ public class ThemisHook extends AnticheatHook implements Listener {
     private static final String PLUGIN_NAME = "Themis";
     private Class<? extends Event> eventClass;
     private Plugin themisPlugin;
+    private final Set<String> discoveredChecks = ConcurrentHashMap.newKeySet();
 
     public ThemisHook(ModereX plugin) {
         super(plugin, "Themis");
@@ -67,7 +70,8 @@ public class ThemisHook extends AnticheatHook implements Listener {
                 if (!enabled || !eventClass.isInstance(event)) return;
                 handleThemisEvent(event);
             };
-            plugin.getServer().getPluginManager().registerEvent(eventClass, this, EventPriority.MONITOR, executor, plugin, true);
+            // Use HIGHEST priority to run before Themis sends messages and allow cancellation
+            plugin.getServer().getPluginManager().registerEvent(eventClass, this, EventPriority.HIGHEST, executor, plugin, true);
             enabled = true;
             plugin.logDebug("[Anticheat] Successfully hooked into Themis API");
             return true;
@@ -87,6 +91,8 @@ public class ThemisHook extends AnticheatHook implements Listener {
 
     private void handleThemisEvent(Event event) {
         try {
+            plugin.logDebug("[Themis] Received event: " + event.getClass().getName());
+
             Player player = null;
             String checkName = "Unknown";
             double severity = 1;
@@ -97,6 +103,7 @@ public class ThemisHook extends AnticheatHook implements Listener {
                 Object result = getPlayer.invoke(event);
                 if (result instanceof Player) {
                     player = (Player) result;
+                    plugin.logDebug("[Themis] Got player: " + player.getName());
                 }
             } catch (NoSuchMethodException ignored) {}
 
@@ -120,6 +127,14 @@ public class ThemisHook extends AnticheatHook implements Listener {
                 }
             } catch (NoSuchMethodException ignored) {}
 
+            plugin.logDebug("[Themis] Check name: " + checkName);
+
+            // Track discovered checks
+            if (!discoveredChecks.contains(checkName)) {
+                discoveredChecks.add(checkName);
+                plugin.logDebug("[Themis] Discovered new check type: " + checkName);
+            }
+
             // Get severity - ViolationEvent.getSeverity() returns double
             try {
                 Method getSeverity = event.getClass().getMethod("getSeverity");
@@ -129,7 +144,21 @@ public class ThemisHook extends AnticheatHook implements Listener {
                 }
             } catch (NoSuchMethodException ignored) {}
 
+            plugin.logDebug("[Themis] Severity: " + severity);
+
+            // Cancel the event to prevent Themis from sending its own alert messages
+            try {
+                Method setCancelled = event.getClass().getMethod("setCancelled", boolean.class);
+                setCancelled.invoke(event, true);
+                plugin.logDebug("[Themis] Cancelled event to block Themis's native message");
+            } catch (NoSuchMethodException e) {
+                plugin.logDebug("[Themis] setCancelled method not found - Themis messages may still show");
+            } catch (Exception e) {
+                plugin.logDebug("[Themis] Failed to cancel event: " + e.getMessage());
+            }
+
             if (player != null) {
+                plugin.logDebug("[Themis] Creating alert for " + player.getName() + " - " + checkName + " x" + (int) Math.ceil(severity));
                 handleAlert(new AnticheatAlert(
                     getName(),
                     player,
@@ -139,9 +168,15 @@ public class ThemisHook extends AnticheatHook implements Listener {
                     severity,
                     "Themis detection"
                 ));
+            } else {
+                plugin.logDebug("[Themis] Could not determine player for alert");
             }
         } catch (Exception e) {
-            plugin.logDebug("[Anticheat] Error handling Themis event: " + e.getMessage());
+            plugin.logDebug("[Themis] Error handling event: " + e.getMessage());
         }
+    }
+
+    public Set<String> getDiscoveredChecks() {
+        return discoveredChecks;
     }
 }

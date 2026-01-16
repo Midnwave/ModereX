@@ -11,12 +11,15 @@ import org.bukkit.plugin.EventExecutor;
 import org.bukkit.plugin.Plugin;
 
 import java.lang.reflect.Method;
+import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 
 public class MatrixHook extends AnticheatHook implements Listener {
 
     private static final String PLUGIN_NAME = "Matrix";
     private Class<? extends Event> eventClass;
     private Plugin matrixPlugin;
+    private final Set<String> discoveredChecks = ConcurrentHashMap.newKeySet();
 
     public MatrixHook(ModereX plugin) {
         super(plugin, "Matrix");
@@ -61,8 +64,9 @@ public class MatrixHook extends AnticheatHook implements Listener {
                 handleMatrixEvent(event);
             };
 
+            // Use HIGHEST priority to run before Matrix sends messages and allow cancellation
             plugin.getServer().getPluginManager().registerEvent(
-                    eventClass, this, EventPriority.MONITOR, executor, plugin, true
+                    eventClass, this, EventPriority.HIGHEST, executor, plugin, true
             );
 
             enabled = true;
@@ -84,6 +88,8 @@ public class MatrixHook extends AnticheatHook implements Listener {
 
     private void handleMatrixEvent(Event event) {
         try {
+            plugin.logDebug("[Matrix] Received event: " + event.getClass().getName());
+
             Player player = null;
             String hackType = "Unknown";
             int violations = 1;
@@ -94,6 +100,7 @@ public class MatrixHook extends AnticheatHook implements Listener {
                     Object result = method.invoke(event);
                     if (result instanceof Player) {
                         player = (Player) result;
+                        plugin.logDebug("[Matrix] Got player via " + methodName + "(): " + player.getName());
                         break;
                     }
                 } catch (NoSuchMethodException ignored) {}
@@ -108,6 +115,14 @@ public class MatrixHook extends AnticheatHook implements Listener {
                 } catch (NoSuchMethodException ignored) {}
             }
 
+            plugin.logDebug("[Matrix] Hack type: " + hackType);
+
+            // Track discovered checks
+            if (!discoveredChecks.contains(hackType)) {
+                discoveredChecks.add(hackType);
+                plugin.logDebug("[Matrix] Discovered new check type: " + hackType);
+            }
+
             for (String methodName : new String[]{"getViolations", "getVl", "violations"}) {
                 try {
                     Method method = event.getClass().getMethod(methodName);
@@ -119,11 +134,33 @@ public class MatrixHook extends AnticheatHook implements Listener {
                 } catch (NoSuchMethodException ignored) {}
             }
 
+            plugin.logDebug("[Matrix] Violations: " + violations);
+
+            // Cancel the event to prevent Matrix from sending its own alert messages
+            try {
+                Method setCancelled = event.getClass().getMethod("setCancelled", boolean.class);
+                setCancelled.invoke(event, true);
+                plugin.logDebug("[Matrix] Cancelled event to block Matrix's native message");
+            } catch (NoSuchMethodException e) {
+                plugin.logDebug("[Matrix] setCancelled method not found - Matrix messages may still show");
+            } catch (Exception e) {
+                plugin.logDebug("[Matrix] Failed to cancel event: " + e.getMessage());
+            }
+
             if (player != null) {
+                plugin.logDebug("[Matrix] Creating alert for " + player.getName() + " - " + hackType + " x" + violations);
                 handleAlert(new AnticheatAlert(
                         getName(), player, hackType, "A", violations, violations, "Matrix detection"
                 ));
+            } else {
+                plugin.logDebug("[Matrix] Could not determine player for alert");
             }
-        } catch (Exception ignored) {}
+        } catch (Exception e) {
+            plugin.logDebug("[Matrix] Error handling event: " + e.getMessage());
+        }
+    }
+
+    public Set<String> getDiscoveredChecks() {
+        return discoveredChecks;
     }
 }

@@ -11,6 +11,8 @@ import org.bukkit.plugin.EventExecutor;
 import org.bukkit.plugin.Plugin;
 
 import java.lang.reflect.Method;
+import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * Hook for LightAntiCheat by Vekster
@@ -28,6 +30,7 @@ public class LightAntiCheatHook extends AnticheatHook implements Listener {
     private static final String[] PLUGIN_NAMES = {"LightAntiCheat", "LAC", "PGLAC"};
     private Class<? extends Event> eventClass;
     private Plugin lacPlugin;
+    private final Set<String> discoveredChecks = ConcurrentHashMap.newKeySet();
 
     public LightAntiCheatHook(ModereX plugin) {
         super(plugin, "LightAC");
@@ -77,7 +80,8 @@ public class LightAntiCheatHook extends AnticheatHook implements Listener {
                 if (!enabled || !eventClass.isInstance(event)) return;
                 handleLACEvent(event);
             };
-            plugin.getServer().getPluginManager().registerEvent(eventClass, this, EventPriority.MONITOR, executor, plugin, true);
+            // Use HIGHEST priority to run before LightAC sends messages and allow cancellation
+            plugin.getServer().getPluginManager().registerEvent(eventClass, this, EventPriority.HIGHEST, executor, plugin, true);
             enabled = true;
             plugin.logDebug("[Anticheat] Successfully hooked into LightAntiCheat API");
             return true;
@@ -97,6 +101,8 @@ public class LightAntiCheatHook extends AnticheatHook implements Listener {
 
     private void handleLACEvent(Event event) {
         try {
+            plugin.logDebug("[LightAC] Received event: " + event.getClass().getName());
+
             Player player = null;
             String checkName = "Unknown";
             String subType = "";
@@ -108,6 +114,7 @@ public class LightAntiCheatHook extends AnticheatHook implements Listener {
                 Object result = getPlayer.invoke(event);
                 if (result instanceof Player) {
                     player = (Player) result;
+                    plugin.logDebug("[LightAC] Got player: " + player.getName());
                 }
             } catch (NoSuchMethodException ignored) {}
 
@@ -155,6 +162,16 @@ public class LightAntiCheatHook extends AnticheatHook implements Listener {
                 }
             } catch (NoSuchMethodException ignored) {}
 
+            // Format check name with sub-type if available (e.g., "Speed A", "Fly B")
+            String fullCheckName = subType.isEmpty() ? checkName : checkName + " " + subType;
+            plugin.logDebug("[LightAC] Check: " + fullCheckName);
+
+            // Track discovered checks
+            if (!discoveredChecks.contains(fullCheckName)) {
+                discoveredChecks.add(fullCheckName);
+                plugin.logDebug("[LightAC] Discovered new check type: " + fullCheckName);
+            }
+
             // Get buffer/VL - LACViolationEvent.getBuffer() returns double
             try {
                 Method getBuffer = event.getClass().getMethod("getBuffer");
@@ -176,10 +193,21 @@ public class LightAntiCheatHook extends AnticheatHook implements Listener {
                 }
             }
 
-            if (player != null) {
-                // Format check name with sub-type if available (e.g., "Speed A", "Fly B")
-                String fullCheckName = subType.isEmpty() ? checkName : checkName + " " + subType;
+            plugin.logDebug("[LightAC] Buffer/VL: " + buffer);
 
+            // Cancel the event to prevent LightAC from sending its own alert messages
+            try {
+                Method setCancelled = event.getClass().getMethod("setCancelled", boolean.class);
+                setCancelled.invoke(event, true);
+                plugin.logDebug("[LightAC] Cancelled event to block LightAC's native message");
+            } catch (NoSuchMethodException e) {
+                plugin.logDebug("[LightAC] setCancelled method not found - LightAC messages may still show");
+            } catch (Exception e) {
+                plugin.logDebug("[LightAC] Failed to cancel event: " + e.getMessage());
+            }
+
+            if (player != null) {
+                plugin.logDebug("[LightAC] Creating alert for " + player.getName() + " - " + fullCheckName + " x" + (int) Math.ceil(buffer));
                 handleAlert(new AnticheatAlert(
                     getName(),
                     player,
@@ -189,9 +217,15 @@ public class LightAntiCheatHook extends AnticheatHook implements Listener {
                     buffer,
                     "LightAC detection"
                 ));
+            } else {
+                plugin.logDebug("[LightAC] Could not determine player for alert");
             }
         } catch (Exception e) {
-            plugin.logDebug("[Anticheat] Error handling LightAC event: " + e.getMessage());
+            plugin.logDebug("[LightAC] Error handling event: " + e.getMessage());
         }
+    }
+
+    public Set<String> getDiscoveredChecks() {
+        return discoveredChecks;
     }
 }

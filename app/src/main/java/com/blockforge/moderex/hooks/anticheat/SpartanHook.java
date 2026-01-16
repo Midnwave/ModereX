@@ -11,12 +11,15 @@ import org.bukkit.plugin.EventExecutor;
 import org.bukkit.plugin.Plugin;
 
 import java.lang.reflect.Method;
+import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 
 public class SpartanHook extends AnticheatHook implements Listener {
 
     private static final String PLUGIN_NAME = "Spartan";
     private Class<? extends Event> eventClass;
     private Plugin spartanPlugin;
+    private final Set<String> discoveredChecks = ConcurrentHashMap.newKeySet();
 
     public SpartanHook(ModereX plugin) {
         super(plugin, "Spartan");
@@ -61,8 +64,9 @@ public class SpartanHook extends AnticheatHook implements Listener {
                 handleSpartanEvent(event);
             };
 
+            // Use HIGHEST priority to run before Spartan sends messages and allow cancellation
             plugin.getServer().getPluginManager().registerEvent(
-                    eventClass, this, EventPriority.MONITOR, executor, plugin, true
+                    eventClass, this, EventPriority.HIGHEST, executor, plugin, true
             );
 
             enabled = true;
@@ -84,6 +88,8 @@ public class SpartanHook extends AnticheatHook implements Listener {
 
     private void handleSpartanEvent(Event event) {
         try {
+            plugin.logDebug("[Spartan] Received event: " + event.getClass().getName());
+
             Player player = null;
             String hackType = "Unknown";
             int violation = 1;
@@ -94,6 +100,7 @@ public class SpartanHook extends AnticheatHook implements Listener {
                     Object result = method.invoke(event);
                     if (result instanceof Player) {
                         player = (Player) result;
+                        plugin.logDebug("[Spartan] Got player via " + methodName + "(): " + player.getName());
                         break;
                     }
                 } catch (NoSuchMethodException ignored) {}
@@ -108,6 +115,14 @@ public class SpartanHook extends AnticheatHook implements Listener {
                 } catch (NoSuchMethodException ignored) {}
             }
 
+            plugin.logDebug("[Spartan] Hack type: " + hackType);
+
+            // Track discovered checks
+            if (!discoveredChecks.contains(hackType)) {
+                discoveredChecks.add(hackType);
+                plugin.logDebug("[Spartan] Discovered new check type: " + hackType);
+            }
+
             for (String methodName : new String[]{"getViolation", "getViolations", "getVl", "violation"}) {
                 try {
                     Method method = event.getClass().getMethod(methodName);
@@ -119,11 +134,33 @@ public class SpartanHook extends AnticheatHook implements Listener {
                 } catch (NoSuchMethodException ignored) {}
             }
 
+            plugin.logDebug("[Spartan] Violations: " + violation);
+
+            // Cancel the event to prevent Spartan from sending its own alert messages
+            try {
+                Method setCancelled = event.getClass().getMethod("setCancelled", boolean.class);
+                setCancelled.invoke(event, true);
+                plugin.logDebug("[Spartan] Cancelled event to block Spartan's native message");
+            } catch (NoSuchMethodException e) {
+                plugin.logDebug("[Spartan] setCancelled method not found - Spartan messages may still show");
+            } catch (Exception e) {
+                plugin.logDebug("[Spartan] Failed to cancel event: " + e.getMessage());
+            }
+
             if (player != null) {
+                plugin.logDebug("[Spartan] Creating alert for " + player.getName() + " - " + hackType + " x" + violation);
                 handleAlert(new AnticheatAlert(
                         getName(), player, hackType, "A", violation, violation, "Spartan detection"
                 ));
+            } else {
+                plugin.logDebug("[Spartan] Could not determine player for alert");
             }
-        } catch (Exception ignored) {}
+        } catch (Exception e) {
+            plugin.logDebug("[Spartan] Error handling event: " + e.getMessage());
+        }
+    }
+
+    public Set<String> getDiscoveredChecks() {
+        return discoveredChecks;
     }
 }

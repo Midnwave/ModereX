@@ -11,6 +11,8 @@ import org.bukkit.plugin.EventExecutor;
 import org.bukkit.plugin.Plugin;
 
 import java.lang.reflect.Method;
+import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * Hook for FoxAddition Anticheat by zoruafan
@@ -29,6 +31,7 @@ public class FoxAdditionHook extends AnticheatHook implements Listener {
     private static final String[] PLUGIN_NAMES = {"FoxAddition", "FoxEdition", "Fox"};
     private Class<? extends Event> eventClass;
     private Plugin foxPlugin;
+    private final Set<String> discoveredChecks = ConcurrentHashMap.newKeySet();
 
     public FoxAdditionHook(ModereX plugin) {
         super(plugin, "FoxAddition");
@@ -77,7 +80,8 @@ public class FoxAdditionHook extends AnticheatHook implements Listener {
                 if (!enabled || !eventClass.isInstance(event)) return;
                 handleFoxEvent(event);
             };
-            plugin.getServer().getPluginManager().registerEvent(eventClass, this, EventPriority.MONITOR, executor, plugin, true);
+            // Use HIGHEST priority to run before FoxAddition sends messages and allow cancellation
+            plugin.getServer().getPluginManager().registerEvent(eventClass, this, EventPriority.HIGHEST, executor, plugin, true);
             enabled = true;
             plugin.logDebug("[Anticheat] Successfully hooked into FoxAddition API");
             return true;
@@ -97,6 +101,8 @@ public class FoxAdditionHook extends AnticheatHook implements Listener {
 
     private void handleFoxEvent(Event event) {
         try {
+            plugin.logDebug("[FoxAddition] Received event: " + event.getClass().getName());
+
             Player player = null;
             String checkName = "Unknown";
             String module = "";
@@ -109,6 +115,7 @@ public class FoxAdditionHook extends AnticheatHook implements Listener {
                 Object result = getPlayer.invoke(event);
                 if (result instanceof Player) {
                     player = (Player) result;
+                    plugin.logDebug("[FoxAddition] Got player: " + player.getName());
                 }
             } catch (NoSuchMethodException ignored) {}
 
@@ -148,10 +155,30 @@ public class FoxAdditionHook extends AnticheatHook implements Listener {
                 }
             } catch (NoSuchMethodException ignored) {}
 
+            // Format check name with module if available
+            String fullCheckName = module.isEmpty() ? checkName : module + "/" + checkName;
+            plugin.logDebug("[FoxAddition] Check: " + fullCheckName + " VLS: " + vls);
+
+            // Track discovered checks
+            if (!discoveredChecks.contains(fullCheckName)) {
+                discoveredChecks.add(fullCheckName);
+                plugin.logDebug("[FoxAddition] Discovered new check type: " + fullCheckName);
+            }
+
+            // Cancel the event to prevent FoxAddition from sending its own alert messages
+            try {
+                Method setCancelled = event.getClass().getMethod("setCancelled", boolean.class);
+                setCancelled.invoke(event, true);
+                plugin.logDebug("[FoxAddition] Cancelled event to block FoxAddition's native message");
+            } catch (NoSuchMethodException e) {
+                plugin.logDebug("[FoxAddition] setCancelled method not found - FoxAddition messages may still show");
+            } catch (Exception e) {
+                plugin.logDebug("[FoxAddition] Failed to cancel event: " + e.getMessage());
+            }
+
             if (player != null) {
-                // Format check name with module if available
-                String fullCheckName = module.isEmpty() ? checkName : module + "/" + checkName;
                 String info = details.isEmpty() ? "FoxAddition detection" : details;
+                plugin.logDebug("[FoxAddition] Creating alert for " + player.getName() + " - " + fullCheckName + " x" + vls);
 
                 handleAlert(new AnticheatAlert(
                     getName(),
@@ -162,9 +189,15 @@ public class FoxAdditionHook extends AnticheatHook implements Listener {
                     vls,
                     info
                 ));
+            } else {
+                plugin.logDebug("[FoxAddition] Could not determine player for alert");
             }
         } catch (Exception e) {
-            plugin.logDebug("[Anticheat] Error handling FoxAddition event: " + e.getMessage());
+            plugin.logDebug("[FoxAddition] Error handling event: " + e.getMessage());
         }
+    }
+
+    public Set<String> getDiscoveredChecks() {
+        return discoveredChecks;
     }
 }
