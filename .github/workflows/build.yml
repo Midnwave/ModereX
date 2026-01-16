@@ -24,7 +24,7 @@ jobs:
       run: chmod +x gradlew
 
     - name: Clean and Build
-      run: ./gradlew clean build -x gitPublish --no-daemon
+      run: ./gradlew clean build --no-daemon
 
     - name: Upload artifact
       uses: actions/upload-artifact@v4
