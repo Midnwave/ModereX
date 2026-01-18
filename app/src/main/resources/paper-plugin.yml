@@ -5,6 +5,7 @@ api-version: '1.21'
 description: Advanced moderation plugin with GUI support, automod, and web panel integration
 authors:
   - BlockForge Studios
+  - ADF Industries
 website: https://github.com/blockforge/moderex
 
 dependencies:
