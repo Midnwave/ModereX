@@ -7,9 +7,6 @@
 # ModereX Configuration
 # Advanced Moderation Plugin for Minecraft 1.21+
 
-# Configuration version - DO NOT MODIFY
-config-version: 6
-
 # ============================================
 # GENERAL SETTINGS
 # ============================================
@@ -225,6 +222,120 @@ vanish:
   # Disable footstep particles/sounds
   no-footsteps: true
 
+  # Hide real join/leave messages when player joins/leaves while vanished
+  # When true, suppresses the vanilla "Player joined/left the game" messages
+  hide-real-join-leave: true
+
+  # Persist vanish state across server restarts and logouts
+  # When true, players remain vanished when they rejoin the server
+  save-vanish-state: true
+
+  # Use packet-level vanishing (NMS) instead of Bukkit hidePlayer()
+  # Provides complete invisibility by filtering packets at the Netty pipeline level
+  # Fallback to hidePlayer() if packet injection fails
+  use-packet-level: true
+
+  # Debug packet filtering (log filtered packets [very verbose])
+  debug-packet-filtering: false
+
+  # Plugin API whitelist - plugins that can see vanished players
+  # By default, vanished players are hidden from ALL plugins
+  # Add plugin names here (case-insensitive) to allow them to detect vanished players
+  # Example: ['YourCustomPlugin', 'AdminTools']
+  # Note: ModereX itself always has access
+  api-whitelist: []
+
+  # ============================================
+  # FAKE JOIN/LEAVE MESSAGES
+  # ============================================
+  fake-messages:
+    # Send fake join/leave messages when vanishing/unvanishing
+    enabled: false
+
+    # Fake join message (supports placeholders: {player})
+    join-message: '&e{player} joined the game'
+
+    # Fake leave message (supports placeholders: {player})
+    leave-message: '&e{player} left the game'
+
+  # ============================================
+  # PLUGIN HOOKS
+  # ============================================
+  plugin-hooks:
+    # Hook into EssentialsX join/leave messages
+    essentialsx:
+      enabled: false
+      # Hide join/leave messages for vanished players
+      hide-messages: true
+
+    # Hook into custom-join-messages plugin
+    custom-join-messages:
+      enabled: false
+      hide-messages: true
+
+    # Hook into AlonsoJoin plugin
+    alonsojoin:
+      enabled: false
+      hide-messages: true
+
+  # ============================================
+  # LEVEL-BASED VISIBILITY SYSTEM
+  # ============================================
+  levels:
+    # Enable level-based visibility (staff can see lower-level vanished players)
+    enabled: true
+
+    # Default vanish level for players without specific permission
+    default-level: 1
+
+    # Vanish level for opped players (highest priority)
+    op-level: 100
+
+    # Permission format: moderex.vanish.level.<number>
+    # Example: moderex.vanish.level.3 gives vanish level 3
+    # A player with level 3 can see vanished players with level 1 and 2
+    # A player with level 3 CANNOT see other level 3 players
+
+    # Staff visibility settings
+    staff-visibility:
+      # Allow staff to see vanished players with lower levels
+      can-see-lower-levels: true
+
+      # Permission format for seeing vanished players: moderex.vanish.see.level.<number>
+      # Example: moderex.vanish.see.level.2 allows seeing vanished players up to level 2
+      # If not set, defaults to their vanish level - 1
+
+  # ============================================
+  # LUCKPERMS INTEGRATION
+  # ============================================
+  luckperms:
+    # Modify player prefix/suffix when vanished
+    enabled: false
+
+    # Prefix to add when vanished (supports color codes and placeholders)
+    vanish-prefix: '&7[V] '
+
+    # Suffix to add when vanished (supports color codes and placeholders)
+    vanish-suffix: ''
+
+    # Also modify tab list prefix/suffix
+    modify-tab: true
+
+  # ============================================
+  # VANISH LIST COMMAND
+  # ============================================
+  list:
+    # Show only vanished players the viewer can see (based on their level)
+    # If false, shows all vanished players regardless of level
+    respect-visibility: true
+
+    # Show vanish levels in the list
+    show-levels: true
+
+    # Format for each player in the list
+    # Placeholders: {player}, {level}, {time} (how long they've been vanished)
+    format: '&7- &f{player} &8(Level {level})'
+
 # ============================================
 # WARNING SETTINGS
 # ============================================
@@ -278,12 +389,14 @@ replay:
   # Maximum number of stored replays
   max-stored: 1000
 
-#                                                                              
-#     _____ _         _   _____                    _____ _         _ _         
-#    | __  | |___ ___| |_|   __|___ ___ ___ ___   |   __| |_ _ _ _| |_|___ ___ 
-#    | __ -| | . |  _| '_|   __| . |  _| . | -_|  |__   |  _| | | . | | . |_ -|
-#    |_____|_|___|___|_,_|__|  |___|_| |_  |___|  |_____|_| |___|___|_|___|___|
-#                                      |___|                                   
+
+# ============================================
+# CONFIGURATION VERSION
+# ============================================
+# DO NOT MODIFY - Used for automatic config migration
+config-version: 7
+
+
 
 
 

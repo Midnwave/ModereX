@@ -8,6 +8,9 @@ website: https://github.com/blockforge/moderex
 softdepend:
   - LuckPerms
   - PlaceholderAPI
+  - Essentials
+  - CustomJoinMessages
+  - AlonsoJoin
   - Grim
   - Vulcan
   - Matrix
@@ -72,8 +75,8 @@ commands:
     usage: /<command>
     permission: moderex.command.staffhelp
   vanish:
-    description: Toggle vanish mode
-    usage: /<command>
+    description: Toggle vanish mode and manage vanished players
+    usage: /<command> [toggle|enable|disable|player|list] [player]
     aliases: [v]
     permission: moderex.command.vanish
   cmdblacklist:
@@ -106,6 +109,7 @@ permissions:
       moderex.command.modlog: true
       moderex.command.staffchat: true
       moderex.command.vanish: true
+      moderex.command.vanish.others: true
       moderex.command.cmdblacklist: true
       moderex.command.cmdunblacklist: true
       moderex.command.cmdhistory: true
@@ -147,8 +151,17 @@ permissions:
     description: Request staff help
     default: true
   moderex.command.vanish:
-    description: Toggle vanish
+    description: Toggle vanish for yourself
     default: op
+  moderex.command.vanish.others:
+    description: Toggle vanish for other players
+    default: op
+  moderex.vanish.level.*:
+    description: Vanish level permissions (moderex.vanish.level.1, moderex.vanish.level.2, etc.)
+    default: false
+  moderex.vanish.see.level.*:
+    description: See vanished players up to a specific level (moderex.vanish.see.level.1, moderex.vanish.see.level.2, etc.)
+    default: false
   moderex.command.cmdblacklist:
     description: Blacklist commands for players
     default: op

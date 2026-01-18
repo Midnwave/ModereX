@@ -1,0 +1,28 @@
+#        __  ___          __              _  __
+#       /  |/  /___  ____/ /__  ________ | |/ /
+#      / /|_/ / __ \/ __  / _ \/ ___/ _ \|   /
+#     / /  / / /_/ / /_/ /  __/ /  /  __/   |
+#    /_/  /_/\____/\__,_/\___/_/   \___/_/|_|
+#
+# Vanish Levels Configuration
+# This file is only used when LuckPerms is not installed
+# When LuckPerms is present, vanish levels are determined by permissions
+
+# Default vanish level for players without specific configuration
+default-level: 1
+
+# OP vanish level (highest priority)
+op-level: 100
+
+# Player-specific vanish levels
+# Format: UUID or username
+players:
+  # Example:
+  # '550e8400-e29b-41d4-a716-446655440000': 3
+  # 'Notch': 5
+  # 'Herobrine': 2
+
+# Staff visibility settings
+staff-visibility:
+  # Allow staff to see vanished players with lower levels
+  can-see-lower-levels: true
