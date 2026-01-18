@@ -3,7 +3,7 @@ version: '${version}'
 main: com.blockforge.moderex.ModereX
 api-version: '1.21'
 description: Advanced moderation plugin with GUI support, automod, and web panel integration
-author: BlockForge Studios
+author: BlockForge Studios, ADF Industries
 website: https://github.com/blockforge/moderex
 softdepend:
   - LuckPerms
