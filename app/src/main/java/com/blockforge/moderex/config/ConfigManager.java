@@ -15,7 +15,7 @@ import java.util.UUID;
 
 public class ConfigManager {
 
-    private static final int CURRENT_CONFIG_VERSION = 6;
+    private static final int CURRENT_CONFIG_VERSION = 7;
 
     private final ModereX plugin;
     private final Settings settings;
