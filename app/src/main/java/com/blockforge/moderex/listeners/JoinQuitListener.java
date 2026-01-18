@@ -88,8 +88,12 @@ public class JoinQuitListener implements Listener {
         // Load punishments into cache
         plugin.getPunishmentManager().loadPlayerPunishments(uuid);
 
-        // Handle vanish - hide vanished players from this player
         plugin.getVanishManager().onPlayerJoin(player);
+
+        if (plugin.getConfigManager().getSettings().isVanishHideRealJoinLeave() &&
+                plugin.getVanishManager().isVanished(player)) {
+            event.joinMessage(Component.empty());
+        }
 
         // Watchlist notification
         if (plugin.getWatchlistManager().isWatched(uuid)) {
@@ -119,6 +123,11 @@ public class JoinQuitListener implements Listener {
     public void onQuit(PlayerQuitEvent event) {
         Player player = event.getPlayer();
         UUID uuid = player.getUniqueId();
+
+        if (plugin.getConfigManager().getSettings().isVanishHideRealJoinLeave() &&
+                plugin.getVanishManager().isVanished(player)) {
+            event.quitMessage(Component.empty());
+        }
 
         // Clear caches
         plugin.getPunishmentManager().unloadPlayerPunishments(uuid);

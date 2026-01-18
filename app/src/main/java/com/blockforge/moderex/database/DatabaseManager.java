@@ -239,6 +239,17 @@ public class DatabaseManager {
                     )
                     """);
 
+            // Vanish state table
+            stmt.execute("""
+                    CREATE TABLE IF NOT EXISTS moderex_vanish_state (
+                        uuid VARCHAR(36) PRIMARY KEY,
+                        vanished BOOLEAN DEFAULT FALSE,
+                        vanish_level INTEGER DEFAULT 1,
+                        vanish_time BIGINT NOT NULL,
+                        updated_at BIGINT NOT NULL
+                    )
+                    """);
+
             // Replays metadata table
             stmt.execute("""
                     CREATE TABLE IF NOT EXISTS moderex_replays (
@@ -289,6 +300,9 @@ public class DatabaseManager {
         executeIfNotExists(stmt, "CREATE INDEX IF NOT EXISTS idx_templates_type ON moderex_templates(type)");
         executeIfNotExists(stmt, "CREATE INDEX IF NOT EXISTS idx_templates_category ON moderex_templates(category)");
         executeIfNotExists(stmt, "CREATE INDEX IF NOT EXISTS idx_templates_active ON moderex_templates(active)");
+
+        // Vanish state indexes
+        executeIfNotExists(stmt, "CREATE INDEX IF NOT EXISTS idx_vanish_state_vanished ON moderex_vanish_state(vanished)");
 
         // Replays indexes
         executeIfNotExists(stmt, "CREATE INDEX IF NOT EXISTS idx_replays_player ON moderex_replays(player_uuid)");

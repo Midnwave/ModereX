@@ -62,6 +62,41 @@ public class Settings {
     private boolean vanishHideFromTablist = true;
     private boolean vanishSilentContainers = true;
     private boolean vanishNoFootsteps = true;
+    private boolean vanishHideRealJoinLeave = true;
+    private boolean vanishSaveVanishState = true;
+    private boolean vanishUsePacketLevel = true;
+    private boolean vanishDebugPacketFiltering = false;
+    private java.util.List<String> vanishApiWhitelist = new java.util.ArrayList<>();
+
+    // Fake messages settings
+    private boolean vanishFakeMessagesEnabled = false;
+    private String vanishFakeJoinMessage = "&e{player} joined the game";
+    private String vanishFakeLeaveMessage = "&e{player} left the game";
+
+    // Plugin hooks settings
+    private boolean vanishHookEssentialsXEnabled = false;
+    private boolean vanishHookEssentialsXHideMessages = true;
+    private boolean vanishHookCustomJoinMessagesEnabled = false;
+    private boolean vanishHookCustomJoinMessagesHideMessages = true;
+    private boolean vanishHookAlonsoJoinEnabled = false;
+    private boolean vanishHookAlonsoJoinHideMessages = true;
+
+    // Level-based visibility settings
+    private boolean vanishLevelsEnabled = true;
+    private int vanishLevelsDefaultLevel = 1;
+    private int vanishLevelsOpLevel = 100;
+    private boolean vanishLevelsStaffCanSeeLowerLevels = true;
+
+    // LuckPerms integration settings
+    private boolean vanishLuckPermsEnabled = false;
+    private String vanishLuckPermsVanishPrefix = "&7[V] ";
+    private String vanishLuckPermsVanishSuffix = "";
+    private boolean vanishLuckPermsModifyTab = true;
+
+    // Vanish list settings
+    private boolean vanishListRespectVisibility = true;
+    private boolean vanishListShowLevels = true;
+    private String vanishListFormat = "&7- &f{player} &8(Level {level})";
 
     // Replay settings
     private boolean replayEnabled = true;
@@ -394,6 +429,46 @@ public class Settings {
         this.vanishNoFootsteps = vanishNoFootsteps;
     }
 
+    public boolean isVanishHideRealJoinLeave() {
+        return vanishHideRealJoinLeave;
+    }
+
+    public void setVanishHideRealJoinLeave(boolean vanishHideRealJoinLeave) {
+        this.vanishHideRealJoinLeave = vanishHideRealJoinLeave;
+    }
+
+    public boolean isVanishSaveVanishState() {
+        return vanishSaveVanishState;
+    }
+
+    public void setVanishSaveVanishState(boolean vanishSaveVanishState) {
+        this.vanishSaveVanishState = vanishSaveVanishState;
+    }
+
+    public boolean isVanishUsePacketLevel() {
+        return vanishUsePacketLevel;
+    }
+
+    public void setVanishUsePacketLevel(boolean vanishUsePacketLevel) {
+        this.vanishUsePacketLevel = vanishUsePacketLevel;
+    }
+
+    public boolean isVanishDebugPacketFiltering() {
+        return vanishDebugPacketFiltering;
+    }
+
+    public void setVanishDebugPacketFiltering(boolean vanishDebugPacketFiltering) {
+        this.vanishDebugPacketFiltering = vanishDebugPacketFiltering;
+    }
+
+    public java.util.List<String> getVanishApiWhitelist() {
+        return vanishApiWhitelist;
+    }
+
+    public void setVanishApiWhitelist(java.util.List<String> vanishApiWhitelist) {
+        this.vanishApiWhitelist = vanishApiWhitelist;
+    }
+
     public int getConfigVersion() {
         return configVersion;
     }
@@ -488,5 +563,170 @@ public class Settings {
 
     public void setServerStatusChunkTileThreshold(int serverStatusChunkTileThreshold) {
         this.serverStatusChunkTileThreshold = serverStatusChunkTileThreshold;
+    }
+
+    // Fake messages getters and setters
+    public boolean isVanishFakeMessagesEnabled() {
+        return vanishFakeMessagesEnabled;
+    }
+
+    public void setVanishFakeMessagesEnabled(boolean vanishFakeMessagesEnabled) {
+        this.vanishFakeMessagesEnabled = vanishFakeMessagesEnabled;
+    }
+
+    public String getVanishFakeJoinMessage() {
+        return vanishFakeJoinMessage;
+    }
+
+    public void setVanishFakeJoinMessage(String vanishFakeJoinMessage) {
+        this.vanishFakeJoinMessage = vanishFakeJoinMessage;
+    }
+
+    public String getVanishFakeLeaveMessage() {
+        return vanishFakeLeaveMessage;
+    }
+
+    public void setVanishFakeLeaveMessage(String vanishFakeLeaveMessage) {
+        this.vanishFakeLeaveMessage = vanishFakeLeaveMessage;
+    }
+
+    // Plugin hooks getters and setters
+    public boolean isVanishHookEssentialsXEnabled() {
+        return vanishHookEssentialsXEnabled;
+    }
+
+    public void setVanishHookEssentialsXEnabled(boolean vanishHookEssentialsXEnabled) {
+        this.vanishHookEssentialsXEnabled = vanishHookEssentialsXEnabled;
+    }
+
+    public boolean isVanishHookEssentialsXHideMessages() {
+        return vanishHookEssentialsXHideMessages;
+    }
+
+    public void setVanishHookEssentialsXHideMessages(boolean vanishHookEssentialsXHideMessages) {
+        this.vanishHookEssentialsXHideMessages = vanishHookEssentialsXHideMessages;
+    }
+
+    public boolean isVanishHookCustomJoinMessagesEnabled() {
+        return vanishHookCustomJoinMessagesEnabled;
+    }
+
+    public void setVanishHookCustomJoinMessagesEnabled(boolean vanishHookCustomJoinMessagesEnabled) {
+        this.vanishHookCustomJoinMessagesEnabled = vanishHookCustomJoinMessagesEnabled;
+    }
+
+    public boolean isVanishHookCustomJoinMessagesHideMessages() {
+        return vanishHookCustomJoinMessagesHideMessages;
+    }
+
+    public void setVanishHookCustomJoinMessagesHideMessages(boolean vanishHookCustomJoinMessagesHideMessages) {
+        this.vanishHookCustomJoinMessagesHideMessages = vanishHookCustomJoinMessagesHideMessages;
+    }
+
+    public boolean isVanishHookAlonsoJoinEnabled() {
+        return vanishHookAlonsoJoinEnabled;
+    }
+
+    public void setVanishHookAlonsoJoinEnabled(boolean vanishHookAlonsoJoinEnabled) {
+        this.vanishHookAlonsoJoinEnabled = vanishHookAlonsoJoinEnabled;
+    }
+
+    public boolean isVanishHookAlonsoJoinHideMessages() {
+        return vanishHookAlonsoJoinHideMessages;
+    }
+
+    public void setVanishHookAlonsoJoinHideMessages(boolean vanishHookAlonsoJoinHideMessages) {
+        this.vanishHookAlonsoJoinHideMessages = vanishHookAlonsoJoinHideMessages;
+    }
+
+    // Level-based visibility getters and setters
+    public boolean isVanishLevelsEnabled() {
+        return vanishLevelsEnabled;
+    }
+
+    public void setVanishLevelsEnabled(boolean vanishLevelsEnabled) {
+        this.vanishLevelsEnabled = vanishLevelsEnabled;
+    }
+
+    public int getVanishLevelsDefaultLevel() {
+        return vanishLevelsDefaultLevel;
+    }
+
+    public void setVanishLevelsDefaultLevel(int vanishLevelsDefaultLevel) {
+        this.vanishLevelsDefaultLevel = vanishLevelsDefaultLevel;
+    }
+
+    public int getVanishLevelsOpLevel() {
+        return vanishLevelsOpLevel;
+    }
+
+    public void setVanishLevelsOpLevel(int vanishLevelsOpLevel) {
+        this.vanishLevelsOpLevel = vanishLevelsOpLevel;
+    }
+
+    public boolean isVanishLevelsStaffCanSeeLowerLevels() {
+        return vanishLevelsStaffCanSeeLowerLevels;
+    }
+
+    public void setVanishLevelsStaffCanSeeLowerLevels(boolean vanishLevelsStaffCanSeeLowerLevels) {
+        this.vanishLevelsStaffCanSeeLowerLevels = vanishLevelsStaffCanSeeLowerLevels;
+    }
+
+    // LuckPerms integration getters and setters
+    public boolean isVanishLuckPermsEnabled() {
+        return vanishLuckPermsEnabled;
+    }
+
+    public void setVanishLuckPermsEnabled(boolean vanishLuckPermsEnabled) {
+        this.vanishLuckPermsEnabled = vanishLuckPermsEnabled;
+    }
+
+    public String getVanishLuckPermsVanishPrefix() {
+        return vanishLuckPermsVanishPrefix;
+    }
+
+    public void setVanishLuckPermsVanishPrefix(String vanishLuckPermsVanishPrefix) {
+        this.vanishLuckPermsVanishPrefix = vanishLuckPermsVanishPrefix;
+    }
+
+    public String getVanishLuckPermsVanishSuffix() {
+        return vanishLuckPermsVanishSuffix;
+    }
+
+    public void setVanishLuckPermsVanishSuffix(String vanishLuckPermsVanishSuffix) {
+        this.vanishLuckPermsVanishSuffix = vanishLuckPermsVanishSuffix;
+    }
+
+    public boolean isVanishLuckPermsModifyTab() {
+        return vanishLuckPermsModifyTab;
+    }
+
+    public void setVanishLuckPermsModifyTab(boolean vanishLuckPermsModifyTab) {
+        this.vanishLuckPermsModifyTab = vanishLuckPermsModifyTab;
+    }
+
+    // Vanish list getters and setters
+    public boolean isVanishListRespectVisibility() {
+        return vanishListRespectVisibility;
+    }
+
+    public void setVanishListRespectVisibility(boolean vanishListRespectVisibility) {
+        this.vanishListRespectVisibility = vanishListRespectVisibility;
+    }
+
+    public boolean isVanishListShowLevels() {
+        return vanishListShowLevels;
+    }
+
+    public void setVanishListShowLevels(boolean vanishListShowLevels) {
+        this.vanishListShowLevels = vanishListShowLevels;
+    }
+
+    public String getVanishListFormat() {
+        return vanishListFormat;
+    }
+
+    public void setVanishListFormat(String vanishListFormat) {
+        this.vanishListFormat = vanishListFormat;
     }
 }
