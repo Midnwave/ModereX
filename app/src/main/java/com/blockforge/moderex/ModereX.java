@@ -16,6 +16,8 @@ import com.blockforge.moderex.replay.ReplayManager;
 import com.blockforge.moderex.staff.StaffChatManager;
 import com.blockforge.moderex.staff.StaffSettingsManager;
 import com.blockforge.moderex.staff.VanishManager;
+import com.blockforge.moderex.vanish.api.VanishAPI;
+import com.blockforge.moderex.vanish.api.VanishEventFilter;
 import com.blockforge.moderex.util.DebugWebhook;
 import com.blockforge.moderex.util.UpdateChecker;
 import com.blockforge.moderex.util.VersionUtil;
@@ -44,6 +46,7 @@ public final class ModereX extends JavaPlugin {
     private GuiManager guiManager;
     private StaffChatManager staffChatManager;
     private VanishManager vanishManager;
+    private VanishAPI vanishAPI;
     private WatchlistManager watchlistManager;
     private com.blockforge.moderex.player.PlayerProfileManager playerProfileManager;
     private ProxyManager proxyManager;
@@ -99,6 +102,17 @@ public final class ModereX extends JavaPlugin {
         this.hookManager = new HookManager(this);
         hookManager.initialize();
 
+        // Register PlaceholderAPI expansion if available
+        if (getServer().getPluginManager().getPlugin("PlaceholderAPI") != null) {
+            logStartup("Registering PlaceholderAPI expansion...");
+            try {
+                new com.blockforge.moderex.integrations.ModereXPlaceholders(this).register();
+                logStartup("PlaceholderAPI expansion registered successfully!");
+            } catch (Exception e) {
+                getLogger().warning("Failed to register PlaceholderAPI expansion: " + e.getMessage());
+            }
+        }
+
         // Initialize core managers
         logStartup("Initializing punishment system...");
         this.punishmentManager = new PunishmentManager(this);
@@ -123,6 +137,8 @@ public final class ModereX extends JavaPlugin {
         logStartup("Initializing staff features...");
         this.staffChatManager = new StaffChatManager(this);
         this.vanishManager = new VanishManager(this);
+        this.vanishAPI = new VanishAPI(this);
+        getServer().getPluginManager().registerEvents(new VanishEventFilter(this, vanishAPI), this);
         this.staffSettingsManager = new StaffSettingsManager(this);
 
         logStartup("Initializing watchlist...");
@@ -266,6 +282,11 @@ public final class ModereX extends JavaPlugin {
         languageManager.load();
         automodManager.load();
 
+        // Reload vanish API whitelist
+        if (vanishAPI != null) {
+            vanishAPI.reload();
+        }
+
         // Update debug webhook URL
         if (debugWebhook != null) {
             debugWebhook.setWebhookUrl(configManager.getSettings().getDebugWebhookUrl());
@@ -391,6 +412,10 @@ public final class ModereX extends JavaPlugin {
 
     public VanishManager getVanishManager() {
         return vanishManager;
+    }
+
+    public VanishAPI getVanishAPI() {
+        return vanishAPI;
     }
 
     public WatchlistManager getWatchlistManager() {
