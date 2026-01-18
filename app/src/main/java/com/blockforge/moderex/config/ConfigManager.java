@@ -172,6 +172,8 @@ public class ConfigManager {
         settings.setVanishHideFromTablist(config.getBoolean("vanish.hide-from-tablist", true));
         settings.setVanishSilentContainers(config.getBoolean("vanish.silent-containers", true));
         settings.setVanishNoFootsteps(config.getBoolean("vanish.no-footsteps", true));
+        settings.setVanishHideRealJoinLeave(config.getBoolean("vanish.hide-real-join-leave", true));
+        settings.setVanishSaveVanishState(config.getBoolean("vanish.save-vanish-state", true));
 
         // Replay (added in v2)
         settings.setReplayEnabled(config.getBoolean("replay.enabled", true));
@@ -190,109 +192,39 @@ public class ConfigManager {
     private void migrateConfig(int oldVersion) {
         plugin.getLogger().info("Migrating config from version " + oldVersion + " to " + CURRENT_CONFIG_VERSION);
 
-        // Backup old config
         try {
-            File backup = new File(plugin.getDataFolder(), "config.yml.old");
-            Files.copy(configFile.toPath(), backup.toPath(), StandardCopyOption.REPLACE_EXISTING);
-            plugin.getLogger().info("Old config backed up to config.yml.old");
-        } catch (IOException e) {
-            plugin.logError("Failed to backup config", e);
-        }
+            ConfigMerger merger = new ConfigMerger(plugin);
+            merger.backupOldConfig(configFile);
 
-        // Apply migrations step by step
-        if (oldVersion < 2) {
-            migrateToV2();
-        }
-        if (oldVersion < 3) {
-            migrateToV3();
-        }
-        if (oldVersion < 4) {
-            migrateToV4();
-        }
-        if (oldVersion < 5) {
-            migrateToV5();
-        }
-        if (oldVersion < 6) {
-            migrateToV6();
-        }
+            FileConfiguration oldConfig = YamlConfiguration.loadConfiguration(configFile);
 
-        // Load default config to get any remaining new values
-        InputStream defaultConfigStream = plugin.getResource("config.yml");
-        if (defaultConfigStream != null) {
-            FileConfiguration defaultConfig = YamlConfiguration.loadConfiguration(
+            InputStream defaultConfigStream = plugin.getResource("config.yml");
+            if (defaultConfigStream == null) {
+                plugin.logError("Failed to load default config from resources", null);
+                return;
+            }
+
+            FileConfiguration newConfig = YamlConfiguration.loadConfiguration(
                     new InputStreamReader(defaultConfigStream)
             );
 
-            // Copy missing keys from default config
-            for (String key : defaultConfig.getKeys(true)) {
-                if (!config.contains(key)) {
-                    config.set(key, defaultConfig.get(key));
-                }
-            }
-        }
+            ConfigMigration migration = ConfigMigrations.getMigration(CURRENT_CONFIG_VERSION);
 
-        // Update version
-        config.set("config-version", CURRENT_CONFIG_VERSION);
-        saveConfig();
-    }
+            FileConfiguration mergedConfig = merger.merge(oldConfig, newConfig, migration);
 
-    private void migrateToV2() {
-        plugin.getLogger().info("Adding replay settings (v2 migration)...");
+            mergedConfig.set("config-version", CURRENT_CONFIG_VERSION);
 
-        // Add replay section if not present
-        if (!config.contains("replay")) {
-            config.set("replay.enabled", true);
-            config.set("replay.record-on-anticheat", true);
-            config.set("replay.record-watchlist", true);
-            config.set("replay.nearby-radius", 20);
-            config.set("replay.max-duration-seconds", 300);
-            config.set("replay.max-stored", 1000);
-        }
+            mergedConfig.save(configFile);
 
-        // Add anticheat alerts-enabled if not present
-        if (!config.contains("anticheat.alerts-enabled")) {
-            config.set("anticheat.alerts-enabled", true);
+            config = YamlConfiguration.loadConfiguration(configFile);
+
+            plugin.getLogger().info("Config migration completed successfully");
+
+        } catch (Exception e) {
+            plugin.logError("Failed to migrate config", e);
         }
     }
 
-    private void migrateToV3() {
-        plugin.getLogger().info("Adding webpanel server-name (v3 migration)...");
-
-        // Add server-name if not present
-        if (!config.contains("webpanel.server-name")) {
-            config.set("webpanel.server-name", "My Server");
-        }
-    }
-
-    private void migrateToV4() {
-        plugin.getLogger().info("Adding webpanel same-port setting (v4 migration)...");
-
-        // Add same-port if not present
-        if (!config.contains("webpanel.same-port")) {
-            config.set("webpanel.same-port", false);
-        }
-    }
-
-    private void migrateToV5() {
-        plugin.getLogger().info("Adding AI assistant configuration (v5 migration)...");
-
-        // Add AI settings if not present
-        if (!config.contains("webpanel.ai")) {
-            config.set("webpanel.ai.enabled", true);
-            config.set("webpanel.ai.endpoint", "http://localhost:11434/api/chat");
-            config.set("webpanel.ai.model", "devstral-2-123b-cloud");
-            config.set("webpanel.ai.api-key", "");
-        }
-    }
-
-    private void migrateToV6() {
-        plugin.getLogger().info("Adding debug webhook configuration (v6 migration)...");
-
-        // Add debug-webhook if not present
-        if (!config.contains("general.debug-webhook")) {
-            config.set("general.debug-webhook", "");
-        }
-    }
 
     public void saveConfig() {
         try {
@@ -317,11 +249,9 @@ public class ConfigManager {
     public FileConfiguration getCustomConfig(String fileName) {
         File file = new File(plugin.getDataFolder(), fileName);
         if (!file.exists()) {
-            // Try to save from resources
             if (plugin.getResource(fileName) != null) {
                 plugin.saveResource(fileName, false);
             } else {
-                // Create empty file
                 try {
                     file.createNewFile();
                 } catch (IOException e) {
