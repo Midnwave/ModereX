@@ -15,17 +15,37 @@ import java.util.UUID;
 
 public class ConfigManager {
 
-    private static final int CURRENT_CONFIG_VERSION = 7;
-
     private final ModereX plugin;
     private final Settings settings;
 
     private File configFile;
     private FileConfiguration config;
+    private int currentConfigVersion = -1;
 
     public ConfigManager(ModereX plugin) {
         this.plugin = plugin;
         this.settings = new Settings();
+    }
+
+    private int getCurrentConfigVersion() {
+        if (currentConfigVersion == -1) {
+            try {
+                InputStream defaultConfigStream = plugin.getResource("config.yml");
+                if (defaultConfigStream != null) {
+                    FileConfiguration defaultConfig = YamlConfiguration.loadConfiguration(
+                            new InputStreamReader(defaultConfigStream)
+                    );
+                    currentConfigVersion = defaultConfig.getInt("config-version", 7);
+                } else {
+                    plugin.getLogger().warning("Could not read config version from bundled config.yml, defaulting to 7");
+                    currentConfigVersion = 7;
+                }
+            } catch (Exception e) {
+                plugin.logError("Failed to read config version from bundled config.yml, defaulting to 7", e);
+                currentConfigVersion = 7;
+            }
+        }
+        return currentConfigVersion;
     }
 
     public boolean load() {
@@ -68,10 +88,10 @@ public class ConfigManager {
             resetPluginFolder();
             // Reload config after reset
             config = YamlConfiguration.loadConfiguration(configFile);
-            version = config.getInt("config-version", CURRENT_CONFIG_VERSION);
+            version = config.getInt("config-version", getCurrentConfigVersion());
         }
 
-        if (version < CURRENT_CONFIG_VERSION) {
+        if (version < getCurrentConfigVersion()) {
             migrateConfig(version);
         }
 
@@ -186,11 +206,11 @@ public class ConfigManager {
         // Anticheat alerts (added in v2)
         settings.setAnticheatAlertsEnabled(config.getBoolean("anticheat.alerts-enabled", true));
 
-        settings.setConfigVersion(CURRENT_CONFIG_VERSION);
+        settings.setConfigVersion(getCurrentConfigVersion());
     }
 
     private void migrateConfig(int oldVersion) {
-        plugin.getLogger().info("Migrating config from version " + oldVersion + " to " + CURRENT_CONFIG_VERSION);
+        plugin.getLogger().info("Migrating config from version " + oldVersion + " to " + getCurrentConfigVersion());
 
         try {
             ConfigMerger merger = new ConfigMerger(plugin);
@@ -208,11 +228,11 @@ public class ConfigManager {
                     new InputStreamReader(defaultConfigStream)
             );
 
-            ConfigMigration migration = ConfigMigrations.getMigration(CURRENT_CONFIG_VERSION);
+            ConfigMigration migration = ConfigMigrations.getMigration(getCurrentConfigVersion());
 
             FileConfiguration mergedConfig = merger.merge(oldConfig, newConfig, migration);
 
-            mergedConfig.set("config-version", CURRENT_CONFIG_VERSION);
+            mergedConfig.set("config-version", getCurrentConfigVersion());
 
             mergedConfig.save(configFile);
 
