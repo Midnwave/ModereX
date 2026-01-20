@@ -7,7 +7,7 @@ import java.util.regex.Pattern;
 public final class DurationParser {
 
     private static final Pattern DURATION_PATTERN = Pattern.compile(
-            "(\\d+)(mo|w|d|h|m|s)",
+            "(\\d+)(y|mo|w|d|h|m|s)",
             Pattern.CASE_INSENSITIVE
     );
 
@@ -16,6 +16,7 @@ public final class DurationParser {
     private static final long SECONDS_PER_DAY = 86400;
     private static final long SECONDS_PER_WEEK = 604800;
     private static final long SECONDS_PER_MONTH = 2592000; // 30 days
+    private static final long SECONDS_PER_YEAR = 31536000; // 365 days
 
     private DurationParser() {
     }
@@ -50,6 +51,7 @@ public final class DurationParser {
             String unit = matcher.group(2).toLowerCase();
 
             totalSeconds += switch (unit) {
+                case "y" -> value * SECONDS_PER_YEAR;
                 case "mo" -> value * SECONDS_PER_MONTH;
                 case "w" -> value * SECONDS_PER_WEEK;
                 case "d" -> value * SECONDS_PER_DAY;
@@ -109,6 +111,9 @@ public final class DurationParser {
         long seconds = millis / 1000;
         StringBuilder sb = new StringBuilder();
 
+        long years = seconds / SECONDS_PER_YEAR;
+        seconds %= SECONDS_PER_YEAR;
+
         long months = seconds / SECONDS_PER_MONTH;
         seconds %= SECONDS_PER_MONTH;
 
@@ -125,6 +130,7 @@ public final class DurationParser {
         seconds %= SECONDS_PER_MINUTE;
 
         if (shortFormat) {
+            if (years > 0) sb.append(years).append("y ");
             if (months > 0) sb.append(months).append("mo ");
             if (weeks > 0) sb.append(weeks).append("w ");
             if (days > 0) sb.append(days).append("d ");
@@ -132,6 +138,7 @@ public final class DurationParser {
             if (minutes > 0) sb.append(minutes).append("m ");
             if (seconds > 0) sb.append(seconds).append("s");
         } else {
+            if (years > 0) sb.append(years).append(years == 1 ? " year " : " years ");
             if (months > 0) sb.append(months).append(months == 1 ? " month " : " months ");
             if (weeks > 0) sb.append(weeks).append(weeks == 1 ? " week " : " weeks ");
             if (days > 0) sb.append(days).append(days == 1 ? " day " : " days ");
