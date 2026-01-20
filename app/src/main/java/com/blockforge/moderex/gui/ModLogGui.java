@@ -252,7 +252,7 @@ public class ModLogGui extends PaginatedGui<Punishment> {
     private Material getGlowingMaterial(PunishmentType type) {
         return switch (type) {
             case BAN, IPBAN -> Material.RED_STAINED_GLASS;
-            case MUTE -> Material.ORANGE_STAINED_GLASS;
+            case MUTE, IPMUTE -> Material.ORANGE_STAINED_GLASS;
             case KICK -> Material.YELLOW_STAINED_GLASS;
             case WARN -> Material.LIGHT_BLUE_STAINED_GLASS;
         };
@@ -322,6 +322,7 @@ public class ModLogGui extends PaginatedGui<Punishment> {
             case KICK -> Material.LEATHER_BOOTS;
             case WARN -> Material.WRITABLE_BOOK;
             case IPBAN -> Material.IRON_BARS;
+            case IPMUTE -> Material.CHAIN;
         };
     }
 
@@ -332,6 +333,7 @@ public class ModLogGui extends PaginatedGui<Punishment> {
             case KICK -> "<yellow>";
             case WARN -> "<aqua>";
             case IPBAN -> "<dark_red>";
+            case IPMUTE -> "<dark_purple>";
         };
     }
 

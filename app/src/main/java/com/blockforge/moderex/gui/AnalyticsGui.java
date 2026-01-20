@@ -175,6 +175,7 @@ public class AnalyticsGui extends BaseGui {
             case KICK -> Material.LEATHER_BOOTS;
             case BAN -> Material.BARRIER;
             case IPBAN -> Material.CHAIN;
+            case IPMUTE -> Material.IRON_BARS;
         };
     }
 
@@ -185,6 +186,7 @@ public class AnalyticsGui extends BaseGui {
             case KICK -> "<aqua>";
             case BAN -> "<red>";
             case IPBAN -> "<dark_red>";
+            case IPMUTE -> "<dark_purple>";
         };
     }
 
