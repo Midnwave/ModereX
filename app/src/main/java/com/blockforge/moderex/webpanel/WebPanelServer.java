@@ -2,6 +2,7 @@ package com.blockforge.moderex.webpanel;
 
 import com.blockforge.moderex.ModereX;
 import com.blockforge.moderex.automod.AutomodRule;
+import com.blockforge.moderex.hooks.anticheat.AnticheatChecks;
 import com.blockforge.moderex.punishment.Punishment;
 import com.blockforge.moderex.punishment.PunishmentType;
 import com.blockforge.moderex.util.DurationParser;
@@ -306,6 +307,11 @@ public class WebPanelServer extends WebSocketServer {
             case "GET_STATS" -> sendStats(conn);
             case "GET_ANTICHEAT_CONFIG" -> sendAnticheatConfig(conn);
             case "GET_ANTICHEAT_INFO" -> sendAnticheatInfo(conn);
+            case "GET_ANTICHEAT_ALERTS" -> sendAnticheatAlerts(conn);
+            case "GET_STAFF_ALERT_PREFS" -> sendStaffAlertPrefs(conn, session);
+            case "UPDATE_STAFF_ALERT_PREF" -> updateStaffAlertPref(conn, data, session);
+            case "GET_ALERT_PRESETS" -> sendAlertPresets(conn);
+            case "APPLY_ALERT_PRESET" -> applyAlertPreset(conn, data, session);
             case "GET_LUCKPERMS_STATUS" -> sendLuckPermsStatus(conn);
             case "GET_MODERATION_PLUGINS" -> sendModerationPlugins(conn);
 
@@ -741,6 +747,269 @@ public class WebPanelServer extends WebSocketServer {
         data.add("plugins", plugins);
         response.add("data", data);
         conn.send(GSON.toJson(response));
+    }
+
+    private void sendAnticheatAlerts(WebSocket conn) {
+        JsonObject response = new JsonObject();
+        response.addProperty("type", "ANTICHEAT_ALERTS");
+
+        JsonObject data = new JsonObject();
+
+        // Get all enabled anticheats and their checks
+        JsonArray anticheats = new JsonArray();
+        if (plugin.getHookManager().getAnticheatManager() != null) {
+            for (String acName : plugin.getHookManager().getAnticheatManager().getEnabledAnticheats()) {
+                JsonObject ac = new JsonObject();
+                ac.addProperty("name", acName);
+
+                // Get all checks for this anticheat
+                JsonArray checks = new JsonArray();
+                for (AnticheatChecks.CheckInfo check : AnticheatChecks.getChecks(acName)) {
+                    JsonObject checkObj = new JsonObject();
+                    checkObj.addProperty("name", check.getName());
+                    checkObj.addProperty("displayName", check.getDisplayName());
+                    checkObj.addProperty("category", check.getCategory().name());
+                    checkObj.addProperty("categoryDisplay", check.getCategory().getDisplayName());
+                    checkObj.addProperty("description", check.getDescription());
+                    checks.add(checkObj);
+                }
+
+                // Group checks by category
+                JsonObject categories = new JsonObject();
+                for (AnticheatChecks.Category cat : AnticheatChecks.Category.values()) {
+                    JsonArray catChecks = new JsonArray();
+                    for (AnticheatChecks.CheckInfo check : AnticheatChecks.getChecksByCategory(acName, cat)) {
+                        JsonObject checkObj = new JsonObject();
+                        checkObj.addProperty("name", check.getName());
+                        checkObj.addProperty("displayName", check.getDisplayName());
+                        checkObj.addProperty("description", check.getDescription());
+                        catChecks.add(checkObj);
+                    }
+                    if (catChecks.size() > 0) {
+                        categories.add(cat.name().toLowerCase(), catChecks);
+                    }
+                }
+
+                ac.add("checks", checks);
+                ac.add("categories", categories);
+                anticheats.add(ac);
+            }
+        }
+
+        data.add("anticheats", anticheats);
+        response.add("data", data);
+        conn.send(GSON.toJson(response));
+    }
+
+    private void sendStaffAlertPrefs(WebSocket conn, WebPanelSession session) {
+        JsonObject response = new JsonObject();
+        response.addProperty("type", "STAFF_ALERT_PREFS");
+
+        JsonObject data = new JsonObject();
+
+        // Get the staff member's settings
+        Player staffPlayer = Bukkit.getPlayer(session.playerUuid);
+        if (staffPlayer != null) {
+            var staffSettings = plugin.getStaffSettingsManager().getSettings(staffPlayer);
+
+            // Build preferences for each anticheat
+            JsonObject prefs = new JsonObject();
+            if (plugin.getHookManager().getAnticheatManager() != null) {
+                for (String acName : plugin.getHookManager().getAnticheatManager().getEnabledAnticheats()) {
+                    JsonObject acPrefs = new JsonObject();
+                    for (AnticheatChecks.CheckInfo check : AnticheatChecks.getChecks(acName)) {
+                        var pref = staffSettings.getCheckAlertPreference(acName, check.getDisplayName());
+                        JsonObject prefObj = new JsonObject();
+                        prefObj.addProperty("alertLevel", pref.getAlertLevel().name());
+                        prefObj.addProperty("thresholdCount", pref.getThresholdCount());
+                        prefObj.addProperty("timeWindowSeconds", pref.getTimeWindowSeconds());
+                        prefObj.addProperty("configured", pref.isConfigured());
+                        acPrefs.add(check.getName(), prefObj);
+                    }
+                    prefs.add(acName.toLowerCase(), acPrefs);
+                }
+            }
+
+            data.add("preferences", prefs);
+        }
+
+        response.add("data", data);
+        conn.send(GSON.toJson(response));
+    }
+
+    private void updateStaffAlertPref(WebSocket conn, JsonObject reqData, WebPanelSession session) {
+        String anticheat = reqData.has("anticheat") ? reqData.get("anticheat").getAsString() : "";
+        String checkName = reqData.has("checkName") ? reqData.get("checkName").getAsString() : "";
+        String alertLevel = reqData.has("alertLevel") ? reqData.get("alertLevel").getAsString() : "EVERYONE";
+        int thresholdCount = reqData.has("thresholdCount") ? reqData.get("thresholdCount").getAsInt() : 1;
+        int timeWindowSeconds = reqData.has("timeWindowSeconds") ? reqData.get("timeWindowSeconds").getAsInt() : 60;
+
+        if (anticheat.isEmpty() || checkName.isEmpty()) {
+            sendError(conn, "MISSING_DATA", "Anticheat and check name are required");
+            return;
+        }
+
+        Player staffPlayer = Bukkit.getPlayer(session.playerUuid);
+        if (staffPlayer != null) {
+            var staffSettings = plugin.getStaffSettingsManager().getSettings(staffPlayer);
+            var pref = staffSettings.getCheckAlertPreference(anticheat, checkName);
+
+            try {
+                pref.setAlertLevel(com.blockforge.moderex.staff.StaffSettings.AlertLevel.valueOf(alertLevel.toUpperCase()));
+            } catch (IllegalArgumentException e) {
+                pref.setAlertLevel(com.blockforge.moderex.staff.StaffSettings.AlertLevel.EVERYONE);
+            }
+            pref.setThresholdCount(thresholdCount);
+            pref.setTimeWindowSeconds(timeWindowSeconds);
+
+            plugin.getStaffSettingsManager().saveSettings(staffPlayer);
+            sendSuccess(conn, "Alert preference updated");
+        } else {
+            sendError(conn, "NOT_ONLINE", "Staff member must be online to update preferences");
+        }
+    }
+
+    private void sendAlertPresets(WebSocket conn) {
+        JsonObject response = new JsonObject();
+        response.addProperty("type", "ALERT_PRESETS");
+
+        JsonArray presets = new JsonArray();
+
+        // Preset: All On
+        JsonObject allOn = new JsonObject();
+        allOn.addProperty("id", "all_on");
+        allOn.addProperty("name", "All Alerts On");
+        allOn.addProperty("description", "Receive all anticheat alerts for all players");
+        allOn.addProperty("alertLevel", "EVERYONE");
+        allOn.addProperty("thresholdCount", 1);
+        allOn.addProperty("timeWindowSeconds", 60);
+        presets.add(allOn);
+
+        // Preset: Watchlist Only
+        JsonObject watchlistOnly = new JsonObject();
+        watchlistOnly.addProperty("id", "watchlist_only");
+        watchlistOnly.addProperty("name", "Watchlist Only");
+        watchlistOnly.addProperty("description", "Only receive alerts for watched players");
+        watchlistOnly.addProperty("alertLevel", "WATCHLIST_ONLY");
+        watchlistOnly.addProperty("thresholdCount", 1);
+        watchlistOnly.addProperty("timeWindowSeconds", 60);
+        presets.add(watchlistOnly);
+
+        // Preset: Reduced Spam
+        JsonObject reducedSpam = new JsonObject();
+        reducedSpam.addProperty("id", "reduced_spam");
+        reducedSpam.addProperty("name", "Reduced Spam");
+        reducedSpam.addProperty("description", "Receive alerts only after 3 violations in 30 seconds");
+        reducedSpam.addProperty("alertLevel", "EVERYONE");
+        reducedSpam.addProperty("thresholdCount", 3);
+        reducedSpam.addProperty("timeWindowSeconds", 30);
+        presets.add(reducedSpam);
+
+        // Preset: Competitive
+        JsonObject competitive = new JsonObject();
+        competitive.addProperty("id", "competitive");
+        competitive.addProperty("name", "Competitive Mode");
+        competitive.addProperty("description", "Focus on combat checks (KillAura, Reach, etc.)");
+        competitive.addProperty("alertLevel", "EVERYONE");
+        competitive.addProperty("thresholdCount", 1);
+        competitive.addProperty("timeWindowSeconds", 60);
+        competitive.addProperty("combatOnly", true);
+        presets.add(competitive);
+
+        // Preset: All Off
+        JsonObject allOff = new JsonObject();
+        allOff.addProperty("id", "all_off");
+        allOff.addProperty("name", "All Alerts Off");
+        allOff.addProperty("description", "Disable all anticheat alerts");
+        allOff.addProperty("alertLevel", "OFF");
+        allOff.addProperty("thresholdCount", 1);
+        allOff.addProperty("timeWindowSeconds", 60);
+        presets.add(allOff);
+
+        JsonObject data = new JsonObject();
+        data.add("presets", presets);
+        response.add("data", data);
+        conn.send(GSON.toJson(response));
+    }
+
+    private void applyAlertPreset(WebSocket conn, JsonObject reqData, WebPanelSession session) {
+        String presetId = reqData.has("presetId") ? reqData.get("presetId").getAsString() : "";
+
+        if (presetId.isEmpty()) {
+            sendError(conn, "MISSING_DATA", "Preset ID is required");
+            return;
+        }
+
+        Player staffPlayer = Bukkit.getPlayer(session.playerUuid);
+        if (staffPlayer == null) {
+            sendError(conn, "NOT_ONLINE", "Staff member must be online to apply preset");
+            return;
+        }
+
+        var staffSettings = plugin.getStaffSettingsManager().getSettings(staffPlayer);
+        com.blockforge.moderex.staff.StaffSettings.AlertLevel alertLevel;
+        int thresholdCount;
+        int timeWindowSeconds;
+        boolean combatOnly = false;
+
+        switch (presetId) {
+            case "all_on" -> {
+                alertLevel = com.blockforge.moderex.staff.StaffSettings.AlertLevel.EVERYONE;
+                thresholdCount = 1;
+                timeWindowSeconds = 60;
+            }
+            case "watchlist_only" -> {
+                alertLevel = com.blockforge.moderex.staff.StaffSettings.AlertLevel.WATCHLIST_ONLY;
+                thresholdCount = 1;
+                timeWindowSeconds = 60;
+            }
+            case "reduced_spam" -> {
+                alertLevel = com.blockforge.moderex.staff.StaffSettings.AlertLevel.EVERYONE;
+                thresholdCount = 3;
+                timeWindowSeconds = 30;
+            }
+            case "competitive" -> {
+                alertLevel = com.blockforge.moderex.staff.StaffSettings.AlertLevel.EVERYONE;
+                thresholdCount = 1;
+                timeWindowSeconds = 60;
+                combatOnly = true;
+            }
+            case "all_off" -> {
+                alertLevel = com.blockforge.moderex.staff.StaffSettings.AlertLevel.OFF;
+                thresholdCount = 1;
+                timeWindowSeconds = 60;
+            }
+            default -> {
+                sendError(conn, "INVALID_PRESET", "Unknown preset: " + presetId);
+                return;
+            }
+        }
+
+        // Apply to all checks
+        if (plugin.getHookManager().getAnticheatManager() != null) {
+            for (String acName : plugin.getHookManager().getAnticheatManager().getEnabledAnticheats()) {
+                for (AnticheatChecks.CheckInfo check : AnticheatChecks.getChecks(acName)) {
+                    var pref = staffSettings.getCheckAlertPreference(acName, check.getDisplayName());
+
+                    // For competitive mode, only enable combat checks
+                    if (combatOnly) {
+                        if (check.getCategory() == AnticheatChecks.Category.COMBAT) {
+                            pref.setAlertLevel(alertLevel);
+                        } else {
+                            pref.setAlertLevel(com.blockforge.moderex.staff.StaffSettings.AlertLevel.OFF);
+                        }
+                    } else {
+                        pref.setAlertLevel(alertLevel);
+                    }
+                    pref.setThresholdCount(thresholdCount);
+                    pref.setTimeWindowSeconds(timeWindowSeconds);
+                }
+            }
+        }
+
+        plugin.getStaffSettingsManager().saveSettings(staffPlayer);
+        sendSuccess(conn, "Applied preset: " + presetId);
+        plugin.getLogger().info("[WebPanel] " + session.playerName + " applied alert preset: " + presetId);
     }
 
     private void sendLuckPermsStatus(WebSocket conn) {
