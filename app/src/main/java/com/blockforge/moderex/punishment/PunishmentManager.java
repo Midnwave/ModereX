@@ -539,6 +539,7 @@ public class PunishmentManager {
             case KICK -> MessageKey.KICK_BROADCAST;
             case WARN -> MessageKey.WARN_BROADCAST;
             case IPBAN -> MessageKey.IPBAN_BROADCAST;
+            case IPMUTE -> MessageKey.IPMUTE_BROADCAST;
         };
 
         Component message = plugin.getLanguageManager().get(key,
@@ -583,14 +584,7 @@ public class PunishmentManager {
                 .replace("<duration>", duration)
                 .replace("<reason>", punishment.getReason());
 
-        // Center each line
-        String[] lines = template.split("\n");
-        StringBuilder centered = new StringBuilder();
-        for (String line : lines) {
-            centered.append(TextUtil.centerMessage(line)).append("\n");
-        }
-
-        return TextUtil.parse(centered.toString().trim());
+        return TextUtil.parse(template);
     }
 
     public Component buildKickMessage(Punishment punishment) {
@@ -602,13 +596,387 @@ public class PunishmentManager {
                 .replace("<staff>", punishment.getStaffName())
                 .replace("<reason>", punishment.getReason());
 
-        // Center each line
-        String[] lines = template.split("\n");
-        StringBuilder centered = new StringBuilder();
-        for (String line : lines) {
-            centered.append(TextUtil.centerMessage(line)).append("\n");
-        }
+        return TextUtil.parse(template);
+    }
 
-        return TextUtil.parse(centered.toString().trim());
+    // ============================================
+    // NEW METHODS FOR REVAMPED COMMAND SYSTEM
+    // ============================================
+
+    /**
+     * IP Mute a player (combines UUID and IP address)
+     */
+    public CompletableFuture<Punishment> ipMute(UUID playerUuid, String playerName, String ipAddress,
+                                                  UUID staffUuid, String staffName, long duration, String reason) {
+        return createPunishment(playerUuid, playerName, PunishmentType.IPMUTE, staffUuid, staffName, duration, reason, ipAddress)
+                .thenApply(punishment -> {
+                    // Notify player if online
+                    Player player = Bukkit.getPlayer(playerUuid);
+                    if (player != null) {
+                        Component message = plugin.getLanguageManager().getPrefixed(MessageKey.MUTE_MESSAGE,
+                                "duration", DurationParser.format(duration),
+                                "reason", reason != null ? reason : "No reason specified");
+                        Bukkit.getScheduler().runTask(plugin, () -> player.sendMessage(message));
+                    }
+                    return punishment;
+                });
+    }
+
+    /**
+     * Get punishment by ID (for /unban #123, /unwarn #456, etc.)
+     */
+    public CompletableFuture<Punishment> getPunishmentById(long id) {
+        return CompletableFuture.supplyAsync(() -> {
+            try {
+                return plugin.getDatabaseManager().query("""
+                        SELECT * FROM moderex_punishments WHERE id = ?
+                        """,
+                        rs -> rs.next() ? mapPunishment(rs) : null,
+                        id
+                );
+            } catch (SQLException e) {
+                plugin.logError("Failed to get punishment by ID", e);
+                return null;
+            }
+        });
+    }
+
+    /**
+     * Get punishment history for a player with optional type filter
+     */
+    public CompletableFuture<List<Punishment>> getHistory(UUID playerUuid, PunishmentType type) {
+        return CompletableFuture.supplyAsync(() -> {
+            try {
+                String query;
+                Object[] params;
+
+                if (type == null) {
+                    query = """
+                            SELECT * FROM moderex_punishments
+                            WHERE player_uuid = ?
+                            ORDER BY created_at DESC
+                            """;
+                    params = new Object[]{playerUuid.toString()};
+                } else {
+                    query = """
+                            SELECT * FROM moderex_punishments
+                            WHERE player_uuid = ? AND type = ?
+                            ORDER BY created_at DESC
+                            """;
+                    params = new Object[]{playerUuid.toString(), type.name()};
+                }
+
+                return plugin.getDatabaseManager().query(query,
+                        rs -> {
+                            List<Punishment> punishments = new ArrayList<>();
+                            while (rs.next()) {
+                                punishments.add(mapPunishment(rs));
+                            }
+                            return punishments;
+                        },
+                        params
+                );
+            } catch (SQLException e) {
+                plugin.logError("Failed to get punishment history", e);
+                return new ArrayList<>();
+            }
+        });
+    }
+
+    /**
+     * Get staff action history with optional type filter
+     */
+    public CompletableFuture<List<Punishment>> getStaffHistory(UUID staffUuid, PunishmentType type) {
+        return CompletableFuture.supplyAsync(() -> {
+            try {
+                String query;
+                Object[] params;
+
+                if (type == null) {
+                    query = """
+                            SELECT * FROM moderex_punishments
+                            WHERE staff_uuid = ?
+                            ORDER BY created_at DESC
+                            """;
+                    params = new Object[]{staffUuid != null ? staffUuid.toString() : null};
+                } else {
+                    query = """
+                            SELECT * FROM moderex_punishments
+                            WHERE staff_uuid = ? AND type = ?
+                            ORDER BY created_at DESC
+                            """;
+                    params = new Object[]{staffUuid != null ? staffUuid.toString() : null, type.name()};
+                }
+
+                return plugin.getDatabaseManager().query(query,
+                        rs -> {
+                            List<Punishment> punishments = new ArrayList<>();
+                            while (rs.next()) {
+                                punishments.add(mapPunishment(rs));
+                            }
+                            return punishments;
+                        },
+                        params
+                );
+            } catch (SQLException e) {
+                plugin.logError("Failed to get staff history", e);
+                return new ArrayList<>();
+            }
+        });
+    }
+
+    /**
+     * Get active warnings for a player
+     */
+    public CompletableFuture<List<Punishment>> getActiveWarnings(UUID playerUuid) {
+        return CompletableFuture.supplyAsync(() -> {
+            try {
+                return plugin.getDatabaseManager().query("""
+                        SELECT * FROM moderex_punishments
+                        WHERE player_uuid = ? AND type = 'WARN' AND active = TRUE
+                        AND (expires_at = -1 OR expires_at > ?)
+                        ORDER BY created_at DESC
+                        """,
+                        rs -> {
+                            List<Punishment> warnings = new ArrayList<>();
+                            while (rs.next()) {
+                                warnings.add(mapPunishment(rs));
+                            }
+                            return warnings;
+                        },
+                        playerUuid.toString(), System.currentTimeMillis()
+                );
+            } catch (SQLException e) {
+                plugin.logError("Failed to get active warnings", e);
+                return new ArrayList<>();
+            }
+        });
+    }
+
+    /**
+     * Get paginated list of active punishments by type
+     */
+    public CompletableFuture<List<Punishment>> getActivePunishmentsList(PunishmentType type, int page, int pageSize) {
+        return CompletableFuture.supplyAsync(() -> {
+            try {
+                int offset = (page - 1) * pageSize;
+                return plugin.getDatabaseManager().query("""
+                        SELECT * FROM moderex_punishments
+                        WHERE type = ? AND active = TRUE
+                        AND (expires_at = -1 OR expires_at > ?)
+                        ORDER BY created_at DESC
+                        LIMIT ? OFFSET ?
+                        """,
+                        rs -> {
+                            List<Punishment> punishments = new ArrayList<>();
+                            while (rs.next()) {
+                                punishments.add(mapPunishment(rs));
+                            }
+                            return punishments;
+                        },
+                        type.name(), System.currentTimeMillis(), pageSize, offset
+                );
+            } catch (SQLException e) {
+                plugin.logError("Failed to get active punishments list", e);
+                return new ArrayList<>();
+            }
+        });
+    }
+
+    /**
+     * Get count of active punishments by type (for pagination)
+     */
+    public CompletableFuture<Integer> getActivePunishmentsCount(PunishmentType type) {
+        return CompletableFuture.supplyAsync(() -> {
+            try {
+                return plugin.getDatabaseManager().query("""
+                        SELECT COUNT(*) FROM moderex_punishments
+                        WHERE type = ? AND active = TRUE
+                        AND (expires_at = -1 OR expires_at > ?)
+                        """,
+                        rs -> rs.next() ? rs.getInt(1) : 0,
+                        type.name(), System.currentTimeMillis()
+                );
+            } catch (SQLException e) {
+                plugin.logError("Failed to get active punishments count", e);
+                return 0;
+            }
+        });
+    }
+
+    /**
+     * Check if player has any warnings
+     */
+    public boolean hasWarnings(UUID playerUuid) {
+        try {
+            return plugin.getDatabaseManager().query("""
+                    SELECT 1 FROM moderex_punishments
+                    WHERE player_uuid = ? AND type = 'WARN' AND active = TRUE
+                    AND (expires_at = -1 OR expires_at > ?)
+                    LIMIT 1
+                    """,
+                    rs -> rs.next(),
+                    playerUuid.toString(), System.currentTimeMillis()
+            );
+        } catch (SQLException e) {
+            plugin.logError("Failed to check warnings", e);
+            return false;
+        }
+    }
+
+    /**
+     * Delete a punishment by ID (for -d flag)
+     */
+    public CompletableFuture<Boolean> deletePunishment(long id, UUID staffUuid, String staffName) {
+        return CompletableFuture.supplyAsync(() -> {
+            try {
+                int rows = plugin.getDatabaseManager().update("""
+                        DELETE FROM moderex_punishments WHERE id = ?
+                        """,
+                        id
+                );
+
+                if (rows > 0) {
+                    // Clear caches
+                    punishmentCache.clear();
+                    ipBanCache.clear();
+
+                    // TODO: Revert template progression
+
+                    plugin.getLogger().info("Punishment #" + id + " deleted by " + staffName);
+                    return true;
+                }
+            } catch (SQLException e) {
+                plugin.logError("Failed to delete punishment", e);
+            }
+            return false;
+        });
+    }
+
+    /**
+     * Modify an existing punishment (for -m flag)
+     */
+    public CompletableFuture<Boolean> modifyPunishment(long id, long newDuration, String newReason,
+                                                         UUID staffUuid, String staffName) {
+        return CompletableFuture.supplyAsync(() -> {
+            try {
+                long newExpiresAt = newDuration == -1 ? -1 : System.currentTimeMillis() + newDuration;
+
+                int rows = plugin.getDatabaseManager().update("""
+                        UPDATE moderex_punishments
+                        SET expires_at = ?, reason = ?, modified_at = ?, modified_by_uuid = ?, modified_by_name = ?
+                        WHERE id = ?
+                        """,
+                        newExpiresAt,
+                        newReason,
+                        System.currentTimeMillis(),
+                        staffUuid != null ? staffUuid.toString() : null,
+                        staffName,
+                        id
+                );
+
+                if (rows > 0) {
+                    // Clear caches
+                    punishmentCache.clear();
+                    ipBanCache.clear();
+
+                    plugin.getLogger().info("Punishment #" + id + " modified by " + staffName);
+                    return true;
+                }
+            } catch (SQLException e) {
+                plugin.logError("Failed to modify punishment", e);
+            }
+            return false;
+        });
+    }
+
+    /**
+     * Prune inactive punishments from history (for /prunehistory)
+     */
+    public CompletableFuture<Integer> pruneHistory(UUID playerUuid, long olderThan) {
+        return CompletableFuture.supplyAsync(() -> {
+            try {
+                String query;
+                Object[] params;
+
+                if (olderThan == -1) {
+                    // Prune all inactive
+                    query = """
+                            DELETE FROM moderex_punishments
+                            WHERE player_uuid = ? AND active = FALSE
+                            """;
+                    params = new Object[]{playerUuid.toString()};
+                } else {
+                    // Prune inactive older than duration
+                    long cutoff = System.currentTimeMillis() - olderThan;
+                    query = """
+                            DELETE FROM moderex_punishments
+                            WHERE player_uuid = ? AND active = FALSE AND created_at < ?
+                            """;
+                    params = new Object[]{playerUuid.toString(), cutoff};
+                }
+
+                int rows = plugin.getDatabaseManager().update(query, params);
+
+                // TODO: Revert template progression for pruned punishments
+
+                return rows;
+            } catch (SQLException e) {
+                plugin.logError("Failed to prune history", e);
+                return 0;
+            }
+        });
+    }
+
+    /**
+     * Rollback all punishments by a staff member (for /staffrollback)
+     */
+    public CompletableFuture<Integer> rollbackStaff(UUID staffUuid, long withinDuration) {
+        return CompletableFuture.supplyAsync(() -> {
+            try {
+                String query;
+                Object[] params;
+
+                if (withinDuration == -1) {
+                    // Rollback all
+                    query = """
+                            UPDATE moderex_punishments
+                            SET active = FALSE, removed_reason = 'Staff rollback'
+                            WHERE staff_uuid = ? AND active = TRUE
+                            """;
+                    params = new Object[]{staffUuid != null ? staffUuid.toString() : null};
+                } else {
+                    // Rollback within duration
+                    long cutoff = System.currentTimeMillis() - withinDuration;
+                    query = """
+                            UPDATE moderex_punishments
+                            SET active = FALSE, removed_reason = 'Staff rollback'
+                            WHERE staff_uuid = ? AND active = TRUE AND created_at > ?
+                            """;
+                    params = new Object[]{staffUuid != null ? staffUuid.toString() : null, cutoff};
+                }
+
+                int rows = plugin.getDatabaseManager().update(query, params);
+
+                // Clear caches
+                punishmentCache.clear();
+                ipBanCache.clear();
+
+                // TODO: Revert template progression for rolled back punishments
+
+                return rows;
+            } catch (SQLException e) {
+                plugin.logError("Failed to rollback staff actions", e);
+                return 0;
+            }
+        });
+    }
+
+    /**
+     * Clear all punishment caches
+     */
+    public void clearCaches() {
+        punishmentCache.clear();
+        ipBanCache.clear();
     }
 }

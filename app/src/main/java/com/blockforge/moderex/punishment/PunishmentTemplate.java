@@ -107,6 +107,7 @@ public class PunishmentTemplate {
             case KICK -> "<red>";
             case BAN -> "<dark_red>";
             case IPBAN -> "<dark_purple>";
+            case IPMUTE -> "<dark_purple>";
         };
     }
 
