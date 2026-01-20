@@ -62,6 +62,11 @@ public class HookManager {
         // Initialize anticheat manager
         anticheatManager = new AnticheatManager(plugin);
         anticheatManager.initialize();
+
+        // Log enabled anticheats for debugging
+        if (!anticheatManager.getEnabledAnticheats().isEmpty()) {
+            plugin.getLogger().info("[HookManager] Enabled anticheats: " + String.join(", ", anticheatManager.getEnabledAnticheats()));
+        }
     }
 
     private void detectAnticheat() {
