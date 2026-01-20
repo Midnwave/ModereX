@@ -78,7 +78,10 @@
     anticheat: {
       provider: 'Grim',
       enabled: true,
-      alerts: []
+      alerts: [],
+      anticheats: [],       // Full list with categories from server
+      alertPrefs: {},       // Per-check preferences keyed by anticheat.checkName
+      presets: []           // Available presets
     },
     anticheatRule: {
       enabled: true,
