@@ -336,6 +336,92 @@ vanish:
     # Placeholders: {player}, {level}, {time} (how long they've been vanished)
     format: '&7- &f{player} &8(Level {level})'
 
+  # ============================================
+  # GRANULAR PERMISSIONS
+  # ============================================
+  # Control what vanished staff can do while vanished
+  # By default, all actions are blocked unless the player has the specific permission
+  #
+  # Available permissions:
+  # - moderex.vanish.pickup: Allow picking up items/arrows while vanished (default: false)
+  # - moderex.vanish.chat: Allow chatting while vanished (default: false)
+  # - moderex.vanish.place: Allow placing blocks while vanished (default: false)
+  # - moderex.vanish.break: Allow breaking blocks while vanished (default: false)
+  # - moderex.vanish.attack: Allow attacking entities while vanished (default: false)
+  # - moderex.vanish.mobattack: Allow being attacked by mobs while vanished (default: false)
+  #
+  # Example LuckPerms setup:
+  # /lp group moderator permission set moderex.vanish.chat true
+  # /lp group admin permission set moderex.vanish.* true
+
+  # ============================================
+  # FLIGHT TOGGLE
+  # ============================================
+  # Enable flight when vanishing (requires moderex.vanish.flight permission)
+  enable-flight: true
+
+  # ============================================
+  # SPECTATOR MODE
+  # ============================================
+  # Enable double-sneak to toggle spectator mode (requires moderex.vanish.spectator permission)
+  double-sneak-spectator: true
+
+  # Time threshold for double-sneak detection (milliseconds)
+  double-sneak-threshold: 500
+
+# ============================================
+# DISGUISE SETTINGS
+# ============================================
+disguise:
+  # Enable disguise system
+  enabled: true
+
+  # Use LuckPerms groups as disguise ranks
+  # If false, uses ranks defined below
+  use-luckperms-groups: true
+
+  # Spoof join/quit messages with disguised name
+  spoof-join-quit-messages: true
+
+  # Join message format (supports {player} placeholder)
+  join-message-format: '&e{player} joined the game'
+
+  # Quit message format (supports {player} placeholder)
+  quit-message-format: '&e{player} left the game'
+
+  # Save disguise state across restarts
+  persistent: true
+
+  # Fallback ranks (used if LuckPerms is not available or use-luckperms-groups is false)
+  ranks:
+    default:
+      display-name: "Default"
+      description: "Default player rank"
+      prefix: ""
+      skull-texture: null
+
+    vip:
+      display-name: "VIP"
+      description: "VIP player rank"
+      prefix: "&6[VIP] "
+      skull-texture: null
+
+    moderator:
+      display-name: "Moderator"
+      description: "Server moderator"
+      prefix: "&9[Mod] "
+      skull-texture: null
+
+    admin:
+      display-name: "Admin"
+      description: "Server administrator"
+      prefix: "&c[Admin] "
+      skull-texture: null
+
+  # Permission format: moderex.disguise.rank.<rank>
+  # Example: moderex.disguise.rank.vip allows disguising as VIP rank
+  # Example: moderex.disguise.rank.* allows disguising as any rank
+
 # ============================================
 # WARNING SETTINGS
 # ============================================
