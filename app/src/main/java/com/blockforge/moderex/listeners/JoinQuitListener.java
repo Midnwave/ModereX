@@ -89,6 +89,7 @@ public class JoinQuitListener implements Listener {
         plugin.getPunishmentManager().loadPlayerPunishments(uuid);
 
         plugin.getVanishManager().onPlayerJoin(player);
+        plugin.getDisguiseManager().onPlayerJoin(player);
 
         if (plugin.getConfigManager().getSettings().isVanishHideRealJoinLeave() &&
                 plugin.getVanishManager().isVanished(player)) {
@@ -134,6 +135,7 @@ public class JoinQuitListener implements Listener {
         plugin.getAutomodManager().clearPlayerData(uuid);
         plugin.getStaffChatManager().onPlayerQuit(player);
         plugin.getVanishManager().onPlayerQuit(player);
+        plugin.getDisguiseManager().onPlayerQuit(player);
 
         // Watchlist notification
         if (plugin.getWatchlistManager().isWatched(uuid)) {

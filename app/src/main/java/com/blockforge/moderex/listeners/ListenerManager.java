@@ -19,6 +19,7 @@ public class ListenerManager {
         registerListener(new SignListener(plugin));
         registerListener(new GuiListener(plugin));
         registerListener(new VanishListener(plugin));
+        registerListener(new DisguiseListener(plugin));
         registerListener(new PlayerInteractionListener(plugin));
 
         plugin.getLogger().info("Registered all event listeners.");
