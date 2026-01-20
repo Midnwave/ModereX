@@ -35,6 +35,7 @@ public class PanelHttpServer {
         MIME_TYPES.put("woff", "font/woff");
         MIME_TYPES.put("woff2", "font/woff2");
         MIME_TYPES.put("ttf", "font/ttf");
+        MIME_TYPES.put("zip", "application/zip");
     }
 
     private final ModereX plugin;
@@ -60,6 +61,9 @@ public class PanelHttpServer {
 
             // API endpoint for config
             server.createContext("/api/config", new ConfigHandler());
+
+            // Resource pack endpoint
+            server.createContext("/resourcepack/", new ResourcePackHandler());
 
             // Serve static files (must be last as it's a catch-all)
             server.createContext("/", new StaticFileHandler());
@@ -170,6 +174,44 @@ public class PanelHttpServer {
             try (OutputStream os = exchange.getResponseBody()) {
                 os.write(bytes);
             }
+        }
+    }
+
+    private class ResourcePackHandler implements HttpHandler {
+        @Override
+        public void handle(HttpExchange exchange) throws IOException {
+            // Set CORS headers
+            exchange.getResponseHeaders().add("Access-Control-Allow-Origin", "*");
+
+            if (!"GET".equals(exchange.getRequestMethod())) {
+                sendError(exchange, 405, "Method not allowed");
+                return;
+            }
+
+            // Get the resource pack manager
+            var packManager = plugin.getResourcePackManager();
+            if (packManager == null || !packManager.isEnabled()) {
+                sendError(exchange, 404, "Resource pack not available");
+                return;
+            }
+
+            Path packFile = packManager.getPackFile();
+            if (packFile == null || !Files.exists(packFile)) {
+                sendError(exchange, 404, "Resource pack file not found");
+                return;
+            }
+
+            // Read and send the pack file
+            byte[] bytes = Files.readAllBytes(packFile);
+            exchange.getResponseHeaders().add("Content-Type", "application/zip");
+            exchange.getResponseHeaders().add("Content-Disposition", "attachment; filename=\"ModereX-GUI.zip\"");
+            exchange.getResponseHeaders().add("Cache-Control", "public, max-age=86400");
+            exchange.sendResponseHeaders(200, bytes.length);
+            try (OutputStream os = exchange.getResponseBody()) {
+                os.write(bytes);
+            }
+
+            plugin.logDebug("[ResourcePack] Served resource pack to " + exchange.getRemoteAddress());
         }
     }
 
