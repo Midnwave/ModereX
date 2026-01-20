@@ -3,6 +3,7 @@ package com.blockforge.moderex.gui;
 import com.blockforge.moderex.ModereX;
 import com.blockforge.moderex.hooks.anticheat.AnticheatAlertManager;
 import com.blockforge.moderex.hooks.anticheat.AnticheatAlertManager.AnticheatCheckRule;
+import com.blockforge.moderex.hooks.anticheat.AnticheatChecks;
 import com.blockforge.moderex.staff.StaffSettings;
 import com.blockforge.moderex.staff.StaffSettings.AlertLevel;
 import com.blockforge.moderex.staff.StaffSettings.CheckAlertPreference;
@@ -142,17 +143,47 @@ public class AnticheatRulesGui extends BaseGui {
 
     private void loadAllChecks() {
         allChecks.clear();
+        Set<String> seen = new HashSet<>();
 
-        // Get all rules from alert manager (these are detected checks)
-        AnticheatAlertManager alertManager = plugin.getAnticheatManager().getAlertManager();
-        for (AnticheatCheckRule rule : alertManager.getRules()) {
-            allChecks.add(new DetectedCheck(rule.getAnticheat(), rule.getCheckName()));
+        // Load ALL known checks from the registry for each enabled anticheat
+        for (String acName : plugin.getAnticheatManager().getEnabledAnticheats()) {
+            for (AnticheatChecks.CheckInfo checkInfo : AnticheatChecks.getChecks(acName)) {
+                String key = acName.toLowerCase() + ":" + checkInfo.getDisplayName().toLowerCase();
+                if (!seen.contains(key)) {
+                    seen.add(key);
+                    allChecks.add(new DetectedCheck(
+                        acName,
+                        checkInfo.getDisplayName(),
+                        checkInfo.getCategory(),
+                        checkInfo.getDescription()
+                    ));
+                }
+            }
         }
 
-        // Sort by anticheat then check name
+        // Also add any dynamically discovered checks from alert manager that aren't in registry
+        AnticheatAlertManager alertManager = plugin.getAnticheatManager().getAlertManager();
+        for (AnticheatCheckRule rule : alertManager.getRules()) {
+            String key = rule.getAnticheat().toLowerCase() + ":" + rule.getCheckName().toLowerCase();
+            if (!seen.contains(key)) {
+                seen.add(key);
+                // Guess category based on check name
+                AnticheatChecks.Category category = AnticheatChecks.getCategory(rule.getAnticheat(), rule.getCheckName());
+                allChecks.add(new DetectedCheck(
+                    rule.getAnticheat(),
+                    rule.getCheckName(),
+                    category,
+                    "Dynamically discovered check"
+                ));
+            }
+        }
+
+        // Sort by anticheat, then category, then check name
         allChecks.sort((a, b) -> {
             int acCompare = a.anticheat.compareToIgnoreCase(b.anticheat);
             if (acCompare != 0) return acCompare;
+            int catCompare = a.category.ordinal() - b.category.ordinal();
+            if (catCompare != 0) return catCompare;
             return a.checkName.compareToIgnoreCase(b.checkName);
         });
     }
@@ -162,7 +193,8 @@ public class AnticheatRulesGui extends BaseGui {
         boolean configured = pref.isConfigured();
 
         List<String> lore = new ArrayList<>();
-        lore.add("<dark_gray>" + check.anticheat);
+        lore.add("<dark_gray>" + check.anticheat + " <dark_gray>| <gray>" + check.category.getDisplayName());
+        lore.add("<dark_gray>" + check.description);
         lore.add("");
 
         if (configured) {
@@ -212,10 +244,14 @@ public class AnticheatRulesGui extends BaseGui {
     private static class DetectedCheck {
         final String anticheat;
         final String checkName;
+        final AnticheatChecks.Category category;
+        final String description;
 
-        DetectedCheck(String anticheat, String checkName) {
+        DetectedCheck(String anticheat, String checkName, AnticheatChecks.Category category, String description) {
             this.anticheat = anticheat;
             this.checkName = checkName;
+            this.category = category;
+            this.description = description;
         }
     }
 
