@@ -60,40 +60,169 @@ public class AnticheatChecks {
         }
     }
 
-    // ========== GRIM CHECKS ==========
+    // ========== GRIM CHECKS (from decompiled v2.3.72) ==========
     private static final List<CheckInfo> GRIM_CHECKS = Arrays.asList(
+        // Aim
+        new CheckInfo("aimduplicatelook", "AimDuplicateLook", Category.COMBAT, "Detects duplicate look packets"),
+        new CheckInfo("aimmodulo360", "AimModulo360", Category.COMBAT, "Detects modulo 360 aim snapping"),
+
+        // BadPackets (A-Y)
+        new CheckInfo("badpacketsa", "BadPacketsA", Category.PLAYER, "Sent duplicate slot id"),
+        new CheckInfo("badpacketsb", "BadPacketsB", Category.PLAYER, "Sent duplicate sneaking status"),
+        new CheckInfo("badpacketsc", "BadPacketsC", Category.PLAYER, "Sent duplicate sprinting status"),
+        new CheckInfo("badpacketsd", "BadPacketsD", Category.PLAYER, "Sent spectate packets while not in spectator"),
+        new CheckInfo("badpacketse", "BadPacketsE", Category.PLAYER, "Sent creative mode inventory click while not creative"),
+        new CheckInfo("badpacketsf", "BadPacketsF", Category.PLAYER, "Sent out of bounds slot id"),
+        new CheckInfo("badpacketsg", "BadPacketsG", Category.PLAYER, "Sent out of bounds cursor position"),
+        new CheckInfo("badpacketsh", "BadPacketsH", Category.PLAYER, "Claimed to be in a vehicle while not in one"),
+        new CheckInfo("badpacketsi", "BadPacketsI", Category.PLAYER, "Sent boat paddle states while not in a boat"),
+        new CheckInfo("badpacketsj", "BadPacketsJ", Category.PLAYER, "Sent incorrect boat paddle states"),
+        new CheckInfo("badpacketsk", "BadPacketsK", Category.PLAYER, "Jumped in a vehicle that cannot jump"),
+        new CheckInfo("badpacketsl", "BadPacketsL", Category.PLAYER, "Invalid click packets"),
+        new CheckInfo("badpacketsm", "BadPacketsM", Category.PLAYER, "Sent impossible use item packet"),
+        new CheckInfo("badpacketsn", "BadPacketsN", Category.PLAYER, "Sent impossible dig packet"),
+        new CheckInfo("badpacketso", "BadPacketsO", Category.PLAYER, "Sent impossible block face id"),
+        new CheckInfo("badpacketsp", "BadPacketsP", Category.PLAYER, "Sent non-finite position or rotation"),
+        new CheckInfo("badpacketsq", "BadPacketsQ", Category.PLAYER, "Sent invalid cursor position"),
+        new CheckInfo("badpacketsr", "BadPacketsR", Category.PLAYER, "Impossible pitch value"),
+        new CheckInfo("badpacketss", "BadPacketsS", Category.PLAYER, "Claimed to be flying while unable to fly"),
+        new CheckInfo("badpacketst", "BadPacketsT", Category.PLAYER, "Impossible input values"),
+        new CheckInfo("badpacketsu", "BadPacketsU", Category.PLAYER, "Sent negative sequence id"),
+        new CheckInfo("badpacketsv", "BadPacketsV", Category.PLAYER, "Sent unexpected sequence id"),
+        new CheckInfo("badpacketsw", "BadPacketsW", Category.PLAYER, "Clicking slots in lectern window"),
+        new CheckInfo("badpacketsx", "BadPacketsX", Category.PLAYER, "Ignored set rotation packet"),
+        new CheckInfo("badpacketsy", "BadPacketsY", Category.PLAYER, "Invalid book edit"),
+
+        // Breaking
+        new CheckInfo("airliquidbreak", "AirLiquidBreak", Category.WORLD, "Breaking a block that cannot be broken"),
+        new CheckInfo("farbreak", "FarBreak", Category.WORLD, "Breaking blocks too far away"),
+        new CheckInfo("fastbreak", "FastBreak", Category.WORLD, "Breaking blocks too quickly"),
+        new CheckInfo("invalidbreak", "InvalidBreak", Category.WORLD, "Invalid block break"),
+        new CheckInfo("multibreak", "MultiBreak", Category.WORLD, "Breaking multiple blocks in one tick"),
+        new CheckInfo("noswingbreak", "NoSwingBreak", Category.WORLD, "Did not swing while breaking block"),
+        new CheckInfo("positionbreaka", "PositionBreakA", Category.WORLD, "Invalid break position"),
+        new CheckInfo("positionbreakb", "PositionBreakB", Category.WORLD, "Invalid break position (variant)"),
+        new CheckInfo("rotationbreak", "RotationBreak", Category.WORLD, "Invalid rotation while breaking"),
+        new CheckInfo("wrongbreak", "WrongBreak", Category.WORLD, "Breaking the wrong block"),
+
+        // Chat
+        new CheckInfo("chata", "ChatA", Category.MISC, "Invalid chat message"),
+        new CheckInfo("chatb", "ChatB", Category.MISC, "Chatting while chat is hidden"),
+        new CheckInfo("chatc", "ChatC", Category.MISC, "Moving while chatting"),
+        new CheckInfo("chatd", "ChatD", Category.MISC, "Too long item name in anvil"),
+
         // Combat
-        new CheckInfo("reach", "Reach", Category.COMBAT, "Detects extended attack reach", "combat.reach"),
-        new CheckInfo("killaura", "KillAura", Category.COMBAT, "Detects automated combat", "aura", "aimbot"),
-        new CheckInfo("autoclicker", "AutoClicker", Category.COMBAT, "Detects automated clicking"),
-        new CheckInfo("aim", "Aim Assist", Category.COMBAT, "Detects aim assistance"),
-        new CheckInfo("hitbox", "Hitbox", Category.COMBAT, "Detects hitbox expansion"),
+        new CheckInfo("hitboxes", "Hitboxes", Category.COMBAT, "Hitbox expansion detection"),
+        new CheckInfo("multiinteracta", "MultiInteractA", Category.COMBAT, "Interacted with multiple entities in the same tick"),
+        new CheckInfo("multiinteractb", "MultiInteractB", Category.COMBAT, "Multiple interact variant"),
+        new CheckInfo("reach", "Reach", Category.COMBAT, "Detects extended attack reach"),
+
+        // Crash
+        new CheckInfo("crasha", "CrashA", Category.PLAYER, "Crash attempt type A"),
+        new CheckInfo("crashb", "CrashB", Category.PLAYER, "Crash attempt type B"),
+        new CheckInfo("crashc", "CrashC", Category.PLAYER, "Crash attempt type C"),
+        new CheckInfo("crashd", "CrashD", Category.PLAYER, "Crash attempt type D"),
+        new CheckInfo("crashe", "CrashE", Category.PLAYER, "Crash attempt type E"),
+        new CheckInfo("crashf", "CrashF", Category.PLAYER, "Crash attempt type F"),
+        new CheckInfo("crashg", "CrashG", Category.PLAYER, "Crash attempt type G"),
+        new CheckInfo("crashh", "CrashH", Category.PLAYER, "Crash attempt type H"),
+        new CheckInfo("crashi", "CrashI", Category.PLAYER, "Crash attempt type I"),
+
+        // Elytra
+        new CheckInfo("elytraa", "ElytraA", Category.MOVEMENT, "Started gliding without an elytra"),
+        new CheckInfo("elytrab", "ElytraB", Category.MOVEMENT, "Started gliding on ground"),
+        new CheckInfo("elytrac", "ElytraC", Category.MOVEMENT, "Started gliding while flying"),
+        new CheckInfo("elytrad", "ElytraD", Category.MOVEMENT, "Started gliding with levitation"),
+        new CheckInfo("elytrae", "ElytraE", Category.MOVEMENT, "Started gliding without jumping"),
+        new CheckInfo("elytraf", "ElytraF", Category.MOVEMENT, "Started gliding while already gliding"),
+        new CheckInfo("elytrag", "ElytraG", Category.MOVEMENT, "Started gliding too frequently"),
+        new CheckInfo("elytrah", "ElytraH", Category.MOVEMENT, "Started gliding in vehicle"),
+        new CheckInfo("elytrai", "ElytraI", Category.MOVEMENT, "Started gliding in water"),
+
+        // Exploit
+        new CheckInfo("exploita", "ExploitA", Category.PLAYER, "Exploit type A"),
+        new CheckInfo("exploitb", "ExploitB", Category.PLAYER, "Tried to respawn while alive"),
+
+        // GroundSpoof
+        new CheckInfo("nofall", "NoFall", Category.MOVEMENT, "Ground spoof / no fall damage"),
+        new CheckInfo("groundspoof", "GroundSpoof", Category.MOVEMENT, "Ground spoofing detection"),
+
+        // Misc
+        new CheckInfo("post", "Post", Category.PLAYER, "Post packet timing check"),
+        new CheckInfo("transactionorder", "TransactionOrder", Category.PLAYER, "Transaction order check"),
+        new CheckInfo("clientbrand", "ClientBrand", Category.MISC, "Client brand check"),
 
         // Movement
-        new CheckInfo("simulation", "Simulation", Category.MOVEMENT, "Movement prediction check"),
-        new CheckInfo("timer", "Timer", Category.MOVEMENT, "Detects game timer manipulation", "timerbalance"),
-        new CheckInfo("ground", "Ground Spoof", Category.MOVEMENT, "Detects ground spoofing", "groundspoof"),
-        new CheckInfo("prediction", "Prediction", Category.MOVEMENT, "Predictive movement check"),
-        new CheckInfo("vehicle", "Vehicle", Category.MOVEMENT, "Vehicle movement checks", "entitycontrol"),
-        new CheckInfo("phase", "Phase", Category.MOVEMENT, "Detects phasing through blocks"),
-        new CheckInfo("nofall", "NoFall", Category.MOVEMENT, "Detects fall damage bypass"),
-        new CheckInfo("fly", "Fly", Category.MOVEMENT, "Detects flight hacks", "flight"),
-        new CheckInfo("speed", "Speed", Category.MOVEMENT, "Detects speed hacks"),
-        new CheckInfo("step", "Step", Category.MOVEMENT, "Detects step hacks"),
-        new CheckInfo("noslow", "NoSlow", Category.MOVEMENT, "Detects slowdown bypass"),
-        new CheckInfo("strafe", "Strafe", Category.MOVEMENT, "Detects strafe hacks"),
-        new CheckInfo("antikb", "AntiKnockback", Category.MOVEMENT, "Detects knockback bypass", "velocity", "knockback"),
-        new CheckInfo("elytra", "Elytra", Category.MOVEMENT, "Detects elytra exploits"),
-        new CheckInfo("jesus", "Jesus/WaterWalk", Category.MOVEMENT, "Detects water walking", "waterwalk", "liquidwalk"),
+        new CheckInfo("noslow", "NoSlow", Category.MOVEMENT, "Was not slowed while using an item"),
 
-        // Player
-        new CheckInfo("badpackets", "Bad Packets", Category.PLAYER, "Detects invalid packets", "packet"),
-        new CheckInfo("inventory", "Inventory", Category.PLAYER, "Inventory interaction checks"),
-        new CheckInfo("scaffold", "Scaffold", Category.WORLD, "Detects scaffold/bridging", "tower"),
-        new CheckInfo("crash", "Crash", Category.PLAYER, "Detects crash attempts"),
-        new CheckInfo("exploit", "Exploit", Category.PLAYER, "General exploit detection"),
-        new CheckInfo("post", "Post", Category.PLAYER, "Post packet timing checks"),
-        new CheckInfo("baritone", "Baritone", Category.PLAYER, "Detects Baritone bot usage")
+        // MultiActions
+        new CheckInfo("multiactionsa", "MultiActionsA", Category.PLAYER, "Attacked while using an item"),
+        new CheckInfo("multiactionsb", "MultiActionsB", Category.PLAYER, "Breaking blocks while using an item"),
+        new CheckInfo("multiactionsc", "MultiActionsC", Category.PLAYER, "Swinging while using an item"),
+        new CheckInfo("multiactionsd", "MultiActionsD", Category.PLAYER, "Attacking while rowing a boat"),
+        new CheckInfo("multiactionse", "MultiActionsE", Category.PLAYER, "Interacting with block and entity in same tick"),
+        new CheckInfo("multiactionsf", "MultiActionsF", Category.PLAYER, "Did not swing for attack"),
+        new CheckInfo("multiactionsg", "MultiActionsG", Category.PLAYER, "Closed inventory while moving"),
+
+        // PacketOrder
+        new CheckInfo("packetordera", "PacketOrderA", Category.PLAYER, "Packet order check A"),
+        new CheckInfo("packetorderb", "PacketOrderB", Category.PLAYER, "Packet order check B"),
+        new CheckInfo("packetorderc", "PacketOrderC", Category.PLAYER, "Interacted with non-existent entity"),
+        new CheckInfo("packetorderd", "PacketOrderD", Category.PLAYER, "Interacted with self"),
+        new CheckInfo("packetordere", "PacketOrderE", Category.PLAYER, "Packet order check E"),
+        new CheckInfo("packetorderf", "PacketOrderF", Category.PLAYER, "Packet order check F"),
+        new CheckInfo("packetorderg", "PacketOrderG", Category.PLAYER, "Rotation in use item did not match tick"),
+        new CheckInfo("packetorderh", "PacketOrderH", Category.PLAYER, "Clicked in inventory while moving"),
+        new CheckInfo("packetorderi", "PacketOrderI", Category.PLAYER, "Packet order check I"),
+        new CheckInfo("packetorderj", "PacketOrderJ", Category.PLAYER, "Packet order check J"),
+        new CheckInfo("packetorderk", "PacketOrderK", Category.PLAYER, "Packet order check K"),
+        new CheckInfo("packetorderl", "PacketOrderL", Category.PLAYER, "Packet order check L"),
+        new CheckInfo("packetorderm", "PacketOrderM", Category.PLAYER, "Packet order check M"),
+        new CheckInfo("packetordern", "PacketOrderN", Category.PLAYER, "Packet order check N"),
+        new CheckInfo("packetordero", "PacketOrderO", Category.PLAYER, "Packet order check O"),
+
+        // Prediction
+        new CheckInfo("simulation", "Simulation", Category.MOVEMENT, "Movement prediction simulation"),
+        new CheckInfo("phase", "Phase", Category.MOVEMENT, "Phasing through blocks"),
+
+        // Scaffolding
+        new CheckInfo("airliquidplace", "AirLiquidPlace", Category.WORLD, "Placed a block in air/liquid"),
+        new CheckInfo("duplicaterotplace", "DuplicateRotPlace", Category.WORLD, "Duplicate rotation while placing"),
+        new CheckInfo("fabricatedplace", "FabricatedPlace", Category.WORLD, "Fabricated block placement"),
+        new CheckInfo("farplace", "FarPlace", Category.WORLD, "Placing blocks from too far away"),
+        new CheckInfo("invalidplacea", "InvalidPlaceA", Category.WORLD, "Placed a block against a hidden face"),
+        new CheckInfo("invalidplaceb", "InvalidPlaceB", Category.WORLD, "Placed a block against invalid support"),
+        new CheckInfo("multiplace", "MultiPlace", Category.WORLD, "Placed multiple blocks in a tick"),
+        new CheckInfo("positionplace", "PositionPlace", Category.WORLD, "Placed a block while not looking at it"),
+        new CheckInfo("rotationplace", "RotationPlace", Category.WORLD, "Invalid rotation while placing"),
+
+        // Sprint
+        new CheckInfo("sprinta", "SprintA", Category.MOVEMENT, "Sprinting while colliding with a wall"),
+        new CheckInfo("sprintb", "SprintB", Category.MOVEMENT, "Sprinting while sneaking or crawling"),
+        new CheckInfo("sprintc", "SprintC", Category.MOVEMENT, "Sprinting while using an item"),
+        new CheckInfo("sprintd", "SprintD", Category.MOVEMENT, "Sprinting with too low hunger"),
+        new CheckInfo("sprinte", "SprintE", Category.MOVEMENT, "Started sprinting while having blindness"),
+        new CheckInfo("sprintf", "SprintF", Category.MOVEMENT, "Sprinting while gliding"),
+        new CheckInfo("sprintg", "SprintG", Category.MOVEMENT, "Sprinting while in water"),
+
+        // Timer
+        new CheckInfo("timer", "Timer", Category.MOVEMENT, "Game timer manipulation"),
+        new CheckInfo("negativetimer", "NegativeTimer", Category.MOVEMENT, "Negative timer detection"),
+        new CheckInfo("ticktimer", "TickTimer", Category.MOVEMENT, "Tick timer manipulation"),
+        new CheckInfo("timerlimit", "TimerLimit", Category.MOVEMENT, "Did not move far enough"),
+        new CheckInfo("vehicletimer", "VehicleTimer", Category.MOVEMENT, "Vehicle timer manipulation"),
+
+        // Vehicle
+        new CheckInfo("vehiclea", "VehicleA", Category.MOVEMENT, "Vehicle check A"),
+        new CheckInfo("vehicleb", "VehicleB", Category.MOVEMENT, "Vehicle check B"),
+        new CheckInfo("vehiclec", "VehicleC", Category.MOVEMENT, "Vehicle check C"),
+        new CheckInfo("vehicled", "VehicleD", Category.MOVEMENT, "Vehicle check D"),
+        new CheckInfo("vehiclee", "VehicleE", Category.MOVEMENT, "Vehicle check E"),
+        new CheckInfo("vehiclef", "VehicleF", Category.MOVEMENT, "Vehicle check F"),
+
+        // Velocity
+        new CheckInfo("antikb", "AntiKB", Category.COMBAT, "Knockback bypass detection", "antiknockback"),
+        new CheckInfo("antiexplosion", "AntiExplosion", Category.COMBAT, "Explosion knockback bypass")
     );
 
     // ========== VULCAN CHECKS ==========
