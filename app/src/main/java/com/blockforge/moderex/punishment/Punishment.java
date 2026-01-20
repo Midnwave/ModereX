@@ -176,6 +176,10 @@ public class Punishment {
         return System.currentTimeMillis() >= expiresAt;
     }
 
+    public boolean isRemoved() {
+        return removedAt != null;
+    }
+
     public long getRemainingTime() {
         if (isPermanent()) return -1;
         long remaining = expiresAt - System.currentTimeMillis();
