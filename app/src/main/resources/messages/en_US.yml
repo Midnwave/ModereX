@@ -136,7 +136,7 @@ cmdblacklist:
 # ============================================
 modlog:
   header: "<gold><strikethrough>     </strikethrough> Modlog for <yellow><player></yellow> <strikethrough>     </strikethrough>"
-  entry: "<gray>[<white><date></white>] <type_color><type></type_color>: <white><reason></white> <gray>(by <yellow><staff></yellow>) - <white><duration>"
+  entry: "<gray>[<white><date></white>] <yellow><type></yellow>: <white><reason></white> <gray>(by <yellow><staff></yellow>) - <white><duration></white> [<status>]"
   empty: "<gray>No moderation history found for <yellow><player></yellow>."
   footer: "<gold><strikethrough>     </strikethrough> Page <yellow><page></yellow>/<yellow><total></yellow> <strikethrough>     </strikethrough>"
 
@@ -204,3 +204,329 @@ gui:
     title: "<dark_gray>Automod Settings"
   settings:
     title: "<dark_gray>ModereX Settings"
+
+# ============================================
+# IP MUTE
+# ============================================
+ipmute:
+  success: "<green>Successfully IP muted <yellow><player></yellow> for <white><duration></white>."
+  broadcast: "<gray><staff> <gold>IP muted</gold> <yellow><player></yellow> for <white><duration></white>. Reason: <white><reason>"
+  message: "<red>You have been IP muted for <white><duration></white>.\n<gray>Reason: <white><reason>"
+  already-muted: "<red><player> is already IP muted."
+
+# ============================================
+# TEMPORARY PUNISHMENTS
+# ============================================
+tempban:
+  success: "<green>Successfully temporarily banned <yellow><player></yellow> for <white><duration></white>."
+  broadcast: "<gray><staff> <dark_red>temporarily banned</dark_red> <yellow><player></yellow> for <white><duration></white>. Reason: <white><reason>"
+  duration-required: "<red>Duration is required for temporary bans. Use: /tempban <player> <duration> [reason]"
+
+tempmute:
+  success: "<green>Successfully temporarily muted <yellow><player></yellow> for <white><duration></white>."
+  broadcast: "<gray><staff> <gold>temporarily muted</gold> <yellow><player></yellow> for <white><duration></white>. Reason: <white><reason>"
+  duration-required: "<red>Duration is required for temporary mutes. Use: /tempmute <player> <duration> [reason]"
+
+# ============================================
+# UNWARN
+# ============================================
+unwarn:
+  success: "<green>Successfully removed warning for <yellow><player></yellow>."
+  broadcast: "<gray><staff> <green>removed a warning</green> from <yellow><player></yellow>."
+  not-warned: "<red><player> has no active warnings."
+  by-id: "<green>Successfully removed warning with ID <yellow><id></yellow>."
+
+# ============================================
+# CHECK COMMANDS
+# ============================================
+checkban:
+  header: "<gold><strikethrough>     </strikethrough> Ban Status for <yellow><player></yellow> <strikethrough>     </strikethrough>"
+  banned: "<red><player> is currently banned."
+  not-banned: "<green><player> is not banned."
+  details: |
+    <gray>Banned by: <white><staff>
+    <gray>Banned on: <white><date>
+    <gray>Duration: <white><duration>
+    <gray>Reason: <white><reason>
+    <gray>Expires: <white><expiry>
+    <gray>Case ID: <white><case_id>
+
+checkmute:
+  header: "<gold><strikethrough>     </strikethrough> Mute Status for <yellow><player></yellow> <strikethrough>     </strikethrough>"
+  muted: "<red><player> is currently muted."
+  not-muted: "<green><player> is not muted."
+  details: |
+    <gray>Muted by: <white><staff>
+    <gray>Muted on: <white><date>
+    <gray>Duration: <white><duration>
+    <gray>Reason: <white><reason>
+    <gray>Expires: <white><expiry>
+    <gray>Case ID: <white><case_id>
+
+checkwarn:
+  header: "<gold><strikethrough>     </strikethrough> Warning Status for <yellow><player></yellow> <strikethrough>     </strikethrough>"
+  has-warnings: "<yellow><player> has <white><count></white> active warning(s)."
+  no-warnings: "<green><player> has no active warnings."
+  warning-entry: "<gray>[<white><date></white>] <white><reason></white> <gray>(by <yellow><staff></yellow>) - Expires: <white><expiry>"
+
+check:
+  header: "<gold><strikethrough>     </strikethrough> Player Info: <yellow><player></yellow> <strikethrough>     </strikethrough>"
+  footer: "<gold><strikethrough>                                    </strikethrough>"
+  status: "<gray>Status: <status>"
+  uuid: "<gray>UUID: <white><uuid>"
+  ban-active: "<red>\u26A0 BANNED</red> <gray>- <white><duration></white> <gray>(<white><reason></white>) by <yellow><staff></yellow>"
+  ban-none: "<green>\u2713 Not Banned</green>"
+  mute-active: "<gold>\u26A0 MUTED</gold> <gray>- <white><duration></white> <gray>(<white><reason></white>) by <yellow><staff></yellow>"
+  mute-none: "<green>\u2713 Not Muted</green>"
+  warnings: "<yellow>\u26A0 Warnings:</yellow> <white><count></white> active"
+  warnings-none: "<green>\u2713 No Active Warnings</green>"
+  ip: "<gray>IP Address: <white><ip>"
+  ip-offline: "<gray>IP Address: <dark_gray>Unavailable (player offline)"
+  region: "<gray>Region: <white><region>"
+  alts: "<gray>Alt Accounts: <white><count>"
+  total-punishments: "<gray>Total Punishments: <white><count>"
+
+# ============================================
+# HISTORY COMMANDS
+# ============================================
+history:
+  header: "<gold><strikethrough>     </strikethrough> Punishment History for <yellow><player></yellow> <strikethrough>     </strikethrough>"
+  entry: "<gray>[<white><date></white>] <yellow><type></yellow>: <white><reason></white> <gray>by <yellow><staff></yellow> - <white><duration></white> [<status>]"
+  empty: "<gray>No punishment history found for <yellow><player></yellow>."
+  footer: "<gold><strikethrough>     </strikethrough> Page <yellow><page></yellow>/<yellow><total></yellow> <strikethrough>     </strikethrough>"
+  type-filter: "<gray>Showing: <white><type></white> punishments"
+
+staffhistory:
+  header: "<gold><strikethrough>     </strikethrough> Staff History for <yellow><staff></yellow> <strikethrough>     </strikethrough>"
+  entry: "<gray>[<white><date></white>] <yellow><type></yellow> on <yellow><player></yellow>: <white><reason></white> - <white><duration></white> [<status>]"
+  empty: "<gray>No staff history found for <yellow><staff></yellow>."
+  footer: "<gold><strikethrough>     </strikethrough> Page <yellow><page></yellow>/<yellow><total></yellow> <strikethrough>     </strikethrough>"
+
+warnings:
+  header: "<gold><strikethrough>     </strikethrough> Active Warnings for <yellow><player></yellow> <strikethrough>     </strikethrough>"
+  entry: "<gray>[<white><date></white>] <white><reason></white> <gray>by <yellow><staff></yellow> <gray>- Expires: <white><expiry>"
+  empty: "<gray>No active warnings found."
+  self-empty: "<green>You have no active warnings."
+  count: "<yellow>Total warnings: <white><count>"
+
+banlist:
+  header: "<gold><strikethrough>     </strikethrough> Active Bans <strikethrough>     </strikethrough>"
+  entry: "<gray><white><player></white> <gray>by <yellow><staff></yellow> <gray>- <white><reason></white> <gray>(<white><duration></white>)"
+  empty: "<gray>No active bans found."
+  footer: "<gold><strikethrough>     </strikethrough> Page <yellow><page></yellow>/<yellow><total></yellow> <strikethrough>     </strikethrough>"
+
+mutelist:
+  header: "<gold><strikethrough>     </strikethrough> Active Mutes <strikethrough>     </strikethrough>"
+  entry: "<gray><white><player></white> <gray>by <yellow><staff></yellow> <gray>- <white><reason></white> <gray>(<white><duration></white>)"
+  empty: "<gray>No active mutes found."
+  footer: "<gold><strikethrough>     </strikethrough> Page <yellow><page></yellow>/<yellow><total></yellow> <strikethrough>     </strikethrough>"
+
+warnlist:
+  header: "<gold><strikethrough>     </strikethrough> Active Warnings <strikethrough>     </strikethrough>"
+  entry: "<gray><white><player></white> <gray>by <yellow><staff></yellow> <gray>- <white><reason></white> <gray>(Expires: <white><expiry></white>)"
+  empty: "<gray>No active warnings found."
+  footer: "<gold><strikethrough>     </strikethrough> Page <yellow><page></yellow>/<yellow><total></yellow> <strikethrough>     </strikethrough>"
+
+# ============================================
+# ACCOUNT & IP COMMANDS
+# ============================================
+dupeip:
+  header: "<gold><strikethrough>     </strikethrough> Alt Accounts for <yellow><target></yellow> <strikethrough>     </strikethrough>"
+  entry: "<gray>- <white><player></white> <gray>(<white><uuid></white>)"
+  ip-entry: "<gray>- <white><ip></white>"
+  empty: "<gray>No alt accounts found."
+  count: "<yellow>Total accounts: <white><count>"
+  shared-ip: "<gray>Shared IP: <white><ip>"
+
+iphistory:
+  header: "<gold><strikethrough>     </strikethrough> IP History for <yellow><player></yellow> <strikethrough>     </strikethrough>"
+  entry: "<gray>[<white><date></white>] <white><ip></white>"
+  empty: "<gray>No IP history found for <yellow><player></yellow>."
+  count: "<yellow>Total IPs: <white><count>"
+  console-only: "<red>This command can only be executed from console by default due to privacy concerns."
+
+ipreport:
+  header: "<gold><strikethrough>     </strikethrough> Duplicate IP Report <strikethrough>     </strikethrough>"
+  entry: "<gray>IP <white><ip></white> <gray>is shared by:"
+  player-entry: "<gray>  - <yellow><player></yellow>"
+  empty: "<green>No duplicate IPs detected among online players."
+  count: "<yellow>Total duplicate IPs: <white><count>"
+
+geoip:
+  header: "<gold><strikethrough>     </strikethrough> GeoIP for <yellow><player></yellow> <strikethrough>     </strikethrough>"
+  country: "<gray>Country: <white><country></white> <flag>"
+  region: "<gray>Region: <white><region>"
+  city: "<gray>City: <white><city>"
+  ip: "<gray>IP: <white><ip>"
+  not-available: "<red>GeoIP information not available for <yellow><player></yellow>."
+  database-missing: "<red>GeoIP database not configured. Please configure GeoIP in config.yml."
+
+lastuuid:
+  format: "<gray>UUID for <yellow><player></yellow>: <white><uuid>"
+  not-found: "<red>Could not find UUID for <yellow><player></yellow>."
+
+namehistory:
+  header: "<gold><strikethrough>     </strikethrough> Name History for <yellow><player></yellow> <strikethrough>     </strikethrough>"
+  entry: "<gray>[<white><date></white>] <white><name>"
+  current: "<gray>[Current] <white><name>"
+  empty: "<gray>No name history found for <yellow><player></yellow>."
+  not-available: "<red>Name history service is currently unavailable."
+
+# ============================================
+# ADMIN COMMANDS
+# ============================================
+lockdown:
+  enabled: "<red><bold>LOCKDOWN ENABLED</bold></red> <gray>- Server is now in lockdown mode."
+  disabled: "<green><bold>LOCKDOWN DISABLED</bold></green> <gray>- Server lockdown has been lifted."
+  broadcast-enabled: "<red>[Lockdown]</red> <gray><staff> enabled lockdown mode <gray>(<white><scope></white>)"
+  broadcast-disabled: "<green>[Lockdown]</green> <gray><staff> disabled lockdown mode <gray>(<white><scope></white>)"
+  kick-message: |
+    <gradient:#FF6B6B:#4ECDC4>[ModereX]</gradient>
+
+    <red><bold>Server is in Lockdown</bold></red>
+
+    <gray>The server is temporarily in lockdown mode.
+    <gray>Please try again later.
+  already-enabled: "<red>Lockdown is already enabled."
+  already-disabled: "<red>Lockdown is already disabled."
+  status: "<gray>Lockdown status: <status>"
+  scope-local: "<yellow>Local"
+  scope-global: "<gold>Global"
+
+prunehistory:
+  success: "<green>Successfully pruned <white><count></white> inactive punishment(s) for <yellow><player></yellow>."
+  confirm: "<yellow>This will remove <white><count></white> inactive punishment(s) for <yellow><player></yellow>. Use --confirm to proceed."
+  empty: "<gray>No inactive punishments found for <yellow><player></yellow>."
+  duration-info: "<gray>Pruning punishments older than: <white><duration>"
+
+staffrollback:
+  success: "<green>Successfully rolled back <white><count></white> punishment(s) by <yellow><staff></yellow>."
+  confirm: "<yellow>This will rollback <white><count></white> punishment(s) by <yellow><staff></yellow>. Use --confirm to proceed."
+  empty: "<gray>No punishments found by <yellow><staff></yellow>."
+  duration-info: "<gray>Rolling back punishments from the last: <white><duration>"
+  broadcast: "<gray><executor> rolled back <white><count></white> punishment(s) by <yellow><staff></yellow>."
+
+# ============================================
+# MODEREX SUBCOMMANDS
+# ============================================
+moderex:
+  help-header: "<gold><strikethrough>          </strikethrough> ModereX Commands <strikethrough>          </strikethrough>"
+  help-entry: "<yellow>/<command></yellow> <gray>- <white><description>"
+  help-footer: "<gold><strikethrough>                                    </strikethrough>"
+
+  allow:
+    added: "<green>Successfully added <yellow><player></yellow> to the allowed list."
+    removed: "<green>Successfully removed <yellow><player></yellow> from the allowed list."
+    check-allowed: "<green><player> is on the allowed list."
+    check-not-allowed: "<red><player> is not on the allowed list."
+    list-header: "<gold><strikethrough>     </strikethrough> Allowed Players <strikethrough>     </strikethrough>"
+    list-entry: "<gray>- <yellow><player>"
+    list-empty: "<gray>No players on the allowed list."
+
+  unlink:
+    success: "<green>Successfully unlinked IP association for <yellow><player></yellow>."
+    confirm: "<yellow>This will unlink all IP associations for <yellow><player></yellow>. Use --confirm to proceed."
+    no-associations: "<gray>No IP associations found for <yellow><player></yellow>."
+
+  info:
+    header: "<gold><strikethrough>     </strikethrough> Database Information <strikethrough>     </strikethrough>"
+    connection-pool: "<gray>Connection Pool:"
+    active-connections: "<gray>  Active: <white><active></white>/<white><max>"
+    idle-connections: "<gray>  Idle: <white><idle>"
+    total-punishments: "<gray>Total Punishments: <white><total>"
+    active-bans: "<gray>Active Bans: <white><bans>"
+    active-mutes: "<gray>Active Mutes: <white><mutes>"
+    active-warnings: "<gray>Active Warnings: <white><warnings>"
+    database-type: "<gray>Database Type: <white><type>"
+
+  servers:
+    header: "<gold><strikethrough>     </strikethrough> Connected Servers <strikethrough>     </strikethrough>"
+    entry: "<gray>- <yellow><server></yellow> <gray>(<white><players></white> players)"
+    empty: "<gray>No other servers connected."
+    local: "<green>★ <server></green> <gray>(Current)"
+
+  reveal:
+    format: "<gray>Punishment ID for <yellow><case_id></yellow>: <white><id>"
+    not-found: "<red>Could not find punishment with case ID: <yellow><case_id></yellow>"
+
+  broadcast:
+    sent: "<green>Broadcast sent to <white><count></white> server(s)."
+    format: "<red><bold>BROADCAST</bold></red> <gray>| <white><message>"
+    received: "<gray>[<yellow><server></yellow>] <red><bold>BROADCAST</bold></red> <gray>from <yellow><staff></yellow>: <white><message>"
+
+  timezone:
+    current: "<gray>Current timezone: <white><timezone>"
+    set: "<green>Timezone set to <white><timezone></white>."
+    invalid: "<red>Invalid timezone: <white><timezone></white>"
+    list-header: "<gold><strikethrough>     </strikethrough> Available Timezones <strikethrough>     </strikethrough>"
+    list-entry: "<gray>- <white><timezone>"
+
+  reset-database:
+    success: "<green>Successfully reset the database. All punishments have been cleared."
+    confirm: "<red><bold>WARNING:</bold></red> <yellow>This will permanently delete ALL punishments! Use --confirm to proceed."
+    console-only: "<red>This command can only be executed from console for safety."
+
+  reset-templates:
+    success: "<green>Successfully reset template progression for <yellow><player></yellow>."
+    success-all: "<green>Successfully reset all template progressions."
+    confirm: "<yellow>This will reset template progression for <yellow><player></yellow>. Use --confirm to proceed."
+    confirm-all: "<red><bold>WARNING:</bold></red> <yellow>This will reset ALL template progressions! Use --confirm to proceed."
+
+  add-login:
+    success: "<green>Successfully added login record for <yellow><player></yellow> with IP <white><ip></white>."
+    console-only: "<red>This command can only be executed from console."
+
+  accept:
+    success: "<green>Disclaimer accepted. ModereX is now fully enabled."
+    already-accepted: "<yellow>Disclaimer has already been accepted."
+    console-only: "<red>This command can only be executed from console."
+
+  license:
+    header: "<gold><strikethrough>     </strikethrough> ModereX License <strikethrough>     </strikethrough>"
+    license-type: "<gray>License: <white><type>"
+    version: "<gray>Version: <white><version>"
+    author: "<gray>Author: <white><author>"
+    website: "<gray>Website: <aqua><click:open_url:'<website>'><website></click>"
+
+  upgrade:
+    success: "<green>Successfully upgraded database to version <white><version></white>."
+    already-latest: "<yellow>Database is already at the latest version (<white><version></white>)."
+    console-only: "<red>This command can only be executed from console."
+    in-progress: "<yellow>Database upgrade in progress..."
+
+# ============================================
+# PUNISHMENT FLAGS
+# ============================================
+flags:
+  delete-success: "<green>Successfully deleted punishment with ID <yellow><id></yellow>."
+  delete-reverted-template: "<gray>Template progression has been reverted for <yellow><player></yellow>."
+  modify-success: "<green>Successfully modified punishment with ID <yellow><id></yellow>."
+  no-override: "<yellow>Did not override existing punishment for <yellow><player></yellow> (use without -N to override)."
+  global: "<gray>(Global)"
+  silent: "<gray>(Silent)"
+  extra-silent: "<gray>(Extra Silent)"
+  hidden: "<gray>(Hidden)"
+
+# ============================================
+# TARGET RESOLUTION
+# ============================================
+target:
+  invalid: "<red>Invalid target format. Use player name, UUID, IP address, or punishment ID."
+  not-found: "<red>Could not find target: <white><target>"
+  offline-no-ip: "<red><player> is not online. Cannot resolve IP address."
+  multiple-found: "<yellow>Multiple players found matching <white><target></white>. Please be more specific."
+
+# ============================================
+# ERRORS
+# ============================================
+error:
+  database: "<red>A database error occurred. Please contact an administrator."
+  internal: "<red>An internal error occurred. Please contact an administrator."
+  no-permission-flag: "<red>You don't have permission to use the flag: <white><flag>"
+  console-only-flag: "<red>The flag <white><flag></white> can only be used from console."
+  invalid-page: "<red>Invalid page number. Use a number between 1 and <white><max></white>."
+  player-not-online: "<red>Player <yellow><player></yellow> is not online."
+  invalid-ip: "<red>Invalid IP address format."
+  invalid-uuid: "<red>Invalid UUID format."
+  punishment-not-found: "<red>Punishment not found with ID: <white><id>"
+  no-active-punishment: "<red><player> does not have an active <type> punishment."
