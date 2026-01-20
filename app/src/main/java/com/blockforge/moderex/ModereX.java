@@ -47,6 +47,7 @@ public final class ModereX extends JavaPlugin {
     private StaffChatManager staffChatManager;
     private VanishManager vanishManager;
     private VanishAPI vanishAPI;
+    private com.blockforge.moderex.disguise.DisguiseManager disguiseManager;
     private WatchlistManager watchlistManager;
     private com.blockforge.moderex.player.PlayerProfileManager playerProfileManager;
     private ProxyManager proxyManager;
@@ -61,6 +62,10 @@ public final class ModereX extends JavaPlugin {
     private com.blockforge.moderex.monitor.ServerStatusManager serverStatusManager;
     private StaffSettingsManager staffSettingsManager;
     private DebugWebhook debugWebhook;
+
+    // Lockdown state
+    private boolean globalLockdown = false;
+    private boolean localLockdown = false;
 
     @Override
     public void onEnable() {
@@ -139,6 +144,7 @@ public final class ModereX extends JavaPlugin {
         this.vanishManager = new VanishManager(this);
         this.vanishAPI = new VanishAPI(this);
         getServer().getPluginManager().registerEvents(new VanishEventFilter(this, vanishAPI), this);
+        this.disguiseManager = new com.blockforge.moderex.disguise.DisguiseManager(this);
         this.staffSettingsManager = new StaffSettingsManager(this);
 
         logStartup("Initializing watchlist...");
@@ -262,6 +268,11 @@ public final class ModereX extends JavaPlugin {
         // Shutdown anticheat integrations
         if (anticheatManager != null) {
             anticheatManager.shutdown();
+        }
+
+        // Cleanup disguise manager
+        if (disguiseManager != null) {
+            disguiseManager.cleanup();
         }
 
         // Shutdown debug webhook
@@ -418,6 +429,10 @@ public final class ModereX extends JavaPlugin {
         return vanishAPI;
     }
 
+    public com.blockforge.moderex.disguise.DisguiseManager getDisguiseManager() {
+        return disguiseManager;
+    }
+
     public WatchlistManager getWatchlistManager() {
         return watchlistManager;
     }
@@ -468,5 +483,36 @@ public final class ModereX extends JavaPlugin {
 
     public Component getPrefix() {
         return languageManager.getPrefix();
+    }
+
+    // Lockdown methods
+    public boolean isGlobalLockdown() {
+        return globalLockdown;
+    }
+
+    public void setGlobalLockdown(boolean lockdown) {
+        this.globalLockdown = lockdown;
+    }
+
+    public boolean isLocalLockdown() {
+        return localLockdown;
+    }
+
+    public void setLocalLockdown(boolean lockdown) {
+        this.localLockdown = lockdown;
+    }
+
+    /**
+     * Broadcast a message to all players with a specific permission
+     */
+    public void broadcastToPermission(com.blockforge.moderex.config.lang.MessageKey messageKey, String permission, String... placeholders) {
+        Component message = languageManager.get(messageKey, placeholders);
+        for (org.bukkit.entity.Player player : getServer().getOnlinePlayers()) {
+            if (player.hasPermission(permission)) {
+                player.sendMessage(message);
+            }
+        }
+        // Also send to console
+        getServer().getConsoleSender().sendMessage(message);
     }
 }
