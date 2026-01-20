@@ -112,6 +112,7 @@ public class PlayerHistoryGui extends PaginatedGui<Punishment> {
             case KICK -> Material.LEATHER_BOOTS;
             case WARN -> Material.BOOK;
             case IPBAN -> Material.IRON_BARS;
+            case IPMUTE -> Material.CHAIN;
         };
     }
 
@@ -122,6 +123,7 @@ public class PlayerHistoryGui extends PaginatedGui<Punishment> {
             case KICK -> "<yellow>";
             case WARN -> "<aqua>";
             case IPBAN -> "<dark_red>";
+            case IPMUTE -> "<dark_purple>";
         };
     }
 

@@ -185,6 +185,7 @@ public class TemplateGui extends PaginatedGui<PunishmentTemplate> {
             case KICK -> Material.LEATHER_BOOTS;
             case BAN -> Material.BARRIER;
             case IPBAN -> Material.IRON_BARS;
+            case IPMUTE -> Material.CHAIN;
         };
     }
 
@@ -398,6 +399,7 @@ public class TemplateGui extends PaginatedGui<PunishmentTemplate> {
                 case KICK -> Material.LEATHER_BOOTS;
                 case BAN -> Material.BARRIER;
                 case IPBAN -> Material.IRON_BARS;
+                case IPMUTE -> Material.CHAIN;
             };
         }
 
