@@ -13,7 +13,7 @@ import org.bukkit.plugin.Plugin;
 import java.lang.reflect.Method;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
-
+//TODO: Use Vulcan's API directly if it becomes available.
 public class VulcanHook extends AnticheatHook implements Listener {
 
     private static final String PLUGIN_NAME = "Vulcan";
