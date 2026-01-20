@@ -28,6 +28,34 @@ general:
   dialogs-enabled: true
 
 # ============================================
+# RESOURCE PACK SETTINGS
+# ============================================
+resourcepack:
+  # Enable custom resource pack for staff GUIs
+  # Provides custom textures for GUI items (shields, icons, etc.)
+  enabled: true
+
+  # Only send to players with moderex.staff permission
+  # When false, sends to all players (not recommended)
+  staff-only: true
+
+  # Resource pack hosting method:
+  # - 'bundled': Host from plugin (uses web panel port, requires webpanel enabled)
+  # - 'external': Use an external URL (specify in 'external-url')
+  hosting: bundled
+
+  # External URL for resource pack (only used if hosting: external)
+  # Upload the pack to a hosting service and put the direct download URL here
+  external-url: ''
+
+  # Prompt message shown when requesting resource pack
+  prompt-message: '&7ModereX requires a resource pack for the best experience.'
+
+  # Force resource pack (kick if declined)
+  # Only applies to staff members
+  required: false
+
+# ============================================
 # DATABASE SETTINGS
 # ============================================
 database:
@@ -493,7 +521,7 @@ replay:
 # CONFIGURATION VERSION
 # ============================================
 # DO NOT MODIFY - Used for automatic config migration
-config-version: 7
+config-version: 8
 
 
 

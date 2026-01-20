@@ -62,6 +62,7 @@ public final class ModereX extends JavaPlugin {
     private TemplateManager templateManager;
     private com.blockforge.moderex.monitor.ServerStatusManager serverStatusManager;
     private StaffSettingsManager staffSettingsManager;
+    private com.blockforge.moderex.resourcepack.ResourcePackManager resourcePackManager;
     private DebugWebhook debugWebhook;
 
     // Lockdown state
@@ -129,9 +130,9 @@ public final class ModereX extends JavaPlugin {
         this.automodManager = new AutomodManager(this);
         automodManager.load();
 
-        logStartup("Initializing anticheat integrations...");
-        this.anticheatManager = new com.blockforge.moderex.hooks.anticheat.AnticheatManager(this);
-        anticheatManager.initialize();
+        // Note: AnticheatManager is already initialized in HookManager.initialize()
+        // Use hookManager.getAnticheatManager() instead of creating a duplicate
+        this.anticheatManager = hookManager.getAnticheatManager();
 
         logStartup("Initializing moderation plugin integrations...");
         this.moderationHookManager = new com.blockforge.moderex.hooks.moderation.ModerationHookManager(this);
@@ -139,6 +140,10 @@ public final class ModereX extends JavaPlugin {
 
         logStartup("Initializing GUI system...");
         this.guiManager = new GuiManager(this);
+
+        logStartup("Initializing resource pack...");
+        this.resourcePackManager = new com.blockforge.moderex.resourcepack.ResourcePackManager(this);
+        resourcePackManager.initialize();
 
         logStartup("Initializing staff features...");
         this.staffChatManager = new StaffChatManager(this);
@@ -270,10 +275,7 @@ public final class ModereX extends JavaPlugin {
             hookManager.shutdown();
         }
 
-        // Shutdown anticheat integrations
-        if (anticheatManager != null) {
-            anticheatManager.shutdown();
-        }
+        // Note: AnticheatManager shutdown is handled by HookManager.shutdown()
 
         // Cleanup disguise manager
         if (disguiseManager != null) {
@@ -489,6 +491,10 @@ public final class ModereX extends JavaPlugin {
 
     public StaffSettingsManager getStaffSettingsManager() {
         return staffSettingsManager;
+    }
+
+    public com.blockforge.moderex.resourcepack.ResourcePackManager getResourcePackManager() {
+        return resourcePackManager;
     }
 
     public com.blockforge.moderex.monitor.ServerStatusManager getServerStatusManager() {

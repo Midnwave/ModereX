@@ -1,0 +1,10 @@
+{
+  "pack": {
+    "pack_format": 34,
+    "supported_formats": [
+      15,
+      42
+    ],
+    "description": "ModereX Custom GUI Textures"
+  }
+}

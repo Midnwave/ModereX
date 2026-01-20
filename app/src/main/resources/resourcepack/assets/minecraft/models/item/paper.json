@@ -1,0 +1,152 @@
+{
+  "parent": "minecraft:item/generated",
+  "textures": {
+    "layer0": "minecraft:item/paper"
+  },
+  "overrides": [
+    {
+      "predicate": {
+        "custom_model_data": 100000
+      },
+      "model": "moderex:item/moderex_logo"
+    },
+    {
+      "predicate": {
+        "custom_model_data": 100001
+      },
+      "model": "moderex:item/shield_blue"
+    },
+    {
+      "predicate": {
+        "custom_model_data": 100002
+      },
+      "model": "moderex:item/shield_green"
+    },
+    {
+      "predicate": {
+        "custom_model_data": 100003
+      },
+      "model": "moderex:item/shield_red"
+    },
+    {
+      "predicate": {
+        "custom_model_data": 100004
+      },
+      "model": "moderex:item/sword"
+    },
+    {
+      "predicate": {
+        "custom_model_data": 100005
+      },
+      "model": "moderex:item/gavel"
+    },
+    {
+      "predicate": {
+        "custom_model_data": 100006
+      },
+      "model": "moderex:item/bell"
+    },
+    {
+      "predicate": {
+        "custom_model_data": 100007
+      },
+      "model": "moderex:item/scroll"
+    },
+    {
+      "predicate": {
+        "custom_model_data": 100008
+      },
+      "model": "moderex:item/gear"
+    },
+    {
+      "predicate": {
+        "custom_model_data": 100009
+      },
+      "model": "moderex:item/eye"
+    },
+    {
+      "predicate": {
+        "custom_model_data": 100010
+      },
+      "model": "moderex:item/checkmark"
+    },
+    {
+      "predicate": {
+        "custom_model_data": 100011
+      },
+      "model": "moderex:item/x_mark"
+    },
+    {
+      "predicate": {
+        "custom_model_data": 100012
+      },
+      "model": "moderex:item/warning"
+    },
+    {
+      "predicate": {
+        "custom_model_data": 100013
+      },
+      "model": "moderex:item/lightning"
+    },
+    {
+      "predicate": {
+        "custom_model_data": 100014
+      },
+      "model": "moderex:item/user"
+    },
+    {
+      "predicate": {
+        "custom_model_data": 100015
+      },
+      "model": "moderex:item/staff"
+    },
+    {
+      "predicate": {
+        "custom_model_data": 100016
+      },
+      "model": "moderex:item/combat"
+    },
+    {
+      "predicate": {
+        "custom_model_data": 100017
+      },
+      "model": "moderex:item/movement"
+    },
+    {
+      "predicate": {
+        "custom_model_data": 100018
+      },
+      "model": "moderex:item/packet"
+    },
+    {
+      "predicate": {
+        "custom_model_data": 100019
+      },
+      "model": "moderex:item/world"
+    },
+    {
+      "predicate": {
+        "custom_model_data": 100020
+      },
+      "model": "moderex:item/misc"
+    },
+    {
+      "predicate": {
+        "custom_model_data": 100021
+      },
+      "model": "moderex:item/arrow_right"
+    },
+    {
+      "predicate": {
+        "custom_model_data": 100022
+      },
+      "model": "moderex:item/arrow_left"
+    },
+    {
+      "predicate": {
+        "custom_model_data": 100023
+      },
+      "model": "moderex:item/preset"
+    }
+  ]
+}
