@@ -430,6 +430,32 @@
     return send('GET_CHAT_STATUS');
   }
 
+  function requestAnticheatAlerts() {
+    return send('GET_ANTICHEAT_ALERTS');
+  }
+
+  function requestStaffAlertPrefs() {
+    return send('GET_STAFF_ALERT_PREFS');
+  }
+
+  function updateStaffAlertPref(anticheat, checkName, alertLevel, thresholdCount, timeWindowSeconds) {
+    return send('UPDATE_STAFF_ALERT_PREF', {
+      anticheat,
+      checkName,
+      alertLevel,
+      thresholdCount,
+      timeWindowSeconds
+    });
+  }
+
+  function requestAlertPresets() {
+    return send('GET_ALERT_PRESETS');
+  }
+
+  function applyAlertPreset(presetId) {
+    return send('APPLY_ALERT_PRESET', { presetId });
+  }
+
   function setChatLock(locked) {
     return send('SET_CHAT_LOCK', { locked });
   }
@@ -488,6 +514,9 @@
     requestUserSettings,
     requestChatStatus,
     requestTrustedDeviceCount,
+    requestAnticheatAlerts,
+    requestStaffAlertPrefs,
+    requestAlertPresets,
 
     // Actions
     createPunishment,
@@ -503,7 +532,9 @@
     setSlowmode,
     clearChat,
     kickPlayer,
-    clearTrustedDevices
+    clearTrustedDevices,
+    updateStaffAlertPref,
+    applyAlertPreset
   };
 
 })();

@@ -1656,6 +1656,85 @@
     ui.renderAnticheat();
   };
 
+  // ===== ANTICHEAT ALERT CUSTOMIZATION =====
+  window.refreshAnticheatData = function() {
+    const ws = window.MX?.ws;
+    if (ws && ws.isConnected()) {
+      ws.requestAnticheatAlerts();
+      ws.requestStaffAlertPrefs();
+      ws.requestAlertPresets();
+      toast('info', 'Refreshing', 'Loading anticheat data...');
+    } else {
+      toast('warn', 'Not Connected', 'Cannot refresh - not connected to server.');
+    }
+  };
+
+  window.applyPreset = function(presetId) {
+    const ws = window.MX?.ws;
+    if (ws && ws.isConnected()) {
+      ws.applyAlertPreset(presetId);
+      toast('ok', 'Applied', `Preset "${presetId}" applied to all checks.`);
+      // Refresh prefs after applying
+      setTimeout(() => ws.requestStaffAlertPrefs(), 500);
+    } else {
+      toast('warn', 'Not Connected', 'Cannot apply preset - not connected to server.');
+    }
+  };
+
+  window.applySelectedPreset = function() {
+    const select = document.getElementById('acPresetSelect');
+    if (select && select.value) {
+      window.applyPreset(select.value);
+      select.value = '';
+    }
+  };
+
+  window.updateCheckAlertLevel = function(anticheat, checkName, alertLevel) {
+    const ws = window.MX?.ws;
+    const prefKey = `${anticheat.toLowerCase()}.${checkName}`;
+    const currentPref = state.anticheat.alertPrefs[prefKey] || { thresholdCount: 1, timeWindowSeconds: 60 };
+
+    if (ws && ws.isConnected()) {
+      ws.updateStaffAlertPref(anticheat, checkName, alertLevel, currentPref.thresholdCount, currentPref.timeWindowSeconds);
+      // Update local state optimistically
+      state.anticheat.alertPrefs[prefKey] = {
+        ...currentPref,
+        alertLevel: alertLevel
+      };
+      ui.renderAnticheat();
+    } else {
+      toast('warn', 'Not Connected', 'Cannot update - not connected to server.');
+    }
+  };
+
+  window.updateCheckThreshold = function(anticheat, checkName, thresholdCount, timeWindowSeconds) {
+    const ws = window.MX?.ws;
+    const prefKey = `${anticheat.toLowerCase()}.${checkName}`;
+    const currentPref = state.anticheat.alertPrefs[prefKey] || { alertLevel: 'EVERYONE' };
+
+    if (ws && ws.isConnected()) {
+      ws.updateStaffAlertPref(
+        anticheat,
+        checkName,
+        currentPref.alertLevel,
+        parseInt(thresholdCount, 10) || 1,
+        parseInt(timeWindowSeconds, 10) || 60
+      );
+      // Update local state optimistically
+      state.anticheat.alertPrefs[prefKey] = {
+        ...currentPref,
+        thresholdCount: parseInt(thresholdCount, 10) || 1,
+        timeWindowSeconds: parseInt(timeWindowSeconds, 10) || 60
+      };
+    } else {
+      toast('warn', 'Not Connected', 'Cannot update - not connected to server.');
+    }
+  };
+
+  window.filterAnticheatChecks = function() {
+    ui.renderAnticheat();
+  };
+
   window.saveChatSettings = function() {
     const ws = window.MX?.ws;
     const seconds = parseInt(dom().slowSeconds.value || '0', 10);
@@ -2605,6 +2684,9 @@
       ws.requestAutomodRules();
       ws.requestUserSettings();
       ws.requestChatStatus();
+      ws.requestAnticheatAlerts();
+      ws.requestStaffAlertPrefs();
+      ws.requestAlertPresets();
 
       ui.renderAll();
       hideDisconnect();
@@ -2723,6 +2805,36 @@
       // Update all UI elements that depend on these settings
       updateSettingsUI();
       ui.renderWatchToastsToggle();
+    });
+
+    // Handle anticheat alerts data (list of all checks)
+    ws.on('ANTICHEAT_ALERTS', (data) => {
+      if (!isLiveMode) return;
+      state.anticheat.anticheats = data.anticheats || [];
+      ui.renderAnticheat();
+    });
+
+    // Handle staff alert preferences
+    ws.on('STAFF_ALERT_PREFS', (data) => {
+      if (!isLiveMode) return;
+      // Convert prefs to flat map: "anticheat.checkName" -> pref
+      const prefs = {};
+      if (data.preferences) {
+        Object.entries(data.preferences).forEach(([acName, acPrefs]) => {
+          Object.entries(acPrefs).forEach(([checkName, pref]) => {
+            prefs[`${acName}.${checkName}`] = pref;
+          });
+        });
+      }
+      state.anticheat.alertPrefs = prefs;
+      ui.renderAnticheat();
+    });
+
+    // Handle alert presets
+    ws.on('ALERT_PRESETS', (data) => {
+      if (!isLiveMode) return;
+      state.anticheat.presets = data.presets || [];
+      ui.renderAnticheat();
     });
 
     // Real-time broadcasts

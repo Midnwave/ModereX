@@ -538,34 +538,167 @@
   }
 
   function renderAnticheat() {
-    if (!dom.anticheatRows) return;
-    const enabled = !!state.settings.anticheatReplace;
-    if (dom.anticheatConfig) dom.anticheatConfig.style.display = enabled ? 'block' : 'none';
-    if (dom.anticheatDisabledCard) dom.anticheatDisabledCard.style.display = enabled ? 'none' : 'block';
-    if (!enabled) return;
+    const categoriesContainer = $('#anticheatCategories');
+    const categoryFilter = $('#acCategoryFilter');
+    const detectedBadge = $('#acDetectedBadge');
+    const presetSelect = $('#acPresetSelect');
+    const anticheatConfig = $('#anticheatConfig');
+    const anticheatDisabledCard = $('#anticheatDisabledCard');
 
-    const q = (dom.anticheatSearch?.value || '').trim().toLowerCase();
-    const alerts = (state.anticheat?.alerts || []).filter(a => !q || a.name.toLowerCase().includes(q));
-    dom.anticheatRows.innerHTML = alerts.map(a => `
-      <tr>
-        <td><b>${escapeHtml(a.name)}</b></td>
-        <td><button class="toggle ${a.chat ? 'on' : ''}" onclick="toggleAnticheatAlert('${a.id}','chat')"><span class="toggle-thumb"></span></button></td>
-        <td><button class="toggle ${a.toast ? 'on' : ''}" onclick="toggleAnticheatAlert('${a.id}','toast')"><span class="toggle-thumb"></span></button></td>
-        <td>
-          <div class="block" style="margin-top:0">
-            <input class="input" style="width:80px" type="number" min="1" value="${a.threshold}" oninput="setAnticheatAlert('${a.id}','threshold', this.value)">
-            <span class="badge gray">in</span>
-            <input class="input" style="width:70px" type="number" min="1" value="${a.windowMins}" oninput="setAnticheatAlert('${a.id}','windowMins', this.value)">
-            <span class="badge gray">mins</span>
+    const enabled = !!state.settings.anticheatReplace;
+    if (anticheatConfig) anticheatConfig.style.display = enabled ? 'block' : 'none';
+    if (anticheatDisabledCard) anticheatDisabledCard.style.display = enabled ? 'none' : 'block';
+    if (!enabled || !categoriesContainer) return;
+
+    const anticheats = state.anticheat?.anticheats || [];
+    const prefs = state.anticheat?.alertPrefs || {};
+    const presets = state.anticheat?.presets || [];
+
+    // Update detected badge
+    if (detectedBadge) {
+      if (anticheats.length > 0) {
+        const names = anticheats.map(ac => ac.name).join(', ');
+        detectedBadge.className = 'badge purple';
+        detectedBadge.innerHTML = `<i class="fa-solid fa-shield-halved"></i> ${names}`;
+      } else {
+        detectedBadge.className = 'badge gray';
+        detectedBadge.innerHTML = `<i class="fa-solid fa-shield-halved"></i> No anticheat detected`;
+      }
+    }
+
+    // Populate preset dropdown
+    if (presetSelect && presets.length > 0) {
+      presetSelect.innerHTML = `<option value="">Apply Preset...</option>` +
+        presets.map(p => `<option value="${p.id}">${escapeHtml(p.name)}</option>`).join('');
+    }
+
+    // Build category filter options
+    const allCategories = new Set();
+    anticheats.forEach(ac => {
+      if (ac.categories) {
+        Object.keys(ac.categories).forEach(cat => allCategories.add(cat));
+      }
+    });
+
+    if (categoryFilter) {
+      const currentVal = categoryFilter.value;
+      categoryFilter.innerHTML = `<option value="">All Categories</option>` +
+        [...allCategories].sort().map(cat => {
+          const displayName = cat.charAt(0).toUpperCase() + cat.slice(1).replace(/_/g, ' ');
+          return `<option value="${cat}">${displayName}</option>`;
+        }).join('');
+      categoryFilter.value = currentVal;
+    }
+
+    // Get filter values
+    const searchQ = ($('#anticheatSearch')?.value || '').trim().toLowerCase();
+    const catFilter = categoryFilter?.value || '';
+
+    // Render checks grouped by category
+    let html = '';
+
+    anticheats.forEach(ac => {
+      const acNameLower = ac.name.toLowerCase();
+      const categories = ac.categories || {};
+
+      Object.entries(categories).forEach(([catName, checks]) => {
+        if (catFilter && catName !== catFilter) return;
+
+        const filteredChecks = checks.filter(check =>
+          !searchQ || check.name.toLowerCase().includes(searchQ) || check.displayName.toLowerCase().includes(searchQ)
+        );
+
+        if (filteredChecks.length === 0) return;
+
+        const catDisplayName = catName.charAt(0).toUpperCase() + catName.slice(1).replace(/_/g, ' ');
+        const catIcon = getCategoryIcon(catName);
+
+        html += `
+          <div class="card" style="margin:0">
+            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
+              <h3 style="margin:0"><i class="${catIcon}" style="color:var(--primary-light);margin-right:8px"></i>${catDisplayName}</h3>
+              <span class="badge gray">${filteredChecks.length} checks</span>
+            </div>
+            <div class="ac-checks-grid">
+              ${filteredChecks.map(check => {
+                const prefKey = `${acNameLower}.${check.name}`;
+                const pref = prefs[prefKey] || { alertLevel: 'EVERYONE', thresholdCount: 1, timeWindowSeconds: 60 };
+                const isOff = pref.alertLevel === 'OFF';
+                const isWatchlist = pref.alertLevel === 'WATCHLIST_ONLY';
+
+                return `
+                  <div class="ac-check-item ${isOff ? 'disabled' : ''}" data-check="${check.name}" data-ac="${ac.name}">
+                    <div class="ac-check-header">
+                      <div class="ac-check-name">
+                        <b>${escapeHtml(check.displayName)}</b>
+                        <span class="ac-check-desc">${escapeHtml(check.description || '')}</span>
+                      </div>
+                      <div class="ac-check-level">
+                        <select class="input small" onchange="updateCheckAlertLevel('${ac.name}','${check.name}',this.value)">
+                          <option value="EVERYONE" ${pref.alertLevel === 'EVERYONE' ? 'selected' : ''}>Everyone</option>
+                          <option value="WATCHLIST_ONLY" ${pref.alertLevel === 'WATCHLIST_ONLY' ? 'selected' : ''}>Watchlist</option>
+                          <option value="OFF" ${pref.alertLevel === 'OFF' ? 'selected' : ''}>Off</option>
+                        </select>
+                      </div>
+                    </div>
+                    <div class="ac-check-settings ${isOff ? 'hidden' : ''}">
+                      <div class="ac-threshold">
+                        <span class="label">Threshold:</span>
+                        <input type="number" class="input tiny" min="1" max="100" value="${pref.thresholdCount}"
+                          onchange="updateCheckThreshold('${ac.name}','${check.name}',this.value,'${pref.timeWindowSeconds}')">
+                        <span class="label">in</span>
+                        <input type="number" class="input tiny" min="10" max="3600" value="${pref.timeWindowSeconds}"
+                          onchange="updateCheckThreshold('${ac.name}','${check.name}','${pref.thresholdCount}',this.value)">
+                        <span class="label">sec</span>
+                      </div>
+                    </div>
+                  </div>
+                `;
+              }).join('')}
+            </div>
           </div>
-        </td>
-        <td>
-          <select class="input" style="width:120px" onchange="setAnticheatAlert('${a.id}','autoPunish', this.value)">
-            ${['none','warn','mute','ban'].map(opt => `<option value="${opt}" ${a.autoPunish === opt ? 'selected' : ''}>${opt}</option>`).join('')}
-          </select>
-        </td>
-      </tr>
-    `).join('') || `<tr><td colspan="5" style="color:var(--muted)">No alerts found.</td></tr>`;
+        `;
+      });
+    });
+
+    if (!html) {
+      html = `
+        <div class="empty-state" style="text-align:center;padding:40px;color:var(--text-secondary)">
+          <i class="fa-solid fa-shield-halved" style="font-size:48px;opacity:0.3;margin-bottom:16px"></i>
+          <p>${anticheats.length === 0 ? 'No anticheat plugins detected' : 'No checks match your search'}</p>
+        </div>
+      `;
+    }
+
+    categoriesContainer.innerHTML = html;
+  }
+
+  function getCategoryIcon(category) {
+    const icons = {
+      combat: 'fa-solid fa-swords',
+      movement: 'fa-solid fa-person-running',
+      packet: 'fa-solid fa-network-wired',
+      player: 'fa-solid fa-user',
+      world: 'fa-solid fa-globe',
+      misc: 'fa-solid fa-shapes',
+      aim: 'fa-solid fa-crosshairs',
+      velocity: 'fa-solid fa-wind',
+      badpackets: 'fa-solid fa-bug',
+      breaking: 'fa-solid fa-hammer',
+      chat: 'fa-solid fa-comment',
+      crash: 'fa-solid fa-bomb',
+      elytra: 'fa-solid fa-feather',
+      exploit: 'fa-solid fa-skull',
+      groundspoof: 'fa-solid fa-shoe-prints',
+      multiactions: 'fa-solid fa-layer-group',
+      packetorder: 'fa-solid fa-list-ol',
+      prediction: 'fa-solid fa-chart-line',
+      scaffolding: 'fa-solid fa-cubes-stacked',
+      sprint: 'fa-solid fa-bolt',
+      timer: 'fa-solid fa-stopwatch',
+      vehicle: 'fa-solid fa-car'
+    };
+    return icons[category.toLowerCase()] || 'fa-solid fa-shield-halved';
   }
 
   function renderWatchlist() {

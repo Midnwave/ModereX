@@ -1122,43 +1122,61 @@
           <div class="page-head">
             <div class="page-title">
               <h1>Anticheat Alerts</h1>
-              <p>Configure Grim alert routing and ModereX thresholds.</p>
+              <p>Configure per-check alert preferences and notification thresholds.</p>
+            </div>
+            <div style="display:flex;gap:10px;align-items:center">
+              <select class="input" id="acPresetSelect" onchange="applySelectedPreset()" style="width:200px">
+                <option value="">Apply Preset...</option>
+              </select>
+              <button class="btn" onclick="refreshAnticheatData()"><i class="fa-solid fa-sync"></i> Refresh</button>
             </div>
           </div>
 
           <div class="panel pad">
             <div class="card" id="anticheatDisabledCard" style="margin:0;display:none">
               <h3><i class="fa-solid fa-shield-halved" style="color:var(--warn)"></i> Anticheat Alerts Disabled</h3>
-              <p>Enable “Replace Anticheat Alerts” in Settings to configure alert routing.</p>
-              <a href="#" onclick="go('settings')" style="color:var(--primary-light);font-size:13px">Open Settings</a>
+              <p>Enable "Replace Anticheat Alerts" in Settings to configure alert routing.</p>
+              <a href="#" onclick="go('actions')" style="color:var(--primary-light);font-size:13px">Open Actions</a>
             </div>
 
             <div id="anticheatConfig">
+              <!-- Presets Quick Actions -->
+              <div class="card" style="margin:0 0 16px 0;padding:12px 16px">
+                <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px">
+                  <div style="display:flex;align-items:center;gap:12px">
+                    <span style="font-weight:600;font-size:13px"><i class="fa-solid fa-sliders" style="color:var(--primary-light);margin-right:6px"></i> Quick Presets:</span>
+                    <button class="btn mini" onclick="applyPreset('all_on')"><i class="fa-solid fa-bell"></i> All On</button>
+                    <button class="btn mini" onclick="applyPreset('watchlist_only')"><i class="fa-solid fa-eye"></i> Watchlist Only</button>
+                    <button class="btn mini" onclick="applyPreset('reduced_spam')"><i class="fa-solid fa-filter"></i> Reduced Spam</button>
+                    <button class="btn mini" onclick="applyPreset('competitive')"><i class="fa-solid fa-crosshairs"></i> Combat Focus</button>
+                    <button class="btn mini bad" onclick="applyPreset('all_off')"><i class="fa-solid fa-bell-slash"></i> All Off</button>
+                  </div>
+                  <div style="display:flex;align-items:center;gap:8px">
+                    <span class="badge" id="acDetectedBadge"><i class="fa-solid fa-shield-halved"></i> Loading...</span>
+                  </div>
+                </div>
+              </div>
+
               <div class="toolbar" style="margin-top:0">
                 <div class="left">
                   <div class="gsearch" style="width:100%;max-width:420px">
                     <i class="fa-solid fa-magnifying-glass"></i>
-                    <input type="text" id="anticheatSearch" placeholder="Search alert types...">
+                    <input type="text" id="anticheatSearch" placeholder="Search checks..." oninput="filterAnticheatChecks()">
                   </div>
                 </div>
                 <div class="right">
-                  <span class="badge purple"><i class="fa-solid fa-shield-halved"></i> Grim</span>
+                  <select class="input" id="acCategoryFilter" onchange="filterAnticheatChecks()" style="width:160px">
+                    <option value="">All Categories</option>
+                  </select>
                 </div>
               </div>
 
-              <div class="table-wrap" style="margin-top:16px;max-height:520px;overflow:auto">
-                <table>
-                  <thead>
-                    <tr>
-                      <th>Alert</th>
-                      <th>Chat Alerts</th>
-                      <th>Toast Alerts</th>
-                      <th>Threshold</th>
-                      <th>Auto Punish</th>
-                    </tr>
-                  </thead>
-                  <tbody id="anticheatRows"></tbody>
-                </table>
+              <!-- Checks grouped by category -->
+              <div id="anticheatCategories" style="margin-top:16px;display:flex;flex-direction:column;gap:16px">
+                <div class="loading-state" style="text-align:center;padding:40px;color:var(--text-secondary)">
+                  <div class="spinner"></div>
+                  <p style="margin-top:12px">Loading anticheat checks...</p>
+                </div>
               </div>
             </div>
           </div>
