@@ -14,6 +14,12 @@ import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
+import org.bukkit.event.block.SignChangeEvent;
+import org.bukkit.event.inventory.InventoryClickEvent;
+import org.bukkit.event.player.PlayerEditBookEvent;
+import org.bukkit.inventory.AnvilInventory;
+import org.bukkit.inventory.ItemStack;
+import org.bukkit.inventory.meta.BookMeta;
 
 import java.util.Map;
 import java.util.UUID;
@@ -121,5 +127,56 @@ public class ChatListener implements Listener {
 
     public void clearSlowmodeData(UUID uuid) {
         lastMessageTime.remove(uuid);
+    }
+
+    // Block book editing for muted players
+    @EventHandler(priority = EventPriority.LOWEST)
+    public void onBookEdit(PlayerEditBookEvent event) {
+        Player player = event.getPlayer();
+        UUID uuid = player.getUniqueId();
+
+        if (!player.hasPermission("moderex.bypass.mute")) {
+            Punishment mute = plugin.getPunishmentManager().getActivePunishment(uuid, PunishmentType.MUTE);
+            if (mute != null && !mute.isExpired()) {
+                event.setCancelled(true);
+                String duration = DurationParser.formatRemaining(mute.getExpiresAt());
+                player.sendMessage(plugin.getLanguageManager().getPrefixed(MessageKey.MUTED_CHAT_ATTEMPT,
+                        "duration", duration,
+                        "reason", mute.getReason()));
+            }
+        }
+    }
+
+    // Block anvil renaming for muted players
+    @EventHandler(priority = EventPriority.LOWEST)
+    public void onAnvilRename(InventoryClickEvent event) {
+        if (!(event.getWhoClicked() instanceof Player player)) {
+            return;
+        }
+
+        if (!(event.getInventory() instanceof AnvilInventory)) {
+            return;
+        }
+
+        UUID uuid = player.getUniqueId();
+
+        // Check if they're clicking the result slot (slot 2 in anvil)
+        if (event.getSlot() != 2) {
+            return;
+        }
+
+        if (!player.hasPermission("moderex.bypass.mute")) {
+            Punishment mute = plugin.getPunishmentManager().getActivePunishment(uuid, PunishmentType.MUTE);
+            if (mute != null && !mute.isExpired()) {
+                ItemStack result = event.getCurrentItem();
+                if (result != null && result.hasItemMeta() && result.getItemMeta().hasDisplayName()) {
+                    event.setCancelled(true);
+                    String duration = DurationParser.formatRemaining(mute.getExpiresAt());
+                    player.sendMessage(plugin.getLanguageManager().getPrefixed(MessageKey.MUTED_CHAT_ATTEMPT,
+                            "duration", duration,
+                            "reason", mute.getReason()));
+                }
+            }
+        }
     }
 }

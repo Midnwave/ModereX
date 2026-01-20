@@ -25,6 +25,7 @@ public class VanishManager {
     private final PacketVanishInjector packetInjector;
     private final VanishLevel vanishLevel;
     private final VanishPluginHookManager hookManager;
+    private final Map<UUID, GameMode> previousGameModes = new HashMap<>();
 
     public VanishManager(ModereX plugin) {
         this.plugin = plugin;
@@ -110,6 +111,15 @@ public class VanishManager {
         // Give night vision to see in dark
         player.addPotionEffect(new PotionEffect(PotionEffectType.NIGHT_VISION, Integer.MAX_VALUE, 0, false, false, false));
 
+        // Enable flight if configured and player has permission
+        if (plugin.getConfig().getBoolean("vanish.enable-flight", false) &&
+                player.hasPermission("moderex.vanish.flight")) {
+            if (!player.getAllowFlight()) {
+                player.setAllowFlight(true);
+                player.setFlying(true);
+            }
+        }
+
         if (plugin.getConfigManager().getSettings().isVanishSaveVanishState()) {
             updateVanishStateInDatabase(uuid, true);
         }
@@ -157,6 +167,16 @@ public class VanishManager {
         player.setPlayerListName(null);
 
         player.removePotionEffect(PotionEffectType.NIGHT_VISION);
+
+        // Disable flight if it was enabled by vanish (unless player has keepfly permission)
+        if (plugin.getConfig().getBoolean("vanish.enable-flight", false) &&
+                player.hasPermission("moderex.vanish.flight") &&
+                !player.hasPermission("moderex.vanish.keepfly")) {
+            if (player.getGameMode() != GameMode.CREATIVE && player.getGameMode() != GameMode.SPECTATOR) {
+                player.setAllowFlight(false);
+                player.setFlying(false);
+            }
+        }
 
         vanishLevel.removeLevel(uuid);
 
@@ -551,5 +571,39 @@ public class VanishManager {
                 plugin.logError("Failed to update vanish state in database", e);
             }
         });
+    }
+
+    /**
+     * Toggle spectator mode for a vanished player.
+     *
+     * @param player The player
+     */
+    public void toggleSpectatorMode(Player player) {
+        if (!isVanished(player)) {
+            return;
+        }
+
+        if (!player.hasPermission("moderex.vanish.spectator")) {
+            return;
+        }
+
+        UUID uuid = player.getUniqueId();
+
+        if (player.getGameMode() == GameMode.SPECTATOR) {
+            // Exit spectator mode
+            GameMode previousMode = previousGameModes.getOrDefault(uuid, GameMode.SURVIVAL);
+            player.setGameMode(previousMode);
+            previousGameModes.remove(uuid);
+
+            player.sendMessage(plugin.getLanguageManager().getPrefix()
+                    .append(Component.text("§aExited spectator mode")));
+        } else {
+            // Enter spectator mode
+            previousGameModes.put(uuid, player.getGameMode());
+            player.setGameMode(GameMode.SPECTATOR);
+
+            player.sendMessage(plugin.getLanguageManager().getPrefix()
+                    .append(Component.text("§aEntered spectator mode")));
+        }
     }
 }
