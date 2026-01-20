@@ -204,7 +204,7 @@ public class ConfigManager {
         settings.setReplayMaxStored(config.getInt("replay.max-stored", 1000));
 
         // Anticheat alerts (added in v2)
-        settings.setAnticheatAlertsEnabled(config.getBoolean("anticheat.alerts-enabled", true));
+        settings.setAnticheatAlertsEnabled(config.getBoolean("anticheat.alerts.enabled", true));
 
         settings.setConfigVersion(getCurrentConfigVersion());
     }

@@ -2,6 +2,7 @@ package com.blockforge.moderex.commands.admin;
 
 import com.blockforge.moderex.ModereX;
 import com.blockforge.moderex.commands.BaseCommand;
+import com.blockforge.moderex.hooks.anticheat.AnticheatChecks;
 import com.blockforge.moderex.config.lang.MessageKey;
 import com.blockforge.moderex.gui.AnalyticsGui;
 import com.blockforge.moderex.gui.AnticheatRulesGui;
@@ -1309,7 +1310,19 @@ public class MxCommand extends BaseCommand {
         if (args.length == 3) {
             String sub = args[0].toLowerCase();
             if (sub.equals("sendalert")) {
-                return filterCompletions(Arrays.asList("Grim", "Vulcan", "Matrix", "Spartan", "NCP", "Themis", "FoxAddition", "LightAC"), args[2]);
+                // Show enabled anticheats first, then all supported ones
+                List<String> anticheats = new java.util.ArrayList<>();
+                if (plugin.getAnticheatManager() != null) {
+                    anticheats.addAll(plugin.getAnticheatManager().getEnabledAnticheats());
+                }
+                // Add all supported anticheats as fallback suggestions
+                for (String ac : AnticheatChecks.getSupportedAnticheats()) {
+                    String properName = ac.substring(0, 1).toUpperCase() + ac.substring(1);
+                    if (!anticheats.contains(properName) && !anticheats.stream().anyMatch(a -> a.equalsIgnoreCase(properName))) {
+                        anticheats.add(properName);
+                    }
+                }
+                return filterCompletions(anticheats, args[2]);
             }
             if (sub.equals("ban") || sub.equals("mute") || sub.equals("warn") || sub.equals("ipban")) {
                 return filterCompletions(Arrays.asList("1h", "1d", "7d", "30d", "permanent"), args[2]);
@@ -1324,7 +1337,15 @@ public class MxCommand extends BaseCommand {
         if (args.length == 4) {
             String sub = args[0].toLowerCase();
             if (sub.equals("sendalert")) {
-                return filterCompletions(Arrays.asList("KillAura", "Reach", "Speed", "Fly", "NoSlow", "Timer", "Velocity", "Scaffold", "FastBreak", "AutoClicker"), args[3]);
+                String anticheat = args[2];
+                List<String> checkNames = new java.util.ArrayList<>();
+                for (AnticheatChecks.CheckInfo check : AnticheatChecks.getChecks(anticheat)) {
+                    checkNames.add(check.getDisplayName());
+                }
+                if (checkNames.isEmpty()) {
+                    checkNames = Arrays.asList("KillAura", "Reach", "Speed", "Fly", "NoSlow", "Timer", "Velocity", "Scaffold", "FastBreak", "AutoClicker", "Simulation");
+                }
+                return filterCompletions(checkNames, args[3]);
             }
         }
         if (args.length == 5) {
