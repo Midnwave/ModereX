@@ -1,8 +1,11 @@
 package com.blockforge.moderex.commands;
 
 import com.blockforge.moderex.ModereX;
-import com.blockforge.moderex.commands.admin.MxCommand;
-import com.blockforge.moderex.commands.moderation.*;
+import com.blockforge.moderex.commands.admin.*;
+import com.blockforge.moderex.commands.moderation.punishment.*;
+import com.blockforge.moderex.commands.moderation.check.*;
+import com.blockforge.moderex.commands.moderation.list.*;
+import com.blockforge.moderex.commands.moderation.history.*;
 import com.blockforge.moderex.commands.utility.*;
 import org.bukkit.Bukkit;
 import org.bukkit.command.CommandMap;
@@ -51,16 +54,54 @@ public class CommandManager {
             return;
         }
 
+        // Main Command
         registerPaperCommand(commandMap, "moderex", new MxCommand(plugin), "Main ModereX command", List.of("mx"));
-        registerPaperCommand(commandMap, "mute", new MuteCommand(plugin), "Mute a player", List.of());
-        registerPaperCommand(commandMap, "unmute", new UnmuteCommand(plugin), "Unmute a player", List.of());
+
+        // Core Punishment Commands
         registerPaperCommand(commandMap, "ban", new BanCommand(plugin), "Ban a player", List.of());
-        registerPaperCommand(commandMap, "unban", new UnbanCommand(plugin), "Unban a player", List.of());
-        registerPaperCommand(commandMap, "ipban", new IPBanCommand(plugin), "IP ban a player", List.of());
-        registerPaperCommand(commandMap, "kick", new KickCommand(plugin), "Kick a player", List.of());
-        registerPaperCommand(commandMap, "kickall", new KickAllCommand(plugin), "Kick all players", List.of());
+        registerPaperCommand(commandMap, "mute", new MuteCommand(plugin), "Mute a player", List.of());
         registerPaperCommand(commandMap, "warn", new WarnCommand(plugin), "Warn a player", List.of());
+        registerPaperCommand(commandMap, "kick", new KickCommand(plugin), "Kick a player", List.of());
+        registerPaperCommand(commandMap, "tempban", new TempBanCommand(plugin), "Temporarily ban a player", List.of());
+        registerPaperCommand(commandMap, "tempmute", new TempMuteCommand(plugin), "Temporarily mute a player", List.of());
+        registerPaperCommand(commandMap, "ipban", new IPBanCommand(plugin), "IP ban a player", List.of("banip", "ban-ip"));
+        registerPaperCommand(commandMap, "ipmute", new IPMuteCommand(plugin), "IP mute a player", List.of("muteip"));
+
+        // Unpunishment Commands
+        registerPaperCommand(commandMap, "unban", new UnbanCommand(plugin), "Unban a player", List.of());
+        registerPaperCommand(commandMap, "unmute", new UnmuteCommand(plugin), "Unmute a player", List.of());
+        registerPaperCommand(commandMap, "unwarn", new UnwarnCommand(plugin), "Remove a warning", List.of());
+
+        // Check Commands
+        registerPaperCommand(commandMap, "check", new CheckCommand(plugin), "Check comprehensive player info", List.of());
+        registerPaperCommand(commandMap, "checkban", new CheckBanCommand(plugin), "Check if player is banned", List.of());
+        registerPaperCommand(commandMap, "checkmute", new CheckMuteCommand(plugin), "Check if player is muted", List.of());
+        registerPaperCommand(commandMap, "checkwarn", new CheckWarnCommand(plugin), "Check player warnings", List.of());
+
+        // History Commands
+        registerPaperCommand(commandMap, "history", new HistoryCommand(plugin), "View punishment history", List.of("hist"));
+        registerPaperCommand(commandMap, "staffhistory", new StaffHistoryCommand(plugin), "View staff action history", List.of("staffhist"));
+        registerPaperCommand(commandMap, "warnings", new WarningsCommand(plugin), "View active warnings", List.of());
+        registerPaperCommand(commandMap, "banlist", new BanListCommand(plugin), "View list of bans", List.of());
+        registerPaperCommand(commandMap, "mutelist", new MuteListCommand(plugin), "View list of mutes", List.of());
+        registerPaperCommand(commandMap, "warnlist", new WarnListCommand(plugin), "View list of warnings", List.of());
+
+        // Account & IP Commands
+        registerPaperCommand(commandMap, "dupeip", new DupeIPCommand(plugin), "Check for alt accounts", List.of("alts", "checkalts"));
+        registerPaperCommand(commandMap, "iphistory", new IPHistoryCommand(plugin), "View IP history", List.of());
+        registerPaperCommand(commandMap, "ipreport", new IPReportCommand(plugin), "Show duplicate IPs", List.of());
+        registerPaperCommand(commandMap, "geoip", new GeoIPCommand(plugin), "Show player's country", List.of());
+        registerPaperCommand(commandMap, "lastuuid", new LastUUIDCommand(plugin), "Show player's UUID", List.of());
+        registerPaperCommand(commandMap, "namehistory", new NameHistoryCommand(plugin), "Show player's name history", List.of());
+
+        // Admin Commands
+        registerPaperCommand(commandMap, "lockdown", new LockdownCommand(plugin), "Enable/disable lockdown mode", List.of());
+        registerPaperCommand(commandMap, "prunehistory", new PruneHistoryCommand(plugin), "Prune old punishments", List.of());
+        registerPaperCommand(commandMap, "staffrollback", new StaffRollbackCommand(plugin), "Rollback staff actions", List.of());
+
+        // Legacy/Existing Commands
         registerPaperCommand(commandMap, "clearwarnings", new ClearWarningsCommand(plugin), "Clear player warnings", List.of());
+        registerPaperCommand(commandMap, "kickall", new KickAllCommand(plugin), "Kick all players", List.of());
         registerPaperCommand(commandMap, "punish", new PunishCommand(plugin), "Open punishment GUI", List.of());
         registerPaperCommand(commandMap, "modlog", new ModLogCommand(plugin), "View moderation log", List.of());
         registerPaperCommand(commandMap, "staffchat", new StaffChatCommand(plugin), "Staff chat", List.of("sc"));
@@ -69,6 +110,18 @@ public class CommandManager {
         registerPaperCommand(commandMap, "cmdblacklist", new CmdBlacklistCommand(plugin), "Blacklist command", List.of());
         registerPaperCommand(commandMap, "cmdunblacklist", new CmdUnblacklistCommand(plugin), "Remove command blacklist", List.of());
         registerPaperCommand(commandMap, "cmdhistory", new CmdHistoryCommand(plugin), "View command history", List.of());
+        registerPaperCommand(commandMap, "disguise", new DisguiseCommand(plugin), "Disguise as another player", List.of("d"));
+        registerPaperCommand(commandMap, "disguisename", new DisguiseNameCommand(plugin), "Change disguise name", List.of("dname"));
+        registerPaperCommand(commandMap, "disguiseskin", new DisguiseSkinCommand(plugin), "Change disguise skin", List.of("dskin"));
+
+        // Shorthand aliases
+        registerPaperCommand(commandMap, "mban", new BanCommand(plugin), "Ban a player", List.of());
+        registerPaperCommand(commandMap, "munban", new UnbanCommand(plugin), "Unban a player", List.of());
+        registerPaperCommand(commandMap, "mmute", new MuteCommand(plugin), "Mute a player", List.of());
+        registerPaperCommand(commandMap, "munmute", new UnmuteCommand(plugin), "Unmute a player", List.of());
+        registerPaperCommand(commandMap, "mwarn", new WarnCommand(plugin), "Warn a player", List.of());
+        registerPaperCommand(commandMap, "munwarn", new UnwarnCommand(plugin), "Remove a warning", List.of());
+        registerPaperCommand(commandMap, "mkick", new KickCommand(plugin), "Kick a player", List.of());
     }
 
     private void registerPaperCommand(CommandMap commandMap, String name, BaseCommand executor, String description, List<String> aliases) {
@@ -90,26 +143,74 @@ public class CommandManager {
     }
 
     private void registerSpigotCommands() {
+        // Main Command
         registerSpigotCommand("moderex", new MxCommand(plugin));
 
-        registerSpigotCommand("mute", new MuteCommand(plugin));
-        registerSpigotCommand("unmute", new UnmuteCommand(plugin));
+        // Core Punishment Commands
         registerSpigotCommand("ban", new BanCommand(plugin));
-        registerSpigotCommand("unban", new UnbanCommand(plugin));
-        registerSpigotCommand("ipban", new IPBanCommand(plugin));
-        registerSpigotCommand("kick", new KickCommand(plugin));
-        registerSpigotCommand("kickall", new KickAllCommand(plugin));
+        registerSpigotCommand("mute", new MuteCommand(plugin));
         registerSpigotCommand("warn", new WarnCommand(plugin));
+        registerSpigotCommand("kick", new KickCommand(plugin));
+        registerSpigotCommand("tempban", new TempBanCommand(plugin));
+        registerSpigotCommand("tempmute", new TempMuteCommand(plugin));
+        registerSpigotCommand("ipban", new IPBanCommand(plugin));
+        registerSpigotCommand("ipmute", new IPMuteCommand(plugin));
+
+        // Unpunishment Commands
+        registerSpigotCommand("unban", new UnbanCommand(plugin));
+        registerSpigotCommand("unmute", new UnmuteCommand(plugin));
+        registerSpigotCommand("unwarn", new UnwarnCommand(plugin));
+
+        // Check Commands
+        registerSpigotCommand("check", new CheckCommand(plugin));
+        registerSpigotCommand("checkban", new CheckBanCommand(plugin));
+        registerSpigotCommand("checkmute", new CheckMuteCommand(plugin));
+        registerSpigotCommand("checkwarn", new CheckWarnCommand(plugin));
+
+        // History Commands
+        registerSpigotCommand("history", new HistoryCommand(plugin));
+        registerSpigotCommand("staffhistory", new StaffHistoryCommand(plugin));
+        registerSpigotCommand("warnings", new WarningsCommand(plugin));
+        registerSpigotCommand("banlist", new BanListCommand(plugin));
+        registerSpigotCommand("mutelist", new MuteListCommand(plugin));
+        registerSpigotCommand("warnlist", new WarnListCommand(plugin));
+
+        // Account & IP Commands
+        registerSpigotCommand("dupeip", new DupeIPCommand(plugin));
+        registerSpigotCommand("iphistory", new IPHistoryCommand(plugin));
+        registerSpigotCommand("ipreport", new IPReportCommand(plugin));
+        registerSpigotCommand("geoip", new GeoIPCommand(plugin));
+        registerSpigotCommand("lastuuid", new LastUUIDCommand(plugin));
+        registerSpigotCommand("namehistory", new NameHistoryCommand(plugin));
+
+        // Admin Commands
+        registerSpigotCommand("lockdown", new LockdownCommand(plugin));
+        registerSpigotCommand("prunehistory", new PruneHistoryCommand(plugin));
+        registerSpigotCommand("staffrollback", new StaffRollbackCommand(plugin));
+
+        // Legacy/Existing Commands
         registerSpigotCommand("clearwarnings", new ClearWarningsCommand(plugin));
+        registerSpigotCommand("kickall", new KickAllCommand(plugin));
         registerSpigotCommand("punish", new PunishCommand(plugin));
         registerSpigotCommand("modlog", new ModLogCommand(plugin));
-
         registerSpigotCommand("staffchat", new StaffChatCommand(plugin));
         registerSpigotCommand("staffhelp", new StaffHelpCommand(plugin));
         registerSpigotCommand("vanish", new VanishCommand(plugin));
         registerSpigotCommand("cmdblacklist", new CmdBlacklistCommand(plugin));
         registerSpigotCommand("cmdunblacklist", new CmdUnblacklistCommand(plugin));
         registerSpigotCommand("cmdhistory", new CmdHistoryCommand(plugin));
+        registerSpigotCommand("disguise", new DisguiseCommand(plugin));
+        registerSpigotCommand("disguisename", new DisguiseNameCommand(plugin));
+        registerSpigotCommand("disguiseskin", new DisguiseSkinCommand(plugin));
+
+        // Shorthand aliases
+        registerSpigotCommand("mban", new BanCommand(plugin));
+        registerSpigotCommand("munban", new UnbanCommand(plugin));
+        registerSpigotCommand("mmute", new MuteCommand(plugin));
+        registerSpigotCommand("munmute", new UnmuteCommand(plugin));
+        registerSpigotCommand("mwarn", new WarnCommand(plugin));
+        registerSpigotCommand("munwarn", new UnwarnCommand(plugin));
+        registerSpigotCommand("mkick", new KickCommand(plugin));
     }
 
     private void registerSpigotCommand(String name, BaseCommand executor) {
