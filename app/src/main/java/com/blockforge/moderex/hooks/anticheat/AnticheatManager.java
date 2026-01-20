@@ -23,45 +23,54 @@ public class AnticheatManager {
     }
 
     public void initialize() {
-        plugin.getLogger().info("Initializing anticheat integrations...");
+        plugin.getLogger().info("[AnticheatManager] Starting initialization...");
 
         // Load alert manager
-        alertManager.load();
+        try {
+            alertManager.load();
+            plugin.getLogger().info("[AnticheatManager] Alert manager loaded");
+        } catch (Exception e) {
+            plugin.getLogger().severe("[AnticheatManager] Failed to load alert manager: " + e.getMessage());
+            e.printStackTrace();
+        }
 
         // Register all anticheat hooks
-        plugin.logDebug("[Anticheat] Registering anticheat hooks...");
-        registerHook(new GrimHook(plugin));
-        registerHook(new VulcanHook(plugin));
-        registerHook(new MatrixHook(plugin));
-        registerHook(new SpartanHook(plugin));
-        registerHook(new NCPHook(plugin));
-        registerHook(new ThemisHook(plugin));
-        registerHook(new FoxAdditionHook(plugin));
-        registerHook(new LightAntiCheatHook(plugin));
-        plugin.logDebug("[Anticheat] Registered " + hooks.size() + " hooks: " + String.join(", ", hooks.keySet()));
+        plugin.getLogger().info("[AnticheatManager] Registering anticheat hooks...");
+        try {
+            registerHook(new GrimHook(plugin));
+            registerHook(new VulcanHook(plugin));
+            registerHook(new MatrixHook(plugin));
+            registerHook(new SpartanHook(plugin));
+            registerHook(new NCPHook(plugin));
+            registerHook(new ThemisHook(plugin));
+            registerHook(new FoxAdditionHook(plugin));
+            registerHook(new LightAntiCheatHook(plugin));
+            plugin.getLogger().info("[AnticheatManager] Registered " + hooks.size() + " hooks: " + String.join(", ", hooks.keySet()));
+        } catch (Exception e) {
+            plugin.getLogger().severe("[AnticheatManager] Failed to register hooks: " + e.getMessage());
+            e.printStackTrace();
+        }
 
         // Try to hook into each anticheat
-        plugin.logDebug("[Anticheat] Attempting to hook into anticheats...");
+        plugin.getLogger().info("[AnticheatManager] Attempting to hook into detected anticheats...");
         for (AnticheatHook hook : hooks.values()) {
             try {
-                plugin.logDebug("[Anticheat] Trying to hook into " + hook.getName() + "...");
+                plugin.getLogger().info("[AnticheatManager] Trying " + hook.getName() + "...");
                 if (hook.hook()) {
                     enabledAnticheats.add(hook.getName());
                     hook.setAlertHandler(this::handleAlert);
-                    plugin.getLogger().info("Hooked into " + hook.getName());
-                } else {
-                    plugin.logDebug("[Anticheat] " + hook.getName() + " hook returned false (not installed or API unavailable)");
+                    plugin.getLogger().info("[AnticheatManager] Successfully hooked into " + hook.getName());
                 }
             } catch (Exception e) {
-                plugin.logError("Failed to hook into " + hook.getName(), e);
+                plugin.getLogger().severe("[AnticheatManager] EXCEPTION hooking " + hook.getName() + ": " + e.getMessage());
+                e.printStackTrace();
             }
         }
 
         if (enabledAnticheats.isEmpty()) {
-            plugin.getLogger().info("No anticheat plugins detected.");
+            plugin.getLogger().info("[AnticheatManager] No anticheat plugins detected.");
         } else {
-            plugin.getLogger().info("Hooked into " + enabledAnticheats.size() + " anticheat(s): " +
-                    String.join(", ", enabledAnticheats));
+            plugin.getLogger().info("[AnticheatManager] Active anticheats: " + String.join(", ", enabledAnticheats));
         }
     }
 
@@ -95,21 +104,32 @@ public class AnticheatManager {
         return !enabledAnticheats.isEmpty();
     }
 
+    /**
+     * Register a late-hooked anticheat (e.g., when GrimAPI wasn't ready on startup).
+     * Called by anticheat hooks when their delayed initialization succeeds.
+     */
+    public void registerLateHook(AnticheatHook hook) {
+        if (!enabledAnticheats.contains(hook.getName())) {
+            enabledAnticheats.add(hook.getName());
+            hook.setAlertHandler(this::handleAlert);
+            plugin.getLogger().info("[AnticheatManager] Late-registered " + hook.getName());
+        }
+    }
+
     private void handleAlert(AnticheatHook.AnticheatAlert alert) {
         Player target = alert.getPlayer();
         String anticheat = alert.getAnticheat();
         String checkName = alert.getCheckName();
         int vl = (int) alert.getVlLevel();
 
+        // Console logging for tracing
+        plugin.getLogger().info("[AC] Processing alert: " + target.getName() + " " + anticheat + ":" + checkName + " VL:" + vl);
+        plugin.logDebug("[AC] Received alert: " + target.getName() + " " + anticheat + ":" + checkName + " VL:" + vl);
+
         // Process through alert manager for auto-punishments
         alertManager.processAlert(alert);
 
-        // Check if alert should be shown (threshold check)
-        if (!alertManager.shouldShowAlert(target, anticheat, checkName, vl)) {
-            return;
-        }
-
-        // Pass to automod for rule processing
+        // Pass to automod for rule processing (always, let automod decide)
         plugin.getAutomodManager().handleAnticheatAlert(
                 target,
                 anticheat,
@@ -119,7 +139,7 @@ public class AnticheatManager {
                 alert.getVlLevel()
         );
 
-        // Notify staff with permission (filtered by preferences)
+        // Notify staff with permission (filtered by per-staff preferences and thresholds)
         notifyStaff(alert);
 
         // Notify watchlist if player is watched
@@ -136,11 +156,12 @@ public class AnticheatManager {
             );
         }
 
-        // Broadcast to web panel
+        // Broadcast to web panel (always, let frontend filter)
         broadcastAlertToWebPanel(alert);
     }
 
     private void broadcastAlertToWebPanel(AnticheatHook.AnticheatAlert alert) {
+        plugin.getLogger().info("[AC] Broadcasting to web panel: " + alert.getPlayer().getName() + " " + alert.getCheckName());
         if (plugin.getWebPanelServer() != null) {
             plugin.getWebPanelServer().broadcastAnticheatAlert(
                     alert.getAnticheat(),
@@ -162,7 +183,10 @@ public class AnticheatManager {
      * Notify staff about an anticheat alert. Can be called directly for testing.
      */
     public void notifyStaff(Player target, String anticheat, String checkName, int vl) {
+        plugin.getLogger().info("[AC] notifyStaff called for " + target.getName() + " " + anticheat + ":" + checkName);
+
         if (!plugin.getConfigManager().getSettings().isAnticheatAlertsEnabled()) {
+            plugin.getLogger().warning("[AC] Alerts disabled globally in config! Skipping alert for " + target.getName());
             plugin.logDebug("[AC] Alerts disabled globally, skipping alert for " + target.getName());
             return;
         }
@@ -178,19 +202,11 @@ public class AnticheatManager {
                 continue;
             }
 
-            // Get staff's preference for this specific check
+            // Get staff's preference for this specific check (defaults to EVERYONE with threshold=1)
             var staffSettings = plugin.getStaffSettingsManager().getSettings(staff);
             var checkPref = staffSettings.getCheckAlertPreference(anticheat, checkName);
 
-            // If not configured, skip (default is OFF/unconfigured)
-            if (!checkPref.isConfigured()) {
-                if (debug) {
-                    plugin.logDebug("[AC] " + staff.getName() + " has no config for " + anticheat + ":" + checkName + " (skipped)");
-                }
-                continue;
-            }
-
-            // Check alert level
+            // Check alert level (default: EVERYONE)
             switch (checkPref.getAlertLevel()) {
                 case OFF -> {
                     if (debug) {

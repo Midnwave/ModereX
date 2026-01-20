@@ -236,8 +236,8 @@ public class StaffSettings {
 
     public static class CheckAlertPreference {
         private String checkKey; // format: "anticheat:checkname"
-        private AlertLevel alertLevel = AlertLevel.OFF; // Default OFF (unconfigured)
-        private int thresholdCount = 5; // Send alert after X triggers
+        private AlertLevel alertLevel = AlertLevel.EVERYONE; // Default ON for everyone
+        private int thresholdCount = 1; // Send alert immediately (every alert)
         private int timeWindowSeconds = 60; // Within Y seconds
 
         public CheckAlertPreference() {}
@@ -279,7 +279,9 @@ public class StaffSettings {
         }
 
         public boolean isConfigured() {
-            return alertLevel != AlertLevel.OFF;
+            // Always returns true now since default is EVERYONE
+            // This means all alerts show by default until staff customizes them
+            return true;
         }
     }
 
