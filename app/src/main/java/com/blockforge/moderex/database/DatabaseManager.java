@@ -250,6 +250,17 @@ public class DatabaseManager {
                     )
                     """);
 
+            // Disguise state table
+            stmt.execute("""
+                    CREATE TABLE IF NOT EXISTS moderex_disguise_state (
+                        uuid VARCHAR(36) PRIMARY KEY,
+                        display_name VARCHAR(16) NOT NULL,
+                        skin_name VARCHAR(16),
+                        rank VARCHAR(64) NOT NULL,
+                        created_at BIGINT NOT NULL
+                    )
+                    """);
+
             // Replays metadata table
             stmt.execute("""
                     CREATE TABLE IF NOT EXISTS moderex_replays (
@@ -272,6 +283,14 @@ public class DatabaseManager {
             // Create indexes for performance
             createIndexes(stmt);
         }
+    }
+
+    /**
+     * Re-run schema creation to upgrade database structure
+     * This is safe as all CREATE TABLE statements use IF NOT EXISTS
+     */
+    public void upgradeSchema() throws SQLException {
+        createTables();
     }
 
     private void createIndexes(Statement stmt) throws SQLException {
@@ -396,6 +415,10 @@ public class DatabaseManager {
 
     public boolean isMySQL() {
         return isMySQL;
+    }
+
+    public HikariDataSource getDataSource() {
+        return dataSource;
     }
 
     public void shutdown() {
