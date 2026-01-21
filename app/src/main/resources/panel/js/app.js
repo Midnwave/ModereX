@@ -207,12 +207,53 @@
     if (page === 'watchlist') ui.renderWatchlist();
     if (page === 'livelogs') ui.renderLogs();
     if (page === 'automod') ui.renderRules();
+    if (page === 'cmdblacklist') renderCmdBlacklist();
     if (page === 'anticheat') ui.renderAnticheat();
     if (page === 'templates') ui.renderTemplates();
     if (page === 'messages') ui.renderMessages();
     if (page === 'settings') ui.renderChatToggles();
     if (page === 'status' && window.initServerStatus) window.initServerStatus();
     if (page === 'replay' && window.initReplayViewer) window.initReplayViewer();
+  };
+
+  // ===== TEXT UTILITIES =====
+  function truncateText(text, maxLen = 40) {
+    if (!text) return '';
+    text = String(text);
+    return text.length > maxLen ? text.substring(0, maxLen) + '...' : text;
+  }
+
+  // Create expandable reason HTML - click to show full text
+  window.expandableReason = function(text, maxLen = 20) {
+    if (!text) return '<span class="reason-text">No reason</span>';
+    text = String(text);
+    if (text.length <= maxLen) {
+      return `<span class="reason-text">${escapeHtml(text)}</span>`;
+    }
+    const truncated = text.substring(0, maxLen);
+    const id = 'reason-' + Math.random().toString(36).substr(2, 9);
+    return `<span class="reason-text" id="${id}" onclick="toggleReason('${id}')" data-full="${escapeHtml(text)}" data-short="${escapeHtml(truncated)}...">${escapeHtml(truncated)}...<span class="expand-hint">(click)</span></span>`;
+  };
+
+  window.toggleReason = function(id) {
+    const el = document.getElementById(id);
+    if (!el) return;
+    el.classList.toggle('expanded');
+    if (el.classList.contains('expanded')) {
+      el.innerHTML = escapeHtml(el.dataset.full);
+    } else {
+      el.innerHTML = escapeHtml(el.dataset.short) + '<span class="expand-hint">(click)</span>';
+    }
+  };
+
+  // ===== CHARACTER COUNT =====
+  window.updateCharCount = function(textarea, counterId, maxLen) {
+    const counter = document.getElementById(counterId);
+    if (counter) {
+      const len = textarea.value.length;
+      counter.textContent = `${len}/${maxLen}`;
+      counter.style.color = len >= maxLen ? 'var(--bad)' : 'var(--text-secondary)';
+    }
   };
 
   // ===== TOASTS =====
@@ -250,6 +291,48 @@
   // Make toast available globally
   window.MX = window.MX || {};
   window.MX.toast = window.toast;
+
+  // ===== DEBUG MODE =====
+  // Debug log function - shows notifications at bottom when debug mode is enabled
+  window.debugLog = function(category, message, type = 'info') {
+    // Check if debug mode is enabled in user settings
+    if (!state.userSettings?.debugMode) return;
+
+    // Add to debug log container
+    const container = document.getElementById('debug-log-container') || createDebugContainer();
+    const entry = document.createElement('div');
+    entry.className = `debug-entry debug-${type}`;
+    entry.innerHTML = `
+      <span class="debug-time">${new Date().toLocaleTimeString()}</span>
+      <span class="debug-cat">[${escapeHtml(category)}]</span>
+      <span class="debug-msg">${escapeHtml(message)}</span>
+    `;
+    container.appendChild(entry);
+
+    // Auto-remove after 5 seconds
+    setTimeout(() => {
+      entry.classList.add('fade-out');
+      setTimeout(() => entry.remove(), 300);
+    }, 5000);
+
+    // Keep only last 20 entries
+    while (container.children.length > 20) {
+      container.removeChild(container.firstChild);
+    }
+
+    // Also log to console
+    console.log(`[DEBUG][${category}] ${message}`);
+  };
+
+  function createDebugContainer() {
+    const container = document.createElement('div');
+    container.id = 'debug-log-container';
+    container.className = 'debug-log-container';
+    document.body.appendChild(container);
+    return container;
+  }
+
+  window.MX.debugLog = window.debugLog;
 
   // ===== STAFF CHAT =====
   const staffChatMessages = [];
@@ -351,11 +434,32 @@
 
 
   // ===== DRAWER =====
+  // Helper to refresh command section in drawer
+  function refreshDrawerCommands(p) {
+    const recentCmds = (p.recentCommands || []).slice(-10).reverse();
+    const cmdEl = dom().drawerRecent;
+    if (cmdEl) {
+      cmdEl.innerHTML = recentCmds.length ? `
+        ${recentCmds.map(item => `<div class="drawer-row"><div class="meta"><b>${escapeHtml(item.cmd || item)}</b></div></div>`).join('')}
+        <div class="drawer-row">
+          <div class="meta"><small>${p.recentCommands.length} total commands</small></div>
+          <button class="mini" onclick="openCommandHistory('${p.id}')"><i class="fa-solid fa-up-right-from-square"></i> Expand</button>
+        </div>
+      ` : `<div class="drawer-row"><div class="meta"><small>No commands.</small></div></div>`;
+    }
+  }
+
   window.openDrawer = function(playerId, highlightPunId = null) {
     const p = state.players.find(x => x.id === playerId);
     if (!p) return;
     state.selectedPlayerId = playerId;
     state.selectedPunishmentId = highlightPunId;
+
+    // Request player details (command history, automod flags) from server
+    const ws = window.MX?.ws;
+    if (ws && ws.isConnected()) {
+      ws.send('GET_PLAYER_DETAILS', { uuid: p.uuid });
+    }
 
     const watching = state.watchlist.has(p.uuid) || state.watchlist.has(playerId);
     dom().watchToggleBtn.classList.toggle('on', watching);
@@ -390,7 +494,7 @@
       const badgeClass = x.type === 'BAN' ? 'red' : x.type === 'MUTE' ? 'yellow' : x.type === 'KICK' ? 'purple' : 'blue';
       return `
         <div class="drawer-row" style="cursor:pointer" onclick="viewPunishmentDetails('${x.id}')">
-          <div class="meta"><b>${escapeHtml(x.type)} | ${escapeHtml(x.duration || 'instant')}</b><small>${escapeHtml(x.reason || 'No reason')}<br>Case: <span style="font-family:var(--font-mono)">${escapeHtml(x.id)}</span> | by ${escapeHtml(x.staff)}</small></div>
+          <div class="meta"><b>${escapeHtml(x.type)} | ${escapeHtml(x.duration || 'instant')}</b><small>${escapeHtml(truncateText(x.reason || 'No reason', 40))}<br>Case: <span style="font-family:var(--font-mono)">${escapeHtml(x.id)}</span> | by ${escapeHtml(x.staff)}</small></div>
           <div class="drawer-actions">
             <span class="badge ${badgeClass}"><i class="fa-solid fa-file-lines"></i></span>
             <button class="mini bad" onclick="event.stopPropagation(); revokePunishmentConfirm('${x.id}')"><i class="fa-solid fa-xmark"></i></button>
@@ -402,7 +506,7 @@
     const violations = state.punishments.filter(x => x.playerId === p.id && (!x.active || x.revoked)).sort((a, b) => b.createdAt - a.createdAt);
     dom().drawerViolations.innerHTML = violations.length ? violations.slice(0, 8).map(v => `
       <div class="drawer-row" style="cursor:pointer" onclick="viewPunishmentDetails('${v.id}')">
-        <div class="meta"><b>${escapeHtml(v.type)} | <span style="font-family:var(--font-mono)">${escapeHtml(v.id)}</span></b><small>${escapeHtml(fmtLong(v.createdAt))} | ${escapeHtml(v.reason || 'No reason')}</small></div>
+        <div class="meta"><b>${escapeHtml(v.type)} | <span style="font-family:var(--font-mono)">${escapeHtml(v.id)}</span></b><small>${escapeHtml(fmtLong(v.createdAt))} | ${escapeHtml(truncateText(v.reason || 'No reason', 35))}</small></div>
         <span class="badge ${v.type === 'BAN' ? 'red' : v.type === 'MUTE' ? 'yellow' : 'blue'}"><i class="fa-solid fa-file-lines"></i></span>
       </div>
     `).join('') : `<div class="drawer-row"><div class="meta"><small>No violations.</small></div></div>`;
@@ -658,7 +762,7 @@
           <h3><i class="fa-solid fa-gavel" style="color:var(--warn)"></i> Details</h3>
           <div style="margin-top:12px;display:flex;flex-direction:column;gap:6px">
             <div><b>Type:</b> ${escapeHtml(pun.type)}</div>
-            <div><b>Reason:</b> ${escapeHtml(pun.reason || 'No reason')}</div>
+            <div style="word-break:break-word;white-space:pre-wrap"><b>Reason:</b> ${escapeHtml(pun.reason || 'No reason')}</div>
             <div><b>Duration:</b> ${escapeHtml(pun.duration || 'Instant')}</div>
             <div><b>Staff:</b> ${escapeHtml(pun.staff || 'System')}</div>
             <div><b>Created:</b> ${escapeHtml(fmtShort(pun.createdAt))}</div>
@@ -1037,10 +1141,122 @@
     render();
   };
 
+  // ===== COMMAND BLACKLIST =====
+  state.cmdBlacklist = state.cmdBlacklist || [];
+
+  window.filterCmdBlacklist = function() {
+    renderCmdBlacklist();
+  };
+
+  window.renderCmdBlacklist = function() {
+    const container = document.getElementById('cmdblList');
+    const countBadge = document.getElementById('cmdblCount');
+    if (!container) return;
+
+    const search = (document.getElementById('cmdblSearch')?.value || '').toLowerCase();
+    const statusFilter = document.getElementById('cmdblStatusFilter')?.value || 'all';
+    const now = Date.now();
+
+    let filtered = state.cmdBlacklist.filter(entry => {
+      if (search && !entry.playerName?.toLowerCase().includes(search) && !entry.command?.toLowerCase().includes(search)) {
+        return false;
+      }
+      const isActive = entry.expiresAt === -1 || entry.expiresAt > now;
+      if (statusFilter === 'active' && !isActive) return false;
+      if (statusFilter === 'expired' && isActive) return false;
+      return true;
+    });
+
+    if (countBadge) {
+      countBadge.textContent = `${filtered.length} entr${filtered.length === 1 ? 'y' : 'ies'}`;
+    }
+
+    if (filtered.length === 0) {
+      container.innerHTML = `
+        <div class="empty-state" style="text-align:center;padding:40px;color:var(--text-secondary)">
+          <i class="fa-solid fa-ban" style="font-size:48px;opacity:0.3;margin-bottom:16px"></i>
+          <p>No command blacklist entries${search ? ' match your search' : ''}</p>
+        </div>
+      `;
+      return;
+    }
+
+    container.innerHTML = filtered.map(entry => {
+      const isActive = entry.expiresAt === -1 || entry.expiresAt > now;
+      const expiresText = entry.expiresAt === -1 ? 'Permanent' : (isActive ? fmtDuration(entry.expiresAt - now) + ' left' : 'Expired');
+      const statusBadge = isActive ? '<span class="badge red">Active</span>' : '<span class="badge gray">Expired</span>';
+
+      return `
+        <div class="cmdbl-entry ${isActive ? '' : 'expired'}">
+          <div class="cmdbl-main">
+            <div class="cmdbl-player">
+              <img src="https://minotar.net/helm/${escapeHtml(entry.playerName || 'Steve')}/32.png" alt="" class="cmdbl-avatar">
+              <div>
+                <b>${escapeHtml(entry.playerName || 'Unknown')}</b>
+                <small style="color:var(--muted);display:block;font-size:11px">${escapeHtml(entry.playerUuid?.substring(0, 8) || '')}</small>
+              </div>
+            </div>
+            <div class="cmdbl-command">
+              <span class="badge purple"><i class="fa-solid fa-terminal"></i> /${escapeHtml(entry.command || 'unknown')}</span>
+            </div>
+            <div class="cmdbl-info">
+              ${statusBadge}
+              <span class="badge gray"><i class="fa-solid fa-clock"></i> ${expiresText}</span>
+            </div>
+            <div class="cmdbl-actions">
+              ${isActive ? `<button class="mini bad" onclick="removeCmdBlacklist('${entry.id}')"><i class="fa-solid fa-xmark"></i> Remove</button>` : ''}
+            </div>
+          </div>
+          <div class="cmdbl-meta">
+            <small><i class="fa-solid fa-user-shield"></i> ${escapeHtml(entry.staffName || 'Console')} | <i class="fa-solid fa-clock"></i> ${fmtLong(entry.createdAt)} | ${escapeHtml(entry.reason || 'No reason')}</small>
+          </div>
+        </div>
+      `;
+    }).join('');
+  };
+
+  window.openCmdBlacklistModal = function() {
+    // TODO: Implement add blacklist modal
+    toast('info', 'Coming Soon', 'Command blacklist management will be available soon. Use /cmdblacklist in-game.');
+  };
+
+  window.removeCmdBlacklist = function(id) {
+    // TODO: Implement remove via WebSocket
+    toast('info', 'Coming Soon', 'Command blacklist removal will be available soon. Use /cmdunblacklist in-game.');
+  };
+
   // ===== RULES =====
+  // State for automod filtering and pagination
+  state.rulesPage = state.rulesPage || 1;
+  state.rulesPageSize = state.rulesPageSize || 10;
+
+  window.filterRules = function() {
+    state.rulesPage = 1; // Reset to page 1 when filtering
+    ui.renderRules();
+  };
+
+  window.rulesPage = function(delta) {
+    const search = (document.getElementById('ruleSearch')?.value || '').toLowerCase();
+    const typeFilter = document.getElementById('ruleTypeFilter')?.value || 'all';
+    const statusFilter = document.getElementById('ruleStatusFilter')?.value || 'all';
+
+    const filtered = state.rules.filter(r => {
+      if (search && !r.name.toLowerCase().includes(search)) return false;
+      if (typeFilter !== 'all' && r.type !== typeFilter) return false;
+      if (statusFilter === 'enabled' && !r.enabled) return false;
+      if (statusFilter === 'disabled' && r.enabled) return false;
+      return true;
+    });
+
+    const totalPages = Math.max(1, Math.ceil(filtered.length / state.rulesPageSize));
+    state.rulesPage = Math.max(1, Math.min(totalPages, state.rulesPage + delta));
+    ui.renderRules();
+  };
+
   window.addRuleUI = function() {
-    state.rules.unshift({ id: uid('rule'), name: `New Rule ${state.rules.length + 1}`, enabled: true, block: true, conditions: [{ kind: 'contains', value: '', match: 'contains' }], action: { kind: 'none', extra: '' }, threshold: { hits: 1, windowMins: 10 }, notes: 'Configure conditions' });
+    state.rules.unshift({ id: uid('rule'), name: `New Rule ${state.rules.length + 1}`, enabled: true, block: true, conditions: [{ kind: 'contains', value: '', match: 'contains' }], action: { kind: 'none', extra: '' }, threshold: { hits: 1, windowMins: 10 }, notes: 'Configure conditions', type: 'WORD_FILTER' });
     ui.markUnsaved('rules', true);
+    state.rulesPage = 1; // Go to first page to see new rule
     ui.renderRules();
     toast('ok', 'Created', 'New rule added.');
   };
@@ -1063,12 +1279,21 @@
 
   window.toggleRule = function(ruleId) {
     const r = state.rules.find(r => r.id === ruleId);
-    if (r) { r.enabled = !r.enabled; ui.markUnsaved('rules', true); ui.renderRules(); }
+    if (r) {
+      r.enabled = !r.enabled;
+      autoSaveRule(r);
+      ui.renderRules();
+    }
   };
 
   window.addCondition = function(ruleId) {
     const r = state.rules.find(r => r.id === ruleId);
-    if (r) { r.conditions.push({ kind: 'contains', value: '', match: 'contains' }); ui.markUnsaved('rules', true); ui.renderRules(); }
+    if (r) {
+      if (!r.conditions) r.conditions = [];
+      r.conditions.push({ kind: 'contains', value: '', match: 'contains' });
+      ui.markUnsaved('rules', true);
+      ui.renderRules();
+    }
   };
 
   window.removeCondition = function(ruleId, idx) {
@@ -1145,8 +1370,47 @@
 
   window.setRuleThreshold = function(ruleId, field, v) {
     const r = state.rules.find(r => r.id === ruleId);
-    if (r) { r.threshold[field] = Math.max(1, parseInt(v || '1', 10)); ui.markUnsaved('rules', true); }
+    if (r) {
+      if (!r.threshold) r.threshold = {};
+      r.threshold[field] = Math.max(1, parseInt(v || '1', 10));
+      autoSaveRule(r);
+    }
   };
+
+  // Set a specific setting on a rule (for built-in rule config)
+  window.setRuleSetting = function(ruleId, setting, value) {
+    const r = state.rules.find(r => r.id === ruleId);
+    if (!r) return;
+
+    // Parse numeric values
+    if (['spamMessageCount', 'spamTimeWindowSeconds', 'capsMaxPercentage', 'capsMinLength', 'afkTimeoutMinutes'].includes(setting)) {
+      r[setting] = Math.max(1, parseInt(value || '1', 10));
+    } else if (['spamDetectSimilar', 'afkKickEnabled'].includes(setting)) {
+      r[setting] = value === true || value === 'true';
+    } else {
+      r[setting] = value;
+    }
+
+    autoSaveRule(r);
+    ui.renderRules();
+  };
+
+  // Auto-save a rule to the server
+  function autoSaveRule(rule) {
+    if (!rule) return;
+
+    // Mark as unsaved for visual feedback
+    ui.markUnsaved('rules', true);
+
+    // Auto-save built-in rules immediately
+    if (rule.builtIn || ['spam_protection', 'caps_filter', 'link_filter', 'afk_kick'].includes(rule.id)) {
+      MX.ws.send('UPDATE_AUTOMOD_RULE', {
+        ruleId: rule.id,
+        rule: rule
+      });
+      window.debugLog('SYNC', `Saved rule: ${rule.name}`, 'success');
+    }
+  }
 
   window.setRuleExceptions = function(ruleId, value) {
     const r = state.rules.find(r => r.id === ruleId);
@@ -1227,6 +1491,30 @@
     window.MX.sounds?.toggle();
     toast('info', 'Notifications', state.settings.watchToasts ? 'Watchlist toasts enabled.' : 'Watchlist toasts disabled.', {silent: true});
   };
+
+  // Show a watchlist alert (called when watched player does something)
+  function watchlistAlert(playerId, title, detail, severity = 'INFO') {
+    const player = state.players.find(p => p.id === playerId || p.uuid === playerId);
+    const playerName = player?.name || 'Unknown Player';
+    const settings = loadMySettings();
+    const style = settings.watchlistStyle || 'bar';
+    const playerData = { playerId, playerName };
+
+    // Add to alerts list
+    state.watchAlerts.unshift({ t: Date.now(), playerId, title, detail, sev: severity });
+    if (state.watchAlerts.length > 50) state.watchAlerts.pop();
+
+    // Show alert based on user preference
+    if (style === 'bar' || style === 'both') {
+      showAlertBar('watchlist', title, `${playerName}: ${detail}`, playerData);
+    }
+    if (style === 'toast' || style === 'both') {
+      toast(severity === 'WARN' ? 'warn' : 'info', title, `${playerName}: ${detail}`, playerData);
+    }
+
+    ui.renderDashboard();
+  }
+  window.watchlistAlert = watchlistAlert;
 
   window.testWatchlistAlert = function() {
     // Get a test player (first from watchlist or first online player)
@@ -1610,6 +1898,8 @@
     const kind = meta.kind || 'event';
     const type = meta.type || (
       kind === 'automod' ? 'AUTOMOD' :
+      kind === 'anticheat' ? 'ANTICHEAT' :
+      channel === 'anticheat' ? 'ANTICHEAT' :
       channel === 'chat' ? 'CHAT' :
       channel === 'punishment' ? (meta.punType || 'WARN') :
       channel === 'system' ? 'SYSTEM' :
@@ -1643,6 +1933,25 @@
         window.MX.sounds?.toggle();
         toast('ok', state.settings.slowEnabled ? 'Slowmode Enabled' : 'Slowmode Disabled',
           state.settings.slowEnabled ? `Players must wait ${seconds}s between messages` : 'Players can chat freely', {silent: true});
+      } else if (key.startsWith('mute')) {
+        // Mute settings - send to server
+        const muteKey = key.replace('mute', '').toLowerCase();
+        const muteKeyMap = { chat: 'chat', msg: 'msg', signs: 'signs', books: 'books', broadcast: 'broadcast', voice: 'voice', voicejoin: 'voiceJoin' };
+        const serverKey = muteKeyMap[muteKey] || muteKey;
+        ws.updateMuteSettings({ [serverKey]: state.settings[key] });
+        window.MX.sounds?.toggle();
+        toast('ok', 'Mute Setting Updated', `${key} is now ${state.settings[key] ? 'blocked' : 'allowed'}`, { silent: true });
+      } else if (key === 'warnNotify' || key === 'warnAutoEscalate') {
+        // Warn settings - send to server
+        const warnKeyMap = { warnNotify: 'notify', warnAutoEscalate: 'autoEscalate' };
+        ws.updateWarnSettings({ [warnKeyMap[key]]: state.settings[key] });
+        window.MX.sounds?.toggle();
+        toast('ok', 'Warn Setting Updated', `${key} is now ${state.settings[key] ? 'enabled' : 'disabled'}`, { silent: true });
+      } else if (key === 'anticheatReplace') {
+        // Anticheat settings - send to server
+        ws.updateAnticheatSettings({ rebrandAlerts: state.settings[key] });
+        window.MX.sounds?.toggle();
+        toast('ok', 'Anticheat Setting Updated', `Alert rebranding is now ${state.settings[key] ? 'enabled' : 'disabled'}`, { silent: true });
       } else {
         // For other settings, mark as unsaved
         ui.markUnsaved('settings', true);
@@ -1654,6 +1963,21 @@
     ui.renderChatToggles();
     ui.renderIntegrations();
     ui.renderAnticheat();
+  };
+
+  // Update staff notification settings (synced with in-game)
+  window.updateStaffSetting = function(key, value) {
+    const ws = window.MX?.ws;
+    state.staffSettings = state.staffSettings || {};
+    state.staffSettings[key] = value;
+
+    // Send to server immediately
+    if (ws && ws.isConnected()) {
+      ws.send('UPDATE_USER_SETTINGS', { [key]: value });
+      toast('ok', 'Setting Saved', `${key} updated`, { silent: true });
+    }
+
+    ui.renderStaffSettings();
   };
 
   // ===== ANTICHEAT ALERT CUSTOMIZATION =====
@@ -1790,7 +2114,9 @@
       toast('ok', 'Test Sent', 'Webhook delivered.');
     }).catch(err => {
       console.error('Webhook error:', err);
+      const reason = err.message || 'Network error';
       toast('warn', 'Delivery Failed', 'Webhook request failed. Check URL or CORS.');
+      if (window.debugLog) window.debugLog('WEBHOOK', `Test failed: ${reason}`, 'error');
     });
   };
 
@@ -1840,9 +2166,11 @@
         setPublishLoading(false);
         toast('ok', 'Published', 'All changes synced to server.');
         logEvent('INFO', 'system', 'Settings published', 'Configuration applied to server.');
-      }).catch(() => {
+      }).catch((err) => {
         setPublishLoading(false);
+        const reason = err?.message || 'Sync failed';
         toast('error', 'Error', 'Failed to publish some changes.');
+        if (window.debugLog) window.debugLog('SYNC', `Publish failed: ${reason}`, 'error');
       });
     } else {
       // Demo mode - just clear unsaved state
@@ -2684,9 +3012,12 @@
       ws.requestAutomodRules();
       ws.requestUserSettings();
       ws.requestChatStatus();
+      ws.requestServerSettings();
       ws.requestAnticheatAlerts();
       ws.requestStaffAlertPrefs();
       ws.requestAlertPresets();
+      // Also request integration info for Settings page
+      ws.send('GET_ANTICHEAT_INFO');
 
       ui.renderAll();
       hideDisconnect();
@@ -2715,11 +3046,31 @@
         lastSeen: p.lastJoin || now(),
         flags: 0,
         warnings: p.warnings || 0,
-        recentCommands: [],
+        recentCommands: p.recentCommands || [],
         notes: ''
       }));
       ui.renderPlayers();
       ui.renderDashboard();
+    });
+
+    // Handle player details (command history, automod flags)
+    ws.on('PLAYER_DETAILS', (data) => {
+      if (!isLiveMode) return;
+      const player = state.players.find(p => p.uuid === data.uuid || p.id === data.uuid);
+      if (player) {
+        // Update recent commands if provided
+        if (data.recentCommands && data.recentCommands.length > 0) {
+          player.recentCommands = data.recentCommands;
+        }
+        // Store automod flags for this player
+        if (data.automodFlags) {
+          player.automodFlags = data.automodFlags;
+        }
+        // Re-render drawer if it's currently showing this player
+        if (state.selectedPlayerId === player.id) {
+          refreshDrawerCommands(player);
+        }
+      }
     });
 
     // Handle punishments data
@@ -2747,6 +3098,16 @@
       state.watchlist = new Set((data.watchlist || []).map(w => w.playerUuid));
       ui.renderWatchlist();
       ui.renderDashboard();
+    });
+
+    // Handle watchlist updates (real-time sync when watchlist changes)
+    ws.on('WATCHLIST_UPDATE', (data) => {
+      if (!isLiveMode) return;
+      state.watchlist = new Set((data.watchlist || []).map(w => w.playerUuid));
+      ui.renderWatchlist();
+      ui.renderDashboard();
+      // Also re-render players if on that page to show updated watchlist status
+      if (state.currentPage === 'players') ui.renderPlayers();
     });
 
     // Handle automod rules
@@ -2785,7 +3146,9 @@
     // Handle rule deleted (real-time sync)
     ws.on('AUTOMOD_RULE_DELETED', (data) => {
       if (!isLiveMode) return;
-      state.rules = state.rules.filter(r => r.id !== data.id);
+      // Backend sends either ruleId or id
+      const deletedId = data.ruleId || data.id;
+      state.rules = state.rules.filter(r => r.id !== deletedId);
       ui.renderRules();
       toast('info', 'Automod', 'Rule deleted');
     });
@@ -2797,6 +3160,26 @@
       state.settings.soundEnabled = data.soundEnabled ?? true;
       state.settings.deviceTrustEnabled = data.deviceTrustEnabled ?? false;
 
+      // Store staff notification settings for sync
+      state.staffSettings = state.staffSettings || {};
+      state.staffSettings.commandAlerts = data.commandAlerts ?? 'WATCHLIST_ONLY';
+      state.staffSettings.showBlacklistedCommands = data.showBlacklistedCommands ?? true;
+      state.staffSettings.anticheatAlertsLevel = data.anticheatAlertsLevel ?? 'EVERYONE';
+      state.staffSettings.anticheatMinVL = data.anticheatMinVL ?? 10;
+      state.staffSettings.automodAlertsLevel = data.automodAlertsLevel ?? 'WATCHLIST_ONLY';
+      state.staffSettings.spamAlertsLevel = data.spamAlertsLevel ?? 'WATCHLIST_ONLY';
+      state.staffSettings.filterAlertsLevel = data.filterAlertsLevel ?? 'WATCHLIST_ONLY';
+      state.staffSettings.watchlistJoinAlerts = data.watchlistJoinAlerts ?? true;
+      state.staffSettings.watchlistQuitAlerts = data.watchlistQuitAlerts ?? true;
+      state.staffSettings.watchlistActivityAlerts = data.watchlistActivityAlerts ?? true;
+      state.staffSettings.joinLeaveMessages = data.joinLeaveMessages ?? 'ALL';
+      state.staffSettings.staffChatEnabled = data.staffChatEnabled ?? true;
+      state.staffSettings.staffChatSound = data.staffChatSound ?? true;
+      state.staffSettings.banAlertsLevel = data.banAlertsLevel ?? 'EVERYONE';
+      state.staffSettings.muteAlertsLevel = data.muteAlertsLevel ?? 'EVERYONE';
+      state.staffSettings.kickAlertsLevel = data.kickAlertsLevel ?? 'EVERYONE';
+      state.staffSettings.warnAlertsLevel = data.warnAlertsLevel ?? 'EVERYONE';
+
       // Apply sound settings globally
       if (window.MX.sounds) {
         window.MX.sounds.setEnabled(data.soundEnabled ?? true);
@@ -2805,13 +3188,21 @@
       // Update all UI elements that depend on these settings
       updateSettingsUI();
       ui.renderWatchToastsToggle();
+      ui.renderStaffSettings();
     });
 
     // Handle anticheat alerts data (list of all checks)
     ws.on('ANTICHEAT_ALERTS', (data) => {
       if (!isLiveMode) return;
       state.anticheat.anticheats = data.anticheats || [];
+      // Also update integrations state so Settings page shows detected anticheats
+      state.integrations = state.integrations || {};
+      state.integrations.hookedAnticheats = (data.anticheats || []).map(ac => ({
+        name: ac.name,
+        alertsEnabled: true
+      }));
       ui.renderAnticheat();
+      ui.renderIntegrations();
     });
 
     // Handle staff alert preferences
@@ -2873,17 +3264,28 @@
 
     ws.on('WATCHLIST_ALERT', (data) => {
       if (!isLiveMode) return;
-      state.watchAlerts.push({ type: data.type, details: data.details, t: now() });
+      // Backend sends alertType, playerName, details, playerUuid
+      const alertType = data.alertType || data.type || 'Activity';
+      const playerName = data.playerName || 'Unknown';
+      const details = data.details || '';
+
+      state.watchAlerts.push({
+        type: alertType,
+        details: details,
+        playerName: playerName,
+        playerUuid: data.playerUuid,
+        t: now()
+      });
 
       const settings = loadMySettings();
       const style = settings.watchlistStyle || 'bar';
-      const playerData = { playerId: data.playerUuid };
+      const playerData = { playerId: data.playerUuid, playerName: playerName };
 
       if (style === 'bar' || style === 'both') {
-        showAlertBar('watchlist', 'Watchlist Alert', data.details, playerData);
+        showAlertBar('watchlist', alertType, details, playerData);
       }
       if (style === 'toast' || style === 'both') {
-        toast('warn', 'Watchlist', data.details, playerData);
+        toast('warn', 'Watchlist', `${playerName}: ${details}`, playerData);
       }
 
       ui.renderDashboard();
@@ -2930,7 +3332,7 @@
           notes: ''
         });
       }
-      logEvent('INFO', 'system', 'Player Join', `${data.name} joined the server`, { kind: 'system' });
+      logEvent('INFO', 'join', 'Player Join', `${data.name} joined the server`, { kind: 'join', type: 'JOIN' });
       ui.renderPlayers();
       ui.renderDashboard();
     });
@@ -2942,7 +3344,7 @@
         player.status = 'offline';
         player.lastSeen = now();
       }
-      logEvent('INFO', 'system', 'Player Quit', `${data.name} left the server`, { kind: 'system' });
+      logEvent('INFO', 'leave', 'Player Quit', `${data.name} left the server`, { kind: 'leave', type: 'LEAVE' });
       ui.renderPlayers();
       ui.renderDashboard();
     });
@@ -2956,6 +3358,13 @@
     ws.on('COMMAND_EXECUTED', (data) => {
       if (!isLiveMode) return;
       const player = state.players.find(p => p.uuid === data.playerUuid);
+      if (player) {
+        // Add to player's recent commands for drawer display
+        if (!player.recentCommands) player.recentCommands = [];
+        player.recentCommands.push({ cmd: data.command, t: data.timestamp || Date.now() });
+        // Keep only last 100 commands in memory
+        if (player.recentCommands.length > 100) player.recentCommands.shift();
+      }
       logEvent('INFO', 'command', `Command | ${data.playerName}`, data.command, { playerId: player?.id, kind: 'command', type: 'COMMAND' });
     });
 
@@ -2992,24 +3401,32 @@
 
     ws.on('ANTICHEAT_ALERT', (data) => {
       if (!isLiveMode) return;
-      const player = state.players.find(p => p.name === data.playerName);
+      const player = state.players.find(p => p.name === data.playerName || p.uuid === data.playerUuid);
       const settings = loadMySettings();
 
-      // Always log the event
-      logEvent('WARN', 'anticheat', `Anticheat | ${data.check}`, `${data.playerName} (VL: ${data.vl})`, { playerId: player?.id, kind: 'anticheat' });
+      // Always log the event with explicit type for filtering
+      logEvent('WARN', 'anticheat', `Anticheat | ${data.check || 'Unknown'}`, `${data.playerName} (VL: ${data.vl || 0})`, { playerId: player?.id, kind: 'anticheat', type: 'ANTICHEAT' });
 
-      // Check user's anticheat mode setting
-      const mode = settings.anticheatMode || 'watchlist';
-      if (mode === 'off') return;
+      // Get per-check alert preference from staff settings
+      const anticheat = (data.anticheat || 'grim').toLowerCase();
+      const checkName = data.check || 'Unknown';
+      const prefKey = `${anticheat}.${checkName}`;
+      const checkPref = state.anticheat?.alertPrefs?.[prefKey] || { alertLevel: 'EVERYONE', thresholdCount: 1, timeWindowSeconds: 60 };
 
-      // Check if player is on watchlist (for watchlist-only mode)
-      const isWatchlisted = player && state.watchlist?.has(player.id);
-      if (mode === 'watchlist' && !isWatchlisted) return;
+      // Determine if we should show this alert based on per-check preference
+      const alertLevel = checkPref.alertLevel || 'EVERYONE';
+      if (alertLevel === 'OFF') return;
+
+      // Check if player is on watchlist
+      const isWatchlisted = player && (state.watchlist?.has(player.id) || state.watchlist?.has(player.uuid));
+
+      // If watchlist only, skip non-watchlisted players
+      if (alertLevel === 'WATCHLIST_ONLY' && !isWatchlisted) return;
 
       // Show alert based on user's preferred style
-      const style = settings.watchlistStyle || 'bar';
-      const title = `Anticheat: ${data.check}`;
-      const sub = `${data.playerName} - VL: ${data.vl}`;
+      const style = settings.watchlistStyle || 'toast';
+      const title = `Anticheat: ${checkName}`;
+      const sub = `${data.playerName} - VL: ${data.vl || 0}`;
       const playerData = { playerId: player?.id };
 
       if (style === 'bar' || style === 'both') {
@@ -3041,6 +3458,37 @@
       state.settings.slowSeconds = data.slowmodeSeconds || 0;
       state.settings.slowEnabled = data.slowmodeSeconds > 0;
       ui.renderDashboard();
+    });
+
+    ws.on('SERVER_SETTINGS', (data) => {
+      if (!isLiveMode) return;
+      // Chat settings
+      if (typeof data.chatEnabled !== 'undefined') state.settings.chatDisabled = !data.chatEnabled;
+      if (typeof data.slowmodeSeconds !== 'undefined') {
+        state.settings.slowSeconds = data.slowmodeSeconds || 0;
+        state.settings.slowEnabled = data.slowmodeSeconds > 0;
+      }
+      // Mute settings
+      if (data.muteSettings) {
+        state.settings.muteChat = data.muteSettings.chat ?? true;
+        state.settings.muteMsg = data.muteSettings.msg ?? true;
+        state.settings.muteSigns = data.muteSettings.signs ?? true;
+        state.settings.muteBooks = data.muteSettings.books ?? true;
+        state.settings.muteBroadcast = data.muteSettings.broadcast ?? false;
+        state.settings.muteVoice = data.muteSettings.voice ?? true;
+        state.settings.muteVoiceJoin = data.muteSettings.voiceJoin ?? true;
+      }
+      // Warn settings
+      if (data.warnSettings) {
+        state.settings.warnNotify = data.warnSettings.notify ?? true;
+        state.settings.warnAutoEscalate = data.warnSettings.autoEscalate ?? false;
+      }
+      // Anticheat settings
+      if (data.anticheatSettings) {
+        state.settings.anticheatReplace = data.anticheatSettings.rebrandAlerts ?? false;
+      }
+      ui.renderDashboard();
+      ui.renderChatToggles();
     });
   }
 
@@ -3113,21 +3561,45 @@
     const bar = document.getElementById('alertBar');
     const content = document.getElementById('alertBarContent');
     const icon = document.getElementById('alertBarIcon');
+    const avatar = document.getElementById('alertBarAvatar');
     const titleEl = document.getElementById('alertBarTitle');
+    const playerEl = document.getElementById('alertBarPlayer');
     const subEl = document.getElementById('alertBarSub');
 
     if (content) content.className = 'alertBar-content' + (type === 'anticheat' ? ' anticheat' : '');
-    if (icon) icon.innerHTML = type === 'anticheat'
-      ? '<i class="fa-solid fa-shield-halved"></i>'
-      : '<i class="fa-solid fa-eye"></i>';
+
+    // Show player avatar if we have player data
+    const player = playerData?.playerId ? state.players.find(p => p.uuid === playerData.playerId || p.id === playerData.playerId) : null;
+    const playerName = playerData?.playerName || player?.name;
+
+    if (avatar && playerData?.playerId) {
+      avatar.src = `https://mc-heads.net/avatar/${playerData.playerId}/32`;
+      avatar.style.display = 'block';
+      if (icon) icon.style.display = 'none';
+    } else {
+      if (avatar) avatar.style.display = 'none';
+      if (icon) {
+        icon.style.display = 'flex';
+        icon.innerHTML = type === 'anticheat'
+          ? '<i class="fa-solid fa-shield-halved"></i>'
+          : '<i class="fa-solid fa-eye"></i>';
+      }
+    }
+
     if (titleEl) titleEl.textContent = title;
+    if (playerEl && playerName) {
+      playerEl.textContent = playerName;
+      playerEl.style.display = 'block';
+    } else if (playerEl) {
+      playerEl.style.display = 'none';
+    }
     if (subEl) subEl.textContent = sub;
     if (bar) bar.classList.add('show');
 
     window.MX.sounds?.alertBar();
 
     if (alertBarTimeout) clearTimeout(alertBarTimeout);
-    alertBarTimeout = setTimeout(dismissAlertBar, 10000);
+    alertBarTimeout = setTimeout(dismissAlertBar, 8000);
   }
 
   function dismissAlertBar() {
@@ -3277,6 +3749,36 @@
     window.MX.sounds?.click();
   }
 
+  function toggleDebugMode() {
+    // Initialize userSettings if needed
+    if (!state.userSettings) state.userSettings = {};
+
+    const currentValue = state.userSettings.debugMode ?? false;
+    const newValue = !currentValue;
+
+    // Update UI
+    const btn = document.getElementById('debugModeEnabled');
+    if (btn) btn.classList.toggle('on', newValue);
+
+    // Show/hide info box
+    const infoBox = document.getElementById('debugModeInfo');
+    if (infoBox) infoBox.style.display = newValue ? 'flex' : 'none';
+
+    // Update state
+    state.userSettings.debugMode = newValue;
+
+    // Save to localStorage
+    saveState();
+
+    // Play click sound
+    window.MX.sounds?.click();
+
+    // Show confirmation debug message
+    if (newValue) {
+      debugLog('SYSTEM', 'Debug mode enabled - you will now see sync and error notifications', 'success');
+    }
+  }
+
   function updateSettingsUI() {
     // Update sound toggle button state
     const soundsBtn = document.getElementById('soundsEnabled');
@@ -3288,6 +3790,16 @@
     const deviceBtn = document.getElementById('deviceTrustEnabled');
     if (deviceBtn) {
       deviceBtn.classList.toggle('on', state.settings.deviceTrustEnabled ?? false);
+    }
+
+    // Update debug mode toggle button state
+    const debugBtn = document.getElementById('debugModeEnabled');
+    if (debugBtn) {
+      const debugEnabled = state.userSettings?.debugMode ?? false;
+      debugBtn.classList.toggle('on', debugEnabled);
+      // Show/hide info box
+      const infoBox = document.getElementById('debugModeInfo');
+      if (infoBox) infoBox.style.display = debugEnabled ? 'flex' : 'none';
     }
 
     // Update volume if the slider exists
@@ -3320,6 +3832,7 @@
   window.setWatchlistStyle = setWatchlistStyle;
   window.togglePanelSounds = togglePanelSounds;
   window.toggleDeviceTrust = toggleDeviceTrust;
+  window.toggleDebugMode = toggleDebugMode;
   window.setVolume = setVolume;
   window.showDisconnect = showDisconnect;
   window.hideDisconnect = hideDisconnect;

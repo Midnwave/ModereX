@@ -33,7 +33,8 @@ public class MatrixHook extends AnticheatHook implements Listener {
             return false;
         }
 
-        plugin.logDebug("[Anticheat] Found Matrix v" + matrixPlugin.getDescription().getVersion());
+        version = matrixPlugin.getDescription().getVersion();
+        plugin.logDebug("[Anticheat] Found Matrix v" + version);
         ClassLoader matrixClassLoader = matrixPlugin.getClass().getClassLoader();
 
         String[] eventClasses = {

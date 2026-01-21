@@ -35,7 +35,8 @@ public class LightAntiCheatHook extends AnticheatHook implements Listener {
         for (String name : PLUGIN_NAMES) {
             lacPlugin = Bukkit.getPluginManager().getPlugin(name);
             if (lacPlugin != null) {
-                plugin.logDebug("[Anticheat] Found LightAntiCheat plugin: " + name + " v" + lacPlugin.getDescription().getVersion());
+                version = lacPlugin.getDescription().getVersion();
+                plugin.logDebug("[Anticheat] Found LightAntiCheat plugin: " + name + " v" + version);
                 break;
             }
         }

@@ -99,22 +99,6 @@ webpanel:
   # When enabled, you can access the panel at: http://your-server:25565/
   same-port: false
 
-  # AI Assistant configuration
-  ai:
-    # Enable AI assistant in web panel
-    enabled: true
-
-    # Ollama endpoint (local or remote)
-    # Example for local: http://localhost:11434/api/chat
-    # Example for remote: http://192.168.1.100:11434/api/chat
-    endpoint: 'http://localhost:11434/api/chat'
-
-    # Model name to use (Ollama model)
-    model: 'devstral-2-123b-cloud'
-
-    # API key (leave empty for local Ollama, or set for cloud services)
-    api-key: ''
-
 # ============================================
 # PROXY SETTINGS
 # ============================================
@@ -521,7 +505,7 @@ replay:
 # CONFIGURATION VERSION
 # ============================================
 # DO NOT MODIFY - Used for automatic config migration
-config-version: 8
+config-version: 9
 
 
 

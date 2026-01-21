@@ -15,7 +15,6 @@ import java.util.function.Consumer;
 public class TemplateGui extends PaginatedGui<PunishmentTemplate> {
 
     private PunishmentType filterType = null;
-    private String filterCategory = null;
     private final Consumer<PunishmentTemplate> onSelect;
     private final OfflinePlayer target;
 
@@ -36,9 +35,6 @@ public class TemplateGui extends PaginatedGui<PunishmentTemplate> {
 
         if (filterType != null) {
             stream = stream.filter(t -> t.getType() == filterType);
-        }
-        if (filterCategory != null) {
-            stream = stream.filter(t -> filterCategory.equals(t.getCategory()));
         }
 
         return stream.toList();
@@ -97,25 +93,6 @@ public class TemplateGui extends PaginatedGui<PunishmentTemplate> {
             refresh();
         });
 
-        // Category filter
-        setItem(7, createItem(Material.NAME_TAG, "<gold>Filter by Category",
-                "<gray>Click to select a category",
-                "",
-                "<white>Current: " + (filterCategory != null ? "<yellow>" + filterCategory : "<gray>All"),
-                "",
-                "<yellow>Left-click: Select category",
-                "<red>Right-click: Clear filter"), clickType -> {
-            if (clickType.isRightClick()) {
-                filterCategory = null;
-                refresh();
-            } else {
-                openGui(new CategorySelectorGui(plugin, category -> {
-                    filterCategory = category;
-                    openGui(this);
-                }));
-            }
-        });
-
         // Create new template button (admin only)
         if (viewer.hasPermission("moderex.template.create")) {
             setItem(8, createItem(Material.EMERALD, "<green>Create Template",
@@ -151,10 +128,6 @@ public class TemplateGui extends PaginatedGui<PunishmentTemplate> {
 
         if (template.getReason() != null && !template.getReason().isEmpty()) {
             lore.add("<gray>Reason: <white>" + truncate(template.getReason(), 30));
-        }
-
-        if (template.getCategory() != null) {
-            lore.add("<gray>Category: <white>" + template.getCategory());
         }
 
         lore.add("");
@@ -203,7 +176,6 @@ public class TemplateGui extends PaginatedGui<PunishmentTemplate> {
         viewer.sendMessage(TextUtil.parse("<gray>Type: <white>" + template.getType().name()));
         viewer.sendMessage(TextUtil.parse("<gray>Duration: <white>" + (template.getDuration() != null ? template.getDuration() : "None")));
         viewer.sendMessage(TextUtil.parse("<gray>Reason: <white>" + (template.getReason() != null ? template.getReason() : "None")));
-        viewer.sendMessage(TextUtil.parse("<gray>Category: <white>" + (template.getCategory() != null ? template.getCategory() : "None")));
         viewer.sendMessage(TextUtil.parse("<gray>Priority: <white>" + template.getPriority()));
         viewer.sendMessage(TextUtil.parse("<gray>═══════════════════════════════════"));
     }
@@ -222,37 +194,6 @@ public class TemplateGui extends PaginatedGui<PunishmentTemplate> {
         });
     }
 
-    public static class CategorySelectorGui extends BaseGui {
-        private final Consumer<String> onSelect;
-
-        public CategorySelectorGui(ModereX plugin, Consumer<String> onSelect) {
-            super(plugin, "<gold>Select Category", 3);
-            this.onSelect = onSelect;
-        }
-
-        @Override
-        protected void populate() {
-            fillBorder(Material.GRAY_STAINED_GLASS_PANE);
-
-            Set<String> categories = plugin.getTemplateManager().getCategories();
-            int slot = 10;
-
-            for (String category : categories) {
-                if (slot > 16) break;
-
-                setItem(slot, createItem(Material.NAME_TAG, "<yellow>" + category,
-                        "<gray>Click to filter by this category"), () -> {
-                    close();
-                    onSelect.accept(category);
-                });
-                slot++;
-            }
-
-            // Back button
-            setItem(22, createBackButton(), this::close);
-        }
-    }
-
     public static class TemplateEditorGui extends BaseGui {
         private final PunishmentTemplate template;
         private final Runnable onComplete;
@@ -262,7 +203,6 @@ public class TemplateGui extends PaginatedGui<PunishmentTemplate> {
         private PunishmentType type;
         private String duration;
         private String reason;
-        private String category;
         private int priority;
 
         public TemplateEditorGui(ModereX plugin, PunishmentTemplate existing, Runnable onComplete) {
@@ -275,7 +215,6 @@ public class TemplateGui extends PaginatedGui<PunishmentTemplate> {
                 this.type = existing.getType();
                 this.duration = existing.getDuration();
                 this.reason = existing.getReason();
-                this.category = existing.getCategory();
                 this.priority = existing.getPriority();
             } else {
                 this.template = null;
@@ -283,7 +222,6 @@ public class TemplateGui extends PaginatedGui<PunishmentTemplate> {
                 this.type = PunishmentType.WARN;
                 this.duration = "";
                 this.reason = "";
-                this.category = "General";
                 this.priority = 0;
             }
         }
@@ -332,15 +270,6 @@ public class TemplateGui extends PaginatedGui<PunishmentTemplate> {
                 refresh();
             }));
 
-            // Category
-            setItem(20, createItem(Material.CHEST, "<light_purple>Category: <white>" + category,
-                    "<gray>Template category for organization",
-                    "",
-                    "<yellow>Click to change"), () -> promptTextInput("Enter category:", input -> {
-                this.category = input;
-                refresh();
-            }));
-
             // Priority
             setItem(22, createItem(Material.LADDER, "<blue>Priority: <white>" + priority,
                     "<gray>Lower numbers appear first",
@@ -360,7 +289,6 @@ public class TemplateGui extends PaginatedGui<PunishmentTemplate> {
                     "<gray>Type: <white>" + type.name(),
                     "<gray>Duration: <white>" + (duration.isEmpty() ? "None" : duration),
                     "<gray>Reason: <white>" + truncate(reason, 25),
-                    "<gray>Category: <white>" + category,
                     "<gray>Priority: <white>" + priority));
 
             // Save button
@@ -424,7 +352,6 @@ public class TemplateGui extends PaginatedGui<PunishmentTemplate> {
             toSave.setType(type);
             toSave.setDuration(duration);
             toSave.setReason(reason);
-            toSave.setCategory(category);
             toSave.setPriority(priority);
             toSave.setUpdatedAt(System.currentTimeMillis());
 

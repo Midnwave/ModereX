@@ -93,7 +93,7 @@ public abstract class BaseGui {
         ItemMeta meta = item.getItemMeta();
 
         if (name != null) {
-            meta.displayName(TextUtil.parse(name));
+            meta.displayName(TextUtil.parseLore(name)); // Use parseLore to disable italic
         }
 
         if (lore != null && lore.length > 0) {
@@ -101,7 +101,7 @@ public abstract class BaseGui {
             for (String line : lore) {
                 List<String> wrappedLines = TextUtil.wrapLore(line);
                 for (String wrappedLine : wrappedLines) {
-                    loreComponents.add(TextUtil.parse(wrappedLine));
+                    loreComponents.add(TextUtil.parseLore(wrappedLine)); // Use parseLore to disable italic
                 }
             }
             meta.lore(loreComponents);
@@ -121,13 +121,13 @@ public abstract class BaseGui {
         ItemMeta meta = item.getItemMeta();
 
         if (name != null) {
-            meta.displayName(TextUtil.parse(name));
+            meta.displayName(TextUtil.parseLore(name)); // Use parseLore to disable italic
         }
 
         if (lore != null && !lore.isEmpty()) {
             List<Component> loreComponents = new ArrayList<>();
             for (String line : lore) {
-                loreComponents.add(TextUtil.parse(line));
+                loreComponents.add(TextUtil.parseLore(line)); // Use parseLore to disable italic
             }
             meta.lore(loreComponents);
         }
@@ -164,7 +164,7 @@ public abstract class BaseGui {
     }
 
     protected ItemStack createBackButton() {
-        return createItem(Material.ARROW, "<red>Back", "<gray>Click to go back");
+        return createItem(Material.ARROW, "<yellow>Go Back", "<gray>Return to previous menu");
     }
 
     protected ItemStack createCloseButton() {

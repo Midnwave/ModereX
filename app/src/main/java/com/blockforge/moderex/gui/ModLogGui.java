@@ -131,7 +131,7 @@ public class ModLogGui extends PaginatedGui<Punishment> {
 
         // Top row - centered filter buttons
         // Back button (slot 0)
-        setItem(0, createItem(Material.ARROW, "<yellow>Back", "<gray>Return to main menu"), () -> {
+        setItem(0, createItem(Material.ARROW, "<yellow>Go Back", "<gray>Return to previous menu"), () -> {
             plugin.getGuiManager().open(viewer, new StaffSettingsGui(plugin));
         });
 
@@ -280,7 +280,19 @@ public class ModLogGui extends PaginatedGui<Punishment> {
         lore.add("<dark_gray>Type: " + color + punishment.getType().name());
         lore.add("");
         lore.add("<gray>Player: <white>" + punishment.getPlayerName());
-        lore.add("<gray>Reason: <white>" + truncate(punishment.getReason(), 28));
+
+        // Wrap reason after 30 chars
+        String reason = punishment.getReason();
+        if (reason != null && !reason.isEmpty()) {
+            List<String> wrappedReason = TextUtil.wordWrap(reason, 30);
+            lore.add("<gray>Reason: <white>" + wrappedReason.get(0));
+            for (int i = 1; i < wrappedReason.size(); i++) {
+                lore.add("  <white>" + wrappedReason.get(i));
+            }
+        } else {
+            lore.add("<gray>Reason: <white>No reason specified");
+        }
+
         lore.add("<gray>Staff: <white>" + punishment.getStaffName());
         lore.add("<gray>Date: <white>" + TimeUtil.formatDateTime(punishment.getCreatedAt()));
 
@@ -337,12 +349,6 @@ public class ModLogGui extends PaginatedGui<Punishment> {
         };
     }
 
-    private String truncate(String text, int maxLength) {
-        if (text == null) return "";
-        if (text.length() <= maxLength) return text;
-        return text.substring(0, maxLength - 3) + "...";
-    }
-
     private void showPunishmentDetails(Punishment punishment) {
         viewer.playSound(viewer.getLocation(), Sound.UI_BUTTON_CLICK, 0.5f, 1f);
         viewer.sendMessage(Component.empty());
@@ -351,7 +357,19 @@ public class ModLogGui extends PaginatedGui<Punishment> {
         viewer.sendMessage(TextUtil.parse("<dark_purple><strikethrough>                                              </strikethrough>"));
         viewer.sendMessage(TextUtil.parse("   <gray>Type: " + getColorForType(punishment.getType()) + punishment.getType().name()));
         viewer.sendMessage(TextUtil.parse("   <gray>Player: <white>" + punishment.getPlayerName()));
-        viewer.sendMessage(TextUtil.parse("   <gray>Reason: <white>" + punishment.getReason()));
+
+        // Wrap reason in chat message
+        String reason = punishment.getReason();
+        if (reason != null && !reason.isEmpty()) {
+            List<String> wrappedReason = TextUtil.wordWrap(reason, 40);
+            viewer.sendMessage(TextUtil.parse("   <gray>Reason: <white>" + wrappedReason.get(0)));
+            for (int i = 1; i < wrappedReason.size(); i++) {
+                viewer.sendMessage(TextUtil.parse("           <white>" + wrappedReason.get(i)));
+            }
+        } else {
+            viewer.sendMessage(TextUtil.parse("   <gray>Reason: <white>No reason specified"));
+        }
+
         viewer.sendMessage(TextUtil.parse("   <gray>Staff: <white>" + punishment.getStaffName()));
         viewer.sendMessage(TextUtil.parse("   <gray>Date: <white>" + TimeUtil.formatDateTime(punishment.getCreatedAt())));
 

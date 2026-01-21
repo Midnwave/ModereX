@@ -16,6 +16,26 @@ import java.util.*;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 
+/**
+ * PunishmentManager handles all punishment operations: creation, removal, and queries.
+ *
+ * TODO: View Punishment Case Info In-Game
+ * - Add /case <caseId> command to view detailed punishment info
+ * - Show: player, staff, type, reason, duration, timestamps, evidence
+ * - Clickable links for player profiles and staff info
+ * - Show related cases (same player, same IP)
+ * - Appeal status and history
+ * - Hover tooltips with quick info
+ * - GUI view option with /case <caseId> gui
+ *
+ * TODO: Player Profile Username History
+ * - Track username changes over time
+ * - Store previous names with timestamps in database
+ * - Show username history in player profile (web panel & in-game)
+ * - Hook into Mojang API for historical lookups
+ * - Display known aliases in modlog and punishment views
+ * - Search by previous usernames
+ */
 public class PunishmentManager {
 
     private final ModereX plugin;
@@ -226,6 +246,11 @@ public class PunishmentManager {
                 if (rows > 0) {
                     // Clear from cache
                     punishmentCache.remove(punishment.getPlayerUuid());
+
+                    // Clear IP ban cache if it was an IP ban
+                    if (punishment.getType() == PunishmentType.IPBAN && punishment.getIpAddress() != null) {
+                        ipBanCache.remove(punishment.getIpAddress());
+                    }
 
                     // Broadcast
                     MessageKey broadcastKey = switch (punishment.getType()) {
@@ -542,9 +567,26 @@ public class PunishmentManager {
             case IPMUTE -> MessageKey.IPMUTE_BROADCAST;
         };
 
+        // Get LuckPerms prefixes if available
+        String staffPrefix = "";
+        String playerPrefix = "";
+        var lpHook = plugin.getHookManager().getLuckPermsHook();
+        if (lpHook != null) {
+            // Get staff prefix
+            if (punishment.getStaffUuid() != null) {
+                staffPrefix = lpHook.getPrefix(punishment.getStaffUuid());
+            }
+            // Get player prefix
+            if (punishment.getPlayerUuid() != null) {
+                playerPrefix = lpHook.getPrefix(punishment.getPlayerUuid());
+            }
+        }
+
         Component message = plugin.getLanguageManager().get(key,
                 "staff", punishment.getStaffName(),
+                "staff_prefix", staffPrefix,
                 "player", punishment.getPlayerName(),
+                "player_prefix", playerPrefix,
                 "duration", DurationParser.format(punishment.getExpiresAt() == -1 ? -1 :
                         punishment.getExpiresAt() - punishment.getCreatedAt()),
                 "reason", punishment.getReason()

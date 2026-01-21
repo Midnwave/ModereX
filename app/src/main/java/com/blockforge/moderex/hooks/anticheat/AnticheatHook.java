@@ -9,6 +9,7 @@ public abstract class AnticheatHook {
 
     protected final ModereX plugin;
     protected final String anticheatName;
+    protected String version = "Unknown";
     protected boolean enabled = false;
     protected Consumer<AnticheatAlert> alertHandler;
 
@@ -23,6 +24,21 @@ public abstract class AnticheatHook {
 
     public String getName() {
         return anticheatName;
+    }
+
+    /**
+     * Get the version of the hooked anticheat plugin.
+     * @return Version string (e.g., "2.3.72")
+     */
+    public String getVersion() {
+        return version;
+    }
+
+    /**
+     * Get display name with version (e.g., "Grim 2.3.72")
+     */
+    public String getDisplayName() {
+        return anticheatName + " " + version;
     }
 
     public boolean isEnabled() {

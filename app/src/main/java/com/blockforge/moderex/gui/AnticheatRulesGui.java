@@ -84,8 +84,8 @@ public class AnticheatRulesGui extends BaseGui {
         int lastRow = 45;
 
         // Back button
-        setItem(lastRow, createItem(Material.ARROW, "<yellow>Back",
-                "<gray>Return to staff settings"), () -> {
+        setItem(lastRow, createItem(Material.ARROW, "<yellow>Go Back",
+                "<gray>Return to previous menu"), () -> {
             plugin.getGuiManager().open(viewer, new StaffSettingsGui(plugin));
         });
 
@@ -367,8 +367,8 @@ public class AnticheatRulesGui extends BaseGui {
             });
 
             // Bottom navigation
-            setItem(27, createItem(Material.ARROW, "<yellow>Back",
-                    "<gray>Return to check list"), () -> {
+            setItem(27, createItem(Material.ARROW, "<yellow>Go Back",
+                    "<gray>Return to previous menu"), () -> {
                 plugin.getGuiManager().open(viewer, parent);
             });
 

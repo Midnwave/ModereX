@@ -35,7 +35,8 @@ public class ThemisHook extends AnticheatHook implements Listener {
         themisPlugin = Bukkit.getPluginManager().getPlugin(PLUGIN_NAME);
         if (themisPlugin == null) return false;
 
-        plugin.logDebug("[Anticheat] Found Themis v" + themisPlugin.getDescription().getVersion());
+        version = themisPlugin.getDescription().getVersion();
+        plugin.logDebug("[Anticheat] Found Themis v" + version);
         ClassLoader cl = themisPlugin.getClass().getClassLoader();
 
         // Themis API class paths (current version first)

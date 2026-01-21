@@ -6,7 +6,9 @@ import com.blockforge.moderex.punishment.Punishment;
 import com.blockforge.moderex.punishment.PunishmentType;
 import com.blockforge.moderex.util.DurationParser;
 import com.blockforge.moderex.util.TextUtil;
+import com.blockforge.moderex.hooks.anticheat.AnticheatChecks;
 import com.blockforge.moderex.web.WebAuthManager;
+import com.blockforge.moderex.webpanel.netty.WebSocketFrameHandler;
 import com.google.gson.Gson;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
@@ -15,7 +17,6 @@ import org.bukkit.OfflinePlayer;
 import org.bukkit.entity.Player;
 
 import java.io.*;
-import java.io.ByteArrayOutputStream;
 import java.net.*;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
@@ -26,6 +27,28 @@ import java.sql.SQLException;
 import java.util.*;
 import java.util.concurrent.*;
 
+/**
+ * HybridPanelServer serves both HTTP and WebSocket on the same port for the web panel.
+ *
+ * TODO: Netty Fix and Same-Port Web Panel Support
+ * - Implement proper Netty channel injection to share Minecraft server port
+ * - Detect HTTP traffic vs game packets in the pipeline
+ * - Route HTTP/WebSocket requests to web panel handler
+ * - Keep game traffic unaffected
+ * - Handle SSL/TLS termination for HTTPS support
+ * - Test with Velocity/BungeeCord proxied connections
+ * - Fallback to dedicated port if injection fails
+ *
+ * TODO: Advanced Global Search Bar
+ * - Search across all data: players, punishments, automod, watchlist, etc.
+ * - Fuzzy matching for player names and UUIDs
+ * - Search syntax: "player:name", "ban:reason", "ip:192.168.*"
+ * - Real-time search results as you type
+ * - Keyboard shortcuts (Ctrl+K or / to focus search)
+ * - Recent searches history
+ * - Search result preview with quick actions
+ * - Filter by date ranges, punishment types, etc.
+ */
 public class HybridPanelServer {
 
     private static final Gson GSON = new Gson();
@@ -58,6 +81,10 @@ public class HybridPanelServer {
     private final Map<WebSocketConnection, WebPanelSession> sessions = new ConcurrentHashMap<>();
     private final Map<String, PendingConnection> pendingCodes = new ConcurrentHashMap<>();
     private final Map<UUID, UserPanelSettings> userSettings = new ConcurrentHashMap<>();
+
+    // Same-port (Netty) WebSocket connections
+    private final Map<String, WebSocketFrameHandler> samePortConnections = new ConcurrentHashMap<>();
+    private final Map<String, WebPanelSession> samePortSessions = new ConcurrentHashMap<>();
 
     public HybridPanelServer(ModereX plugin, int port) {
         this.plugin = plugin;
@@ -423,22 +450,75 @@ public class HybridPanelServer {
         plugin.logDebug("WebSocket connected from: " + socket.getRemoteSocketAddress());
 
         // Start reading WebSocket frames
+        String disconnectReason = "Clean close";
         try {
             while (running && !socket.isClosed()) {
                 String message = conn.readMessage();
-                if (message == null) break;
+                if (message == null) {
+                    disconnectReason = "Client sent close frame or connection reset";
+                    break;
+                }
                 handleWebSocketMessage(conn, message);
             }
+            if (!running) {
+                disconnectReason = "Server shutting down";
+            }
+        } catch (java.net.SocketTimeoutException e) {
+            disconnectReason = "Socket timeout - No activity from client";
+        } catch (java.net.SocketException e) {
+            disconnectReason = "Socket error: " + (e.getMessage() != null ? e.getMessage() : "Connection reset");
+        } catch (java.io.EOFException e) {
+            disconnectReason = "Connection closed unexpectedly by client";
+        } catch (java.io.IOException e) {
+            disconnectReason = "IO error: " + (e.getMessage() != null ? e.getMessage() : "Unknown IO error");
         } catch (Exception e) {
-            plugin.logDebug("WebSocket read error: " + e.getMessage());
+            String errorType = e.getClass().getSimpleName();
+            String errorMsg = e.getMessage() != null ? e.getMessage() : "No message";
+            disconnectReason = errorType + ": " + errorMsg;
+
+            // Log stack trace in debug mode for troubleshooting
+            if (plugin.getConfigManager().getSettings().isDebugMode()) {
+                plugin.getLogger().warning("[WebPanel] Full error details:");
+                e.printStackTrace();
+            }
         } finally {
             connections.remove(conn);
             WebPanelSession session = sessions.remove(conn);
             if (session != null) {
-                plugin.logDebug("WebSocket disconnected: " + session.playerName);
+                long sessionDuration = System.currentTimeMillis() - session.connectedAt;
+                String durationStr = formatDuration(sessionDuration);
+                if (plugin.getConfigManager().getSettings().isDebugMode()) {
+                    plugin.getLogger().info("[WebPanel] Disconnected: " + session.playerName +
+                            " | Duration: " + durationStr +
+                            " | IP: " + (conn.getRemoteAddress() != null ? conn.getRemoteAddress() : "unknown") +
+                            " | Reason: " + disconnectReason);
+                } else {
+                    plugin.logDebug("[WebPanel] Disconnected: " + session.playerName +
+                            " | Duration: " + durationStr);
+                }
+            } else {
+                if (plugin.getConfigManager().getSettings().isDebugMode()) {
+                    plugin.getLogger().info("[WebPanel] Disconnected: Unauthenticated connection" +
+                            " | IP: " + (conn.getRemoteAddress() != null ? conn.getRemoteAddress() : "unknown") +
+                            " | Reason: " + disconnectReason);
+                } else {
+                    plugin.logDebug("[WebPanel] Disconnected: Unauthenticated connection");
+                }
             }
             conn.close();
         }
+    }
+
+    private String formatDuration(long ms) {
+        long seconds = ms / 1000;
+        long minutes = seconds / 60;
+        long hours = minutes / 60;
+        if (hours > 0) {
+            return hours + "h " + (minutes % 60) + "m";
+        } else if (minutes > 0) {
+            return minutes + "m " + (seconds % 60) + "s";
+        }
+        return seconds + "s";
     }
 
     private String generateAcceptKey(String key) throws Exception {
@@ -969,12 +1049,14 @@ public class HybridPanelServer {
 
         switch (type) {
             case "GET_PLAYERS" -> sendPlayerList(conn);
+            case "GET_PLAYER_DETAILS" -> sendPlayerDetails(conn, data);
             case "GET_PUNISHMENTS" -> sendPunishments(conn, data);
             case "GET_AUTOMOD_RULES" -> sendAutomodRules(conn);
             case "UPDATE_AUTOMOD_RULE" -> updateAutomodRule(conn, data, session);
             case "CREATE_AUTOMOD_RULE" -> createAutomodRule(conn, data, session);
             case "DELETE_AUTOMOD_RULE" -> deleteAutomodRule(conn, data, session);
             case "GET_ANTICHEAT_INFO" -> sendAnticheatInfo(conn);
+            case "GET_ANTICHEAT_ALERTS" -> sendAnticheatAlerts(conn);
             case "GET_ANTICHEAT_CHECKS" -> sendAnticheatChecks(conn);
             case "GET_STAFF_ANTICHEAT_SETTINGS" -> sendStaffAnticheatSettings(conn, session);
             case "UPDATE_STAFF_ANTICHEAT_SETTING" -> updateStaffAnticheatSetting(conn, data, session);
@@ -1006,7 +1088,12 @@ public class HybridPanelServer {
             case "GET_REPLAY" -> sendReplayData(conn, data);
             case "GET_SERVER_STATUS" -> sendServerStatus(conn);
             case "GET_LUCKPERMS_STATUS" -> sendLuckPermsStatus(conn);
+            case "GET_GEYSER_STATUS" -> sendGeyserStatus(conn);
             case "GET_MODERATION_PLUGINS" -> sendModerationPlugins(conn);
+            case "GET_SERVER_SETTINGS" -> sendServerSettings(conn);
+            case "UPDATE_MUTE_SETTINGS" -> updateMuteSettings(conn, data, session);
+            case "UPDATE_WARN_SETTINGS" -> updateWarnSettings(conn, data, session);
+            case "UPDATE_ANTICHEAT_SETTINGS" -> updateAnticheatSettings(conn, data, session);
             default -> sendError(conn, "UNKNOWN_TYPE", "Unknown message type: " + type);
         }
     }
@@ -1058,6 +1145,93 @@ public class HybridPanelServer {
         data.add("players", players);
         response.add("data", data);
         conn.send(GSON.toJson(response));
+    }
+
+    private void sendPlayerDetails(WebSocketConnection conn, JsonObject data) {
+        String uuidStr = data.has("uuid") ? data.get("uuid").getAsString() : "";
+
+        try {
+            UUID playerUuid = UUID.fromString(uuidStr);
+            OfflinePlayer offlinePlayer = Bukkit.getOfflinePlayer(playerUuid);
+
+            JsonObject details = new JsonObject();
+            details.addProperty("uuid", uuidStr);
+            details.addProperty("name", offlinePlayer.getName());
+            details.addProperty("online", offlinePlayer.isOnline());
+            details.addProperty("firstPlayed", offlinePlayer.getFirstPlayed());
+            details.addProperty("lastPlayed", offlinePlayer.getLastPlayed());
+            details.addProperty("watched", plugin.getWatchlistManager().isWatched(playerUuid));
+
+            // Check for Geyser/Bedrock player
+            boolean isBedrockPlayer = isFloodgatePlayer(playerUuid);
+            details.addProperty("geyser", isBedrockPlayer);
+            details.addProperty("platform", isBedrockPlayer ? "Bedrock" : "Java");
+
+            // Get active punishment status
+            details.addProperty("muted", plugin.getPunishmentManager().isMuted(playerUuid));
+            details.addProperty("banned", plugin.getPunishmentManager().isBanned(playerUuid));
+            details.addProperty("warnings", getWarningCount(playerUuid));
+
+            // Get player profile info
+            var profile = plugin.getPlayerProfileManager().getProfile(playerUuid);
+            if (profile != null) {
+                details.addProperty("ip", profile.getIpAddress());
+            }
+
+            // Fetch punishments and recent commands asynchronously
+            plugin.getPunishmentManager().getPunishments(playerUuid).thenAccept(punishments -> {
+                JsonArray punsArray = new JsonArray();
+                for (Punishment p : punishments) {
+                    punsArray.add(punishmentToJson(p));
+                }
+                details.add("punishments", punsArray);
+
+                // Fetch recent commands from database
+                plugin.getServer().getScheduler().runTaskAsynchronously(plugin, () -> {
+                    try {
+                        List<JsonObject> commands = plugin.getDatabaseManager().query("""
+                                SELECT command, executed_at FROM moderex_command_history
+                                WHERE player_uuid = ?
+                                ORDER BY executed_at DESC
+                                LIMIT 20
+                                """,
+                                rs -> {
+                                    List<JsonObject> list = new java.util.ArrayList<>();
+                                    while (rs.next()) {
+                                        JsonObject cmd = new JsonObject();
+                                        cmd.addProperty("command", rs.getString("command"));
+                                        cmd.addProperty("executedAt", rs.getLong("executed_at"));
+                                        list.add(cmd);
+                                    }
+                                    return list;
+                                },
+                                playerUuid.toString()
+                        );
+
+                        JsonArray cmdArray = new JsonArray();
+                        for (JsonObject cmd : commands) {
+                            cmdArray.add(cmd);
+                        }
+                        details.add("recentCommands", cmdArray);
+
+                        JsonObject response = new JsonObject();
+                        response.addProperty("type", "PLAYER_DETAILS");
+                        response.add("data", details);
+                        conn.send(GSON.toJson(response));
+                    } catch (Exception e) {
+                        plugin.getLogger().warning("Failed to fetch command history: " + e.getMessage());
+                        // Send response without commands if query fails
+                        details.add("recentCommands", new JsonArray());
+                        JsonObject response = new JsonObject();
+                        response.addProperty("type", "PLAYER_DETAILS");
+                        response.add("data", details);
+                        conn.send(GSON.toJson(response));
+                    }
+                });
+            });
+        } catch (IllegalArgumentException e) {
+            sendError(conn, "INVALID_UUID", "Invalid player UUID: " + uuidStr);
+        }
     }
 
     private void sendPunishments(WebSocketConnection conn, JsonObject filters) {
@@ -1127,34 +1301,73 @@ public class HybridPanelServer {
 
     private void updateAutomodRule(WebSocketConnection conn, JsonObject data, WebPanelSession session) {
         try {
-            String ruleId = data.get("id").getAsString();
-            AutomodRule rule = plugin.getAutomodManager().getRule(ruleId);
+            // Support multiple formats: { id: "..." } or { ruleId: "...", rule: {...} }
+            String ruleId = null;
+            JsonObject ruleData = data;
 
-            if (rule == null) {
-                sendError(conn, "NOT_FOUND", "Rule not found");
+            if (data.has("ruleId")) {
+                ruleId = data.get("ruleId").getAsString();
+                if (data.has("rule") && data.get("rule").isJsonObject()) {
+                    ruleData = data.getAsJsonObject("rule");
+                }
+            } else if (data.has("id")) {
+                ruleId = data.get("id").getAsString();
+            } else if (ruleData.has("id")) {
+                ruleId = ruleData.get("id").getAsString();
+            }
+
+            if (ruleId == null) {
+                sendError(conn, "INVALID_REQUEST", "Missing rule ID");
                 return;
             }
 
-            // Update rule properties
-            if (data.has("enabled")) rule.setEnabled(data.get("enabled").getAsBoolean());
-            if (data.has("priority")) rule.setPriority(data.get("priority").getAsInt());
-            if (data.has("exactMatch")) rule.setExactMatch(data.get("exactMatch").getAsBoolean());
+            AutomodRule rule = plugin.getAutomodManager().getRule(ruleId);
+
+            if (rule == null) {
+                sendError(conn, "NOT_FOUND", "Rule not found: " + ruleId);
+                return;
+            }
+
+            // Update rule properties from ruleData
+            if (ruleData.has("enabled")) rule.setEnabled(ruleData.get("enabled").getAsBoolean());
+            if (ruleData.has("priority")) rule.setPriority(ruleData.get("priority").getAsInt());
+            if (ruleData.has("exactMatch")) rule.setExactMatch(ruleData.get("exactMatch").getAsBoolean());
+
+            // Update spam protection settings
+            if (ruleData.has("spamMessageCount")) rule.setSpamMessageCount(ruleData.get("spamMessageCount").getAsInt());
+            if (ruleData.has("spamTimeWindowSeconds")) rule.setSpamTimeWindowSeconds(ruleData.get("spamTimeWindowSeconds").getAsInt());
+            if (ruleData.has("spamDetectSimilar")) rule.setSpamDetectSimilar(ruleData.get("spamDetectSimilar").getAsBoolean());
+            if (ruleData.has("spamSimilarityThreshold")) rule.setSpamSimilarityThreshold(ruleData.get("spamSimilarityThreshold").getAsDouble());
+
+            // Update caps filter settings
+            if (ruleData.has("capsMaxPercentage")) rule.setCapsMaxPercentage(ruleData.get("capsMaxPercentage").getAsInt());
+            if (ruleData.has("capsMinLength")) rule.setCapsMinLength(ruleData.get("capsMinLength").getAsInt());
+
+            // Update AFK settings
+            if (ruleData.has("afkTimeoutMinutes")) rule.setAfkTimeoutMinutes(ruleData.get("afkTimeoutMinutes").getAsInt());
+            if (ruleData.has("afkKickEnabled")) rule.setAfkKickEnabled(ruleData.get("afkKickEnabled").getAsBoolean());
 
             // Update blacklisted words
-            if (data.has("blacklistedWords")) {
+            if (ruleData.has("blacklistedWords")) {
                 List<String> words = new ArrayList<>();
-                data.getAsJsonArray("blacklistedWords").forEach(e -> words.add(e.getAsString()));
+                ruleData.getAsJsonArray("blacklistedWords").forEach(e -> words.add(e.getAsString()));
                 rule.setBlacklistedWords(words);
+            } else if (ruleData.has("blacklistedPhrases")) {
+                List<String> words = new ArrayList<>();
+                ruleData.getAsJsonArray("blacklistedPhrases").forEach(e -> words.add(e.getAsString()));
+                rule.setBlacklistedPhrases(words);
             }
 
             // Update exclusion/whitelist words
-            if (data.has("exclusionWords") || data.has("whitelist")) {
+            if (ruleData.has("exclusionWords") || ruleData.has("whitelist") || ruleData.has("exclusionPhrases")) {
                 List<String> words = new ArrayList<>();
-                JsonArray arr = data.has("exclusionWords") ?
-                        data.getAsJsonArray("exclusionWords") :
-                        data.getAsJsonArray("whitelist");
-                arr.forEach(e -> words.add(e.getAsString()));
-                rule.setExclusionWords(words);
+                JsonArray arr = ruleData.has("exclusionWords") ? ruleData.getAsJsonArray("exclusionWords") :
+                        ruleData.has("exclusionPhrases") ? ruleData.getAsJsonArray("exclusionPhrases") :
+                        ruleData.getAsJsonArray("whitelist");
+                if (arr != null) {
+                    arr.forEach(e -> words.add(e.getAsString()));
+                    rule.setExclusionWords(words);
+                }
             }
 
             // Save rule
@@ -1186,8 +1399,9 @@ public class HybridPanelServer {
 
             // Set blacklisted words
             if (data.has("blacklistedWords")) {
-                data.getAsJsonArray("blacklistedWords").forEach(e ->
-                        rule.addBlacklistedWord(e.getAsString()));
+                List<String> words = new ArrayList<>();
+                data.getAsJsonArray("blacklistedWords").forEach(e -> words.add(e.getAsString()));
+                rule.setBlacklistedWords(words);
             }
 
             // Set exclusion/whitelist words
@@ -1195,7 +1409,9 @@ public class HybridPanelServer {
                 JsonArray arr = data.has("exclusionWords") ?
                         data.getAsJsonArray("exclusionWords") :
                         data.getAsJsonArray("whitelist");
-                arr.forEach(e -> rule.addExclusionWord(e.getAsString()));
+                List<String> exclusions = new ArrayList<>();
+                arr.forEach(e -> exclusions.add(e.getAsString()));
+                rule.setExclusionWords(exclusions);
             }
 
             // Save rule
@@ -1248,7 +1464,7 @@ public class HybridPanelServer {
         }
     }
 
-    private void broadcastAutomodRules() {
+    public void broadcastAutomodRules() {
         JsonObject broadcast = new JsonObject();
         broadcast.addProperty("type", "AUTOMOD_RULES_DATA");
         JsonObject data = new JsonObject();
@@ -1329,6 +1545,60 @@ public class HybridPanelServer {
         data.addProperty("hasAnyHook", plugin.getAnticheatManager().hasAnyHook());
         data.addProperty("alertsEnabled", alertsEnabled);
 
+        response.add("data", data);
+        conn.send(GSON.toJson(response));
+    }
+
+    /**
+     * Send anticheat alerts data with all checks grouped by category.
+     * This is what the Anticheat Alerts page expects.
+     */
+    private void sendAnticheatAlerts(WebSocketConnection conn) {
+        JsonObject response = new JsonObject();
+        response.addProperty("type", "ANTICHEAT_ALERTS");
+
+        JsonObject data = new JsonObject();
+
+        // Get all enabled anticheats and their checks
+        JsonArray anticheats = new JsonArray();
+        for (String acName : plugin.getAnticheatManager().getEnabledAnticheats()) {
+            JsonObject ac = new JsonObject();
+            ac.addProperty("name", acName);
+
+            // Get all checks for this anticheat from the registry
+            JsonArray checks = new JsonArray();
+            for (AnticheatChecks.CheckInfo check : AnticheatChecks.getChecks(acName)) {
+                JsonObject checkObj = new JsonObject();
+                checkObj.addProperty("name", check.getName());
+                checkObj.addProperty("displayName", check.getDisplayName());
+                checkObj.addProperty("category", check.getCategory().name());
+                checkObj.addProperty("categoryDisplay", check.getCategory().getDisplayName());
+                checkObj.addProperty("description", check.getDescription());
+                checks.add(checkObj);
+            }
+
+            // Group checks by category
+            JsonObject categories = new JsonObject();
+            for (AnticheatChecks.Category cat : AnticheatChecks.Category.values()) {
+                JsonArray catChecks = new JsonArray();
+                for (AnticheatChecks.CheckInfo check : AnticheatChecks.getChecksByCategory(acName, cat)) {
+                    JsonObject checkObj = new JsonObject();
+                    checkObj.addProperty("name", check.getName());
+                    checkObj.addProperty("displayName", check.getDisplayName());
+                    checkObj.addProperty("description", check.getDescription());
+                    catChecks.add(checkObj);
+                }
+                if (catChecks.size() > 0) {
+                    categories.add(cat.name().toLowerCase(), catChecks);
+                }
+            }
+
+            ac.add("checks", checks);
+            ac.add("categories", categories);
+            anticheats.add(ac);
+        }
+
+        data.add("anticheats", anticheats);
         response.add("data", data);
         conn.send(GSON.toJson(response));
     }
@@ -1491,6 +1761,25 @@ public class HybridPanelServer {
         JsonObject response = new JsonObject();
         response.addProperty("type", "USER_SETTINGS_DATA");
         JsonObject data = getUserSettings(session.playerUuid).toJson();
+
+        // Include in-game staff settings for synchronization
+        var staffSettings = plugin.getStaffSettingsManager().getSettings(session.playerUuid);
+        if (staffSettings != null) {
+            // Add staff settings that should be synced
+            data.addProperty("staffChatEnabled", staffSettings.isStaffChatEnabled());
+            data.addProperty("staffChatSound", staffSettings.isStaffChatSound());
+            data.addProperty("watchlistJoinAlerts", staffSettings.isWatchlistJoinAlerts());
+            data.addProperty("watchlistQuitAlerts", staffSettings.isWatchlistQuitAlerts());
+            data.addProperty("watchlistActivityAlerts", staffSettings.isWatchlistActivityAlerts());
+            data.addProperty("autoVanishOnJoin", staffSettings.isAutoVanishOnJoin());
+            data.addProperty("vanishNightVision", staffSettings.isVanishNightVision());
+            data.addProperty("compactMode", staffSettings.isCompactMode());
+            data.addProperty("inGameSoundEnabled", staffSettings.isSoundEnabled());
+            data.addProperty("actionBarAlerts", staffSettings.isActionBarAlerts());
+            data.addProperty("inGameChatAlerts", staffSettings.isChatAlerts());
+            data.addProperty("bossBarAlerts", staffSettings.isBossBarAlerts());
+        }
+
         response.add("data", data);
         conn.send(GSON.toJson(response));
     }
@@ -1698,20 +1987,51 @@ public class HybridPanelServer {
 
     private void revokePunishment(WebSocketConnection conn, JsonObject data, WebPanelSession session) {
         String caseId = data.has("caseId") ? data.get("caseId").getAsString() : "";
+        String reason = data.has("reason") ? data.get("reason").getAsString() : "Revoked via Web Panel";
+
         if (caseId.isEmpty()) {
             sendError(conn, "MISSING_DATA", "Case ID required");
             return;
         }
 
+        // First get punishment details for broadcasting
         plugin.getPunishmentManager().getPunishmentByCaseId(caseId).thenAccept(punishment -> {
             if (punishment == null) {
                 sendError(conn, "NOT_FOUND", "Punishment not found");
                 return;
             }
-            plugin.getPunishmentManager().removePunishment(punishment.getPlayerUuid(), punishment.getType(),
-                session.playerUuid, session.playerName, "Revoked via Web Panel");
-            sendSuccess(conn, "Punishment revoked");
-            plugin.getLogger().info("[WebPanel] " + session.playerName + " revoked " + caseId);
+
+            if (!punishment.isActive()) {
+                sendError(conn, "ALREADY_REVOKED", "Punishment is already revoked");
+                return;
+            }
+
+            // Use removePunishmentByCaseId for proper handling
+            plugin.getPunishmentManager().removePunishmentByCaseId(caseId,
+                session.playerUuid, session.playerName, reason).thenAccept(success -> {
+
+                if (success) {
+                    sendSuccess(conn, "Punishment revoked");
+                    plugin.getLogger().info("[WebPanel] " + session.playerName + " revoked " + caseId +
+                        " (" + punishment.getType() + " for " + punishment.getPlayerName() + ")");
+
+                    // Broadcast to all web panel clients
+                    JsonObject broadcast = new JsonObject();
+                    broadcast.addProperty("type", "PUNISHMENT_REVOKED");
+                    JsonObject broadcastData = new JsonObject();
+                    broadcastData.addProperty("caseId", caseId);
+                    broadcastData.addProperty("playerUuid", punishment.getPlayerUuid().toString());
+                    broadcastData.addProperty("playerName", punishment.getPlayerName());
+                    broadcastData.addProperty("punishmentType", punishment.getType().name());
+                    broadcastData.addProperty("revokedBy", session.playerName);
+                    broadcastData.addProperty("revokedAt", System.currentTimeMillis());
+                    broadcastData.addProperty("reason", reason);
+                    broadcast.add("data", broadcastData);
+                    broadcast(GSON.toJson(broadcast));
+                } else {
+                    sendError(conn, "FAILED", "Failed to revoke punishment");
+                }
+            });
         });
     }
 
@@ -1796,6 +2116,64 @@ public class HybridPanelServer {
             settings.deviceTrustEnabled = newValue;
         }
         saveUserSettings();
+
+        // Sync to in-game staff settings
+        var staffSettings = plugin.getStaffSettingsManager().getSettings(session.playerUuid);
+        if (staffSettings != null) {
+            boolean changed = false;
+            if (data.has("staffChatEnabled")) {
+                staffSettings.setStaffChatEnabled(data.get("staffChatEnabled").getAsBoolean());
+                changed = true;
+            }
+            if (data.has("staffChatSound")) {
+                staffSettings.setStaffChatSound(data.get("staffChatSound").getAsBoolean());
+                changed = true;
+            }
+            if (data.has("watchlistJoinAlerts")) {
+                staffSettings.setWatchlistJoinAlerts(data.get("watchlistJoinAlerts").getAsBoolean());
+                changed = true;
+            }
+            if (data.has("watchlistQuitAlerts")) {
+                staffSettings.setWatchlistQuitAlerts(data.get("watchlistQuitAlerts").getAsBoolean());
+                changed = true;
+            }
+            if (data.has("watchlistActivityAlerts")) {
+                staffSettings.setWatchlistActivityAlerts(data.get("watchlistActivityAlerts").getAsBoolean());
+                changed = true;
+            }
+            if (data.has("autoVanishOnJoin")) {
+                staffSettings.setAutoVanishOnJoin(data.get("autoVanishOnJoin").getAsBoolean());
+                changed = true;
+            }
+            if (data.has("vanishNightVision")) {
+                staffSettings.setVanishNightVision(data.get("vanishNightVision").getAsBoolean());
+                changed = true;
+            }
+            if (data.has("compactMode")) {
+                staffSettings.setCompactMode(data.get("compactMode").getAsBoolean());
+                changed = true;
+            }
+            if (data.has("inGameSoundEnabled")) {
+                staffSettings.setSoundEnabled(data.get("inGameSoundEnabled").getAsBoolean());
+                changed = true;
+            }
+            if (data.has("actionBarAlerts")) {
+                staffSettings.setActionBarAlerts(data.get("actionBarAlerts").getAsBoolean());
+                changed = true;
+            }
+            if (data.has("inGameChatAlerts")) {
+                staffSettings.setChatAlerts(data.get("inGameChatAlerts").getAsBoolean());
+                changed = true;
+            }
+            if (data.has("bossBarAlerts")) {
+                staffSettings.setBossBarAlerts(data.get("bossBarAlerts").getAsBoolean());
+                changed = true;
+            }
+            if (changed) {
+                plugin.getStaffSettingsManager().saveSettings(staffSettings);
+            }
+        }
+
         sendSuccess(conn, "Settings saved");
     }
 
@@ -1845,6 +2223,121 @@ public class HybridPanelServer {
         data.addProperty("slowmodeSeconds", plugin.getConfigManager().getSettings().getDefaultSlowmodeSeconds());
         response.add("data", data);
         conn.send(GSON.toJson(response));
+    }
+
+    private void sendServerSettings(WebSocketConnection conn) {
+        var settings = plugin.getConfigManager().getSettings();
+        JsonObject response = new JsonObject();
+        response.addProperty("type", "SERVER_SETTINGS");
+        JsonObject data = new JsonObject();
+
+        // Chat settings
+        data.addProperty("chatEnabled", settings.isChatEnabled());
+        data.addProperty("slowmodeSeconds", settings.getDefaultSlowmodeSeconds());
+
+        // Mute settings
+        JsonObject muteSettings = new JsonObject();
+        muteSettings.addProperty("chat", settings.isMuteBlocksChat());
+        muteSettings.addProperty("msg", settings.isMuteBlocksMsg());
+        muteSettings.addProperty("signs", settings.isMuteBlocksSigns());
+        muteSettings.addProperty("books", settings.isMuteBlocksBooks());
+        muteSettings.addProperty("broadcast", settings.isMuteBlocksBroadcast());
+        muteSettings.addProperty("voice", settings.isMuteBlocksVoice());
+        muteSettings.addProperty("voiceJoin", settings.isMuteBlocksVoiceJoin());
+        data.add("muteSettings", muteSettings);
+
+        // Warn settings
+        JsonObject warnSettings = new JsonObject();
+        warnSettings.addProperty("notify", settings.isWarnNotifyStaff());
+        warnSettings.addProperty("autoEscalate", settings.isWarnAutoEscalate());
+        data.add("warnSettings", warnSettings);
+
+        // Anticheat settings
+        JsonObject acSettings = new JsonObject();
+        acSettings.addProperty("rebrandAlerts", settings.isAnticheatRebrandAlerts());
+        acSettings.addProperty("blockOriginalMessages", settings.isAnticheatBlockOriginalMessages());
+        data.add("anticheatSettings", acSettings);
+
+        response.add("data", data);
+        conn.send(GSON.toJson(response));
+    }
+
+    private void updateMuteSettings(WebSocketConnection conn, JsonObject data, WebPanelSession session) {
+        var settings = plugin.getConfigManager().getSettings();
+
+        if (data.has("chat")) settings.setMuteBlocksChat(data.get("chat").getAsBoolean());
+        if (data.has("msg")) settings.setMuteBlocksMsg(data.get("msg").getAsBoolean());
+        if (data.has("signs")) settings.setMuteBlocksSigns(data.get("signs").getAsBoolean());
+        if (data.has("books")) settings.setMuteBlocksBooks(data.get("books").getAsBoolean());
+        if (data.has("broadcast")) settings.setMuteBlocksBroadcast(data.get("broadcast").getAsBoolean());
+        if (data.has("voice")) settings.setMuteBlocksVoice(data.get("voice").getAsBoolean());
+        if (data.has("voiceJoin")) settings.setMuteBlocksVoiceJoin(data.get("voiceJoin").getAsBoolean());
+
+        sendSuccess(conn, "Mute settings updated");
+        broadcastServerSettings();
+        plugin.getLogger().info("[WebPanel] " + session.playerName + " updated mute settings");
+    }
+
+    private void updateWarnSettings(WebSocketConnection conn, JsonObject data, WebPanelSession session) {
+        var settings = plugin.getConfigManager().getSettings();
+
+        if (data.has("notify")) settings.setWarnNotifyStaff(data.get("notify").getAsBoolean());
+        if (data.has("autoEscalate")) settings.setWarnAutoEscalate(data.get("autoEscalate").getAsBoolean());
+
+        sendSuccess(conn, "Warn settings updated");
+        broadcastServerSettings();
+        plugin.getLogger().info("[WebPanel] " + session.playerName + " updated warn settings");
+    }
+
+    private void updateAnticheatSettings(WebSocketConnection conn, JsonObject data, WebPanelSession session) {
+        var settings = plugin.getConfigManager().getSettings();
+
+        if (data.has("rebrandAlerts")) settings.setAnticheatRebrandAlerts(data.get("rebrandAlerts").getAsBoolean());
+        if (data.has("blockOriginalMessages")) settings.setAnticheatBlockOriginalMessages(data.get("blockOriginalMessages").getAsBoolean());
+
+        sendSuccess(conn, "Anticheat settings updated");
+        broadcastServerSettings();
+        plugin.getLogger().info("[WebPanel] " + session.playerName + " updated anticheat settings");
+    }
+
+    private void broadcastServerSettings() {
+        for (WebSocketConnection conn : sessions.keySet()) {
+            sendServerSettings(conn);
+        }
+        for (var entry : samePortSessions.entrySet()) {
+            WebSocketFrameHandler handler = samePortConnections.get(entry.getKey());
+            if (handler != null) {
+                var settings = plugin.getConfigManager().getSettings();
+                JsonObject response = new JsonObject();
+                response.addProperty("type", "SERVER_SETTINGS");
+                JsonObject data = new JsonObject();
+                data.addProperty("chatEnabled", settings.isChatEnabled());
+                data.addProperty("slowmodeSeconds", settings.getDefaultSlowmodeSeconds());
+
+                JsonObject muteSettings = new JsonObject();
+                muteSettings.addProperty("chat", settings.isMuteBlocksChat());
+                muteSettings.addProperty("msg", settings.isMuteBlocksMsg());
+                muteSettings.addProperty("signs", settings.isMuteBlocksSigns());
+                muteSettings.addProperty("books", settings.isMuteBlocksBooks());
+                muteSettings.addProperty("broadcast", settings.isMuteBlocksBroadcast());
+                muteSettings.addProperty("voice", settings.isMuteBlocksVoice());
+                muteSettings.addProperty("voiceJoin", settings.isMuteBlocksVoiceJoin());
+                data.add("muteSettings", muteSettings);
+
+                JsonObject warnSettings = new JsonObject();
+                warnSettings.addProperty("notify", settings.isWarnNotifyStaff());
+                warnSettings.addProperty("autoEscalate", settings.isWarnAutoEscalate());
+                data.add("warnSettings", warnSettings);
+
+                JsonObject acSettings = new JsonObject();
+                acSettings.addProperty("rebrandAlerts", settings.isAnticheatRebrandAlerts());
+                acSettings.addProperty("blockOriginalMessages", settings.isAnticheatBlockOriginalMessages());
+                data.add("anticheatSettings", acSettings);
+
+                response.add("data", data);
+                handler.send(GSON.toJson(response));
+            }
+        }
     }
 
     private void clearTrustedDevices(WebSocketConnection conn, WebPanelSession session) {
@@ -2418,6 +2911,26 @@ public class HybridPanelServer {
         broadcast(GSON.toJson(json));
     }
 
+    public void broadcastWatchlistUpdate() {
+        JsonObject json = new JsonObject();
+        json.addProperty("type", "WATCHLIST_UPDATE");
+        JsonObject data = new JsonObject();
+
+        // Build watchlist array
+        JsonArray watchlist = new JsonArray();
+        for (java.util.UUID uuid : plugin.getWatchlistManager().getWatchedPlayers()) {
+            JsonObject entry = new JsonObject();
+            entry.addProperty("playerUuid", uuid.toString());
+            org.bukkit.OfflinePlayer player = org.bukkit.Bukkit.getOfflinePlayer(uuid);
+            entry.addProperty("playerName", player.getName() != null ? player.getName() : "Unknown");
+            entry.addProperty("online", player.isOnline());
+            watchlist.add(entry);
+        }
+        data.add("watchlist", watchlist);
+        json.add("data", data);
+        broadcast(GSON.toJson(json));
+    }
+
     public void broadcastAutomodTrigger(String playerName, String rule, String message) {
         JsonObject json = new JsonObject();
         json.addProperty("type", "AUTOMOD_TRIGGER");
@@ -2536,6 +3049,19 @@ public class HybridPanelServer {
         broadcast(GSON.toJson(json));
     }
 
+    public void broadcastAutomodAlert(String playerName, UUID playerUuid, String ruleName, String triggeredMessage) {
+        JsonObject json = new JsonObject();
+        json.addProperty("type", "AUTOMOD_ALERT");
+        JsonObject data = new JsonObject();
+        data.addProperty("playerName", playerName);
+        data.addProperty("playerUuid", playerUuid.toString());
+        data.addProperty("rule", ruleName);
+        data.addProperty("message", triggeredMessage);
+        data.addProperty("timestamp", System.currentTimeMillis());
+        json.add("data", data);
+        broadcast(GSON.toJson(json));
+    }
+
     public void broadcastAnticheatAlert(String playerName, UUID playerUuid, String checkName, int violationLevel, String details) {
         JsonObject json = new JsonObject();
         json.addProperty("type", "ANTICHEAT_ALERT");
@@ -2616,6 +3142,31 @@ public class HybridPanelServer {
         conn.send(GSON.toJson(response));
     }
 
+    private void sendGeyserStatus(WebSocketConnection conn) {
+        JsonObject response = new JsonObject();
+        response.addProperty("type", "GEYSER_STATUS");
+
+        JsonObject data = new JsonObject();
+        var hookManager = plugin.getHookManager();
+
+        boolean geyserAvailable = hookManager != null && hookManager.isGeyserAvailable();
+        boolean floodgateAvailable = hookManager != null && hookManager.isFloodgateAvailable();
+
+        data.addProperty("geyserAvailable", geyserAvailable);
+        data.addProperty("floodgateAvailable", floodgateAvailable);
+
+        if (geyserAvailable) {
+            data.addProperty("geyserVersion", hookManager.getGeyserVersion());
+        }
+
+        if (floodgateAvailable) {
+            data.addProperty("floodgateVersion", hookManager.getFloodgateVersion());
+        }
+
+        response.add("data", data);
+        conn.send(GSON.toJson(response));
+    }
+
     private void sendModerationPlugins(WebSocketConnection conn) {
         JsonObject response = new JsonObject();
         response.addProperty("type", "MODERATION_PLUGINS");
@@ -2637,6 +3188,24 @@ public class HybridPanelServer {
         data.add("plugins", plugins);
         response.add("data", data);
         conn.send(GSON.toJson(response));
+    }
+
+    public void broadcastRulesUpdate(java.util.List<com.blockforge.moderex.rules.Rule> rules) {
+        JsonObject json = new JsonObject();
+        json.addProperty("type", "RULES_UPDATE");
+        JsonArray rulesArray = new JsonArray();
+        for (var rule : rules) {
+            JsonObject ruleObj = new JsonObject();
+            ruleObj.addProperty("id", rule.getId());
+            ruleObj.addProperty("order", rule.getOrder());
+            ruleObj.addProperty("title", rule.getTitle());
+            ruleObj.addProperty("description", rule.getDescription());
+            ruleObj.addProperty("category", rule.getCategory());
+            ruleObj.addProperty("enabled", rule.isEnabled());
+            rulesArray.add(ruleObj);
+        }
+        json.add("rules", rulesArray);
+        broadcast(GSON.toJson(json));
     }
 
     public void broadcastLogEvent(String severity, String category, String title, String detail) {
@@ -2897,6 +3466,13 @@ public class HybridPanelServer {
             this.out = socket.getOutputStream();
         }
 
+        // Protected constructor for wrappers (same-port connections)
+        protected WebSocketConnection() {
+            this.socket = null;
+            this.in = null;
+            this.out = null;
+        }
+
         String readMessage() throws IOException {
             int firstByte = in.read();
             if (firstByte == -1) return null;
@@ -3007,7 +3583,7 @@ public class HybridPanelServer {
                 // Set a write timeout to prevent blocking forever
                 int originalTimeout = socket.getSoTimeout();
                 try {
-                    socket.setSoTimeout(5000); // 5 second timeout for writes
+                    socket.setSoTimeout(15000); // 15 second timeout for writes (increased for slow connections)
                     synchronized (out) {
                         out.write(baos.toByteArray());
                         out.flush();
@@ -3025,6 +3601,222 @@ public class HybridPanelServer {
             try {
                 socket.close();
             } catch (IOException ignored) {}
+        }
+
+        String getRemoteAddress() {
+            try {
+                if (socket != null && socket.getRemoteSocketAddress() instanceof java.net.InetSocketAddress addr) {
+                    return addr.getAddress().getHostAddress();
+                }
+            } catch (Exception ignored) {}
+            return null;
+        }
+    }
+
+    // ==================== Same-Port (Netty) WebSocket Support ====================
+
+    /**
+     * Register a same-port WebSocket connection from the Netty handler.
+     */
+    public void registerSamePortConnection(String connectionId, WebSocketFrameHandler handler) {
+        samePortConnections.put(connectionId, handler);
+        plugin.logDebug("[SamePort] Registered connection: " + connectionId);
+    }
+
+    /**
+     * Unregister a same-port WebSocket connection.
+     */
+    public void unregisterSamePortConnection(String connectionId) {
+        samePortConnections.remove(connectionId);
+        WebPanelSession session = samePortSessions.remove(connectionId);
+        if (session != null) {
+            plugin.logDebug("[SamePort] Disconnected: " + session.playerName);
+        }
+    }
+
+    /**
+     * Handle a message from a same-port WebSocket connection.
+     */
+    public void handleSamePortMessage(String connectionId, String message) {
+        WebSocketFrameHandler handler = samePortConnections.get(connectionId);
+        if (handler == null) return;
+
+        try {
+            JsonObject json = GSON.fromJson(message, JsonObject.class);
+            if (json == null || !json.has("type")) return;
+
+            String type = json.get("type").getAsString();
+            JsonObject data = json.has("data") ? json.getAsJsonObject("data") : new JsonObject();
+
+            // Handle authentication
+            if ("AUTH".equals(type)) {
+                handleSamePortAuth(connectionId, handler, data);
+                return;
+            }
+
+            // Check if authenticated
+            WebPanelSession session = samePortSessions.get(connectionId);
+            if (session == null) {
+                sendToSamePort(handler, createError("NOT_AUTHENTICATED", "Please authenticate first"));
+                return;
+            }
+
+            // Update activity
+            session.lastActivity = System.currentTimeMillis();
+
+            // Route message to appropriate handler
+            handleSamePortRequest(type, data, session, handler);
+
+        } catch (Exception e) {
+            plugin.logDebug("[SamePort] Error handling message: " + e.getMessage());
+        }
+    }
+
+    private void handleSamePortAuth(String connectionId, WebSocketFrameHandler handler, JsonObject data) {
+        String code = data.has("code") ? data.get("code").getAsString() : null;
+
+        if (code == null || code.isEmpty()) {
+            sendToSamePort(handler, createError("INVALID_CODE", "No authentication code provided"));
+            return;
+        }
+
+        PendingConnection pending = pendingCodes.remove(code);
+        if (pending == null) {
+            sendToSamePort(handler, createError("INVALID_CODE", "Invalid or expired code"));
+            return;
+        }
+
+        // Create session
+        WebPanelSession session = new WebPanelSession();
+        session.playerUuid = pending.playerUuid;
+        session.playerName = pending.playerName;
+        session.authMethod = "code";
+        session.authSessionId = UUID.randomUUID().toString();
+        session.hasPermission = pending.hasPermission;
+        session.prefix = pending.prefix;
+        session.suffix = pending.suffix;
+        session.connectedAt = System.currentTimeMillis();
+        session.lastActivity = System.currentTimeMillis();
+
+        samePortSessions.put(connectionId, session);
+
+        // Send success response
+        JsonObject response = new JsonObject();
+        response.addProperty("type", "AUTH_SUCCESS");
+        JsonObject authData = new JsonObject();
+        authData.addProperty("playerName", session.playerName);
+        authData.addProperty("uuid", session.playerUuid.toString());
+        authData.addProperty("sessionId", session.authSessionId);
+        authData.addProperty("prefix", session.prefix != null ? session.prefix : "");
+        authData.addProperty("suffix", session.suffix != null ? session.suffix : "");
+        response.add("data", authData);
+        sendToSamePort(handler, GSON.toJson(response));
+
+        plugin.getLogger().info("[SamePort] Authenticated: " + session.playerName);
+    }
+
+    private void handleSamePortRequest(String type, JsonObject data, WebPanelSession session, WebSocketFrameHandler handler) {
+        // Create a wrapper to send responses
+        SamePortConnectionWrapper wrapper = new SamePortConnectionWrapper(handler);
+
+        // Reuse existing handlers by wrapping the connection
+        switch (type) {
+            case "GET_PLAYERS" -> sendPlayerList(wrapper);
+            case "GET_PLAYER_DETAILS" -> sendPlayerDetails(wrapper, data);
+            case "GET_PUNISHMENTS" -> sendPunishments(wrapper, data);
+            case "GET_AUTOMOD_RULES" -> sendAutomodRules(wrapper);
+            case "GET_USER_SETTINGS" -> sendUserSettingsForSamePort(wrapper, session);
+            case "GET_TEMPLATES" -> sendTemplates(wrapper);
+            case "GET_STATS" -> sendStats(wrapper);
+            case "GET_CHAT_STATUS" -> sendChatStatus(wrapper);
+            case "SEND_STAFFCHAT", "STAFFCHAT_MESSAGE" -> {
+                String msg = data.has("message") ? data.get("message").getAsString() : "";
+                plugin.getStaffChatManager().broadcastFromWebPanel(session.playerName, msg);
+                sendSuccess(wrapper, "Message sent");
+            }
+            default -> sendError(wrapper, "UNKNOWN_TYPE", "Unknown message type: " + type);
+        }
+    }
+
+    private void sendUserSettingsForSamePort(SamePortConnectionWrapper wrapper, WebPanelSession session) {
+        JsonObject response = new JsonObject();
+        response.addProperty("type", "USER_SETTINGS_DATA");
+        JsonObject data = getUserSettings(session.playerUuid).toJson();
+
+        // Include in-game staff settings
+        var staffSettings = plugin.getStaffSettingsManager().getSettings(session.playerUuid);
+        if (staffSettings != null) {
+            data.addProperty("staffChatEnabled", staffSettings.isStaffChatEnabled());
+            data.addProperty("staffChatSound", staffSettings.isStaffChatSound());
+            data.addProperty("watchlistJoinAlerts", staffSettings.isWatchlistJoinAlerts());
+            data.addProperty("watchlistQuitAlerts", staffSettings.isWatchlistQuitAlerts());
+            data.addProperty("watchlistActivityAlerts", staffSettings.isWatchlistActivityAlerts());
+            data.addProperty("autoVanishOnJoin", staffSettings.isAutoVanishOnJoin());
+            data.addProperty("vanishNightVision", staffSettings.isVanishNightVision());
+            data.addProperty("compactMode", staffSettings.isCompactMode());
+            data.addProperty("inGameSoundEnabled", staffSettings.isSoundEnabled());
+            data.addProperty("actionBarAlerts", staffSettings.isActionBarAlerts());
+            data.addProperty("inGameChatAlerts", staffSettings.isChatAlerts());
+            data.addProperty("bossBarAlerts", staffSettings.isBossBarAlerts());
+        }
+
+        response.add("data", data);
+        wrapper.send(GSON.toJson(response));
+    }
+
+    private void sendToSamePort(WebSocketFrameHandler handler, String message) {
+        handler.send(message);
+    }
+
+    private String createError(String code, String message) {
+        JsonObject error = new JsonObject();
+        error.addProperty("type", "ERROR");
+        error.addProperty("code", code);
+        error.addProperty("message", message);
+        return GSON.toJson(error);
+    }
+
+    /**
+     * Broadcast a message to all same-port connections.
+     */
+    public void broadcastToSamePort(String message) {
+        for (WebSocketFrameHandler handler : samePortConnections.values()) {
+            try {
+                handler.send(message);
+            } catch (Exception ignored) {}
+        }
+    }
+
+    /**
+     * Wrapper class to make same-port connections compatible with existing handlers.
+     */
+    private static class SamePortConnectionWrapper extends WebSocketConnection {
+        private final WebSocketFrameHandler handler;
+
+        SamePortConnectionWrapper(WebSocketFrameHandler handler) {
+            super(); // Use protected no-arg constructor
+            this.handler = handler;
+        }
+
+        @Override
+        void send(String message) {
+            handler.send(message);
+        }
+
+        @Override
+        boolean sendAsync(String message) {
+            handler.send(message);
+            return true;
+        }
+
+        @Override
+        void close() {
+            handler.close();
+        }
+
+        @Override
+        String getRemoteAddress() {
+            return handler.getRemoteAddress();
         }
     }
 }

@@ -54,9 +54,25 @@ public class Settings {
     private int defaultSlowmodeSeconds = 0;
     private boolean chatEnabled = true;
 
-    // Mute settings
+    // Automod settings
+    private boolean spamPreventionEnabled = true;
+    private boolean capsFilterEnabled = true;
+    private boolean linkFilterEnabled = true;
+
+    // Mute settings - what muted players cannot do
     private boolean mutedPlayersCanUseCommands = false;
     private boolean mutedPlayersCanWriteSigns = false;
+    private boolean muteBlocksChat = true;
+    private boolean muteBlocksMsg = true;
+    private boolean muteBlocksSigns = true;
+    private boolean muteBlocksBooks = true;
+    private boolean muteBlocksBroadcast = false;
+    private boolean muteBlocksVoice = true;
+    private boolean muteBlocksVoiceJoin = true;
+
+    // Warn settings
+    private boolean warnNotifyStaff = true;
+    private boolean warnAutoEscalate = false;
 
     // Vanish settings
     private boolean vanishHideFromTablist = true;
@@ -405,6 +421,80 @@ public class Settings {
         this.mutedPlayersCanWriteSigns = mutedPlayersCanWriteSigns;
     }
 
+    // Mute blocks getters and setters
+    public boolean isMuteBlocksChat() {
+        return muteBlocksChat;
+    }
+
+    public void setMuteBlocksChat(boolean muteBlocksChat) {
+        this.muteBlocksChat = muteBlocksChat;
+    }
+
+    public boolean isMuteBlocksMsg() {
+        return muteBlocksMsg;
+    }
+
+    public void setMuteBlocksMsg(boolean muteBlocksMsg) {
+        this.muteBlocksMsg = muteBlocksMsg;
+    }
+
+    public boolean isMuteBlocksSigns() {
+        return muteBlocksSigns;
+    }
+
+    public void setMuteBlocksSigns(boolean muteBlocksSigns) {
+        this.muteBlocksSigns = muteBlocksSigns;
+    }
+
+    public boolean isMuteBlocksBooks() {
+        return muteBlocksBooks;
+    }
+
+    public void setMuteBlocksBooks(boolean muteBlocksBooks) {
+        this.muteBlocksBooks = muteBlocksBooks;
+    }
+
+    public boolean isMuteBlocksBroadcast() {
+        return muteBlocksBroadcast;
+    }
+
+    public void setMuteBlocksBroadcast(boolean muteBlocksBroadcast) {
+        this.muteBlocksBroadcast = muteBlocksBroadcast;
+    }
+
+    public boolean isMuteBlocksVoice() {
+        return muteBlocksVoice;
+    }
+
+    public void setMuteBlocksVoice(boolean muteBlocksVoice) {
+        this.muteBlocksVoice = muteBlocksVoice;
+    }
+
+    public boolean isMuteBlocksVoiceJoin() {
+        return muteBlocksVoiceJoin;
+    }
+
+    public void setMuteBlocksVoiceJoin(boolean muteBlocksVoiceJoin) {
+        this.muteBlocksVoiceJoin = muteBlocksVoiceJoin;
+    }
+
+    // Warn settings getters and setters
+    public boolean isWarnNotifyStaff() {
+        return warnNotifyStaff;
+    }
+
+    public void setWarnNotifyStaff(boolean warnNotifyStaff) {
+        this.warnNotifyStaff = warnNotifyStaff;
+    }
+
+    public boolean isWarnAutoEscalate() {
+        return warnAutoEscalate;
+    }
+
+    public void setWarnAutoEscalate(boolean warnAutoEscalate) {
+        this.warnAutoEscalate = warnAutoEscalate;
+    }
+
     public boolean isVanishHideFromTablist() {
         return vanishHideFromTablist;
     }
@@ -728,5 +818,30 @@ public class Settings {
 
     public void setVanishListFormat(String vanishListFormat) {
         this.vanishListFormat = vanishListFormat;
+    }
+
+    // Automod getters and setters
+    public boolean isSpamPreventionEnabled() {
+        return spamPreventionEnabled;
+    }
+
+    public void setSpamPreventionEnabled(boolean spamPreventionEnabled) {
+        this.spamPreventionEnabled = spamPreventionEnabled;
+    }
+
+    public boolean isCapsFilterEnabled() {
+        return capsFilterEnabled;
+    }
+
+    public void setCapsFilterEnabled(boolean capsFilterEnabled) {
+        this.capsFilterEnabled = capsFilterEnabled;
+    }
+
+    public boolean isLinkFilterEnabled() {
+        return linkFilterEnabled;
+    }
+
+    public void setLinkFilterEnabled(boolean linkFilterEnabled) {
+        this.linkFilterEnabled = linkFilterEnabled;
     }
 }

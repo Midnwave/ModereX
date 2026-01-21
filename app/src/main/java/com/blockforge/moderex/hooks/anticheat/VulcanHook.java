@@ -33,7 +33,8 @@ public class VulcanHook extends AnticheatHook implements Listener {
             return false;
         }
 
-        plugin.logDebug("[Anticheat] Found Vulcan v" + vulcanPlugin.getDescription().getVersion());
+        version = vulcanPlugin.getDescription().getVersion();
+        plugin.logDebug("[Anticheat] Found Vulcan v" + version);
         ClassLoader vulcanClassLoader = vulcanPlugin.getClass().getClassLoader();
 
         String[] eventClasses = {

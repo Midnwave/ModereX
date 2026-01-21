@@ -57,6 +57,21 @@ public class CommandListener implements Listener {
             return;
         }
 
+        // Process message commands through automod (e.g., /msg, /tell, /whisper)
+        if (isMessageCommand(baseCommand)) {
+            String[] parts = fullCommand.split(" ", 3); // command, target, message
+            if (parts.length >= 3) {
+                String message = parts[2];
+                var result = plugin.getAutomodManager().processCommandMessage(player, baseCommand, message);
+                if (result.isBlocked()) {
+                    event.setCancelled(true);
+                    player.sendMessage(plugin.getLanguageManager().getPrefixed(
+                            com.blockforge.moderex.config.lang.MessageKey.AUTOMOD_BLOCKED));
+                    return;
+                }
+            }
+        }
+
         // Log command to history
         logCommand(player, fullCommand);
 
@@ -68,6 +83,11 @@ public class CommandListener implements Listener {
         // Record to replay if active
         if (plugin.getReplayManager() != null) {
             plugin.getReplayManager().recordAction(player, ReplaySnapshot.ActionType.COMMAND, "/" + fullCommand);
+        }
+
+        // Broadcast to web panel live logs
+        if (plugin.getWebPanelServer() != null) {
+            plugin.getWebPanelServer().broadcastCommand(player.getName(), uuid, "/" + fullCommand);
         }
     }
 
@@ -87,6 +107,29 @@ public class CommandListener implements Listener {
 
         return false;
     }
+
+    /**
+     * Check if a command is a message command that should be filtered.
+     * This includes commands from any plugin that send messages to other players.
+     */
+    private boolean isMessageCommand(String command) {
+        String cmd = command.toLowerCase();
+        // Handle plugin:command format
+        if (cmd.contains(":")) {
+            cmd = cmd.split(":")[1];
+        }
+
+        // Common message commands from various plugins
+        return MESSAGE_COMMANDS.contains(cmd);
+    }
+
+    // Message commands that should be filtered (from any plugin)
+    private static final java.util.Set<String> MESSAGE_COMMANDS = java.util.Set.of(
+            "msg", "message", "tell", "whisper", "w", "m", "pm", "dm",
+            "r", "reply", "er", "emsg", "etell", "ewhisper", "ew",
+            "mail", "helpop", "ac", "adminchat", "socialspy",
+            "tpa", "tpahere", "call", "tpask" // Include teleport request messages
+    );
 
     private boolean isCommandBlacklisted(UUID uuid, String command) {
         try {
