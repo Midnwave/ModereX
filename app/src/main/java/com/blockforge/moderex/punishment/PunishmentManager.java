@@ -247,6 +247,11 @@ public class PunishmentManager {
                     // Clear from cache
                     punishmentCache.remove(punishment.getPlayerUuid());
 
+                    // Clear IP ban cache if it was an IP ban
+                    if (punishment.getType() == PunishmentType.IPBAN && punishment.getIpAddress() != null) {
+                        ipBanCache.remove(punishment.getIpAddress());
+                    }
+
                     // Broadcast
                     MessageKey broadcastKey = switch (punishment.getType()) {
                         case MUTE -> MessageKey.UNMUTE_BROADCAST;
@@ -562,9 +567,26 @@ public class PunishmentManager {
             case IPMUTE -> MessageKey.IPMUTE_BROADCAST;
         };
 
+        // Get LuckPerms prefixes if available
+        String staffPrefix = "";
+        String playerPrefix = "";
+        var lpHook = plugin.getHookManager().getLuckPermsHook();
+        if (lpHook != null) {
+            // Get staff prefix
+            if (punishment.getStaffUuid() != null) {
+                staffPrefix = lpHook.getPrefix(punishment.getStaffUuid());
+            }
+            // Get player prefix
+            if (punishment.getPlayerUuid() != null) {
+                playerPrefix = lpHook.getPrefix(punishment.getPlayerUuid());
+            }
+        }
+
         Component message = plugin.getLanguageManager().get(key,
                 "staff", punishment.getStaffName(),
+                "staff_prefix", staffPrefix,
                 "player", punishment.getPlayerName(),
+                "player_prefix", playerPrefix,
                 "duration", DurationParser.format(punishment.getExpiresAt() == -1 ? -1 :
                         punishment.getExpiresAt() - punishment.getCreatedAt()),
                 "reason", punishment.getReason()
