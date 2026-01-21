@@ -236,12 +236,11 @@ public class AnticheatManager {
                 continue;
             }
 
-            // Always use ModereX prefix for alerts
+            // Always use ModereX prefix for alerts (no anticheat name shown)
             Component message = TextUtil.parse(
                     "<dark_gray>[<gradient:#ff6b6b:#ee5a5a>ModereX</gradient><dark_gray>] <white>" +
                             target.getName() + " <gray>flagged <yellow>" +
-                            checkName + " <dark_gray>(<gray>" + anticheat +
-                            "<dark_gray>) <red>x" + vl
+                            checkName + " <red>x" + vl
             );
 
             staff.sendMessage(message);

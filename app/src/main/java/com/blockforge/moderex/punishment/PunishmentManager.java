@@ -16,6 +16,26 @@ import java.util.*;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 
+/**
+ * PunishmentManager handles all punishment operations: creation, removal, and queries.
+ *
+ * TODO: View Punishment Case Info In-Game
+ * - Add /case <caseId> command to view detailed punishment info
+ * - Show: player, staff, type, reason, duration, timestamps, evidence
+ * - Clickable links for player profiles and staff info
+ * - Show related cases (same player, same IP)
+ * - Appeal status and history
+ * - Hover tooltips with quick info
+ * - GUI view option with /case <caseId> gui
+ *
+ * TODO: Player Profile Username History
+ * - Track username changes over time
+ * - Store previous names with timestamps in database
+ * - Show username history in player profile (web panel & in-game)
+ * - Hook into Mojang API for historical lookups
+ * - Display known aliases in modlog and punishment views
+ * - Search by previous usernames
+ */
 public class PunishmentManager {
 
     private final ModereX plugin;

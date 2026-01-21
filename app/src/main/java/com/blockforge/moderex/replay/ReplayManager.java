@@ -13,6 +13,21 @@ import java.util.concurrent.*;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+/**
+ * ReplayManager handles recording and playback of player actions for review.
+ *
+ * TODO: Revamp Replay System with NPCs
+ * - Replace current packet-based playback with NPC entities (Citizens2 or custom)
+ * - Use packet-based NPCs for smooth movement interpolation
+ * - Record more data: hotbar, armor, potion effects, chat messages
+ * - Spectator mode for staff watching replays (fly around freely)
+ * - Timeline scrubbing (jump to specific timestamp)
+ * - Playback speed controls (0.25x, 0.5x, 1x, 2x, 4x)
+ * - Multi-player replay support (show all nearby players as NPCs)
+ * - Replay markers for anticheat flags (visual indicators)
+ * - Export replays to video format or shareable links
+ * - Web panel replay viewer (3D rendering in browser)
+ */
 public class ReplayManager {
 
     private final ModereX plugin;
