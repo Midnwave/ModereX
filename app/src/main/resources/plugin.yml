@@ -217,6 +217,12 @@ commands:
     usage: /<command>
     permission: moderex.staffhelp
 
+  watchlist:
+    description: Manage watchlist of suspicious players
+    usage: /<command> [gui|add|remove|list|note|check] [player] [reason/note]
+    aliases: [wl]
+    permission: moderex.command.watchlist
+
   vanish:
     description: Toggle vanish mode and manage vanished players
     usage: /<command> [toggle|enable|disable|player|list] [player]
@@ -255,6 +261,12 @@ commands:
     usage: /<command> <playerName>
     aliases: [dskin]
     permission: moderex.disguise
+
+  rules:
+    description: View server rules
+    usage: /<command> [page|rule#|category]
+    aliases: [serverrules]
+    permission: moderex.rules
 
   # Shorthand aliases for moderation commands
   mban:
@@ -340,6 +352,8 @@ permissions:
       moderex.cmdunblacklist: true
       moderex.cmdhistory: true
       moderex.disguise: true
+      moderex.command.watchlist: true
+      moderex.rules: true
 
   # Core Punishment Permissions
   moderex.ban:
@@ -634,6 +648,10 @@ permissions:
     description: Disguise as any rank
     default: false
 
+  moderex.rules:
+    description: View server rules
+    default: true
+
   moderex.cmdblacklist:
     description: Blacklist commands for players
     default: op
@@ -644,6 +662,10 @@ permissions:
 
   moderex.cmdhistory:
     description: View command history
+    default: op
+
+  moderex.command.watchlist:
+    description: Manage watchlist of suspicious players
     default: op
 
   # Bypass Permissions
