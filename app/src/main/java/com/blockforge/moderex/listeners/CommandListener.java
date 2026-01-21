@@ -69,6 +69,11 @@ public class CommandListener implements Listener {
         if (plugin.getReplayManager() != null) {
             plugin.getReplayManager().recordAction(player, ReplaySnapshot.ActionType.COMMAND, "/" + fullCommand);
         }
+
+        // Broadcast to web panel live logs
+        if (plugin.getWebPanelServer() != null) {
+            plugin.getWebPanelServer().broadcastCommand(player.getName(), uuid, "/" + fullCommand);
+        }
     }
 
     private boolean isBlockedForMuted(String command) {
