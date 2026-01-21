@@ -1,6 +1,7 @@
 package com.blockforge.moderex.hooks.anticheat;
 
 import com.blockforge.moderex.ModereX;
+import com.blockforge.moderex.staff.StaffSettings;
 import com.blockforge.moderex.util.TextUtil;
 import net.kyori.adventure.text.Component;
 import org.bukkit.entity.Player;
@@ -257,6 +258,28 @@ public class AnticheatManager {
             }
         }
     }
+
+    public boolean toggleAlerts(Player staff) {
+        var staffSettingsManager = plugin.getStaffSettingsManager();
+        var settings = staffSettingsManager.getSettings(staff);
+
+        boolean enabled;
+        if (settings.getAnticheatAlerts() == StaffSettings.AlertLevel.OFF) {
+            settings.setAnticheatAlerts(StaffSettings.AlertLevel.EVERYONE);
+            enabled = true;
+        } else {
+            settings.setAnticheatAlerts(StaffSettings.AlertLevel.OFF);
+            enabled = false;
+        }
+
+        staffSettingsManager.saveSettings(settings);
+
+        plugin.logDebug("[AC] " + staff.getName() +
+                " toggled anticheat alerts to " + (enabled ? "ON" : "OFF"));
+
+        return enabled;
+    }
+
 
     public AnticheatAlertManager getAlertManager() {
         return alertManager;
