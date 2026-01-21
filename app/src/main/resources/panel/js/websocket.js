@@ -4,20 +4,25 @@
 (function() {
   'use strict';
 
-  const WS_RECONNECT_DELAY = 3000;
-  const WS_HEARTBEAT_INTERVAL = 30000;
-  const WS_PING_INTERVAL = 5000;
+  const WS_RECONNECT_DELAY_MIN = 2000;
+  const WS_RECONNECT_DELAY_MAX = 30000;
+  const WS_HEARTBEAT_INTERVAL = 30000; // Keep connection alive (30s)
+  const WS_PING_INTERVAL = 15000; // Measure latency every 15s
+  const WS_PING_TIMEOUT = 45000; // Allow 45s for very high-ping/unstable connections
 
   let ws = null;
   let heartbeatTimer = null;
   let reconnectTimer = null;
   let pingTimer = null;
+  let pingTimeoutTimer = null;
   let isConnected = false;
   let sessionData = null;
   let currentHost = null;
   let currentPort = null;
   let lastPing = 0;
   let lastPingTime = 0;
+  let reconnectAttempts = 0;
+  let awaitingPong = false;
   let connectionStatus = 'disconnected'; // 'disconnected', 'connecting', 'connected', 'saving'
 
   // Message handlers registered by other modules
@@ -52,6 +57,7 @@
       console.log('[WS] Connected');
       isConnected = true;
       connectionStatus = 'connected';
+      reconnectAttempts = 0; // Reset on successful connection
       clearTimeout(reconnectTimer);
       startHeartbeat();
       startPingMeasurement();
@@ -168,6 +174,8 @@
 
     // Handle ping response
     if (type === 'PONG') {
+      awaitingPong = false;
+      clearTimeout(pingTimeoutTimer);
       if (lastPingTime > 0) {
         lastPing = Date.now() - lastPingTime;
         emit('ping_update', { ping: lastPing });
@@ -202,14 +210,18 @@
   }
 
   /**
-   * Schedule a reconnection attempt
+   * Schedule a reconnection attempt with exponential backoff
    */
   function scheduleReconnect(host, port) {
     clearTimeout(reconnectTimer);
+    // Exponential backoff: 2s, 4s, 8s, 16s, max 30s
+    const delay = Math.min(WS_RECONNECT_DELAY_MIN * Math.pow(2, reconnectAttempts), WS_RECONNECT_DELAY_MAX);
+    reconnectAttempts++;
+    console.log(`[WS] Reconnecting in ${delay}ms (attempt ${reconnectAttempts})...`);
     reconnectTimer = setTimeout(() => {
       console.log('[WS] Attempting reconnect...');
       connect(host, port);
-    }, WS_RECONNECT_DELAY);
+    }, delay);
   }
 
   /**
@@ -252,17 +264,36 @@
       clearInterval(pingTimer);
       pingTimer = null;
     }
+    if (pingTimeoutTimer) {
+      clearTimeout(pingTimeoutTimer);
+      pingTimeoutTimer = null;
+    }
     lastPing = 0;
     lastPingTime = 0;
+    awaitingPong = false;
   }
 
   /**
    * Send ping to measure latency
    */
   function measurePing() {
-    if (isConnected) {
+    if (isConnected && !awaitingPong) {
+      awaitingPong = true;
       lastPingTime = Date.now();
       send('PING');
+
+      // Set timeout for PONG response - if no response, connection is likely dead
+      clearTimeout(pingTimeoutTimer);
+      pingTimeoutTimer = setTimeout(() => {
+        if (awaitingPong && isConnected) {
+          console.warn('[WS] No PONG received within timeout, connection may be stale');
+          // Don't immediately disconnect - just log warning and reset flag
+          // This allows high-ping connections to continue working
+          awaitingPong = false;
+          lastPing = -1; // Indicate connection issues
+          emit('ping_update', { ping: -1, warning: 'Connection slow or unstable' });
+        }
+      }, WS_PING_TIMEOUT);
     }
   }
 
@@ -407,7 +438,7 @@
   }
 
   function saveAutomodRule(rule) {
-    return send('SAVE_AUTOMOD_RULE', rule);
+    return send('UPDATE_AUTOMOD_RULE', rule);
   }
 
   function deleteAutomodRule(ruleId) {

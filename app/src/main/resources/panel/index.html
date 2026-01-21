@@ -130,14 +130,16 @@
   <div class="alertBar" id="alertBar">
     <div class="alertBar-content" id="alertBarContent">
       <div class="alertBar-left">
+        <img class="alertBar-avatar" id="alertBarAvatar" src="" alt="" style="display:none">
         <div class="alertBar-icon" id="alertBarIcon"><i class="fa-solid fa-eye"></i></div>
         <div class="alertBar-text">
           <div class="alertBar-title" id="alertBarTitle">Alert</div>
+          <div class="alertBar-player" id="alertBarPlayer" style="display:none"></div>
           <div class="alertBar-sub" id="alertBarSub">Details</div>
         </div>
       </div>
       <div class="alertBar-actions">
-        <button class="mini" onclick="viewAlertPlayer()"><i class="fa-solid fa-user"></i> View</button>
+        <button class="mini" onclick="viewAlertPlayer()"><i class="fa-solid fa-eye"></i></button>
         <button class="mini" onclick="dismissAlertBar()"><i class="fa-solid fa-xmark"></i></button>
       </div>
     </div>
@@ -173,6 +175,7 @@
         <div class="sb-group">
           <div class="sb-label">Monitoring</div>
           <div class="sb-item" data-page="automod"><i class="fa-solid fa-robot"></i> Automod Rules</div>
+          <div class="sb-item" data-page="cmdblacklist"><i class="fa-solid fa-ban"></i> Cmd Blacklist</div>
           <div class="sb-item" data-page="anticheat"><i class="fa-solid fa-shield-halved"></i> Anticheat</div>
           <div class="sb-item" data-page="watchlist"><i class="fa-solid fa-eye"></i> Watchlist</div>
           <div class="sb-item" data-page="livelogs"><i class="fa-solid fa-terminal"></i> Live Logs</div>
@@ -182,6 +185,11 @@
         <div class="sb-group">
           <div class="sb-label">Communication</div>
           <div class="sb-item" data-page="staffchat"><i class="fa-solid fa-comments"></i> Staff Chat</div>
+        </div>
+
+        <div class="sb-group">
+          <div class="sb-label">Server</div>
+          <div class="sb-item" data-page="rules"><i class="fa-solid fa-scroll"></i> Server Rules</div>
         </div>
 
         <div class="sb-group">
@@ -248,62 +256,111 @@
               <h1>Dashboard</h1>
               <p>Server moderation overview and recent activity summary.</p>
             </div>
+            <div style="display:flex;gap:10px;align-items:center">
+              <span class="badge" id="dashServerStatus"><i class="fa-solid fa-circle"></i> Connecting...</span>
+              <span class="badge gray" id="dashUptime"><i class="fa-solid fa-clock"></i> --</span>
+            </div>
           </div>
-          
+
           <div class="panel pad">
+            <!-- Primary Stats -->
             <div class="grid cols-4">
-              <div class="stat">
+              <div class="stat clickable" onclick="go('punishments')">
                 <small>Active Punishments</small>
                 <b id="statActivePun">0</b>
                 <div class="hint" id="statPunHint">No active cases</div>
                 <i class="fa-solid fa-gavel icon"></i>
               </div>
-              <div class="stat">
+              <div class="stat clickable" onclick="go('automod')">
                 <small>Automod Events</small>
                 <b id="statAuto">0</b>
                 <div class="hint" id="statAutoHint">No events</div>
                 <i class="fa-solid fa-robot icon"></i>
               </div>
-              <div class="stat">
+              <div class="stat clickable" onclick="go('watchlist')">
                 <small>Watchlist Alerts</small>
                 <b id="statWatch">0</b>
                 <div class="hint" id="statWatchHint">None</div>
                 <i class="fa-solid fa-eye icon"></i>
               </div>
-              <div class="stat">
+              <div class="stat clickable" onclick="go('players')">
                 <small>Players Online</small>
                 <b id="statOnline">0</b>
                 <div class="hint" id="statOnlineHint">0/0 total</div>
                 <i class="fa-solid fa-users icon"></i>
               </div>
             </div>
-            
+
+            <!-- Secondary Stats -->
+            <div class="grid cols-4" style="margin-top:12px">
+              <div class="stat mini">
+                <small>Active Bans</small>
+                <b id="statBans">0</b>
+                <i class="fa-solid fa-ban icon" style="color:var(--bad)"></i>
+              </div>
+              <div class="stat mini">
+                <small>Active Mutes</small>
+                <b id="statMutes">0</b>
+                <i class="fa-solid fa-volume-xmark icon" style="color:var(--warn)"></i>
+              </div>
+              <div class="stat mini">
+                <small>Warnings (24h)</small>
+                <b id="statWarns24h">0</b>
+                <i class="fa-solid fa-triangle-exclamation icon" style="color:var(--info)"></i>
+              </div>
+              <div class="stat mini">
+                <small>Staff Online</small>
+                <b id="statStaff">0</b>
+                <i class="fa-solid fa-shield icon" style="color:var(--good)"></i>
+              </div>
+            </div>
+
+            <!-- Quick Actions -->
+            <div class="card" style="margin-top:20px">
+              <h3><i class="fa-solid fa-bolt" style="color:var(--warn)"></i> Quick Actions</h3>
+              <p>Common moderation tasks at your fingertips.</p>
+              <div style="display:flex;flex-wrap:wrap;gap:10px;margin-top:12px">
+                <button class="btn primary" onclick="openPunishFromList()"><i class="fa-solid fa-gavel"></i> Punish Player</button>
+                <button class="btn" onclick="go('logs')"><i class="fa-solid fa-list"></i> View Logs</button>
+                <button class="btn" onclick="go('watchlist')"><i class="fa-solid fa-eye"></i> Manage Watchlist</button>
+                <button class="btn" onclick="go('automod')"><i class="fa-solid fa-robot"></i> Automod Rules</button>
+                <button class="btn" onclick="go('settings')"><i class="fa-solid fa-cog"></i> Settings</button>
+              </div>
+            </div>
+
             <div class="grid cols-2wide" style="margin-top:20px">
+              <!-- Recent Activity -->
               <div class="card">
-                <h3><i class="fa-solid fa-clock-rotate-left" style="color:var(--primary-light)"></i> Recent Activity</h3>
+                <div style="display:flex;justify-content:space-between;align-items:center">
+                  <h3><i class="fa-solid fa-clock-rotate-left" style="color:var(--primary-light)"></i> Recent Activity</h3>
+                  <button class="mini" onclick="go('logs')"><i class="fa-solid fa-arrow-right"></i> View All</button>
+                </div>
                 <p>Latest moderation actions and system events.</p>
-                <div class="table-wrap" style="margin-top:12px;max-height:280px;overflow:auto">
+                <div class="table-wrap" style="margin-top:12px;max-height:240px;overflow:auto">
                   <table>
                     <thead><tr><th>Time</th><th>Actor</th><th>Action</th><th>Target</th></tr></thead>
                     <tbody id="activityRows"></tbody>
                   </table>
                 </div>
               </div>
-              
+
+              <!-- Recent Punishments -->
               <div class="card">
-                <h3><i class="fa-solid fa-compass" style="color:var(--accent-light)"></i> Navigation</h3>
-                <p>Access primary management interfaces.</p>
-                <div class="block" style="margin-top:12px">
-                  <button class="btn" onclick="go('players')"><i class="fa-solid fa-users"></i> Player Management</button>
-                  <button class="btn" onclick="go('punishments')"><i class="fa-solid fa-gavel"></i> Punishments</button>
-                  <button class="btn" onclick="go('automod')"><i class="fa-solid fa-robot"></i> Automod Rules</button>
-                  <button class="btn" onclick="go('watchlist')"><i class="fa-solid fa-eye"></i> Watchlist</button>
+                <div style="display:flex;justify-content:space-between;align-items:center">
+                  <h3><i class="fa-solid fa-gavel" style="color:var(--bad)"></i> Recent Punishments</h3>
+                  <button class="mini" onclick="go('punishments')"><i class="fa-solid fa-arrow-right"></i> View All</button>
                 </div>
+                <p>Latest enforcement actions taken.</p>
+                <div id="recentPunishments" style="margin-top:12px;display:flex;flex-direction:column;gap:8px;max-height:240px;overflow:auto"></div>
               </div>
             </div>
-            
+
+            <!-- Watchlist Highlights -->
             <div class="card">
-              <h3><i class="fa-solid fa-eye" style="color:var(--warn)"></i> Watchlist Highlights</h3>
+              <div style="display:flex;justify-content:space-between;align-items:center">
+                <h3><i class="fa-solid fa-eye" style="color:var(--warn)"></i> Watchlist Highlights</h3>
+                <button class="mini" onclick="go('watchlist')"><i class="fa-solid fa-arrow-right"></i> View All</button>
+              </div>
               <p>Players currently under active monitoring.</p>
               <div id="watchlistHighlights" style="margin-top:12px;display:flex;flex-direction:column;gap:10px;max-height:280px;overflow:auto"></div>
             </div>
@@ -445,16 +502,91 @@
               <button class="btn primary" onclick="addRuleUI()"><i class="fa-solid fa-plus"></i> Add Rule</button>
             </div>
           </div>
-          
+
           <div class="panel pad">
+            <div class="toolbar" style="margin-top:0;margin-bottom:16px">
+              <div class="left">
+                <div class="gsearch" style="width:100%;max-width:400px">
+                  <i class="fa-solid fa-magnifying-glass"></i>
+                  <input type="text" id="ruleSearch" placeholder="Search rules..." oninput="filterRules()">
+                </div>
+              </div>
+              <div class="right" style="margin-left:auto;display:flex;gap:10px;align-items:center">
+                <select class="input" id="ruleTypeFilter" onchange="filterRules()" style="width:150px">
+                  <option value="all">All Types</option>
+                  <option value="WORD_FILTER">Word Filter</option>
+                  <option value="SPAM">Spam</option>
+                  <option value="CAPS">Caps</option>
+                  <option value="ANTICHEAT">Anticheat</option>
+                </select>
+                <select class="input" id="ruleStatusFilter" onchange="filterRules()" style="width:120px">
+                  <option value="all">All Status</option>
+                  <option value="enabled">Enabled</option>
+                  <option value="disabled">Disabled</option>
+                </select>
+                <span class="badge gray" id="rulesCount">0 rules</span>
+              </div>
+            </div>
+
             <div class="card rules-embed" style="margin:0">
-              <h3><i class="fa-solid fa-robot" style="color:var(--primary-light)"></i> Rule Library</h3>
-              <p>Each rule can block the message and optionally auto-punish.</p>
-              <div id="rulesList" style="display:flex;flex-direction:column;gap:16px;margin-top:12px;max-height:520px;overflow:auto"></div>
+              <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
+                <div>
+                  <h3 style="margin:0"><i class="fa-solid fa-robot" style="color:var(--primary-light)"></i> Rule Library</h3>
+                  <p style="margin:4px 0 0 0">Each rule can block the message and optionally auto-punish.</p>
+                </div>
+                <div id="rulesPagination" style="display:flex;gap:8px;align-items:center">
+                  <button class="mini" onclick="rulesPage(-1)" id="rulesPrevBtn"><i class="fa-solid fa-chevron-left"></i></button>
+                  <span id="rulesPageInfo" class="badge gray">Page 1</span>
+                  <button class="mini" onclick="rulesPage(1)" id="rulesNextBtn"><i class="fa-solid fa-chevron-right"></i></button>
+                </div>
+              </div>
+              <div id="rulesList" style="display:flex;flex-direction:column;gap:16px;max-height:520px;overflow:auto"></div>
             </div>
           </div>
         </section>
-        
+
+        <!-- Command Blacklist Page -->
+        <section class="page" id="page-cmdblacklist">
+          <div class="page-head">
+            <div class="page-title">
+              <h1>Command Blacklist</h1>
+              <p>Block specific players from using certain commands.</p>
+            </div>
+            <div style="display:flex;gap:10px">
+              <button class="btn primary" onclick="openCmdBlacklistModal()"><i class="fa-solid fa-plus"></i> Add Blacklist</button>
+            </div>
+          </div>
+
+          <div class="panel pad">
+            <div class="toolbar" style="margin-top:0;margin-bottom:16px">
+              <div class="left">
+                <div class="gsearch" style="width:100%;max-width:400px">
+                  <i class="fa-solid fa-magnifying-glass"></i>
+                  <input type="text" id="cmdblSearch" placeholder="Search by player or command..." oninput="filterCmdBlacklist()">
+                </div>
+              </div>
+              <div class="right" style="margin-left:auto;display:flex;gap:10px;align-items:center">
+                <select class="input" id="cmdblStatusFilter" onchange="filterCmdBlacklist()" style="width:120px">
+                  <option value="all">All Status</option>
+                  <option value="active">Active</option>
+                  <option value="expired">Expired</option>
+                </select>
+                <span class="badge gray" id="cmdblCount">0 entries</span>
+              </div>
+            </div>
+
+            <div class="card cmdbl-embed" style="margin:0">
+              <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
+                <div>
+                  <h3 style="margin:0"><i class="fa-solid fa-ban" style="color:var(--bad)"></i> Blocked Commands</h3>
+                  <p style="margin:4px 0 0 0;color:var(--muted)">Players listed here cannot use the specified commands.</p>
+                </div>
+              </div>
+              <div id="cmdblList" style="display:flex;flex-direction:column;gap:8px;max-height:520px;overflow:auto"></div>
+            </div>
+          </div>
+        </section>
+
         <!-- Watchlist Page -->
         <section class="page" id="page-watchlist">
           <div class="page-head">
@@ -921,6 +1053,15 @@
               </div>
             </div>
 
+            <!-- In-Game Staff Notification Settings -->
+            <div class="card">
+              <h3><i class="fa-solid fa-server" style="color:var(--accent)"></i> In-Game Notification Settings</h3>
+              <p>Configure notifications that sync with your in-game staff settings.</p>
+              <div id="staffNotificationSettings" style="margin-top:14px">
+                <!-- Populated by renderStaffSettings() -->
+              </div>
+            </div>
+
             <!-- Device Trust & Auto Sign-in -->
             <div class="card">
               <h3><i class="fa-solid fa-shield-check" style="color:var(--good)"></i> Device Trust</h3>
@@ -1181,7 +1322,67 @@
             </div>
           </div>
         </section>
-        
+
+        <!-- Rules Page -->
+        <section class="page" id="page-rules">
+          <div class="page-head">
+            <div class="page-title">
+              <h1>Server Rules</h1>
+              <p>Configure and manage server rules that players can view.</p>
+            </div>
+            <div class="page-actions">
+              <button class="btn primary" onclick="addNewRule()"><i class="fa-solid fa-plus"></i> Add Rule</button>
+              <button class="btn" onclick="saveRules()"><i class="fa-solid fa-floppy-disk"></i> Save All</button>
+            </div>
+          </div>
+
+          <div class="panel pad">
+            <!-- Rules Settings -->
+            <div class="card" style="margin:0">
+              <h3><i class="fa-solid fa-cog" style="color:var(--primary-light)"></i> Rules Settings</h3>
+              <div class="grid cols-2" style="margin-top:14px;gap:16px">
+                <div>
+                  <div class="hintline" style="margin-top:0">Rules Version</div>
+                  <input type="text" class="input" id="rulesVersion" placeholder="1.0" value="1.0">
+                  <div style="font-size:11px;color:var(--text-secondary);margin-top:4px">Changing version resets all player acceptances</div>
+                </div>
+                <div>
+                  <div class="toggle-wrap" style="margin-top:16px">
+                    <button class="toggle" id="requireAcceptanceToggle" onclick="toggleRequireAcceptance()" aria-pressed="false">
+                      <span class="toggle-thumb"></span>
+                    </button>
+                    <div class="toggle-meta">
+                      <div class="toggle-title">Require Acceptance</div>
+                      <div class="toggle-sub">Players must accept rules to play</div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Rules List -->
+            <div class="card">
+              <h3><i class="fa-solid fa-scroll" style="color:var(--accent-light)"></i> Rules</h3>
+              <p>Drag to reorder rules. Click to edit.</p>
+              <div id="rulesListContainer" style="margin-top:14px">
+                <div style="color:var(--text-secondary);font-size:13px">Loading rules...</div>
+              </div>
+            </div>
+
+            <!-- Category Legend -->
+            <div class="card">
+              <h3><i class="fa-solid fa-tags" style="color:var(--warn)"></i> Categories</h3>
+              <div style="display:flex;gap:16px;flex-wrap:wrap;margin-top:14px">
+                <span class="badge" style="background:rgba(255,193,7,0.2);color:#ffc107"><i class="fa-solid fa-circle"></i> General</span>
+                <span class="badge" style="background:rgba(0,188,212,0.2);color:#00bcd4"><i class="fa-solid fa-circle"></i> Chat</span>
+                <span class="badge" style="background:rgba(76,175,80,0.2);color:#4caf50"><i class="fa-solid fa-circle"></i> Gameplay</span>
+                <span class="badge" style="background:rgba(244,67,54,0.2);color:#f44336"><i class="fa-solid fa-circle"></i> PvP</span>
+                <span class="badge" style="background:rgba(255,152,0,0.2);color:#ff9800"><i class="fa-solid fa-circle"></i> Building</span>
+              </div>
+            </div>
+          </div>
+        </section>
+
         <!-- Integrations Page -->
         <section class="page" id="page-integrations">
           <div class="page-head">
@@ -1228,6 +1429,42 @@
               <div class="block" style="margin-top:14px">
                 <button class="btn primary" onclick="saveIntegrations()"><i class="fa-solid fa-floppy-disk"></i> Save</button>
                 <button class="btn" onclick="testWebhook()"><i class="fa-solid fa-paper-plane"></i> Test Webhook</button>
+              </div>
+            </div>
+
+            <!-- Geyser/Floodgate Integration -->
+            <div class="card">
+              <h3><i class="fa-solid fa-gamepad" style="color:#4FC3F7"></i> Geyser / Floodgate</h3>
+              <p>Cross-platform support for Bedrock Edition players.</p>
+              <div class="grid cols-2" style="margin-top:14px;gap:12px">
+                <div class="integration-item" style="display:flex;align-items:center;justify-content:space-between;padding:12px;border:1px solid var(--border);border-radius:var(--radius);background:rgba(0,0,0,0.2)">
+                  <div style="display:flex;align-items:center;gap:12px">
+                    <div style="width:36px;height:36px;border-radius:var(--radius);background:linear-gradient(135deg,#4FC3F7,#29B6F6);display:flex;align-items:center;justify-content:center">
+                      <i class="fa-solid fa-server" style="color:#fff"></i>
+                    </div>
+                    <div>
+                      <div style="font-weight:600">Geyser</div>
+                      <div style="font-size:12px;color:var(--text-secondary)" id="geyserDetails">Bedrock-Java proxy</div>
+                    </div>
+                  </div>
+                  <span class="badge gray" id="geyserStatus">Not detected</span>
+                </div>
+                <div class="integration-item" style="display:flex;align-items:center;justify-content:space-between;padding:12px;border:1px solid var(--border);border-radius:var(--radius);background:rgba(0,0,0,0.2)">
+                  <div style="display:flex;align-items:center;gap:12px">
+                    <div style="width:36px;height:36px;border-radius:var(--radius);background:linear-gradient(135deg,#81C784,#66BB6A);display:flex;align-items:center;justify-content:center">
+                      <i class="fa-solid fa-water" style="color:#fff"></i>
+                    </div>
+                    <div>
+                      <div style="font-weight:600">Floodgate</div>
+                      <div style="font-size:12px;color:var(--text-secondary)" id="floodgateDetails">Bedrock authentication</div>
+                    </div>
+                  </div>
+                  <span class="badge gray" id="floodgateStatus">Not detected</span>
+                </div>
+              </div>
+              <div style="margin-top:12px;padding:10px;background:rgba(79,195,247,0.1);border-radius:var(--radius);font-size:12px;color:var(--text-secondary)">
+                <i class="fa-solid fa-info-circle" style="color:#4FC3F7"></i>
+                Bedrock players are automatically detected and their skins are properly displayed in the panel.
               </div>
             </div>
 
@@ -1284,11 +1521,11 @@
       </div>
       <div class="drawer-sec">
         <h3>Past Violations</h3>
-        <div class="box" id="drawerViolations"></div>
+        <div class="box scrollable" id="drawerViolations"></div>
       </div>
       <div class="drawer-sec">
         <h3>Pardons</h3>
-        <div class="box" id="drawerPardons"></div>
+        <div class="box scrollable" id="drawerPardons"></div>
       </div>
       <div class="drawer-sec">
         <h3>IP Information</h3>
@@ -1296,11 +1533,11 @@
       </div>
       <div class="drawer-sec">
         <h3>Recent Commands</h3>
-        <div class="box" id="drawerRecent"></div>
+        <div class="box scrollable" id="drawerRecent"></div>
       </div>
       <div class="drawer-sec">
         <h3>Automod Logs</h3>
-        <div class="box" id="drawerAutomod"></div>
+        <div class="box scrollable" id="drawerAutomod"></div>
       </div>
     </div>
   </div>
@@ -1344,10 +1581,10 @@
         </div>
         
         <div style="margin-top:16px">
-          <div class="hintline" style="margin-top:0">Reason</div>
-          <textarea class="input" id="punishReason" placeholder="Enter reason for punishment..." rows="2"></textarea>
+          <div class="hintline" style="margin-top:0;display:flex;justify-content:space-between">Reason <span id="punishReasonCount" style="color:var(--text-secondary);font-weight:normal">0/100</span></div>
+          <textarea class="input" id="punishReason" placeholder="Enter reason for punishment..." rows="2" maxlength="100" oninput="updateCharCount(this, 'punishReasonCount', 100)"></textarea>
         </div>
-        
+
         <div style="margin-top:16px">
           <div class="hintline" style="margin-top:0">Attach Evidence</div>
           <select class="input" id="punishEvidencePick">
@@ -1409,8 +1646,8 @@
         </div>
 
         <div style="margin-top:16px">
-          <div class="hintline" style="margin-top:0">Reason</div>
-          <textarea class="input" id="punishCreateReason" placeholder="Enter reason for punishment..." rows="2"></textarea>
+          <div class="hintline" style="margin-top:0;display:flex;justify-content:space-between">Reason <span id="punishCreateReasonCount" style="color:var(--text-secondary);font-weight:normal">0/100</span></div>
+          <textarea class="input" id="punishCreateReason" placeholder="Enter reason for punishment..." rows="2" maxlength="100" oninput="updateCharCount(this, 'punishCreateReasonCount', 100)"></textarea>
         </div>
 
         <div style="margin-top:16px">

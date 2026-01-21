@@ -6,6 +6,7 @@ import com.blockforge.moderex.punishment.Punishment;
 import com.blockforge.moderex.punishment.PunishmentType;
 import com.blockforge.moderex.util.DurationParser;
 import com.blockforge.moderex.util.TextUtil;
+import com.blockforge.moderex.hooks.anticheat.AnticheatChecks;
 import com.blockforge.moderex.web.WebAuthManager;
 import com.google.gson.Gson;
 import com.google.gson.JsonArray;
@@ -26,6 +27,28 @@ import java.sql.SQLException;
 import java.util.*;
 import java.util.concurrent.*;
 
+/**
+ * HybridPanelServer serves both HTTP and WebSocket on the same port for the web panel.
+ *
+ * TODO: Netty Fix and Same-Port Web Panel Support
+ * - Implement proper Netty channel injection to share Minecraft server port
+ * - Detect HTTP traffic vs game packets in the pipeline
+ * - Route HTTP/WebSocket requests to web panel handler
+ * - Keep game traffic unaffected
+ * - Handle SSL/TLS termination for HTTPS support
+ * - Test with Velocity/BungeeCord proxied connections
+ * - Fallback to dedicated port if injection fails
+ *
+ * TODO: Advanced Global Search Bar
+ * - Search across all data: players, punishments, automod, watchlist, etc.
+ * - Fuzzy matching for player names and UUIDs
+ * - Search syntax: "player:name", "ban:reason", "ip:192.168.*"
+ * - Real-time search results as you type
+ * - Keyboard shortcuts (Ctrl+K or / to focus search)
+ * - Recent searches history
+ * - Search result preview with quick actions
+ * - Filter by date ranges, punishment types, etc.
+ */
 public class HybridPanelServer {
 
     private static final Gson GSON = new Gson();
@@ -975,6 +998,7 @@ public class HybridPanelServer {
             case "CREATE_AUTOMOD_RULE" -> createAutomodRule(conn, data, session);
             case "DELETE_AUTOMOD_RULE" -> deleteAutomodRule(conn, data, session);
             case "GET_ANTICHEAT_INFO" -> sendAnticheatInfo(conn);
+            case "GET_ANTICHEAT_ALERTS" -> sendAnticheatAlerts(conn);
             case "GET_ANTICHEAT_CHECKS" -> sendAnticheatChecks(conn);
             case "GET_STAFF_ANTICHEAT_SETTINGS" -> sendStaffAnticheatSettings(conn, session);
             case "UPDATE_STAFF_ANTICHEAT_SETTING" -> updateStaffAnticheatSetting(conn, data, session);
@@ -1006,6 +1030,7 @@ public class HybridPanelServer {
             case "GET_REPLAY" -> sendReplayData(conn, data);
             case "GET_SERVER_STATUS" -> sendServerStatus(conn);
             case "GET_LUCKPERMS_STATUS" -> sendLuckPermsStatus(conn);
+            case "GET_GEYSER_STATUS" -> sendGeyserStatus(conn);
             case "GET_MODERATION_PLUGINS" -> sendModerationPlugins(conn);
             default -> sendError(conn, "UNKNOWN_TYPE", "Unknown message type: " + type);
         }
@@ -1329,6 +1354,60 @@ public class HybridPanelServer {
         data.addProperty("hasAnyHook", plugin.getAnticheatManager().hasAnyHook());
         data.addProperty("alertsEnabled", alertsEnabled);
 
+        response.add("data", data);
+        conn.send(GSON.toJson(response));
+    }
+
+    /**
+     * Send anticheat alerts data with all checks grouped by category.
+     * This is what the Anticheat Alerts page expects.
+     */
+    private void sendAnticheatAlerts(WebSocketConnection conn) {
+        JsonObject response = new JsonObject();
+        response.addProperty("type", "ANTICHEAT_ALERTS");
+
+        JsonObject data = new JsonObject();
+
+        // Get all enabled anticheats and their checks
+        JsonArray anticheats = new JsonArray();
+        for (String acName : plugin.getAnticheatManager().getEnabledAnticheats()) {
+            JsonObject ac = new JsonObject();
+            ac.addProperty("name", acName);
+
+            // Get all checks for this anticheat from the registry
+            JsonArray checks = new JsonArray();
+            for (AnticheatChecks.CheckInfo check : AnticheatChecks.getChecks(acName)) {
+                JsonObject checkObj = new JsonObject();
+                checkObj.addProperty("name", check.getName());
+                checkObj.addProperty("displayName", check.getDisplayName());
+                checkObj.addProperty("category", check.getCategory().name());
+                checkObj.addProperty("categoryDisplay", check.getCategory().getDisplayName());
+                checkObj.addProperty("description", check.getDescription());
+                checks.add(checkObj);
+            }
+
+            // Group checks by category
+            JsonObject categories = new JsonObject();
+            for (AnticheatChecks.Category cat : AnticheatChecks.Category.values()) {
+                JsonArray catChecks = new JsonArray();
+                for (AnticheatChecks.CheckInfo check : AnticheatChecks.getChecksByCategory(acName, cat)) {
+                    JsonObject checkObj = new JsonObject();
+                    checkObj.addProperty("name", check.getName());
+                    checkObj.addProperty("displayName", check.getDisplayName());
+                    checkObj.addProperty("description", check.getDescription());
+                    catChecks.add(checkObj);
+                }
+                if (catChecks.size() > 0) {
+                    categories.add(cat.name().toLowerCase(), catChecks);
+                }
+            }
+
+            ac.add("checks", checks);
+            ac.add("categories", categories);
+            anticheats.add(ac);
+        }
+
+        data.add("anticheats", anticheats);
         response.add("data", data);
         conn.send(GSON.toJson(response));
     }
@@ -1698,20 +1777,51 @@ public class HybridPanelServer {
 
     private void revokePunishment(WebSocketConnection conn, JsonObject data, WebPanelSession session) {
         String caseId = data.has("caseId") ? data.get("caseId").getAsString() : "";
+        String reason = data.has("reason") ? data.get("reason").getAsString() : "Revoked via Web Panel";
+
         if (caseId.isEmpty()) {
             sendError(conn, "MISSING_DATA", "Case ID required");
             return;
         }
 
+        // First get punishment details for broadcasting
         plugin.getPunishmentManager().getPunishmentByCaseId(caseId).thenAccept(punishment -> {
             if (punishment == null) {
                 sendError(conn, "NOT_FOUND", "Punishment not found");
                 return;
             }
-            plugin.getPunishmentManager().removePunishment(punishment.getPlayerUuid(), punishment.getType(),
-                session.playerUuid, session.playerName, "Revoked via Web Panel");
-            sendSuccess(conn, "Punishment revoked");
-            plugin.getLogger().info("[WebPanel] " + session.playerName + " revoked " + caseId);
+
+            if (!punishment.isActive()) {
+                sendError(conn, "ALREADY_REVOKED", "Punishment is already revoked");
+                return;
+            }
+
+            // Use removePunishmentByCaseId for proper handling
+            plugin.getPunishmentManager().removePunishmentByCaseId(caseId,
+                session.playerUuid, session.playerName, reason).thenAccept(success -> {
+
+                if (success) {
+                    sendSuccess(conn, "Punishment revoked");
+                    plugin.getLogger().info("[WebPanel] " + session.playerName + " revoked " + caseId +
+                        " (" + punishment.getType() + " for " + punishment.getPlayerName() + ")");
+
+                    // Broadcast to all web panel clients
+                    JsonObject broadcast = new JsonObject();
+                    broadcast.addProperty("type", "PUNISHMENT_REVOKED");
+                    JsonObject broadcastData = new JsonObject();
+                    broadcastData.addProperty("caseId", caseId);
+                    broadcastData.addProperty("playerUuid", punishment.getPlayerUuid().toString());
+                    broadcastData.addProperty("playerName", punishment.getPlayerName());
+                    broadcastData.addProperty("punishmentType", punishment.getType().name());
+                    broadcastData.addProperty("revokedBy", session.playerName);
+                    broadcastData.addProperty("revokedAt", System.currentTimeMillis());
+                    broadcastData.addProperty("reason", reason);
+                    broadcast.add("data", broadcastData);
+                    broadcast(GSON.toJson(broadcast));
+                } else {
+                    sendError(conn, "FAILED", "Failed to revoke punishment");
+                }
+            });
         });
     }
 
@@ -2418,6 +2528,26 @@ public class HybridPanelServer {
         broadcast(GSON.toJson(json));
     }
 
+    public void broadcastWatchlistUpdate() {
+        JsonObject json = new JsonObject();
+        json.addProperty("type", "WATCHLIST_UPDATE");
+        JsonObject data = new JsonObject();
+
+        // Build watchlist array
+        JsonArray watchlist = new JsonArray();
+        for (java.util.UUID uuid : plugin.getWatchlistManager().getWatchedPlayers()) {
+            JsonObject entry = new JsonObject();
+            entry.addProperty("playerUuid", uuid.toString());
+            org.bukkit.OfflinePlayer player = org.bukkit.Bukkit.getOfflinePlayer(uuid);
+            entry.addProperty("playerName", player.getName() != null ? player.getName() : "Unknown");
+            entry.addProperty("online", player.isOnline());
+            watchlist.add(entry);
+        }
+        data.add("watchlist", watchlist);
+        json.add("data", data);
+        broadcast(GSON.toJson(json));
+    }
+
     public void broadcastAutomodTrigger(String playerName, String rule, String message) {
         JsonObject json = new JsonObject();
         json.addProperty("type", "AUTOMOD_TRIGGER");
@@ -2616,6 +2746,31 @@ public class HybridPanelServer {
         conn.send(GSON.toJson(response));
     }
 
+    private void sendGeyserStatus(WebSocketConnection conn) {
+        JsonObject response = new JsonObject();
+        response.addProperty("type", "GEYSER_STATUS");
+
+        JsonObject data = new JsonObject();
+        var hookManager = plugin.getHookManager();
+
+        boolean geyserAvailable = hookManager != null && hookManager.isGeyserAvailable();
+        boolean floodgateAvailable = hookManager != null && hookManager.isFloodgateAvailable();
+
+        data.addProperty("geyserAvailable", geyserAvailable);
+        data.addProperty("floodgateAvailable", floodgateAvailable);
+
+        if (geyserAvailable) {
+            data.addProperty("geyserVersion", hookManager.getGeyserVersion());
+        }
+
+        if (floodgateAvailable) {
+            data.addProperty("floodgateVersion", hookManager.getFloodgateVersion());
+        }
+
+        response.add("data", data);
+        conn.send(GSON.toJson(response));
+    }
+
     private void sendModerationPlugins(WebSocketConnection conn) {
         JsonObject response = new JsonObject();
         response.addProperty("type", "MODERATION_PLUGINS");
@@ -2637,6 +2792,24 @@ public class HybridPanelServer {
         data.add("plugins", plugins);
         response.add("data", data);
         conn.send(GSON.toJson(response));
+    }
+
+    public void broadcastRulesUpdate(java.util.List<com.blockforge.moderex.rules.Rule> rules) {
+        JsonObject json = new JsonObject();
+        json.addProperty("type", "RULES_UPDATE");
+        JsonArray rulesArray = new JsonArray();
+        for (var rule : rules) {
+            JsonObject ruleObj = new JsonObject();
+            ruleObj.addProperty("id", rule.getId());
+            ruleObj.addProperty("order", rule.getOrder());
+            ruleObj.addProperty("title", rule.getTitle());
+            ruleObj.addProperty("description", rule.getDescription());
+            ruleObj.addProperty("category", rule.getCategory());
+            ruleObj.addProperty("enabled", rule.isEnabled());
+            rulesArray.add(ruleObj);
+        }
+        json.add("rules", rulesArray);
+        broadcast(GSON.toJson(json));
     }
 
     public void broadcastLogEvent(String severity, String category, String title, String detail) {
@@ -3007,7 +3180,7 @@ public class HybridPanelServer {
                 // Set a write timeout to prevent blocking forever
                 int originalTimeout = socket.getSoTimeout();
                 try {
-                    socket.setSoTimeout(5000); // 5 second timeout for writes
+                    socket.setSoTimeout(15000); // 15 second timeout for writes (increased for slow connections)
                     synchronized (out) {
                         out.write(baos.toByteArray());
                         out.flush();
