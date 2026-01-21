@@ -63,6 +63,7 @@ public final class ModereX extends JavaPlugin {
     private com.blockforge.moderex.monitor.ServerStatusManager serverStatusManager;
     private StaffSettingsManager staffSettingsManager;
     private com.blockforge.moderex.resourcepack.ResourcePackManager resourcePackManager;
+    private com.blockforge.moderex.rules.RulesManager rulesManager;
     private DebugWebhook debugWebhook;
 
     // Lockdown state
@@ -159,6 +160,10 @@ public final class ModereX extends JavaPlugin {
 
         logStartup("Initializing watchlist...");
         this.watchlistManager = new WatchlistManager(this);
+
+        logStartup("Initializing rules system...");
+        this.rulesManager = new com.blockforge.moderex.rules.RulesManager(this);
+        rulesManager.initialize();
 
         logStartup("Initializing replay system...");
         this.replayManager = new ReplayManager(this);
@@ -451,6 +456,10 @@ public final class ModereX extends JavaPlugin {
 
     public WatchlistManager getWatchlistManager() {
         return watchlistManager;
+    }
+
+    public com.blockforge.moderex.rules.RulesManager getRulesManager() {
+        return rulesManager;
     }
 
     public com.blockforge.moderex.player.PlayerProfileManager getPlayerProfileManager() {
