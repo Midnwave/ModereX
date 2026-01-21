@@ -120,17 +120,48 @@ public class WatchlistManager {
         return new HashSet<>(watchedPlayers);
     }
 
+    public CompletableFuture<WatchlistEntry> getWatchlistEntry(UUID playerUuid) {
+        return CompletableFuture.supplyAsync(() -> {
+            try {
+                return plugin.getDatabaseManager().query("""
+                        SELECT player_name, added_by_name, reason, added_at
+                        FROM moderex_watchlist
+                        WHERE player_uuid = ? AND active = TRUE
+                        """,
+                        rs -> {
+                            if (rs.next()) {
+                                return new WatchlistEntry(
+                                        playerUuid,
+                                        rs.getString("player_name"),
+                                        rs.getString("added_by_name"),
+                                        rs.getString("reason"),
+                                        rs.getLong("added_at")
+                                );
+                            }
+                            return null;
+                        },
+                        playerUuid.toString()
+                );
+            } catch (SQLException e) {
+                plugin.logError("Failed to get watchlist entry", e);
+                return null;
+            }
+        });
+    }
+
+    public record WatchlistEntry(UUID playerUuid, String playerName, String addedBy, String reason, long addedAt) {}
+
     public void onPlayerJoin(Player player) {
         if (!isWatched(player.getUniqueId())) return;
 
-        alertStaff("joined the server", player.getName());
+        alertStaffJoin(player.getName());
         alertWebPanel("Player Join", player.getName(), "joined the server");
     }
 
     public void onPlayerQuit(Player player) {
         if (!isWatched(player.getUniqueId())) return;
 
-        alertStaff("left the server", player.getName());
+        alertStaffQuit(player.getName());
         alertWebPanel("Player Quit", player.getName(), "left the server");
     }
 
@@ -180,7 +211,43 @@ public class WatchlistManager {
 
         for (Player staff : Bukkit.getOnlinePlayers()) {
             if (staff.hasPermission("moderex.notify.punishments")) {
-                staff.sendMessage(message);
+                // Check if staff has activity alerts enabled
+                var settings = plugin.getStaffSettingsManager().getSettings(staff);
+                if (settings.isWatchlistActivityAlerts()) {
+                    staff.sendMessage(message);
+                }
+            }
+        }
+    }
+
+    private void alertStaffJoin(String playerName) {
+        Component message = plugin.getLanguageManager().get(MessageKey.WATCHLIST_ALERT,
+                "player", playerName,
+                "action", "joined the server"
+        );
+
+        for (Player staff : Bukkit.getOnlinePlayers()) {
+            if (staff.hasPermission("moderex.notify.punishments")) {
+                var settings = plugin.getStaffSettingsManager().getSettings(staff);
+                if (settings.isWatchlistJoinAlerts()) {
+                    staff.sendMessage(message);
+                }
+            }
+        }
+    }
+
+    private void alertStaffQuit(String playerName) {
+        Component message = plugin.getLanguageManager().get(MessageKey.WATCHLIST_ALERT,
+                "player", playerName,
+                "action", "left the server"
+        );
+
+        for (Player staff : Bukkit.getOnlinePlayers()) {
+            if (staff.hasPermission("moderex.notify.punishments")) {
+                var settings = plugin.getStaffSettingsManager().getSettings(staff);
+                if (settings.isWatchlistQuitAlerts()) {
+                    staff.sendMessage(message);
+                }
             }
         }
     }
