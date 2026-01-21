@@ -499,6 +499,22 @@
     return send('CLEAR_CHAT');
   }
 
+  function requestServerSettings() {
+    return send('GET_SERVER_SETTINGS');
+  }
+
+  function updateMuteSettings(settings) {
+    return send('UPDATE_MUTE_SETTINGS', settings);
+  }
+
+  function updateWarnSettings(settings) {
+    return send('UPDATE_WARN_SETTINGS', settings);
+  }
+
+  function updateAnticheatSettings(settings) {
+    return send('UPDATE_ANTICHEAT_SETTINGS', settings);
+  }
+
   function kickPlayer(playerName, reason) {
     return send('KICK_PLAYER', { playerName, reason });
   }
@@ -544,6 +560,7 @@
     requestSettings,
     requestUserSettings,
     requestChatStatus,
+    requestServerSettings,
     requestTrustedDeviceCount,
     requestAnticheatAlerts,
     requestStaffAlertPrefs,
@@ -565,7 +582,10 @@
     kickPlayer,
     clearTrustedDevices,
     updateStaffAlertPref,
-    applyAlertPreset
+    applyAlertPreset,
+    updateMuteSettings,
+    updateWarnSettings,
+    updateAnticheatSettings
   };
 
 })();
