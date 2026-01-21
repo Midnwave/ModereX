@@ -63,7 +63,7 @@ public class AutomodGui extends BaseGui {
         }
 
         // Bottom navigation
-        setItem(45, createItem(Material.ARROW, "<red>Back", "<gray>Return to main menu"),
+        setItem(45, createItem(Material.ARROW, "<yellow>Go Back", "<gray>Return to main menu"),
                 () -> openGui(new MainMenuGui(plugin)));
 
         setItem(49, createItem(Material.LIME_DYE, "<green>+ New Rule",
