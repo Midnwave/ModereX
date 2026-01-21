@@ -207,16 +207,21 @@
     }
 
     if (type === 'AUTH_FAILED') {
+      const reason = data?.reason || data?.message || 'Invalid credentials';
+      if (window.debugLog) window.debugLog('AUTH', `Authentication failed: ${reason}`, 'error');
       emit('auth_failed', data);
       return;
     }
 
     if (type === 'ACCESS_DENIED') {
+      const reason = data?.reason || data?.message || 'Permission denied';
+      if (window.debugLog) window.debugLog('AUTH', `Access denied: ${reason}`, 'error');
       emit('access_denied', data);
       return;
     }
 
     if (type === 'SESSION_EXPIRED') {
+      if (window.debugLog) window.debugLog('AUTH', 'Session expired - please reconnect', 'error');
       emit('session_expired', data);
       return;
     }

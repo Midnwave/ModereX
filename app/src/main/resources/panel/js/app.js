@@ -2114,7 +2114,9 @@
       toast('ok', 'Test Sent', 'Webhook delivered.');
     }).catch(err => {
       console.error('Webhook error:', err);
+      const reason = err.message || 'Network error';
       toast('warn', 'Delivery Failed', 'Webhook request failed. Check URL or CORS.');
+      if (window.debugLog) window.debugLog('WEBHOOK', `Test failed: ${reason}`, 'error');
     });
   };
 
@@ -2164,9 +2166,11 @@
         setPublishLoading(false);
         toast('ok', 'Published', 'All changes synced to server.');
         logEvent('INFO', 'system', 'Settings published', 'Configuration applied to server.');
-      }).catch(() => {
+      }).catch((err) => {
         setPublishLoading(false);
+        const reason = err?.message || 'Sync failed';
         toast('error', 'Error', 'Failed to publish some changes.');
+        if (window.debugLog) window.debugLog('SYNC', `Publish failed: ${reason}`, 'error');
       });
     } else {
       // Demo mode - just clear unsaved state
