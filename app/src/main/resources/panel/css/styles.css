@@ -1053,8 +1053,15 @@ body {
 
 /* ===== TABLES ===== */
 .table-wrap {
-  overflow: hidden;
+  overflow: auto;
   border-radius: var(--radius);
+  /* Hide scrollbars but allow scrolling */
+  scrollbar-width: none; /* Firefox */
+  -ms-overflow-style: none; /* IE/Edge */
+}
+
+.table-wrap::-webkit-scrollbar {
+  display: none; /* Chrome, Safari, Opera */
 }
 
 .table-wrap table td.flag-cell,
@@ -1078,6 +1085,7 @@ body {
 table {
   width: 100%;
   border-collapse: collapse;
+  table-layout: auto;
 }
 
 th, td {
@@ -1086,6 +1094,20 @@ th, td {
   text-align: left;
   font-size: 13px;
   vertical-align: middle;
+  white-space: nowrap;
+}
+
+/* Auto-scale columns for specific tables */
+.table-wrap.auto-scale table {
+  table-layout: fixed;
+}
+
+.table-wrap.auto-scale th,
+.table-wrap.auto-scale td {
+  white-space: normal;
+  word-wrap: break-word;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 th {
@@ -4022,10 +4044,16 @@ textarea.input {
     padding: 16px;
   }
 
-  /* Table scrolling on mobile */
+  /* Table scrolling on mobile - scrollbars hidden */
   .table-wrap {
     overflow-x: auto;
     -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+  }
+
+  .table-wrap::-webkit-scrollbar {
+    display: none;
   }
 
   table {
