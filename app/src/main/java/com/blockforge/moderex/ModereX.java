@@ -75,6 +75,9 @@ public final class ModereX extends JavaPlugin {
         instance = this;
         long startTime = System.currentTimeMillis();
 
+        // Print ASCII art banner
+        printBanner();
+
         logStartup("Initializing ModereX v" + getDescription().getVersion());
         logStartup("Detected Minecraft version: " + VersionUtil.getServerVersion());
 
@@ -361,6 +364,30 @@ public final class ModereX extends JavaPlugin {
         logStartup("Starting web panel server on port " + port + "...");
         this.hybridPanelServer = new HybridPanelServer(this, port);
         hybridPanelServer.start();
+    }
+
+    private void printBanner() {
+        // ANSI color codes for console
+        String DARK_BLUE = "\u001B[34m";
+        String LIGHT_BLUE = "\u001B[36m";
+        String RESET = "\u001B[0m";
+
+        // Slanted ASCII art for "ModereX"
+        String[] banner = {
+            "",
+            DARK_BLUE + "    __  ___          __              " + LIGHT_BLUE + "_ __",
+            DARK_BLUE + "   /  |/  /___  ____/ /__  ________ " + LIGHT_BLUE + "| |/ /",
+            DARK_BLUE + "  / /|_/ / __ \\/ __  / _ \\/ ___/ _ \\" + LIGHT_BLUE + "|   / ",
+            DARK_BLUE + " / /  / / /_/ / /_/ /  __/ /  /  __/" + LIGHT_BLUE + "/   |  ",
+            DARK_BLUE + "/_/  /_/\\____/\\__,_/\\___/_/   \\___/" + LIGHT_BLUE + "/_/|_|  ",
+            "",
+            RESET + "           Advanced Moderation for Minecraft",
+            ""
+        };
+
+        for (String line : banner) {
+            getServer().getConsoleSender().sendMessage(line + RESET);
+        }
     }
 
     private void logStartup(String message) {
