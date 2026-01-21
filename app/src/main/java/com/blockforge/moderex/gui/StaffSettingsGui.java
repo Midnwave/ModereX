@@ -35,7 +35,7 @@ public class StaffSettingsGui extends BaseGui {
         // Fill with dark background
         fillEmpty(Material.BLACK_STAINED_GLASS_PANE);
 
-        // Tab row (row 1, centered) - slots 10-16
+        // Tab row (row 1, centered) - slots 10-15 for 6 tabs
         setItem(10, createTabButton(SettingsTab.NOTIFICATIONS, Material.BELL), () -> {
             currentTab = SettingsTab.NOTIFICATIONS;
             refresh();
@@ -61,15 +61,6 @@ public class StaffSettingsGui extends BaseGui {
             refresh();
         });
 
-        setItem(16, createTabButton(SettingsTab.PLUGIN, Material.COMMAND_BLOCK), () -> {
-            if (viewer.hasPermission("moderex.admin")) {
-                currentTab = SettingsTab.PLUGIN;
-                refresh();
-            } else {
-                viewer.sendMessage(TextUtil.parse("<red>You don't have permission to access plugin settings!"));
-            }
-        });
-
         // Render current tab content
         switch (currentTab) {
             case NOTIFICATIONS -> renderNotificationSettings();
@@ -77,7 +68,6 @@ public class StaffSettingsGui extends BaseGui {
             case ANTICHEAT -> renderAnticheatSettings();
             case PERSONAL -> renderPersonalSettings();
             case VANISH -> renderVanishSettings();
-            case PLUGIN -> renderPluginSettings();
         }
 
         // Bottom row navigation
@@ -104,10 +94,6 @@ public class StaffSettingsGui extends BaseGui {
         lore.add("<gray>" + tab.description);
         lore.add("");
         lore.add(selected ? "<green>▶ Currently viewing" : "<yellow>Click to view");
-
-        if (tab == SettingsTab.PLUGIN && !viewer.hasPermission("moderex.admin")) {
-            lore.add("<red>⚠ Requires admin permission");
-        }
 
         Material displayIcon = selected ? Material.LIME_STAINED_GLASS_PANE : icon;
         String color = selected ? "<green>" : "<white>";
@@ -255,23 +241,6 @@ public class StaffSettingsGui extends BaseGui {
             refresh();
         });
 
-        setItem(34, createItem(Material.EXPERIENCE_BOTTLE,
-                "<yellow>Min VL: <white>" + settings.getAnticheatMinVL(),
-                "<gray>Minimum violation level to show",
-                "",
-                "<yellow>Left-click: +5",
-                "<yellow>Right-click: -5",
-                "<yellow>Shift-click: Reset to 10"), clickType -> {
-            if (clickType.isShiftClick()) {
-                settings.setAnticheatMinVL(10);
-            } else if (clickType.isLeftClick()) {
-                settings.setAnticheatMinVL(Math.min(100, settings.getAnticheatMinVL() + 5));
-            } else if (clickType.isRightClick()) {
-                settings.setAnticheatMinVL(Math.max(0, settings.getAnticheatMinVL() - 5));
-            }
-            refresh();
-        });
-
         // Show blacklisted commands - Row 3
         setItem(40, createToggle("Blacklist Cmds",
                 settings.isShowBlacklistedCommands(),
@@ -292,24 +261,7 @@ public class StaffSettingsGui extends BaseGui {
             refresh();
         });
 
-        setItem(22, createItem(Material.EXPERIENCE_BOTTLE,
-                "<yellow>Min VL: <white>" + settings.getAnticheatMinVL(),
-                "<gray>Minimum violation level to show",
-                "",
-                "<yellow>Left-click: +5",
-                "<yellow>Right-click: -5",
-                "<yellow>Shift-click: Reset to 10"), clickType -> {
-            if (clickType.isShiftClick()) {
-                settings.setAnticheatMinVL(10);
-            } else if (clickType.isLeftClick()) {
-                settings.setAnticheatMinVL(Math.min(100, settings.getAnticheatMinVL() + 5));
-            } else if (clickType.isRightClick()) {
-                settings.setAnticheatMinVL(Math.max(0, settings.getAnticheatMinVL() - 5));
-            }
-            refresh();
-        });
-
-        setItem(24, createItem(Material.COMPARATOR, "<gold>Anticheat Rules",
+        setItem(22, createItem(Material.COMPARATOR, "<gold>Anticheat Rules",
                 "<gray>Configure check rules,",
                 "<gray>thresholds, and auto-punishments",
                 "",
@@ -430,105 +382,6 @@ public class StaffSettingsGui extends BaseGui {
                 "<gray>/mx vanish or /v"));
     }
 
-    // ========== Plugin Settings Tab ==========
-
-    private void renderPluginSettings() {
-        if (!viewer.hasPermission("moderex.admin")) {
-            setItem(31, createItem(Material.BARRIER, "<red>Access Denied",
-                    "<gray>You need admin permission"));
-            return;
-        }
-
-        // Chat & Slowmode - Row 1
-        boolean chatEnabled = plugin.getConfigManager().getSettings().isChatEnabled();
-        setItem(20, createToggle("Global Chat",
-                chatEnabled,
-                "Enable/disable server chat",
-                Material.OAK_SIGN), () -> {
-            plugin.getConfigManager().getSettings().setChatEnabled(!chatEnabled);
-            if (plugin.getWebPanelServer() != null) {
-                plugin.getWebPanelServer().broadcastChatStatus();
-            }
-            refresh();
-        });
-
-        int slowmode = plugin.getConfigManager().getSettings().getDefaultSlowmodeSeconds();
-        setItem(22, createItem(Material.CLOCK,
-                "<gold>Slowmode: " + (slowmode > 0 ? slowmode + "s" : "Off"),
-                "<gray>Chat cooldown between messages",
-                "",
-                "<yellow>Left-click: +5s",
-                "<yellow>Right-click: -5s",
-                "<yellow>Shift-click: Disable"), clickType -> {
-            int current = plugin.getConfigManager().getSettings().getDefaultSlowmodeSeconds();
-            if (clickType.isShiftClick()) {
-                plugin.getConfigManager().getSettings().setDefaultSlowmodeSeconds(0);
-            } else if (clickType.isLeftClick()) {
-                plugin.getConfigManager().getSettings().setDefaultSlowmodeSeconds(Math.min(300, current + 5));
-            } else if (clickType.isRightClick()) {
-                plugin.getConfigManager().getSettings().setDefaultSlowmodeSeconds(Math.max(0, current - 5));
-            }
-            if (plugin.getWebPanelServer() != null) {
-                plugin.getWebPanelServer().broadcastChatStatus();
-            }
-            refresh();
-        });
-
-        boolean debugMode = plugin.getConfigManager().getSettings().isDebugMode();
-        setItem(24, createToggle("Debug Mode",
-                debugMode,
-                "Enable debug logging",
-                Material.COMMAND_BLOCK), () -> {
-            plugin.getConfigManager().getSettings().setDebugMode(!debugMode);
-            refresh();
-        });
-
-        // Replay settings - Row 2
-        setItem(29, createToggle("Replay System",
-                plugin.getReplayManager().isEnabled(),
-                "Enable replay recording",
-                Material.JUKEBOX), () -> {
-            plugin.getReplayManager().setEnabled(!plugin.getReplayManager().isEnabled());
-            refresh();
-        });
-
-        setItem(30, createToggle("AC Recording",
-                plugin.getReplayManager().isRecordOnAnticheatAlert(),
-                "Record on anticheat alerts",
-                Material.IRON_SWORD), () -> {
-            plugin.getReplayManager().setRecordOnAnticheatAlert(!plugin.getReplayManager().isRecordOnAnticheatAlert());
-            refresh();
-        });
-
-        setItem(31, createToggle("WL Recording",
-                plugin.getReplayManager().isRecordWatchlistPlayers(),
-                "Record watchlist players",
-                Material.SPYGLASS), () -> {
-            plugin.getReplayManager().setRecordWatchlistPlayers(!plugin.getReplayManager().isRecordWatchlistPlayers());
-            refresh();
-        });
-
-        // Server info - Row 2 continued
-        boolean webPanelEnabled = plugin.getConfigManager().getSettings().isWebPanelEnabled();
-        int webPanelPort = plugin.getConfigManager().getSettings().getWebPanelPort();
-        setItem(33, createItem(Material.END_PORTAL_FRAME,
-                webPanelEnabled ? "<green>Web Panel: Active" : "<red>Web Panel: Off",
-                "<gray>Port: <white>" + webPanelPort,
-                "",
-                "<gray>Requires restart to change"));
-
-        // Reload button - Row 3
-        setItem(40, createItem(Material.REDSTONE, "<yellow>Reload Config",
-                "<gray>Reload configuration files",
-                "",
-                "<yellow>Click to reload"), () -> {
-            viewer.sendMessage(TextUtil.parse("<yellow>Reloading ModereX..."));
-            plugin.reload();
-            viewer.sendMessage(TextUtil.parse("<green>ModereX reloaded!"));
-            refresh();
-        });
-    }
-
     // ========== Helper Methods ==========
 
     private ItemStack createToggle(String name, boolean enabled, String description, Material icon) {
@@ -585,8 +438,7 @@ public class StaffSettingsGui extends BaseGui {
         ALERTS("Alert Types", "Configure which alerts to see"),
         ANTICHEAT("Anticheat", "Anticheat alert settings"),
         PERSONAL("Display", "Display and UI preferences"),
-        VANISH("Vanish", "Vanish behavior settings"),
-        PLUGIN("Server", "Server-wide configuration");
+        VANISH("Vanish", "Vanish behavior settings");
 
         final String displayName;
         final String description;
