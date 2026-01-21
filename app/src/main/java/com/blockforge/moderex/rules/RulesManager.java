@@ -35,18 +35,35 @@ public class RulesManager {
 
     private void createTable() {
         try {
-            plugin.getDatabaseManager().update("""
-                CREATE TABLE IF NOT EXISTS moderex_rules (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    rule_order INTEGER NOT NULL DEFAULT 0,
-                    title VARCHAR(255) NOT NULL,
-                    description TEXT,
-                    category VARCHAR(64),
-                    enabled BOOLEAN DEFAULT TRUE,
-                    created_at BIGINT,
-                    updated_at BIGINT
-                )
-            """);
+            String sql;
+            if (plugin.getDatabaseManager().isMySQL()) {
+                sql = """
+                    CREATE TABLE IF NOT EXISTS moderex_rules (
+                        id INT PRIMARY KEY AUTO_INCREMENT,
+                        rule_order INT NOT NULL DEFAULT 0,
+                        title VARCHAR(255) NOT NULL,
+                        description TEXT,
+                        category VARCHAR(64),
+                        enabled BOOLEAN DEFAULT TRUE,
+                        created_at BIGINT,
+                        updated_at BIGINT
+                    )
+                """;
+            } else {
+                sql = """
+                    CREATE TABLE IF NOT EXISTS moderex_rules (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        rule_order INTEGER NOT NULL DEFAULT 0,
+                        title VARCHAR(255) NOT NULL,
+                        description TEXT,
+                        category VARCHAR(64),
+                        enabled BOOLEAN DEFAULT TRUE,
+                        created_at BIGINT,
+                        updated_at BIGINT
+                    )
+                """;
+            }
+            plugin.getDatabaseManager().update(sql);
         } catch (SQLException e) {
             plugin.logError("Failed to create rules table", e);
         }
