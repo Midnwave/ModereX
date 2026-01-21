@@ -9,7 +9,7 @@
 
   // Auth state
   let authState = {
-    mode: 'minecraft',    // 'minecraft' | 'token'
+    mode: 'token',        // Token-only authentication
     connected: false,
     authenticated: false,
     accessDenied: false,
@@ -18,7 +18,9 @@
     serverPort: null,
     configLoaded: false,
     urlToken: null,
-    autoAuthAttempted: false
+    autoAuthAttempted: false,
+    reconnectTimer: null,
+    reconnectAttempts: 0
   };
 
   // DOM Elements
@@ -276,10 +278,7 @@
       authStatusSub: $('#authStatusSub'),
       authManualSection: $('#authManualSection'),
       serverSection: $('#serverSection'),
-      authModeSelect: $('#authModeSelect'),
-      authMinecraftSection: $('#authMinecraftSection'),
       authTokenSection: $('#authTokenSection'),
-      connectCode: $('#connectCode'),
       authToken: $('#authToken'),
       serverHost: $('#serverHost'),
       serverPort: $('#serverPort'),
@@ -292,19 +291,8 @@
    * Setup event listeners
    */
   function setupEventListeners() {
-    dom.authModeSelect?.addEventListener('change', (e) => {
-      setAuthMode(e.target.value);
-    });
-
     dom.authBtn?.addEventListener('click', () => {
       authenticate();
-    });
-
-    dom.connectCode?.addEventListener('keydown', (e) => {
-      if (e.key === 'Enter') authenticate();
-      setTimeout(() => {
-        dom.connectCode.value = dom.connectCode.value.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 6);
-      }, 0);
     });
 
     dom.authToken?.addEventListener('keydown', (e) => {
@@ -318,9 +306,37 @@
     dom.serverPort?.addEventListener('keydown', (e) => {
       if (e.key === 'Enter') authenticate();
     });
+  }
 
-    // Set default mode
-    setAuthMode('minecraft');
+  /**
+   * Schedule auto-reconnect with exponential backoff
+   */
+  function scheduleAutoReconnect() {
+    // Clear any existing timer
+    if (authState.reconnectTimer) {
+      clearTimeout(authState.reconnectTimer);
+    }
+
+    // Exponential backoff: 2s, 4s, 8s, 16s, max 30s
+    const delay = Math.min(2000 * Math.pow(2, authState.reconnectAttempts), 30000);
+    authState.reconnectAttempts++;
+
+    console.log(`[Auth] Auto-reconnecting in ${delay}ms (attempt ${authState.reconnectAttempts})...`);
+
+    // Show reconnecting status
+    showAuthOverlay();
+    updateStatus('Reconnecting...', `Attempt ${authState.reconnectAttempts}`);
+    if (dom.authStatusArea) {
+      dom.authStatusArea.style.display = '';
+    }
+    if (dom.authManualSection) {
+      dom.authManualSection.style.display = 'none';
+    }
+
+    authState.reconnectTimer = setTimeout(() => {
+      authState.autoAuthAttempted = false;
+      loadServerConfig();
+    }, delay);
   }
 
   /**
@@ -337,6 +353,9 @@
 
       if (data.code === 4001 || data.code === 4003) {
         showAccessDenied();
+      } else {
+        // Auto-reconnect on disconnect (except access denied)
+        scheduleAutoReconnect();
       }
     });
 
@@ -344,6 +363,13 @@
       authState.authenticated = true;
       authState.session = data;
       authState.accessDenied = false;
+      authState.reconnectAttempts = 0; // Reset reconnect attempts on success
+
+      // Clear any pending reconnect timer
+      if (authState.reconnectTimer) {
+        clearTimeout(authState.reconnectTimer);
+        authState.reconnectTimer = null;
+      }
 
       // Save session
       if (data.sessionId) {
@@ -409,28 +435,11 @@
     }
   }
 
-  /**
-   * Set authentication mode
-   */
-  function setAuthMode(mode) {
-    authState.mode = mode;
-
-    if (dom.authMinecraftSection) {
-      dom.authMinecraftSection.style.display = mode === 'minecraft' ? 'block' : 'none';
-    }
-    if (dom.authTokenSection) {
-      dom.authTokenSection.style.display = mode === 'token' ? 'block' : 'none';
-    }
-
-    clearError();
-  }
 
   /**
-   * Authenticate based on current mode
+   * Authenticate with permanent token
    */
   function authenticate() {
-    const mode = authState.mode || dom.authModeSelect?.value || 'minecraft';
-
     let host, port;
     if (authState.configLoaded) {
       host = authState.serverHost;
@@ -444,42 +453,7 @@
 
     clearError();
     setLoading(true);
-
-    if (mode === 'minecraft') {
-      authenticateMinecraft(host, port);
-    } else if (mode === 'token') {
-      authenticateToken(host, port);
-    }
-  }
-
-  /**
-   * Authenticate with connect code
-   */
-  function authenticateMinecraft(host, port) {
-    const code = dom.connectCode?.value?.trim().toUpperCase();
-
-    if (!code || code.length !== 6) {
-      showError('Please enter a valid 6-character connect code');
-      setLoading(false);
-      return;
-    }
-
-    ws.on('connected', function onConnect() {
-      ws.off('connected', onConnect);
-      ws.authWithCode(code);
-    });
-
-    ws.on('auth_failed', function onFail(data) {
-      ws.off('auth_failed', onFail);
-      showError(data.message || 'Invalid connect code');
-      setLoading(false);
-    });
-
-    if (!ws.isConnected()) {
-      ws.connect(host, port);
-    } else {
-      ws.authWithCode(code);
-    }
+    authenticateToken(host, port);
   }
 
   /**
@@ -611,10 +585,6 @@
         const data = JSON.parse(saved);
         if (dom.serverHost && data.host) dom.serverHost.value = data.host;
         if (dom.serverPort && data.port) dom.serverPort.value = data.port;
-        if (dom.authModeSelect && data.mode) {
-          dom.authModeSelect.value = data.mode;
-          setAuthMode(data.mode);
-        }
       }
     } catch (e) {}
   }
@@ -686,7 +656,6 @@
     getSession,
     logout,
     reconnect,
-    setAuthMode,
     authenticate
   };
 
