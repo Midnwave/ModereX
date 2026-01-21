@@ -325,6 +325,25 @@ COMPLETED FEATURES:
       - app/src/main/java/com/blockforge/moderex/webpanel/HybridPanelServer.java
       - app/src/main/java/com/blockforge/moderex/webpanel/netty/SamePortPanelHandler.java
 
+53. Fix Duplicate Watchlist Messages
+    - Staff with regular join/leave messages enabled no longer receive duplicate watchlist alerts
+    - Checks JoinLeaveLevel.ALL setting before sending watchlist join/quit notifications
+    - Files:
+      - app/src/main/java/com/blockforge/moderex/watchlist/WatchlistManager.java
+
+54. Remove Server Settings from GUI
+    - Removed Chat Control button from main menu GUI
+    - Server-wide settings (chat lock, slowmode, clear chat) should be configured via config.yml or commands
+    - Files:
+      - app/src/main/java/com/blockforge/moderex/gui/MainMenuGui.java
+
+55. Enhanced Debug Disconnect Reasons
+    - Added detailed disconnect reason logging when debug mode is enabled
+    - Categorizes disconnect reasons: timeout, socket error, EOF, IO error, clean close, server shutdown
+    - Shows full error details including IP, duration, and exception info
+    - Files:
+      - app/src/main/java/com/blockforge/moderex/webpanel/HybridPanelServer.java
+
 
 PENDING FEATURES (TODO - for web panel):
 ========================================
