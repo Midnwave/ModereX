@@ -74,6 +74,15 @@ public class AutomodManager {
         capsRule.setBuiltIn(true);
         capsRule.setEnabled(capsFilterEnabled);
         rules.put(capsRule.getId(), capsRule);
+
+        // Link filter rule (built-in)
+        AutomodRule linkRule = new AutomodRule();
+        linkRule.setId("link_filter");
+        linkRule.setName("Link Filter");
+        linkRule.setType(AutomodRule.RuleType.WORD_FILTER);
+        linkRule.setBuiltIn(true);
+        linkRule.setEnabled(true);
+        rules.put(linkRule.getId(), linkRule);
     }
 
     private void loadCustomRules() {
@@ -362,7 +371,12 @@ public class AutomodManager {
     }
 
     public void saveRule(AutomodRule rule) {
-        if (rule.isBuiltIn()) return;
+        // Handle built-in rules separately - save to config
+        if (rule.isBuiltIn()) {
+            saveBuiltInRule(rule);
+            broadcastAutomodRulesUpdate();
+            return;
+        }
 
         try {
             plugin.getDatabaseManager().update("""
@@ -379,6 +393,23 @@ public class AutomodManager {
         } catch (SQLException e) {
             plugin.logError("Failed to save automod rule", e);
         }
+    }
+
+    private void saveBuiltInRule(AutomodRule rule) {
+        switch (rule.getId()) {
+            case "spam_prevention" -> {
+                spamPreventionEnabled = rule.isEnabled();
+                plugin.getConfigManager().getSettings().setSpamPreventionEnabled(rule.isEnabled());
+            }
+            case "caps_filter" -> {
+                capsFilterEnabled = rule.isEnabled();
+                plugin.getConfigManager().getSettings().setCapsFilterEnabled(rule.isEnabled());
+            }
+            case "link_filter" -> {
+                plugin.getConfigManager().getSettings().setLinkFilterEnabled(rule.isEnabled());
+            }
+        }
+        plugin.saveConfig();
     }
 
     public void deleteRule(String ruleId) {

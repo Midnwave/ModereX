@@ -54,6 +54,11 @@ public class Settings {
     private int defaultSlowmodeSeconds = 0;
     private boolean chatEnabled = true;
 
+    // Automod settings
+    private boolean spamPreventionEnabled = true;
+    private boolean capsFilterEnabled = true;
+    private boolean linkFilterEnabled = true;
+
     // Mute settings - what muted players cannot do
     private boolean mutedPlayersCanUseCommands = false;
     private boolean mutedPlayersCanWriteSigns = false;
@@ -813,5 +818,30 @@ public class Settings {
 
     public void setVanishListFormat(String vanishListFormat) {
         this.vanishListFormat = vanishListFormat;
+    }
+
+    // Automod getters and setters
+    public boolean isSpamPreventionEnabled() {
+        return spamPreventionEnabled;
+    }
+
+    public void setSpamPreventionEnabled(boolean spamPreventionEnabled) {
+        this.spamPreventionEnabled = spamPreventionEnabled;
+    }
+
+    public boolean isCapsFilterEnabled() {
+        return capsFilterEnabled;
+    }
+
+    public void setCapsFilterEnabled(boolean capsFilterEnabled) {
+        this.capsFilterEnabled = capsFilterEnabled;
+    }
+
+    public boolean isLinkFilterEnabled() {
+        return linkFilterEnabled;
+    }
+
+    public void setLinkFilterEnabled(boolean linkFilterEnabled) {
+        this.linkFilterEnabled = linkFilterEnabled;
     }
 }
