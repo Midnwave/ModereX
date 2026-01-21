@@ -1,0 +1,389 @@
+================================================================================
+ModereX Features Changelog - Local Development Tracking
+================================================================================
+Last Updated: 2026-01-21
+Note: This file tracks features implemented locally that may need to be
+      re-added if overwritten by a GitHub push from co-dev.
+================================================================================
+
+COMPLETED FEATURES:
+==================
+
+1. Dashboard Info Enhancement
+   - Dashboard already shows comprehensive info from other tabs
+   - Status: Was in backup, restored
+
+2. Watchlist Alerts Fix
+   - Added missing watchlistAlert() function in app.js
+   - Shows player name correctly
+   - Slide-down alert bar UI fixed
+   - File: app/src/main/resources/panel/js/app.js
+
+3. Anticheat Page Fix - GET_ANTICHEAT_ALERTS Handler
+   - Added GET_ANTICHEAT_ALERTS case in HybridPanelServer.java
+   - Added sendAnticheatAlerts() method to return checks grouped by category
+   - Added AnticheatChecks import
+   - File: app/src/main/java/com/blockforge/moderex/webpanel/HybridPanelServer.java
+
+4. Watchlist Command (/watchlist)
+   - Created WatchlistCommand.java with subcommands: gui, add, remove, list, note, check
+   - Added command registration in CommandManager.java
+   - Added to plugin.yml with permission moderex.command.watchlist
+   - Added broadcastWatchlistUpdate() to HybridPanelServer
+   - Files:
+     - app/src/main/java/com/blockforge/moderex/commands/utility/WatchlistCommand.java
+     - app/src/main/java/com/blockforge/moderex/commands/CommandManager.java
+     - app/src/main/resources/plugin.yml
+     - app/src/main/java/com/blockforge/moderex/webpanel/HybridPanelServer.java
+
+5. Remove Anticheat Name from Alert Messages
+   - In-game alerts now show "Player flagged CheckName xVL" without "Grim" or other AC name
+   - Modified notifyStaff() message format in AnticheatManager.java
+   - File: app/src/main/java/com/blockforge/moderex/hooks/anticheat/AnticheatManager.java
+
+6. Auto-Scaling for Web Panel
+   - Added fluid typography using clamp()
+   - Added table-responsive class for horizontal scroll
+   - Better scaling for 768px, 600px, 360px breakpoints
+   - Touch-friendly targets (min 44px)
+   - Landscape mobile support
+   - High-DPI device support
+   - Print-friendly styles
+   - File: app/src/main/resources/panel/css/styles.css
+
+7. Punishment Revokes from Web Panel to In-Game
+   - Updated revokePunishment() to use removePunishmentByCaseId
+   - Added proper broadcast to all web panel clients (PUNISHMENT_REVOKED)
+   - Includes revoke reason, playerName, punishmentType in broadcast
+   - File: app/src/main/java/com/blockforge/moderex/webpanel/HybridPanelServer.java
+
+8. Web Panel Disconnect Fix - Increased Timeout Tolerance
+   - Client-side (websocket.js):
+     - WS_HEARTBEAT_INTERVAL: 25000 -> 30000 (30s)
+     - WS_PING_INTERVAL: 10000 -> 15000 (15s)
+     - WS_PING_TIMEOUT: 15000 -> 45000 (45s)
+   - Server-side (HybridPanelServer.java):
+     - Write timeout: 5000 -> 15000 (15s)
+   - Files:
+     - app/src/main/resources/panel/js/websocket.js
+     - app/src/main/java/com/blockforge/moderex/webpanel/HybridPanelServer.java
+
+9. Automod Page Sync Fix
+   - Fixed websocket message mismatch: SAVE_AUTOMOD_RULE -> UPDATE_AUTOMOD_RULE
+   - Added enhanced CSS for automod rules page
+   - Files:
+     - app/src/main/resources/panel/js/websocket.js
+     - app/src/main/resources/panel/css/styles.css
+
+10. Profile Scrollbars
+    - Added scrollable class to drawer boxes for commands, violations, pardons, automod
+    - Added custom scrollbar styling
+    - Files:
+      - app/src/main/resources/panel/css/styles.css
+      - app/src/main/resources/panel/index.html
+
+11. Expandable Punishment Reasons
+    - Reasons truncated to 20 chars with click-to-expand functionality
+    - Added expandableReason() and toggleReason() functions
+    - Files:
+      - app/src/main/resources/panel/js/app.js
+      - app/src/main/resources/panel/js/ui.js
+      - app/src/main/resources/panel/css/styles.css
+
+12. Command Blacklist Tab
+    - Added new sidebar nav item and page section
+    - Created cmdbl UI with player display, command badges, status indicators
+    - Added filtering by search and status
+    - Files:
+      - app/src/main/resources/panel/index.html
+      - app/src/main/resources/panel/js/app.js
+      - app/src/main/resources/panel/css/styles.css
+
+13. Removed AI Assistant Config
+    - Removed entire AI assistant section from config.yml (lines 102-117)
+    - Updated config-version from 8 to 9
+    - File: app/src/main/resources/config.yml
+
+14. Unban Also Removes IP Bans
+    - Modified UnbanCommand to also check for and remove IP bans
+    - Works for both player name/UUID and punishment ID targets
+    - Shows additional message when IP ban is also removed
+    - File: app/src/main/java/com/blockforge/moderex/commands/moderation/punishment/UnbanCommand.java
+
+
+23. Commands Documentation
+    - Created comprehensive COMMANDS.md with all 45+ commands
+    - Includes usage, permissions, examples, duration formats
+    - File: COMMANDS.md
+
+24. Geyser/Floodgate Detection
+    - Created GeyserHook.java for Bedrock proxy detection
+    - Created FloodgateHook.java for Bedrock authentication detection
+    - Updated HookManager.java to register and manage hooks
+    - Added GET_GEYSER_STATUS WebSocket handler
+    - Web panel integrations tab now shows detection status and versions
+    - Files:
+      - app/src/main/java/com/blockforge/moderex/hooks/GeyserHook.java
+      - app/src/main/java/com/blockforge/moderex/hooks/FloodgateHook.java
+      - app/src/main/java/com/blockforge/moderex/hooks/HookManager.java
+      - app/src/main/java/com/blockforge/moderex/webpanel/HybridPanelServer.java
+
+
+25. Server Rules System (/rules command)
+    - Created Rule.java model class
+    - Created RulesManager.java for database-backed rule management
+    - Created RulesCommand.java with interactive /rules command
+    - Default rules created on first run (8 common server rules)
+    - Paginated display with click navigation
+    - Category filtering and individual rule viewing
+    - WebSocket broadcast support for real-time updates
+    - Files:
+      - app/src/main/java/com/blockforge/moderex/rules/Rule.java
+      - app/src/main/java/com/blockforge/moderex/rules/RulesManager.java
+      - app/src/main/java/com/blockforge/moderex/commands/utility/RulesCommand.java
+      - app/src/main/java/com/blockforge/moderex/ModereX.java
+      - app/src/main/java/com/blockforge/moderex/webpanel/HybridPanelServer.java
+      - app/src/main/resources/plugin.yml
+
+
+26. Punishment Revoke IP Ban Cache Fix
+    - Added IP ban cache clearing when revoking IP bans
+    - File: app/src/main/java/com/blockforge/moderex/punishment/PunishmentManager.java
+
+27. MySQL Compatibility for Rules Table
+    - Fixed rules table creation for MySQL (AUTO_INCREMENT vs AUTOINCREMENT)
+    - File: app/src/main/java/com/blockforge/moderex/rules/RulesManager.java
+
+28. GUI Item Lore Italic Fix
+    - Added parseLore() method to disable default italic in item lore
+    - Updated all GUI files to use parseLore() instead of parse() for lore
+    - Files:
+      - app/src/main/java/com/blockforge/moderex/util/TextUtil.java
+      - app/src/main/java/com/blockforge/moderex/gui/BaseGui.java
+      - app/src/main/java/com/blockforge/moderex/gui/*.java (multiple files)
+
+29. Punishment History Reason Wrapping
+    - Reasons now wrap after 30 characters instead of truncating
+    - File: app/src/main/java/com/blockforge/moderex/gui/ModLogGui.java
+
+30. Back Button Label Update
+    - Changed all back buttons from "Back" to "Go Back"
+    - Updated multiple GUI files for consistency
+    - Files: BaseGui.java, AutomodGui.java, ModLogGui.java, AnticheatRulesGui.java
+
+31. Watchlist GUI Improvements
+    - Added note display, addedBy, addedAt to watchlist item lore
+    - Added WatchlistEntry record for full entry details
+    - Separate alert methods for join/quit respecting staff settings
+    - Files:
+      - app/src/main/java/com/blockforge/moderex/watchlist/WatchlistManager.java
+      - app/src/main/java/com/blockforge/moderex/gui/WatchlistGui.java
+
+32. Template Category Removal
+    - Removed category field and UI from TemplateGui
+    - Removed CategorySelectorGui inner class
+    - File: app/src/main/java/com/blockforge/moderex/gui/TemplateGui.java
+
+33. Replay GUI Manual Recording Fix
+    - Added click handler to recording status button to open player selector
+    - File: app/src/main/java/com/blockforge/moderex/gui/ReplayGui.java
+
+34. Staff Settings Tabs Position Fix
+    - Fixed tab positioning (slot 15 instead of 16 for Server tab)
+    - File: app/src/main/java/com/blockforge/moderex/gui/StaffSettingsGui.java
+
+35. Watchlist Alert Settings
+    - Staff settings now properly respected for join/quit/activity alerts
+    - File: app/src/main/java/com/blockforge/moderex/watchlist/WatchlistManager.java
+
+36. Min VL Removal from Staff Settings GUI
+    - Removed anticheat min VL settings from Alerts and Anticheat tabs
+    - File: app/src/main/java/com/blockforge/moderex/gui/StaffSettingsGui.java
+
+37. Custom Anticheat Presets per Staff
+    - Added AnticheatPreset class to StaffSettings for custom presets
+    - Presets saved/loaded from database with staff settings
+    - File: app/src/main/java/com/blockforge/moderex/staff/StaffSettings.java
+
+38. Vanish Settings Fix
+    - Vanish now respects staff settings for night vision
+    - Auto vanish on join now uses staff settings
+    - File: app/src/main/java/com/blockforge/moderex/staff/VanishManager.java
+
+39. Server Settings Tab Removal
+    - Removed PLUGIN/Server tab from StaffSettingsGui
+    - Use /mx reload for server config changes instead
+    - File: app/src/main/java/com/blockforge/moderex/gui/StaffSettingsGui.java
+
+40. Web Panel Disconnect Debug Logging
+    - Added detailed disconnect logging with duration, IP, error type
+    - Added formatDuration() helper method
+    - Added getRemoteAddress() to WebSocketConnection
+    - File: app/src/main/java/com/blockforge/moderex/webpanel/HybridPanelServer.java
+
+41. Web Panel Player Profile Recent Commands Fix
+    - Added GET_PLAYER_DETAILS handler to HybridPanelServer
+    - Fetches recent 20 commands from moderex_command_history table
+    - Includes punishments, watchlist status, platform detection
+    - File: app/src/main/java/com/blockforge/moderex/webpanel/HybridPanelServer.java
+
+42. /viewpunishment Command
+    - View detailed punishment information by case ID
+    - Displays type, status, player, staff, dates, duration, revoke info
+    - Aliases: /vp, /case, /punishinfo
+    - Permission: moderex.command.viewpunishment
+    - Files:
+      - app/src/main/java/com/blockforge/moderex/commands/moderation/punishment/ViewPunishmentCommand.java (new)
+      - app/src/main/java/com/blockforge/moderex/commands/CommandManager.java
+      - app/src/main/resources/plugin.yml
+
+43. Automod Rules Sync (In-Game to Web Panel)
+    - Automod rules modified in-game now broadcast to web panel clients
+    - Added broadcastAutomodRulesUpdate() calls to createRule, saveRule, deleteRule
+    - Made broadcastAutomodRules() public for external access
+    - Files:
+      - app/src/main/java/com/blockforge/moderex/automod/AutomodManager.java
+      - app/src/main/java/com/blockforge/moderex/webpanel/HybridPanelServer.java
+
+44. Tab Complete for Command Blacklist
+    - /cmdblacklist now suggests common commands (home, tpa, tp, msg, etc.)
+    - /cmdunblacklist now shows actual blacklisted commands for the player
+    - Files:
+      - app/src/main/java/com/blockforge/moderex/commands/utility/CmdBlacklistCommand.java
+      - app/src/main/java/com/blockforge/moderex/commands/utility/CmdUnblacklistCommand.java
+
+45. Web Panel Live Logs - Chat and Commands
+    - Chat messages now broadcast to web panel live logs
+    - Commands now broadcast to web panel live logs
+    - Files:
+      - app/src/main/java/com/blockforge/moderex/listeners/ChatListener.java
+      - app/src/main/java/com/blockforge/moderex/listeners/CommandListener.java
+
+46. Web Panel Settings Sync with In-Game Staff Settings
+    - sendUserSettings now includes in-game staff settings
+    - updateUserSettings now syncs changes to in-game staff settings
+    - Synced settings: staffChat, watchlist alerts, vanish, display preferences
+    - File: app/src/main/java/com/blockforge/moderex/webpanel/HybridPanelServer.java
+
+47. ASCII Art Banner on Plugin Startup
+    - Slanted ASCII art showing "ModereX" in console
+    - Dark blue for "Modere", light blue/cyan for "X"
+    - Displays "Advanced Moderation for Minecraft" tagline
+    - File: app/src/main/java/com/blockforge/moderex/ModereX.java
+
+48. Same-Port WebSocket Support (Netty Integration)
+    - Web panel can now run on the same port as the Minecraft server
+    - Added WebSocketFrameHandler for Netty-based WebSocket processing
+    - Added same-port connection tracking in HybridPanelServer
+    - Implements full WebSocket frame encoding/decoding
+    - Bridges same-port connections to existing panel authentication
+    - SamePortPanelHandler now performs WebSocket upgrades
+    - Files:
+      - app/src/main/java/com/blockforge/moderex/webpanel/netty/WebSocketFrameHandler.java (new)
+      - app/src/main/java/com/blockforge/moderex/webpanel/netty/SamePortPanelHandler.java
+      - app/src/main/java/com/blockforge/moderex/webpanel/HybridPanelServer.java
+
+49. Server Actions Tab Full Functionality
+    - Mute settings now sync to server (chat, msg, signs, books, broadcast, voice, voice join)
+    - Warn settings now sync to server (notify staff, auto-escalate)
+    - Anticheat integration settings sync (rebrand alerts)
+    - Added GET_SERVER_SETTINGS handler for retrieving all server settings
+    - Added UPDATE_MUTE_SETTINGS, UPDATE_WARN_SETTINGS, UPDATE_ANTICHEAT_SETTINGS handlers
+    - Added broadcastServerSettings() to notify all clients of changes
+    - Settings are loaded on panel connect and updated in real-time
+    - Files:
+      - app/src/main/java/com/blockforge/moderex/config/Settings.java
+      - app/src/main/java/com/blockforge/moderex/webpanel/HybridPanelServer.java
+      - app/src/main/resources/panel/js/websocket.js
+      - app/src/main/resources/panel/js/app.js
+
+50. LuckPerms Prefixes in Punishment Broadcasts
+    - Punishment broadcasts now include LuckPerms prefixes for staff and player names
+    - Added <staff_prefix> and <player_prefix> placeholders to all broadcast messages
+    - Prefixes are fetched from LuckPerms hook if available
+    - Updated message templates: mute, unmute, ban, unban, ipban, kick, warn, ipmute, tempban, tempmute, unwarn, cleared-broadcast
+    - Backwards compatible: empty string if LuckPerms not installed
+    - Files:
+      - app/src/main/java/com/blockforge/moderex/punishment/PunishmentManager.java
+      - app/src/main/resources/messages/en_US.yml
+
+51. Remove Scrollbars from Tables, Auto-Scale
+    - Hidden scrollbars on all table-wrap elements while preserving scroll functionality
+    - Added scrollbar-width: none (Firefox), -ms-overflow-style: none (IE/Edge)
+    - Added ::-webkit-scrollbar { display: none } (Chrome, Safari, Opera)
+    - Added auto-scale class for tables that need fixed layout with word wrapping
+    - Tables now use table-layout: auto by default for natural column sizing
+    - Mobile styles also hide scrollbars
+    - Files:
+      - app/src/main/resources/panel/css/styles.css
+
+52. Remove Unused Imports
+    - Removed duplicate java.io.ByteArrayOutputStream import from HybridPanelServer.java
+    - Removed unused java.security.MessageDigest import from SamePortPanelHandler.java
+    - Removed unused java.util.Base64 import from SamePortPanelHandler.java
+    - Files:
+      - app/src/main/java/com/blockforge/moderex/webpanel/HybridPanelServer.java
+      - app/src/main/java/com/blockforge/moderex/webpanel/netty/SamePortPanelHandler.java
+
+
+PENDING FEATURES (TODO - for web panel):
+========================================
+- Rules editor GUI (in-game chest GUI for staff)
+- Rules web panel tab for editing rules
+
+
+FUTURE TODOS (Code Comments Added):
+===================================
+
+15. Nickname Moderation System TODO
+    - Added to AutomodManager.java class javadoc
+    - Covers: nickname filtering, join/change hooks, auto-reset, bypass permission
+
+16. Grim Auto-Punishment in Automod TODO
+    - Added to GrimHook.java class javadoc
+    - Covers: VL thresholds, per-check punishments, escalation, database tracking
+
+17. Older Grim Version Support TODO
+    - Added to GrimHook.java class javadoc
+    - Covers: version detection, different APIs, check name mapping
+
+18. Revamp Replay System with NPCs TODO
+    - Added to ReplayManager.java class javadoc
+    - Covers: NPC playback, timeline scrubbing, speed controls, web viewer
+
+19. View Punishment Case Info In-Game TODO
+    - Added to PunishmentManager.java class javadoc
+    - Covers: /case command, GUI view, related cases, appeal status
+
+20. Player Profile Username History TODO
+    - Added to PunishmentManager.java class javadoc
+    - Covers: name tracking, Mojang API, search by previous names
+
+21. Netty Fix and Same-Port Support TODO
+    - Added to HybridPanelServer.java class javadoc
+    - Covers: Netty injection, HTTP detection, SSL support
+
+22. Advanced Global Search Bar TODO
+    - Added to HybridPanelServer.java class javadoc
+    - Covers: fuzzy matching, search syntax, keyboard shortcuts
+
+
+================================================================================
+HOW TO RESTORE IF OVERWRITTEN:
+================================================================================
+
+1. Check this file for the list of features
+2. Reference the specific files and changes described above
+3. Re-implement each feature, testing as you go
+4. The most critical files that differ from co-dev's version:
+   - HybridPanelServer.java (many handlers and methods)
+   - AnticheatManager.java (alert formatting)
+   - websocket.js (timeout settings, message names)
+   - styles.css (responsive styles, command blacklist, scrollbars)
+   - app.js (watchlistAlert, expandableReason, cmdBlacklist)
+   - ui.js (expandable reasons in tables)
+   - index.html (scrollable boxes, cmdblacklist page)
+   - WatchlistCommand.java (new file)
+   - plugin.yml (watchlist command and permission)
+
+================================================================================
