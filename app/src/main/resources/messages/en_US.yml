@@ -20,14 +20,14 @@ general:
 # ============================================
 mute:
   success: "<green>Successfully muted <yellow><player></yellow> for <white><duration></white>."
-  broadcast: "<gray><staff> <gold>muted</gold> <yellow><player></yellow> for <white><duration></white>. Reason: <white><reason>"
+  broadcast: "<staff_prefix><gray><staff></gray> <gold>muted</gold> <player_prefix><yellow><player></yellow> for <white><duration></white>. Reason: <white><reason>"
   message: "<red>You have been muted for <white><duration></white>.\n<gray>Reason: <white><reason>"
   already-muted: "<red><player> is already muted."
   chat-attempt: "<red>You are muted for <white><duration></white>.\n<gray>Reason: <white><reason>"
 
 unmute:
   success: "<green>Successfully unmuted <yellow><player></yellow>."
-  broadcast: "<gray><staff> <green>unmuted</green> <yellow><player></yellow>."
+  broadcast: "<staff_prefix><gray><staff></gray> <green>unmuted</green> <player_prefix><yellow><player></yellow>."
   not-muted: "<red><player> is not muted."
 
 # ============================================
@@ -35,7 +35,7 @@ unmute:
 # ============================================
 ban:
   success: "<green>Successfully banned <yellow><player></yellow> for <white><duration></white>."
-  broadcast: "<gray><staff> <dark_red>banned</dark_red> <yellow><player></yellow> for <white><duration></white>. Reason: <white><reason>"
+  broadcast: "<staff_prefix><gray><staff></gray> <dark_red>banned</dark_red> <player_prefix><yellow><player></yellow> for <white><duration></white>. Reason: <white><reason>"
   already-banned: "<red><player> is already banned."
   disconnect: |
     <gradient:#FF6B6B:#4ECDC4>[ModereX]</gradient>
@@ -51,7 +51,7 @@ ban:
 
 unban:
   success: "<green>Successfully unbanned <yellow><player></yellow>."
-  broadcast: "<gray><staff> <green>unbanned</green> <yellow><player></yellow>."
+  broadcast: "<staff_prefix><gray><staff></gray> <green>unbanned</green> <player_prefix><yellow><player></yellow>."
   not-banned: "<red><player> is not banned."
 
 # ============================================
@@ -59,7 +59,7 @@ unban:
 # ============================================
 ipban:
   success: "<green>Successfully IP banned <yellow><player></yellow> for <white><duration></white>."
-  broadcast: "<gray><staff> <dark_red>IP banned</dark_red> <yellow><player></yellow> for <white><duration></white>. Reason: <white><reason>"
+  broadcast: "<staff_prefix><gray><staff></gray> <dark_red>IP banned</dark_red> <player_prefix><yellow><player></yellow> for <white><duration></white>. Reason: <white><reason>"
   disconnect: |
     <gradient:#FF6B6B:#4ECDC4>[ModereX]</gradient>
 
@@ -77,7 +77,7 @@ ipban:
 # ============================================
 kick:
   success: "<green>Successfully kicked <yellow><player></yellow>."
-  broadcast: "<gray><staff> <red>kicked</red> <yellow><player></yellow>. Reason: <white><reason>"
+  broadcast: "<staff_prefix><gray><staff></gray> <red>kicked</red> <player_prefix><yellow><player></yellow>. Reason: <white><reason>"
   disconnect: |
     <gradient:#FF6B6B:#4ECDC4>[ModereX]</gradient>
 
@@ -91,10 +91,10 @@ kick:
 # ============================================
 warn:
   success: "<green>Successfully warned <yellow><player></yellow>."
-  broadcast: "<gray><staff> <gold>warned</gold> <yellow><player></yellow>. Reason: <white><reason>"
+  broadcast: "<staff_prefix><gray><staff></gray> <gold>warned</gold> <player_prefix><yellow><player></yellow>. Reason: <white><reason>"
   message: "<red><bold>WARNING!</bold></red> <gray>You have been warned.\n<gray>Reason: <white><reason>"
   cleared: "<green>Successfully cleared all warnings for <yellow><player></yellow>."
-  cleared-broadcast: "<gray><staff> cleared all warnings for <yellow><player></yellow>."
+  cleared-broadcast: "<staff_prefix><gray><staff></gray> cleared all warnings for <player_prefix><yellow><player></yellow>."
 
 # ============================================
 # STAFF CHAT
@@ -210,7 +210,7 @@ gui:
 # ============================================
 ipmute:
   success: "<green>Successfully IP muted <yellow><player></yellow> for <white><duration></white>."
-  broadcast: "<gray><staff> <gold>IP muted</gold> <yellow><player></yellow> for <white><duration></white>. Reason: <white><reason>"
+  broadcast: "<staff_prefix><gray><staff></gray> <gold>IP muted</gold> <player_prefix><yellow><player></yellow> for <white><duration></white>. Reason: <white><reason>"
   message: "<red>You have been IP muted for <white><duration></white>.\n<gray>Reason: <white><reason>"
   already-muted: "<red><player> is already IP muted."
 
@@ -219,12 +219,12 @@ ipmute:
 # ============================================
 tempban:
   success: "<green>Successfully temporarily banned <yellow><player></yellow> for <white><duration></white>."
-  broadcast: "<gray><staff> <dark_red>temporarily banned</dark_red> <yellow><player></yellow> for <white><duration></white>. Reason: <white><reason>"
+  broadcast: "<staff_prefix><gray><staff></gray> <dark_red>temporarily banned</dark_red> <player_prefix><yellow><player></yellow> for <white><duration></white>. Reason: <white><reason>"
   duration-required: "<red>Duration is required for temporary bans. Use: /tempban <player> <duration> [reason]"
 
 tempmute:
   success: "<green>Successfully temporarily muted <yellow><player></yellow> for <white><duration></white>."
-  broadcast: "<gray><staff> <gold>temporarily muted</gold> <yellow><player></yellow> for <white><duration></white>. Reason: <white><reason>"
+  broadcast: "<staff_prefix><gray><staff></gray> <gold>temporarily muted</gold> <player_prefix><yellow><player></yellow> for <white><duration></white>. Reason: <white><reason>"
   duration-required: "<red>Duration is required for temporary mutes. Use: /tempmute <player> <duration> [reason]"
 
 # ============================================
@@ -232,7 +232,7 @@ tempmute:
 # ============================================
 unwarn:
   success: "<green>Successfully removed warning for <yellow><player></yellow>."
-  broadcast: "<gray><staff> <green>removed a warning</green> from <yellow><player></yellow>."
+  broadcast: "<staff_prefix><gray><staff></gray> <green>removed a warning</green> from <player_prefix><yellow><player></yellow>."
   not-warned: "<red><player> has no active warnings."
   by-id: "<green>Successfully removed warning with ID <yellow><id></yellow>."
 
