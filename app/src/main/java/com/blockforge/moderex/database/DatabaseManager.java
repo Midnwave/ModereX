@@ -156,6 +156,7 @@ public class DatabaseManager {
             stmt.execute("""
                     CREATE TABLE IF NOT EXISTS moderex_automod_rules (
                         id INTEGER PRIMARY KEY %s,
+                        rule_id VARCHAR(64),
                         name VARCHAR(64) NOT NULL,
                         type VARCHAR(32) NOT NULL,
                         enabled BOOLEAN DEFAULT TRUE,
@@ -164,6 +165,13 @@ public class DatabaseManager {
                         updated_at BIGINT NOT NULL
                     )
                     """.formatted(isMySQL ? "AUTO_INCREMENT" : "AUTOINCREMENT"));
+
+            // Add rule_id column if it doesn't exist (migration for existing databases)
+            try {
+                stmt.execute("ALTER TABLE moderex_automod_rules ADD COLUMN rule_id VARCHAR(64)");
+            } catch (Exception ignored) {
+                // Column already exists
+            }
 
             // Anticheat rules table (per-check configuration)
             stmt.execute("""

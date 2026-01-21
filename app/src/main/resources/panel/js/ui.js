@@ -565,10 +565,108 @@
       (rulesHtml || (totalItems === 0 ? `<div class="hintline">No rules match your search. Click "Add Rule" to create one.</div>` : ''));
   }
 
-  // Render a built-in rule card (spam, caps, links) - simplified, no condition editing
+  // Render a built-in rule card (spam, caps, links, afk) - simplified, no condition editing
   function renderBuiltInRuleCard(r, thr, ruleIcon, iconColor, ruleType) {
-    const capsCondition = (r.conditions || []).find(c => c.kind === 'caps');
-    const capsValue = capsCondition?.value || '65';
+    // Get rule-specific configuration
+    const spamMessageCount = r.spamMessageCount || 3;
+    const spamTimeWindow = r.spamTimeWindowSeconds || 5;
+    const spamDetectSimilar = r.spamDetectSimilar !== false;
+    const capsMaxPercent = r.capsMaxPercentage || 70;
+    const capsMinLength = r.capsMinLength || 10;
+    const afkTimeout = r.afkTimeoutMinutes || 15;
+    const afkKickEnabled = r.afkKickEnabled || false;
+    const description = r.description || r.notes || getBuiltInDescription(r.id);
+
+    // Rule-specific configuration section
+    let configSection = '';
+
+    if (r.id === 'spam_protection' || ruleType === 'SPAM_PROTECTION') {
+      configSection = `
+        <div class="card" style="margin:10px 0 0 0;background:var(--bg-secondary);padding:12px">
+          <div class="hintline" style="margin:0 0 10px 0"><b>Spam Detection Settings</b></div>
+          <div class="block" style="gap:8px;flex-wrap:wrap">
+            <span class="badge gray">Block after</span>
+            <input class="input" type="number" min="2" max="20" value="${spamMessageCount}"
+              oninput="setRuleSetting('${r.id}', 'spamMessageCount', this.value)" style="width:60px"/>
+            <span class="badge gray">messages in</span>
+            <input class="input" type="number" min="1" max="60" value="${spamTimeWindow}"
+              oninput="setRuleSetting('${r.id}', 'spamTimeWindowSeconds', this.value)" style="width:60px"/>
+            <span class="badge gray">seconds</span>
+          </div>
+          <div class="toggle-wrap" style="margin-top:10px">
+            <button class="toggle tiny ${spamDetectSimilar ? 'on' : ''}" onclick="setRuleSetting('${r.id}', 'spamDetectSimilar', ${!spamDetectSimilar})"><span class="toggle-thumb"></span></button>
+            <div class="toggle-meta"><div class="toggle-title">Detect similar messages</div><div class="toggle-hint">Uses Levenshtein distance to detect near-duplicate messages</div></div>
+          </div>
+        </div>
+      `;
+    } else if (r.id === 'caps_filter' || ruleType === 'CAPS_FILTER') {
+      configSection = `
+        <div class="card" style="margin:10px 0 0 0;background:var(--bg-secondary);padding:12px">
+          <div class="hintline" style="margin:0 0 10px 0"><b>Caps Filter Settings</b></div>
+          <div class="block" style="gap:8px;flex-wrap:wrap">
+            <span class="badge gray">Max caps allowed:</span>
+            <input class="input" type="number" min="10" max="100" value="${capsMaxPercent}"
+              oninput="setRuleSetting('${r.id}', 'capsMaxPercentage', this.value)" style="width:70px"/>
+            <span class="badge gray">%</span>
+          </div>
+          <div class="block" style="gap:8px;margin-top:8px;flex-wrap:wrap">
+            <span class="badge gray">Min message length:</span>
+            <input class="input" type="number" min="1" max="100" value="${capsMinLength}"
+              oninput="setRuleSetting('${r.id}', 'capsMinLength', this.value)" style="width:70px"/>
+            <span class="badge gray">characters</span>
+          </div>
+        </div>
+      `;
+    } else if (r.id === 'link_filter' || ruleType === 'LINK_FILTER') {
+      configSection = `
+        <div class="card" style="margin:10px 0 0 0;background:var(--bg-secondary);padding:12px">
+          <div class="hintline" style="margin:0"><b>Link Filter</b></div>
+          <div class="hintline" style="margin:6px 0 0 0">Automatically detects and blocks URLs, IP addresses, and server advertisements.</div>
+        </div>
+      `;
+    } else if (r.id === 'afk_kick' || ruleType === 'AFK_KICK') {
+      configSection = `
+        <div class="card" style="margin:10px 0 0 0;background:var(--bg-secondary);padding:12px">
+          <div class="hintline" style="margin:0 0 10px 0"><b>AFK Kick Settings</b></div>
+          <div class="toggle-wrap" style="margin-bottom:10px">
+            <button class="toggle tiny ${afkKickEnabled ? 'on' : ''}" onclick="setRuleSetting('${r.id}', 'afkKickEnabled', ${!afkKickEnabled})"><span class="toggle-thumb"></span></button>
+            <div class="toggle-meta"><div class="toggle-title">Enable AFK Kick</div><div class="toggle-hint">Automatically kick players who are inactive</div></div>
+          </div>
+          <div class="block" style="gap:8px;flex-wrap:wrap">
+            <span class="badge gray">Kick after</span>
+            <input class="input" type="number" min="1" max="120" value="${afkTimeout}"
+              oninput="setRuleSetting('${r.id}', 'afkTimeoutMinutes', this.value)" style="width:70px"/>
+            <span class="badge gray">minutes of inactivity</span>
+          </div>
+        </div>
+      `;
+    }
+
+    // Auto punishment section (not for AFK)
+    const showPunishment = r.id !== 'afk_kick';
+    const punishSection = showPunishment ? `
+      <div style="margin-top:12px" class="grid cols-2">
+        <div class="block">
+          <b style="font-size:12px">Auto Punish</b>
+          <select class="input" style="width:140px" onchange="setRuleAction('${r.id}', this.value)">
+            ${['none', 'warn', 'mute', 'kick', 'ban'].map(k => `<option value="${k}" ${r.action?.kind === k ? 'selected' : ''}>${k}</option>`).join('')}
+          </select>
+          ${r.action?.kind && r.action.kind !== 'none' ? `<input class="input" style="flex:1" value="${escapeHtml(r.action?.extra || '')}" oninput="setRuleActionExtra('${r.id}', this.value)" placeholder="Reason"/>` : ''}
+          ${['warn','mute','ban'].includes(r.action?.kind) ? `<input class="input" style="max-width:120px" value="${escapeHtml(r.action?.duration || '')}" oninput="setRuleActionDuration('${r.id}', this.value)" placeholder="Duration"/>` : ''}
+        </div>
+        <div class="block">
+          <b style="font-size:12px">Block Message</b>
+          <button class="toggle ${r.block ? 'on' : ''}" onclick="toggleRuleBlock('${r.id}')"><span class="toggle-thumb"></span></button>
+        </div>
+      </div>
+      <div class="block" style="margin-top:12px">
+        <span class="badge gray">Flag threshold:</span>
+        <input class="input" type="number" min="1" value="${thr.hits || 3}" style="width:70px" oninput="setRuleThreshold('${r.id}', 'hits', this.value)">
+        <span class="badge gray">violations in</span>
+        <input class="input" type="number" min="1" value="${thr.windowMins || 5}" style="width:70px" oninput="setRuleThreshold('${r.id}', 'windowMins', this.value)">
+        <span class="badge gray">minutes</span>
+      </div>
+    ` : '';
 
     return `
       <div class="card" style="margin:0">
@@ -580,41 +678,25 @@
               ${r.enabled ? `<span class="badge green"><i class="fa-solid fa-check"></i> Active</span>` : `<span class="badge gray"><i class="fa-solid fa-pause"></i> Inactive</span>`}
               <span class="badge blue"><i class="fa-solid fa-lock"></i> Built-in</span>
             </div>
-            <div class="hintline">${escapeHtml(r.notes || 'Built-in automod filter.')}</div>
+            <div class="hintline">${escapeHtml(description)}</div>
           </div>
           <button class="toggle ${r.enabled ? 'on' : ''}" onclick="toggleRule('${r.id}')"><span class="toggle-thumb"></span></button>
         </div>
-        ${ruleType === 'CAPS' ? `
-          <div class="block" style="margin-top:12px">
-            <span class="badge gray">Caps threshold:</span>
-            <input class="input" type="number" min="1" max="100" step="1" value="${escapeHtml(capsValue)}"
-              oninput="setConditionValue('${r.id}', 0, this.value)" style="width:80px"/>
-            <span class="badge gray">%</span>
-          </div>
-        ` : ''}
-        <div style="margin-top:12px" class="grid cols-2">
-          <div class="block">
-            <b style="font-size:12px">Auto Punish</b>
-            <select class="input" style="width:140px" onchange="setRuleAction('${r.id}', this.value)">
-              ${['none', 'warn', 'mute', 'kick', 'ban'].map(k => `<option value="${k}" ${r.action?.kind === k ? 'selected' : ''}>${k}</option>`).join('')}
-            </select>
-            ${r.action?.kind && r.action.kind !== 'none' ? `<input class="input" style="flex:1" value="${escapeHtml(r.action?.extra || '')}" oninput="setRuleActionExtra('${r.id}', this.value)" placeholder="Reason"/>` : ''}
-            ${['warn','mute','ban'].includes(r.action?.kind) ? `<input class="input" style="max-width:120px" value="${escapeHtml(r.action?.duration || '')}" oninput="setRuleActionDuration('${r.id}', this.value)" placeholder="Duration"/>` : ''}
-          </div>
-          <div class="block">
-            <b style="font-size:12px">Block Message</b>
-            <button class="toggle ${r.block ? 'on' : ''}" onclick="toggleRuleBlock('${r.id}')"><span class="toggle-thumb"></span></button>
-          </div>
-        </div>
-        <div class="block" style="margin-top:12px">
-          <span class="badge gray">Threshold:</span>
-          <input class="input" type="number" min="1" value="${thr.hits}" style="width:70px" oninput="setRuleThreshold('${r.id}', 'hits', this.value)">
-          <span class="badge gray">trigger in</span>
-          <input class="input" type="number" min="1" value="${thr.windowMins}" style="width:70px" oninput="setRuleThreshold('${r.id}', 'windowMins', this.value)">
-          <span class="badge gray">minutes</span>
-        </div>
+        ${configSection}
+        ${punishSection}
       </div>
     `;
+  }
+
+  // Get description for built-in rules
+  function getBuiltInDescription(ruleId) {
+    const descriptions = {
+      'spam_protection': 'Blocks rapid or repetitive messages automatically.',
+      'caps_filter': 'Converts excessive caps to lowercase.',
+      'link_filter': 'Blocks URLs and IP addresses in chat.',
+      'afk_kick': 'Kicks players after a period of inactivity.'
+    };
+    return descriptions[ruleId] || 'Built-in automod filter.';
   }
 
   // Render a custom rule card with full condition editing

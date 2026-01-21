@@ -63,6 +63,7 @@
       startPingMeasurement();
       emit('connected');
       emit('status_change', { status: connectionStatus, ping: lastPing });
+      if (window.debugLog) window.debugLog('WS', 'Connected to server', 'success');
     };
 
     ws.onclose = (event) => {
@@ -74,6 +75,7 @@
       stopPingMeasurement();
       emit('disconnected', { code: event.code, reason: event.reason });
       emit('status_change', { status: connectionStatus, ping: 0 });
+      if (window.debugLog) window.debugLog('WS', `Disconnected (${event.code}: ${event.reason || 'No reason'})`, 'warn');
 
       // Don't reconnect if we were denied access
       if (event.code !== 4001 && event.code !== 4003) {
@@ -84,14 +86,20 @@
     ws.onerror = (error) => {
       console.error('[WS] Error:', error);
       emit('error', error);
+      if (window.debugLog) window.debugLog('WS', 'Connection error occurred', 'error');
     };
 
     ws.onmessage = (event) => {
       try {
         const message = JSON.parse(event.data);
+        // Only log non-PONG messages to avoid spam
+        if (message.type !== 'PONG') {
+          if (window.debugLog) window.debugLog('WS', `Received: ${message.type}`, 'info');
+        }
         handleMessage(message);
       } catch (e) {
         console.error('[WS] Failed to parse message:', e);
+        if (window.debugLog) window.debugLog('WS', 'Failed to parse server message', 'error');
       }
     };
   }
@@ -118,11 +126,16 @@
   function send(type, data = {}) {
     if (!ws || ws.readyState !== WebSocket.OPEN) {
       console.warn('[WS] Cannot send, not connected');
+      if (window.debugLog) window.debugLog('WS', `Failed to send ${type} - not connected`, 'error');
       return false;
     }
 
     const message = JSON.stringify({ type, data });
     ws.send(message);
+    // Only log non-heartbeat/ping messages to avoid spam
+    if (type !== 'HEARTBEAT' && type !== 'PING') {
+      if (window.debugLog) window.debugLog('WS', `Sent: ${type}`, 'info');
+    }
     return true;
   }
 

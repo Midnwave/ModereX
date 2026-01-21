@@ -1360,8 +1360,9 @@ public class HybridPanelServer {
 
             // Set blacklisted words
             if (data.has("blacklistedWords")) {
-                data.getAsJsonArray("blacklistedWords").forEach(e ->
-                        rule.addBlacklistedWord(e.getAsString()));
+                List<String> words = new ArrayList<>();
+                data.getAsJsonArray("blacklistedWords").forEach(e -> words.add(e.getAsString()));
+                rule.setBlacklistedWords(words);
             }
 
             // Set exclusion/whitelist words
@@ -1369,7 +1370,9 @@ public class HybridPanelServer {
                 JsonArray arr = data.has("exclusionWords") ?
                         data.getAsJsonArray("exclusionWords") :
                         data.getAsJsonArray("whitelist");
-                arr.forEach(e -> rule.addExclusionWord(e.getAsString()));
+                List<String> exclusions = new ArrayList<>();
+                arr.forEach(e -> exclusions.add(e.getAsString()));
+                rule.setExclusionWords(exclusions);
             }
 
             // Save rule
@@ -3002,6 +3005,19 @@ public class HybridPanelServer {
         data.addProperty("rule", ruleName);
         data.addProperty("message", message);
         data.addProperty("action", action);
+        data.addProperty("timestamp", System.currentTimeMillis());
+        json.add("data", data);
+        broadcast(GSON.toJson(json));
+    }
+
+    public void broadcastAutomodAlert(String playerName, UUID playerUuid, String ruleName, String triggeredMessage) {
+        JsonObject json = new JsonObject();
+        json.addProperty("type", "AUTOMOD_ALERT");
+        JsonObject data = new JsonObject();
+        data.addProperty("playerName", playerName);
+        data.addProperty("playerUuid", playerUuid.toString());
+        data.addProperty("rule", ruleName);
+        data.addProperty("message", triggeredMessage);
         data.addProperty("timestamp", System.currentTimeMillis());
         json.add("data", data);
         broadcast(GSON.toJson(json));

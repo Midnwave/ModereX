@@ -292,6 +292,48 @@
   window.MX = window.MX || {};
   window.MX.toast = window.toast;
 
+  // ===== DEBUG MODE =====
+  // Debug log function - shows notifications at bottom when debug mode is enabled
+  window.debugLog = function(category, message, type = 'info') {
+    // Check if debug mode is enabled in user settings
+    if (!state.userSettings?.debugMode) return;
+
+    // Add to debug log container
+    const container = document.getElementById('debug-log-container') || createDebugContainer();
+    const entry = document.createElement('div');
+    entry.className = `debug-entry debug-${type}`;
+    entry.innerHTML = `
+      <span class="debug-time">${new Date().toLocaleTimeString()}</span>
+      <span class="debug-cat">[${escapeHtml(category)}]</span>
+      <span class="debug-msg">${escapeHtml(message)}</span>
+    `;
+    container.appendChild(entry);
+
+    // Auto-remove after 5 seconds
+    setTimeout(() => {
+      entry.classList.add('fade-out');
+      setTimeout(() => entry.remove(), 300);
+    }, 5000);
+
+    // Keep only last 20 entries
+    while (container.children.length > 20) {
+      container.removeChild(container.firstChild);
+    }
+
+    // Also log to console
+    console.log(`[DEBUG][${category}] ${message}`);
+  };
+
+  function createDebugContainer() {
+    const container = document.createElement('div');
+    container.id = 'debug-log-container';
+    container.className = 'debug-log-container';
+    document.body.appendChild(container);
+    return container;
+  }
+
+  window.MX.debugLog = window.debugLog;
+
   // ===== STAFF CHAT =====
   const staffChatMessages = [];
 
@@ -1237,7 +1279,11 @@
 
   window.toggleRule = function(ruleId) {
     const r = state.rules.find(r => r.id === ruleId);
-    if (r) { r.enabled = !r.enabled; ui.markUnsaved('rules', true); ui.renderRules(); }
+    if (r) {
+      r.enabled = !r.enabled;
+      autoSaveRule(r);
+      ui.renderRules();
+    }
   };
 
   window.addCondition = function(ruleId) {
@@ -1324,8 +1370,47 @@
 
   window.setRuleThreshold = function(ruleId, field, v) {
     const r = state.rules.find(r => r.id === ruleId);
-    if (r) { r.threshold[field] = Math.max(1, parseInt(v || '1', 10)); ui.markUnsaved('rules', true); }
+    if (r) {
+      if (!r.threshold) r.threshold = {};
+      r.threshold[field] = Math.max(1, parseInt(v || '1', 10));
+      autoSaveRule(r);
+    }
   };
+
+  // Set a specific setting on a rule (for built-in rule config)
+  window.setRuleSetting = function(ruleId, setting, value) {
+    const r = state.rules.find(r => r.id === ruleId);
+    if (!r) return;
+
+    // Parse numeric values
+    if (['spamMessageCount', 'spamTimeWindowSeconds', 'capsMaxPercentage', 'capsMinLength', 'afkTimeoutMinutes'].includes(setting)) {
+      r[setting] = Math.max(1, parseInt(value || '1', 10));
+    } else if (['spamDetectSimilar', 'afkKickEnabled'].includes(setting)) {
+      r[setting] = value === true || value === 'true';
+    } else {
+      r[setting] = value;
+    }
+
+    autoSaveRule(r);
+    ui.renderRules();
+  };
+
+  // Auto-save a rule to the server
+  function autoSaveRule(rule) {
+    if (!rule) return;
+
+    // Mark as unsaved for visual feedback
+    ui.markUnsaved('rules', true);
+
+    // Auto-save built-in rules immediately
+    if (rule.builtIn || ['spam_protection', 'caps_filter', 'link_filter', 'afk_kick'].includes(rule.id)) {
+      MX.ws.send('UPDATE_AUTOMOD_RULE', {
+        ruleId: rule.id,
+        rule: rule
+      });
+      window.debugLog('SYNC', `Saved rule: ${rule.name}`, 'success');
+    }
+  }
 
   window.setRuleExceptions = function(ruleId, value) {
     const r = state.rules.find(r => r.id === ruleId);
@@ -3660,6 +3745,36 @@
     window.MX.sounds?.click();
   }
 
+  function toggleDebugMode() {
+    // Initialize userSettings if needed
+    if (!state.userSettings) state.userSettings = {};
+
+    const currentValue = state.userSettings.debugMode ?? false;
+    const newValue = !currentValue;
+
+    // Update UI
+    const btn = document.getElementById('debugModeEnabled');
+    if (btn) btn.classList.toggle('on', newValue);
+
+    // Show/hide info box
+    const infoBox = document.getElementById('debugModeInfo');
+    if (infoBox) infoBox.style.display = newValue ? 'flex' : 'none';
+
+    // Update state
+    state.userSettings.debugMode = newValue;
+
+    // Save to localStorage
+    saveState();
+
+    // Play click sound
+    window.MX.sounds?.click();
+
+    // Show confirmation debug message
+    if (newValue) {
+      debugLog('SYSTEM', 'Debug mode enabled - you will now see sync and error notifications', 'success');
+    }
+  }
+
   function updateSettingsUI() {
     // Update sound toggle button state
     const soundsBtn = document.getElementById('soundsEnabled');
@@ -3671,6 +3786,16 @@
     const deviceBtn = document.getElementById('deviceTrustEnabled');
     if (deviceBtn) {
       deviceBtn.classList.toggle('on', state.settings.deviceTrustEnabled ?? false);
+    }
+
+    // Update debug mode toggle button state
+    const debugBtn = document.getElementById('debugModeEnabled');
+    if (debugBtn) {
+      const debugEnabled = state.userSettings?.debugMode ?? false;
+      debugBtn.classList.toggle('on', debugEnabled);
+      // Show/hide info box
+      const infoBox = document.getElementById('debugModeInfo');
+      if (infoBox) infoBox.style.display = debugEnabled ? 'flex' : 'none';
     }
 
     // Update volume if the slider exists
@@ -3703,6 +3828,7 @@
   window.setWatchlistStyle = setWatchlistStyle;
   window.togglePanelSounds = togglePanelSounds;
   window.toggleDeviceTrust = toggleDeviceTrust;
+  window.toggleDebugMode = toggleDebugMode;
   window.setVolume = setVolume;
   window.showDisconnect = showDisconnect;
   window.hideDisconnect = hideDisconnect;

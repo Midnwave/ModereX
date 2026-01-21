@@ -471,23 +471,41 @@ public class WebPanelServer extends WebSocketServer {
                     conditions.add(cond);
                 }
             }
-            case SPAM -> {
+            case SPAM_PROTECTION -> {
                 JsonObject cond = new JsonObject();
                 cond.addProperty("kind", "repeat");
-                cond.addProperty("value", "3");
-                cond.addProperty("similar", true);
+                cond.addProperty("value", String.valueOf(rule.getSpamMessageCount()));
+                cond.addProperty("similar", rule.isSpamDetectSimilar());
                 conditions.add(cond);
             }
-            case CAPS -> {
+            case CAPS_FILTER -> {
                 JsonObject cond = new JsonObject();
                 cond.addProperty("kind", "caps");
-                cond.addProperty("value", "65");
+                cond.addProperty("value", String.valueOf(rule.getCapsMaxPercentage()));
+                conditions.add(cond);
+            }
+            case LINK_FILTER -> {
+                JsonObject cond = new JsonObject();
+                cond.addProperty("kind", "link");
+                cond.addProperty("value", "");
                 conditions.add(cond);
             }
             case ANTICHEAT -> {
                 JsonObject cond = new JsonObject();
                 cond.addProperty("kind", "anticheat");
-                cond.addProperty("value", "");
+                cond.addProperty("value", rule.getCheckName() != null ? rule.getCheckName() : "");
+                conditions.add(cond);
+            }
+            case AFK_KICK -> {
+                JsonObject cond = new JsonObject();
+                cond.addProperty("kind", "afk");
+                cond.addProperty("value", String.valueOf(rule.getAfkTimeoutMinutes()));
+                conditions.add(cond);
+            }
+            case NICKNAME -> {
+                JsonObject cond = new JsonObject();
+                cond.addProperty("kind", "nickname");
+                cond.addProperty("value", String.join(",", rule.getBlacklistedWords()));
                 conditions.add(cond);
             }
         }
