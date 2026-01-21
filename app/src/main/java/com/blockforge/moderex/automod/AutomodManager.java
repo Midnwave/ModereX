@@ -351,6 +351,9 @@ public class AutomodManager {
                 rule.setId(String.valueOf(id));
                 rules.put(rule.getId(), rule);
             }
+
+            // Broadcast to web panel clients
+            broadcastAutomodRulesUpdate();
         } catch (SQLException e) {
             plugin.logError("Failed to create automod rule", e);
         }
@@ -370,6 +373,9 @@ public class AutomodManager {
                     rule.getName(), rule.isEnabled(), rule.toConfigString(),
                     System.currentTimeMillis(), Integer.parseInt(rule.getId())
             );
+
+            // Broadcast to web panel clients
+            broadcastAutomodRulesUpdate();
         } catch (SQLException e) {
             plugin.logError("Failed to save automod rule", e);
         }
@@ -385,8 +391,22 @@ public class AutomodManager {
                     Integer.parseInt(ruleId)
             );
             rules.remove(ruleId);
+
+            // Broadcast to web panel clients
+            broadcastAutomodRulesUpdate();
         } catch (SQLException e) {
             plugin.logError("Failed to delete automod rule", e);
+        }
+    }
+
+    /**
+     * Broadcasts automod rules update to all connected web panel clients.
+     */
+    private void broadcastAutomodRulesUpdate() {
+        if (plugin.getWebPanelServer() != null) {
+            plugin.getServer().getScheduler().runTaskAsynchronously(plugin, () -> {
+                plugin.getWebPanelServer().broadcastAutomodRules();
+            });
         }
     }
 
