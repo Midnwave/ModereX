@@ -14,8 +14,6 @@ import java.util.Arrays;
 import java.util.List;
 
 /**
- * /warn <player> [<duration | reason>]{reason} [flags]
- *
  * Warns a player. Warnings can stack and trigger template actions.
  */
 public class WarnCommand extends PunishmentCommandBase {
@@ -57,7 +55,6 @@ public class WarnCommand extends PunishmentCommandBase {
             return;
         }
 
-        // Default 30 day warning expiry
         long duration = DurationParser.parse("30d");
         String reason = "No reason specified";
 
@@ -151,7 +148,7 @@ public class WarnCommand extends PunishmentCommandBase {
                     sendMessage(context.getSender(), MessageKey.MODIFY_SUCCESS,
                         "id", String.valueOf(punishmentId));
                 } else {
-                    sendMessage(context.getSender(), "<red>Failed to modify punishment. Check if ID exists.");
+                    sendMessage(context.getSender(), "<red>Failed to modify punishment. Checks ID exists.");
                 }
             });
         } catch (NumberFormatException e) {

@@ -48,7 +48,6 @@ public class PunishCommand extends BaseCommand {
 
     @Override
     protected List<String> tabComplete(CommandSender sender, String[] args) {
-        // no tab completion for privacy
         return Collections.emptyList();
     }
 }

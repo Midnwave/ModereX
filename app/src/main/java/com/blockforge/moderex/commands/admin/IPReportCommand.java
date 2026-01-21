@@ -13,7 +13,7 @@ import java.util.Map;
 /**
  * /ipreport
  *
- * Display associated accounts of all online players.
+ * Shows associated accounts of all online players.
  * Shows which online players share IP addresses.
  */
 public class IPReportCommand extends BaseCommand {
@@ -37,7 +37,6 @@ public class IPReportCommand extends BaseCommand {
             }
         }
 
-        // Display IPs with multiple players
         boolean foundDupes = false;
         for (Map.Entry<String, List<String>> entry : ipMap.entrySet()) {
             if (entry.getValue().size() > 1) {

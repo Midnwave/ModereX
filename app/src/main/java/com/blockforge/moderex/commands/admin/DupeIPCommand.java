@@ -12,7 +12,7 @@ import java.util.List;
  * /dupeip <user|ip>
  * Aliases: /alts, /checkalts
  *
- * Display associated accounts of user/IP.
+ * Shows associated accounts of user/IP.
  */
 public class DupeIPCommand extends BaseCommand {
 
@@ -37,15 +37,9 @@ public class DupeIPCommand extends BaseCommand {
         if (target.isIp()) {
             sendMessage(sender, MessageKey.DUPEIP_HEADER, "target", target.getIp());
             sendMessage(sender, "<gray>Alt account detection will be implemented with full IP tracking system");
-            // Placeholder: Full implementation would query database for accounts sharing same IP
-            // sendMessage(sender, MessageKey.DUPEIP_EMPTY);
-            // or display with MessageKey.DUPEIP_ENTRY and MessageKey.DUPEIP_COUNT
         } else if (target.isPlayer()) {
             sendMessage(sender, MessageKey.DUPEIP_HEADER, "target", target.getDisplayName());
             sendMessage(sender, "<gray>Alt account detection will be implemented with full IP tracking system");
-            // Placeholder: Full implementation would query database for accounts linked to this player's IPs
-            // sendMessage(sender, MessageKey.DUPEIP_EMPTY);
-            // or display with MessageKey.DUPEIP_ENTRY and MessageKey.DUPEIP_COUNT
         } else {
             sendMessage(sender, MessageKey.PLAYER_NOT_FOUND, "player", args[0]);
         }

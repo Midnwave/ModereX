@@ -9,9 +9,7 @@ import org.bukkit.command.CommandSender;
 import java.util.List;
 
 /**
- * /lastuuid <user>
- *
- * Display user's UUID.
+ * Shows user\'s UUID.
  */
 public class LastUUIDCommand extends BaseCommand {
 

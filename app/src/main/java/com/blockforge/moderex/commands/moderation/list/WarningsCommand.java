@@ -13,9 +13,7 @@ import org.bukkit.entity.Player;
 import java.util.List;
 
 /**
- * /warnings [user]
- *
- * Display active warnings for a player. If no user specified, shows your own warnings.
+ * Shows active warnings for a player. If no user specified, shows your own warnings.
  */
 public class WarningsCommand extends BaseCommand {
 
@@ -28,14 +26,12 @@ public class WarningsCommand extends BaseCommand {
         TargetResolver target;
 
         if (args.length == 0) {
-            // Show own warnings
             if (!(sender instanceof Player player)) {
                 sendMessage(sender, "<red>Console must specify a player: /warnings <player>");
                 return;
             }
             target = new TargetResolver(player.getName());
         } else {
-            // Show target's warnings
             target = new TargetResolver(args[0]);
         }
 
@@ -44,10 +40,8 @@ public class WarningsCommand extends BaseCommand {
             return;
         }
 
-        // Check if showing own warnings
         boolean isSelf = sender instanceof Player && ((Player) sender).getUniqueId().equals(target.getUuid());
 
-        // Fetch and display active warnings from database
         plugin.getPunishmentManager().getActiveWarnings(target.getUuid()).thenAccept(warnings -> {
             if (warnings.isEmpty()) {
                 sendMessage(sender, MessageKey.WARNINGS_HEADER, "player", target.getDisplayName());
@@ -59,14 +53,12 @@ public class WarningsCommand extends BaseCommand {
                 return;
             }
 
-            // Display header
             sendMessage(sender, MessageKey.WARNINGS_HEADER,
                     "player", target.getDisplayName());
             sendMessage(sender, MessageKey.WARNINGS_COUNT,
                     "count", String.valueOf(warnings.size()),
                     "player", target.getDisplayName());
 
-            // Display each warning
             for (Punishment warning : warnings) {
                 String expiry = warning.isPermanent() ? "Never" :
                         DurationParser.formatRemaining(warning.getExpiresAt());

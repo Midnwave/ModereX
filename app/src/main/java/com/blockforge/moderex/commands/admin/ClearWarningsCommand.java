@@ -56,7 +56,6 @@ public class ClearWarningsCommand extends BaseCommand {
                     plugin.getServer().getScheduler().runTask(plugin, () -> {
                         sendMessage(sender, MessageKey.WARN_CLEARED, "player", displayName);
 
-                        // Broadcast
                         for (Player staff : Bukkit.getOnlinePlayers()) {
                             if (staff.hasPermission("moderex.notify.punishments") && !staff.equals(sender)) {
                                 staff.sendMessage(plugin.getLanguageManager().get(MessageKey.WARN_CLEARED_BROADCAST,

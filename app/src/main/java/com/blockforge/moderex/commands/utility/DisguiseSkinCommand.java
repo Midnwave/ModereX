@@ -36,20 +36,17 @@ public class DisguiseSkinCommand extends BaseCommand {
 
         String skinName = args[0];
 
-        // Validate name
         if (!skinName.matches("[a-zA-Z0-9_]{3,16}")) {
             player.sendMessage(Component.text("Invalid player name! Must be 3-16 characters.")
                     .color(NamedTextColor.RED));
             return;
         }
 
-        // Get current disguise or create with player's current name
         DisguiseProfile currentDisguise = plugin.getDisguiseManager().getDisguiseProfile(player);
 
         String displayName = currentDisguise != null ? currentDisguise.getDisplayName() : player.getName();
         String rank = currentDisguise != null ? currentDisguise.getRank() : "default";
 
-        // Create new disguise with updated skin
         DisguiseProfile profile = new DisguiseProfile(displayName, skinName, rank);
         plugin.getDisguiseManager().disguise(player, profile);
 
@@ -59,7 +56,6 @@ public class DisguiseSkinCommand extends BaseCommand {
     @Override
     public List<String> tabComplete(CommandSender sender, String[] args) {
         if (args.length == 1 && sender instanceof Player) {
-            // Suggest online player names
             List<String> suggestions = new ArrayList<>();
             String prefix = args[0].toLowerCase();
 

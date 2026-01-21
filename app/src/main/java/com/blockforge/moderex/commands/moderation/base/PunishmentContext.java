@@ -16,7 +16,7 @@ public class PunishmentContext {
     private final CommandSender sender;
     private final TargetResolver target;
     private final FlagParser flags;
-    private final Long duration;  // null means no duration specified
+    private final Long duration;
     private final String reason;
     private final UUID executorUuid;
     private final String executorName;
@@ -163,7 +163,6 @@ public class PunishmentContext {
         public Builder flags(FlagParser flags) {
             this.flags = flags;
 
-            // Parse custom executor if provided
             if (flags.getSender() != null) {
                 this.customExecutorName = flags.getSender();
             }
@@ -171,7 +170,6 @@ public class PunishmentContext {
                 try {
                     this.customExecutorUuid = UUID.fromString(flags.getSenderUuid());
                 } catch (IllegalArgumentException ignored) {
-                    // Invalid UUID, ignore
                 }
             }
 

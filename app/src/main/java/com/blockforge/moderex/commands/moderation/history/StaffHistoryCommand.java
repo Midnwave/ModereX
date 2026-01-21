@@ -17,7 +17,7 @@ import java.util.List;
  * /staffhistory <user> [type]
  * Alias: /staffhist
  *
- * Display punishments executed by a staff member.
+ * Shows punishments executed by a staff member.
  * Optional type filter: bans, mutes, warnings, kicks, all
  */
 public class StaffHistoryCommand extends BaseCommand {
@@ -48,7 +48,6 @@ public class StaffHistoryCommand extends BaseCommand {
             return;
         }
 
-        // Convert type string to PunishmentType enum
         PunishmentType punishmentType = null;
         if (!type.equals("all")) {
             punishmentType = switch (type) {
@@ -62,7 +61,6 @@ public class StaffHistoryCommand extends BaseCommand {
 
         final PunishmentType finalType = punishmentType;
 
-        // Fetch and display staff history from database
         plugin.getPunishmentManager().getStaffHistory(target.getUuid(), finalType).thenAccept(history -> {
             if (history.isEmpty()) {
                 sendMessage(sender, MessageKey.STAFFHISTORY_HEADER,
@@ -72,12 +70,10 @@ public class StaffHistoryCommand extends BaseCommand {
                 return;
             }
 
-            // Display header
             sendMessage(sender, MessageKey.STAFFHISTORY_HEADER,
                     "staff", target.getDisplayName(),
                     "filter", type);
 
-            // Display each punishment
             for (Punishment punishment : history) {
                 String status = punishment.isActive() ? "<green>Active</green>" :
                               (punishment.isRemoved() ? "<red>Revoked</red>" : "<yellow>Expired</yellow>");
@@ -95,7 +91,6 @@ public class StaffHistoryCommand extends BaseCommand {
                         "status", status);
             }
 
-            // Display footer (no pagination implemented yet, so show count as both page and total)
             sendMessage(sender, MessageKey.STAFFHISTORY_FOOTER,
                     "count", String.valueOf(history.size()),
                     "page", "1",

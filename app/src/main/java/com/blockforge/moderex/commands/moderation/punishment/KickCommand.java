@@ -14,8 +14,6 @@ import org.bukkit.entity.Player;
 import java.util.List;
 
 /**
- * /kick <player> [reason] [flags]
- *
  * Kicks a player from the server.
  */
 public class KickCommand extends PunishmentCommandBase {
@@ -41,12 +39,10 @@ public class KickCommand extends PunishmentCommandBase {
             }
         }
 
-        // Kick doesn't support IP, modify, or delete flags
         if (!checkFlagPermissions(sender, flagParser, false, false, false)) {
             return;
         }
 
-        // For kicks, target must be online
         Player target = Bukkit.getPlayer(regularArgs.get(0));
 
         if (target == null) {

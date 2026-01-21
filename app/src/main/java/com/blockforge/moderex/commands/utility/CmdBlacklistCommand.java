@@ -43,7 +43,7 @@ public class CmdBlacklistCommand extends BaseCommand {
             command = command.substring(1);
         }
 
-        long duration = -1; // Permanent by default
+        long duration = -1;
         if (args.length >= 3 && DurationParser.isValidDuration(args[2])) {
             duration = DurationParser.parse(args[2]);
         }
@@ -55,7 +55,6 @@ public class CmdBlacklistCommand extends BaseCommand {
         final String finalCommand = command;
         final long finalExpiresAt = expiresAt;
 
-        // Save to database
         plugin.getServer().getScheduler().runTaskAsynchronously(plugin, () -> {
             try {
                 plugin.getDatabaseManager().update("""

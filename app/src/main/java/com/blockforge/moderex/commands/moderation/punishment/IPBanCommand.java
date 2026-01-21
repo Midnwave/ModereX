@@ -45,12 +45,10 @@ public class IPBanCommand extends PunishmentCommandBase {
             }
         }
 
-        // For IP bans, skip the IP permission check (it's implied by the command)
         if (!checkFlagPermissions(sender, flagParser, false, true, true)) {
             return;
         }
 
-        // Target must be online for IP ban
         Player target = Bukkit.getPlayer(regularArgs.get(0));
 
         if (target == null) {

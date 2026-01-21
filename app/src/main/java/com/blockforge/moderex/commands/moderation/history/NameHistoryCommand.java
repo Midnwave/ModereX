@@ -9,9 +9,7 @@ import org.bukkit.command.CommandSender;
 import java.util.List;
 
 /**
- * /namehistory <user>
- *
- * Display previous usernames for a player.
+ * Shows previous usernames for a player.
  */
 public class NameHistoryCommand extends BaseCommand {
 
@@ -33,12 +31,7 @@ public class NameHistoryCommand extends BaseCommand {
             return;
         }
 
-        // Name history service currently unavailable
         sendMessage(sender, MessageKey.NAMEHISTORY_NOT_AVAILABLE);
-        // Full implementation would:
-        // 1. Fetch from database or Mojang API
-        // 2. Display previous names with dates of changes
-        // Example: "<yellow>1. <gold>OldName <gray>(2020-01-15 to 2021-06-20)"
     }
 
     @Override

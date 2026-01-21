@@ -14,8 +14,6 @@ import java.util.Arrays;
 import java.util.List;
 
 /**
- * /tempban <player> <duration> [reason] [flags]
- *
  * Temporarily bans a player with required duration.
  */
 public class TempBanCommand extends PunishmentCommandBase {
@@ -57,7 +55,6 @@ public class TempBanCommand extends PunishmentCommandBase {
             return;
         }
 
-        // Duration is required
         if (!DurationParser.isValidDuration(regularArgs.get(1))) {
             sendMessage(sender, "<red>Invalid duration format. Example: 1d, 7d, 30d");
             return;
@@ -162,7 +159,6 @@ public class TempBanCommand extends PunishmentCommandBase {
         List<String> regularArgs = flagParser.getRegularArgs();
         int regularArgIndex = regularArgs.size();
 
-        // Check if current arg is a flag
         String currentArg = args.length > 0 ? args[args.length - 1] : "";
         if (currentArg.startsWith("-")) {
             return filterCompletions(Arrays.asList(

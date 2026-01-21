@@ -15,17 +15,14 @@ import java.util.Set;
 import java.util.UUID;
 
 /**
- * /moderex <subcommand> [args...]
- *
  * Main ModereX command with various administrative subcommands.
  */
 public class ModereXCommand extends BaseCommand {
 
-    // In-memory storage for allowed users (for lockdown bypass, IP ban bypass, etc.)
     private final Set<UUID> allowedUsers = new HashSet<>();
 
     public ModereXCommand(ModereX plugin) {
-        super(plugin, null, false); // No base permission, checked per subcommand
+        super(plugin, null, false);
     }
 
     @Override
@@ -142,10 +139,6 @@ public class ModereXCommand extends BaseCommand {
 
         sendMessage(sender, "<gray>IP unlinking will be implemented with full IP tracking");
         sendMessage(sender, "<yellow>This feature requires the full IP tracking system to be implemented.");
-        // Full implementation would:
-        // 1. Query database for all IP associations for this player
-        // 2. Remove or mark as unlinked in database
-        // 3. Clear cached associations
     }
 
     private void handleReload(CommandSender sender, String[] args) {
@@ -157,7 +150,6 @@ public class ModereXCommand extends BaseCommand {
         sendMessage(sender, "<yellow>Reloading ModereX configurations...");
 
         try {
-            // Reload all configurations
             plugin.reload();
             sendMessage(sender, "<green>ModereX configurations reloaded successfully!");
             sendMessage(sender, "<gray>Reloaded: config.yml, messages.yml, templates.yml, automod rules");
@@ -176,11 +168,9 @@ public class ModereXCommand extends BaseCommand {
         sendMessage(sender, "<gold><bold>ModereX Database Information:");
 
         try {
-            // Get database type
             String dbType = plugin.getConfigManager().getSettings().getDatabaseType();
             sendMessage(sender, "<yellow>Database Type: <gray>" + dbType.toUpperCase());
 
-            // Try to get connection pool stats (HikariCP)
             try {
                 HikariPoolMXBean poolProxy = plugin.getDatabaseManager().getDataSource().getHikariPoolMXBean();
                 if (poolProxy != null) {
@@ -209,14 +199,9 @@ public class ModereXCommand extends BaseCommand {
         }
 
         sendMessage(sender, "<gold><bold>Connected Servers:");
-        // For now, show local server only
         sendMessage(sender, "<yellow>Local Server: <green>" + plugin.getServer().getName() + " <gray>(this server)");
         sendMessage(sender, "<gray>Multi-server sync requires proxy mode to be enabled");
 
-        // Full implementation would:
-        // 1. Query database for server heartbeat/registration table
-        // 2. Display all servers that have checked in recently
-        // 3. Show server status, player count, last seen time
     }
 
     private void handleReveal(CommandSender sender, String[] args) {
@@ -234,7 +219,6 @@ public class ModereXCommand extends BaseCommand {
             String caseId = args[0];
             sendMessage(sender, "<yellow>Looking up case ID: <gold>" + caseId);
 
-            // Convert case ID to punishment ID
             plugin.getPunishmentManager().getPunishmentByCaseId(caseId).thenAccept(punishment -> {
                 if (punishment == null) {
                     sendMessage(sender, "<red>No punishment found with case ID: " + caseId);
@@ -263,17 +247,14 @@ public class ModereXCommand extends BaseCommand {
         }
 
         String message = String.join(" ", args);
-        // Replace \n with actual newlines
         message = message.replace("\\n", "\n");
 
-        // Broadcast to all staff with moderex.notify.broadcast permission
         for (org.bukkit.entity.Player player : plugin.getServer().getOnlinePlayers()) {
             if (player.hasPermission("moderex.notify.broadcast")) {
                 player.sendMessage(net.kyori.adventure.text.minimessage.MiniMessage.miniMessage().deserialize(message));
             }
         }
 
-        // Also send to console
         plugin.getServer().getConsoleSender().sendMessage(
             net.kyori.adventure.text.minimessage.MiniMessage.miniMessage().deserialize(message)
         );
@@ -288,7 +269,6 @@ public class ModereXCommand extends BaseCommand {
         }
 
         if (args.length == 0) {
-            // Display current timezone
             String currentTz = java.util.TimeZone.getDefault().getID();
             sendMessage(sender, "<yellow>Current server timezone: <gold>" + currentTz);
             sendMessage(sender, "<gray>To change, use: /moderex timezone <timezone>");
@@ -296,13 +276,11 @@ public class ModereXCommand extends BaseCommand {
         } else {
             String timezone = args[0];
             try {
-                // Validate timezone
                 java.util.TimeZone tz = java.util.TimeZone.getTimeZone(timezone);
                 if (tz.getID().equals("GMT") && !timezone.equals("GMT")) {
                     sendMessage(sender, "<red>Invalid timezone: " + timezone);
                     sendMessage(sender, "<gray>Use a valid timezone ID like: America/New_York");
                 } else {
-                    // Set as system default (note: this affects JVM, not persisted)
                     java.util.TimeZone.setDefault(tz);
                     sendMessage(sender, "<green>Timezone set to: <gold>" + timezone);
                     sendMessage(sender, "<yellow>Note: This setting will reset on server restart.");
@@ -320,7 +298,6 @@ public class ModereXCommand extends BaseCommand {
             return;
         }
 
-        // Check for confirmation
         boolean hasConfirm = args.length > 0 && args[0].equalsIgnoreCase("confirm");
 
         if (!hasConfirm) {
@@ -337,7 +314,6 @@ public class ModereXCommand extends BaseCommand {
             sendMessage(sender, "<green>Successfully deleted " + deleted + " punishments.");
             sendMessage(sender, "<yellow>Cleared all punishment caches.");
 
-            // Clear caches
             plugin.getPunishmentManager().clearCaches();
 
         } catch (Exception e) {
@@ -353,7 +329,6 @@ public class ModereXCommand extends BaseCommand {
         }
 
         if (args.length > 0) {
-            // Reset template progression for specific player
             TargetResolver target = new TargetResolver(args[0]);
             if (target.isValid() && target.isPlayer() && target.getUuid() != null) {
                 sendMessage(sender, "<yellow>Clearing template progression for <gold>" + target.getDisplayName() + "<yellow>...");
@@ -371,7 +346,6 @@ public class ModereXCommand extends BaseCommand {
                 sendMessage(sender, MessageKey.PLAYER_NOT_FOUND, "player", args[0]);
             }
         } else {
-            // Reset all template progression
             sendMessage(sender, "<yellow>Clearing ALL template progression...");
 
             try {
@@ -402,11 +376,6 @@ public class ModereXCommand extends BaseCommand {
         sendMessage(sender, "<gray>This feature requires the full IP tracking system to be implemented.");
         sendMessage(sender, "<yellow>Usage: /moderex add-login <name> <UUID> <IP>");
 
-        // Full implementation would:
-        // 1. Parse player name, UUID, and IP from args
-        // 2. Insert into player_logins table
-        // 3. Update IP associations
-        // 4. Confirm addition
     }
 
     private void handleAccept(CommandSender sender, String[] args) {
@@ -445,7 +414,6 @@ public class ModereXCommand extends BaseCommand {
         sendMessage(sender, "<yellow>Forcing database schema upgrade...");
 
         try {
-            // Re-run table creation (which includes ALTER TABLE if needed)
             plugin.getDatabaseManager().upgradeSchema();
             sendMessage(sender, "<green>Database schema upgrade completed!");
             sendMessage(sender, "<gray>All tables have been updated to the latest schema.");

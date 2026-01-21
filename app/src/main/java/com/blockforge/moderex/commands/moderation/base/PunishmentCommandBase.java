@@ -16,7 +16,7 @@ public abstract class PunishmentCommandBase extends BaseCommand {
     }
 
     /**
-     * Check if sender has permissions for all flags they've specified.
+     * Checks sender has permissions for all flags they've specified.
      * Returns true if all permissions are granted, false otherwise.
      */
     protected boolean checkFlagPermissions(CommandSender sender, FlagParser flags) {
@@ -24,7 +24,7 @@ public abstract class PunishmentCommandBase extends BaseCommand {
     }
 
     /**
-     * Check flag permissions with options to skip certain checks.
+     * Checks flag permissions with options to skip certain checks.
      *
      * @param sender The command sender
      * @param flags The parsed flags

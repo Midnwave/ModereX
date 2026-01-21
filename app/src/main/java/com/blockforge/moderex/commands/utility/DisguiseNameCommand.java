@@ -35,27 +35,23 @@ public class DisguiseNameCommand extends BaseCommand {
 
         String newName = args[0];
 
-        // Validate name
         if (!newName.matches("[a-zA-Z0-9_]{3,16}")) {
             player.sendMessage(Component.text("Invalid name! Must be 3-16 characters (letters, numbers, underscore only)")
                     .color(NamedTextColor.RED));
             return;
         }
 
-        // Get current disguise or create new one with defaults
         DisguiseProfile currentDisguise = plugin.getDisguiseManager().getDisguiseProfile(player);
 
         String rank = currentDisguise != null ? currentDisguise.getRank() : "default";
         String skinName = currentDisguise != null ? currentDisguise.getSkinName() : player.getName();
 
-        // Check permission for rank
         if (!player.hasPermission("moderex.disguise.rank." + rank.toLowerCase())) {
             player.sendMessage(Component.text("You don't have permission to use rank: " + rank)
                     .color(NamedTextColor.RED));
             return;
         }
 
-        // Create new disguise with updated name
         DisguiseProfile profile = new DisguiseProfile(newName, skinName, rank);
         plugin.getDisguiseManager().disguise(player, profile);
 
