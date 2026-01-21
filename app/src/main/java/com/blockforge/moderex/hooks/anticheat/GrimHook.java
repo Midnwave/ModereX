@@ -128,6 +128,9 @@ public class GrimHook extends AnticheatHook implements Listener {
             return false;
         }
 
+        // Set version from plugin description
+        version = grimPlugin.getDescription().getVersion();
+
         grimClassLoader = grimPlugin.getClass().getClassLoader();
         plugin.getLogger().info("[Grim] Using classloader: " + grimClassLoader.getClass().getName());
 
