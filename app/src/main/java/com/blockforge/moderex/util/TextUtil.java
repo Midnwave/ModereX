@@ -34,6 +34,18 @@ public final class TextUtil {
         return MINI_MESSAGE.deserialize(converted);
     }
 
+    /**
+     * Parse text for use in item lore - disables italic formatting by default
+     */
+    public static Component parseLore(String text) {
+        if (text == null || text.isEmpty()) {
+            return Component.empty();
+        }
+        // Prepend <!italic> to disable default italic formatting in lore
+        String converted = "<!italic>" + convertToMiniMessage(text);
+        return MINI_MESSAGE.deserialize(converted);
+    }
+
     public static Component parse(String text, String... replacements) {
         if (text == null || text.isEmpty()) {
             return Component.empty();
