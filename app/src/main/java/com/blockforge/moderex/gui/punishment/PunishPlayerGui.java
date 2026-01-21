@@ -55,7 +55,7 @@ public class PunishPlayerGui extends BaseGui {
         ItemStack head = new ItemStack(Material.PLAYER_HEAD);
         SkullMeta meta = (SkullMeta) head.getItemMeta();
         meta.setOwningPlayer(target);
-        meta.displayName(TextUtil.parse("<yellow>" + targetName));
+        meta.displayName(TextUtil.parseLore("<yellow>" + targetName));
 
         List<String> lore = new ArrayList<>();
         lore.add("<gray>UUID: <white>" + targetUuid);
@@ -82,7 +82,7 @@ public class PunishPlayerGui extends BaseGui {
             lore.add("<gray>Offline");
         }
 
-        meta.lore(lore.stream().map(TextUtil::parse).toList());
+        meta.lore(lore.stream().map(TextUtil::parseLore).toList());
         head.setItemMeta(meta);
         return head;
     }
