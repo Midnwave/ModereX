@@ -450,16 +450,31 @@ public class HybridPanelServer {
         plugin.logDebug("WebSocket connected from: " + socket.getRemoteSocketAddress());
 
         // Start reading WebSocket frames
+        String disconnectReason = "Clean close";
         try {
             while (running && !socket.isClosed()) {
                 String message = conn.readMessage();
-                if (message == null) break;
+                if (message == null) {
+                    disconnectReason = "Client sent close frame or connection reset";
+                    break;
+                }
                 handleWebSocketMessage(conn, message);
             }
+            if (!running) {
+                disconnectReason = "Server shutting down";
+            }
+        } catch (java.net.SocketTimeoutException e) {
+            disconnectReason = "Socket timeout - No activity from client";
+        } catch (java.net.SocketException e) {
+            disconnectReason = "Socket error: " + (e.getMessage() != null ? e.getMessage() : "Connection reset");
+        } catch (java.io.EOFException e) {
+            disconnectReason = "Connection closed unexpectedly by client";
+        } catch (java.io.IOException e) {
+            disconnectReason = "IO error: " + (e.getMessage() != null ? e.getMessage() : "Unknown IO error");
         } catch (Exception e) {
             String errorType = e.getClass().getSimpleName();
             String errorMsg = e.getMessage() != null ? e.getMessage() : "No message";
-            plugin.logDebug("[WebPanel] Connection error - Type: " + errorType + ", Message: " + errorMsg);
+            disconnectReason = errorType + ": " + errorMsg;
 
             // Log stack trace in debug mode for troubleshooting
             if (plugin.getConfigManager().getSettings().isDebugMode()) {
@@ -472,12 +487,23 @@ public class HybridPanelServer {
             if (session != null) {
                 long sessionDuration = System.currentTimeMillis() - session.connectedAt;
                 String durationStr = formatDuration(sessionDuration);
-                plugin.logDebug("[WebPanel] Disconnected: " + session.playerName +
-                        " | Duration: " + durationStr +
-                        " | IP: " + (conn.getRemoteAddress() != null ? conn.getRemoteAddress() : "unknown"));
+                if (plugin.getConfigManager().getSettings().isDebugMode()) {
+                    plugin.getLogger().info("[WebPanel] Disconnected: " + session.playerName +
+                            " | Duration: " + durationStr +
+                            " | IP: " + (conn.getRemoteAddress() != null ? conn.getRemoteAddress() : "unknown") +
+                            " | Reason: " + disconnectReason);
+                } else {
+                    plugin.logDebug("[WebPanel] Disconnected: " + session.playerName +
+                            " | Duration: " + durationStr);
+                }
             } else {
-                plugin.logDebug("[WebPanel] Disconnected: Unauthenticated connection" +
-                        " | IP: " + (conn.getRemoteAddress() != null ? conn.getRemoteAddress() : "unknown"));
+                if (plugin.getConfigManager().getSettings().isDebugMode()) {
+                    plugin.getLogger().info("[WebPanel] Disconnected: Unauthenticated connection" +
+                            " | IP: " + (conn.getRemoteAddress() != null ? conn.getRemoteAddress() : "unknown") +
+                            " | Reason: " + disconnectReason);
+                } else {
+                    plugin.logDebug("[WebPanel] Disconnected: Unauthenticated connection");
+                }
             }
             conn.close();
         }
