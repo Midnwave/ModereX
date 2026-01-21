@@ -229,6 +229,10 @@ public class WatchlistManager {
         for (Player staff : Bukkit.getOnlinePlayers()) {
             if (staff.hasPermission("moderex.notify.punishments")) {
                 var settings = plugin.getStaffSettingsManager().getSettings(staff);
+                // Skip if staff has regular join messages enabled (avoid duplicates)
+                if (settings.getJoinLeaveMessages() == com.blockforge.moderex.staff.StaffSettings.JoinLeaveLevel.ALL) {
+                    continue;
+                }
                 if (settings.isWatchlistJoinAlerts()) {
                     staff.sendMessage(message);
                 }
@@ -245,6 +249,10 @@ public class WatchlistManager {
         for (Player staff : Bukkit.getOnlinePlayers()) {
             if (staff.hasPermission("moderex.notify.punishments")) {
                 var settings = plugin.getStaffSettingsManager().getSettings(staff);
+                // Skip if staff has regular quit messages enabled (avoid duplicates)
+                if (settings.getJoinLeaveMessages() == com.blockforge.moderex.staff.StaffSettings.JoinLeaveLevel.ALL) {
+                    continue;
+                }
                 if (settings.isWatchlistQuitAlerts()) {
                     staff.sendMessage(message);
                 }
