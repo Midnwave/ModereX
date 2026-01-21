@@ -121,12 +121,10 @@ public class MainMenuGui extends BaseGui {
                     "<yellow>Click to browse"), () -> openGui(new ReplayGui(plugin)));
         }
 
-        // Chat Control
+        // Admin Settings
         if (viewer.hasPermission("moderex.command.admin")) {
-            setItem(38, createChatControlItem(), () -> openGui(new ChatControlGui(plugin)));
-
             // Automod Settings
-            setItem(40, createItem(Material.COMPARATOR, "<light_purple>Automod Settings",
+            setItem(38, createItem(Material.COMPARATOR, "<light_purple>Automod Settings",
                     "<gray>Configure automatic moderation",
                     "",
                     "<yellow>Click to configure"), () -> {
@@ -261,7 +259,7 @@ public class MainMenuGui extends BaseGui {
             ItemStack head = new ItemStack(Material.PLAYER_HEAD);
             SkullMeta meta = (SkullMeta) head.getItemMeta();
             meta.setOwningPlayer(player);
-            meta.displayName(TextUtil.parse("<yellow>" + player.getName()));
+            meta.displayName(TextUtil.parseLore("<yellow>" + player.getName()));
 
             List<String> lore = new ArrayList<>();
             lore.add("<gray>UUID: <white>" + player.getUniqueId().toString().substring(0, 8) + "...");
@@ -278,7 +276,7 @@ public class MainMenuGui extends BaseGui {
             lore.add("");
             lore.add("<yellow>Click to moderate");
 
-            meta.lore(lore.stream().map(TextUtil::parse).toList());
+            meta.lore(lore.stream().map(TextUtil::parseLore).toList());
             head.setItemMeta(meta);
 
             setItem(slot, head, () -> openGui(new PunishPlayerGui(plugin, player)));

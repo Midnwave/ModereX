@@ -9,7 +9,6 @@
 
   // Auth state
   let authState = {
-    mode: 'minecraft',    // 'minecraft' | 'token'
     connected: false,
     authenticated: false,
     accessDenied: false,
@@ -18,11 +17,24 @@
     serverPort: null,
     configLoaded: false,
     urlToken: null,
-    autoAuthAttempted: false
+    reconnectTimer: null,
+    reconnectAttempts: 0,
+    maxReconnectAttempts: 10,
+    lastError: null,
+    connectionPhase: 'idle' // idle, connecting, authenticating, connected
   };
 
   // DOM Elements
   let dom = {};
+
+  /**
+   * Show connection toast alert (watchlist alert style)
+   */
+  function showConnectionToast(type, title, message) {
+    if (window.MX?.toast) {
+      window.MX.toast(type, title, message, { ttl: 6000 });
+    }
+  }
 
   /**
    * Initialize auth module
@@ -32,7 +44,7 @@
     checkUrlToken();
     setupEventListeners();
     setupWebSocketHandlers();
-    loadServerConfig();
+    startConnection();
   }
 
   /**
@@ -48,15 +60,17 @@
   }
 
   /**
-   * Load server configuration
+   * Start the connection process
    */
-  async function loadServerConfig() {
-    updateStatus('Connecting...');
+  async function startConnection() {
+    authState.connectionPhase = 'connecting';
+    updateStatus('Connecting...', 'Loading server configuration');
 
     try {
+      // Step 1: Load server config
       const response = await fetch('/api/config');
       if (!response.ok) {
-        throw new Error('Config load failed');
+        throw new Error('Server not reachable');
       }
 
       const config = await response.json();
@@ -75,177 +89,127 @@
         dom.serverSection.style.display = 'none';
       }
 
-      // Try auto-authentication
-      tryAutoAuth();
+      // Step 2: Establish WebSocket connection
+      updateStatus('Connecting...', 'Establishing WebSocket connection');
+      await connectWebSocket();
 
     } catch (err) {
-      console.error('[Auth] Config load failed:', err);
-      authState.configLoaded = false;
+      console.error('[Auth] Connection failed:', err);
+      authState.connectionPhase = 'idle';
+      authState.lastError = err.message || 'Connection failed';
 
-      // Show manual auth
-      showManualAuth('Could not connect to server');
+      showConnectionToast('bad', 'Connection Failed', authState.lastError);
+      showManualAuth(authState.lastError);
+      scheduleReconnect();
     }
   }
 
   /**
-   * Try automatic authentication methods
+   * Connect to WebSocket server
    */
-  function tryAutoAuth() {
-    const host = authState.serverHost;
-    const port = authState.serverPort;
+  function connectWebSocket() {
+    return new Promise((resolve, reject) => {
+      const host = authState.serverHost;
+      const port = authState.serverPort;
 
-    // 1. URL token (from /mx connect link)
-    if (authState.urlToken) {
-      updateStatus('Connecting...', 'Preparing secure connection');
-      connectAndAuth(() => {
-        updateStatus('Authorizing...', 'Verifying your token');
-        ws.authWithUrlToken(authState.urlToken);
-      }, () => {
-        authState.urlToken = null;
-        tryNextAuthMethod();
-      });
-      return;
-    }
+      let connectionTimeout = null;
+      let resolved = false;
 
-    // 2. Saved session
-    const savedSession = getSavedSession();
-    if (savedSession) {
-      updateStatus('Connecting...', 'Resuming session');
-      connectAndAuth(() => {
-        updateStatus('Authorizing...', 'Validating session');
-        ws.authWithSession(savedSession);
-      }, () => {
-        clearSavedSession();
-        tryNextAuthMethod();
-      });
-      return;
-    }
+      const cleanup = () => {
+        if (connectionTimeout) clearTimeout(connectionTimeout);
+        ws.off('connected', onConnected);
+        ws.off('error', onError);
+      };
 
-    // 3. Saved permanent token
-    const savedToken = localStorage.getItem('mx_permanent_token');
-    if (savedToken) {
-      updateStatus('Connecting...', 'Preparing secure connection');
-      connectAndAuth(() => {
-        updateStatus('Authorizing...', 'Validating token');
-        ws.authWithToken(savedToken);
-      }, () => {
-        localStorage.removeItem('mx_permanent_token');
-        tryNextAuthMethod();
-      });
-      return;
-    }
+      const onConnected = () => {
+        if (resolved) return;
+        resolved = true;
+        cleanup();
+        authState.connected = true;
+        resolve();
 
-    // 4. Trusted device
-    updateStatus('Connecting...', 'Checking device trust');
-    connectAndAuth(() => {
-      updateStatus('Authorizing...', 'Verifying device');
-      ws.authWithTrustedDevice();
-    }, () => {
-      // All auto-auth methods failed
-      showManualAuth();
+        // Now try to authenticate
+        tryAuthenticate();
+      };
+
+      const onError = (err) => {
+        if (resolved) return;
+        resolved = true;
+        cleanup();
+        reject(new Error('WebSocket connection failed'));
+      };
+
+      ws.on('connected', onConnected);
+      ws.on('error', onError);
+
+      // Set connection timeout
+      connectionTimeout = setTimeout(() => {
+        if (resolved) return;
+        resolved = true;
+        cleanup();
+        reject(new Error('Connection timed out'));
+      }, 8000);
+
+      // Start connection
+      if (!ws.isConnected()) {
+        ws.connect(host, port);
+      } else {
+        resolved = true;
+        cleanup();
+        authState.connected = true;
+        resolve();
+        tryAuthenticate();
+      }
     });
   }
 
   /**
-   * Try next auth method after failure
+   * Try to authenticate using available methods
    */
-  function tryNextAuthMethod() {
-    const savedSession = getSavedSession();
+  function tryAuthenticate() {
+    authState.connectionPhase = 'authenticating';
+    updateStatus('Authenticating...', 'Verifying credentials');
+
+    // Priority: URL token > Saved token > Session > Trusted device
+    const urlToken = authState.urlToken;
     const savedToken = localStorage.getItem('mx_permanent_token');
+    const savedSession = getSavedSession();
 
-    if (!authState.urlToken && savedSession) {
-      updateStatus('Connecting...');
-      ws.authWithSession(savedSession);
-    } else if (!savedSession && savedToken) {
-      updateStatus('Authenticating...');
+    if (urlToken) {
+      console.log('[Auth] Authenticating with URL token');
+      updateStatus('Authenticating...', 'Verifying link token');
+      ws.authWithUrlToken(urlToken);
+      authState.urlToken = null; // Clear after use
+    } else if (savedToken) {
+      console.log('[Auth] Authenticating with saved token');
+      updateStatus('Authenticating...', 'Verifying saved token');
       ws.authWithToken(savedToken);
-    } else if (!savedToken) {
-      updateStatus('Connecting...');
+    } else if (savedSession) {
+      console.log('[Auth] Authenticating with session');
+      updateStatus('Authenticating...', 'Resuming session');
+      ws.authWithSession(savedSession);
+    } else {
+      console.log('[Auth] Trying trusted device auth');
+      updateStatus('Authenticating...', 'Checking device trust');
       ws.authWithTrustedDevice();
-    } else {
-      showManualAuth();
     }
-  }
 
-  /**
-   * Connect and authenticate
-   */
-  function connectAndAuth(authFn, failFn) {
-    const host = authState.serverHost;
-    const port = authState.serverPort;
-
-    let timeoutId = null;
-    let cleanedUp = false;
-
-    const cleanup = () => {
-      if (cleanedUp) return;
-      cleanedUp = true;
-      if (timeoutId) clearTimeout(timeoutId);
-      ws.off('connected', onConnected);
-      ws.off('auth_failed', onFailed);
-      ws.off('error', onError);
-    };
-
-    // One-time handlers
-    const onConnected = () => {
-      cleanup();
-      authFn();
-      // Set auth-specific timeout after connection
-      timeoutId = setTimeout(() => {
-        if (!authState.authenticated && failFn) {
-          console.log('[Auth] Auth response timeout');
-          failFn();
-        }
-      }, 3000);
-    };
-
-    const onFailed = (data) => {
-      cleanup();
-      console.log('[Auth] Auth failed:', data?.message);
-      if (failFn) failFn();
-    };
-
-    const onError = () => {
-      cleanup();
-      console.log('[Auth] Connection error');
-      if (failFn) failFn();
-    };
-
-    ws.on('connected', onConnected);
-    ws.on('auth_failed', onFailed);
-    ws.on('error', onError);
-
-    // Set connection timeout
-    timeoutId = setTimeout(() => {
-      if (!authState.authenticated && !cleanedUp) {
-        console.log('[Auth] Connection timeout');
-        cleanup();
-        if (failFn) failFn();
+    // Set auth timeout
+    setTimeout(() => {
+      if (authState.connectionPhase === 'authenticating' && !authState.authenticated) {
+        console.log('[Auth] Authentication timeout - showing manual auth');
+        showManualAuth('Authentication timed out');
       }
-    }, 4000);
-
-    if (!ws.isConnected()) {
-      ws.connect(host, port);
-    } else {
-      cleanup();
-      authFn();
-      // Set auth-specific timeout for already connected
-      timeoutId = setTimeout(() => {
-        if (!authState.authenticated && failFn) {
-          console.log('[Auth] Auth response timeout (already connected)');
-          failFn();
-        }
-      }, 3000);
-    }
+    }, 5000);
   }
 
   /**
    * Show manual authentication form
    */
   function showManualAuth(errorMsg) {
-    authState.autoAuthAttempted = true;
+    authState.connectionPhase = 'idle';
 
-    // Hide status area completely and show manual section
+    // Hide status area and show manual section
     if (dom.authStatusArea) {
       dom.authStatusArea.style.display = 'none';
     }
@@ -260,8 +224,11 @@
       showError(errorMsg);
     }
 
-    // Load saved preferences
-    loadSavedConnection();
+    // Load saved token into field
+    const savedToken = localStorage.getItem('mx_permanent_token');
+    if (savedToken && dom.authToken) {
+      dom.authToken.value = savedToken;
+    }
   }
 
   /**
@@ -276,10 +243,7 @@
       authStatusSub: $('#authStatusSub'),
       authManualSection: $('#authManualSection'),
       serverSection: $('#serverSection'),
-      authModeSelect: $('#authModeSelect'),
-      authMinecraftSection: $('#authMinecraftSection'),
       authTokenSection: $('#authTokenSection'),
-      connectCode: $('#connectCode'),
       authToken: $('#authToken'),
       serverHost: $('#serverHost'),
       serverPort: $('#serverPort'),
@@ -292,19 +256,8 @@
    * Setup event listeners
    */
   function setupEventListeners() {
-    dom.authModeSelect?.addEventListener('change', (e) => {
-      setAuthMode(e.target.value);
-    });
-
     dom.authBtn?.addEventListener('click', () => {
       authenticate();
-    });
-
-    dom.connectCode?.addEventListener('keydown', (e) => {
-      if (e.key === 'Enter') authenticate();
-      setTimeout(() => {
-        dom.connectCode.value = dom.connectCode.value.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 6);
-      }, 0);
     });
 
     dom.authToken?.addEventListener('keydown', (e) => {
@@ -318,9 +271,6 @@
     dom.serverPort?.addEventListener('keydown', (e) => {
       if (e.key === 'Enter') authenticate();
     });
-
-    // Set default mode
-    setAuthMode('minecraft');
   }
 
   /**
@@ -329,21 +279,60 @@
   function setupWebSocketHandlers() {
     ws.on('connected', () => {
       authState.connected = true;
+      authState.reconnectAttempts = 0;
+      console.log('[Auth] WebSocket connected');
     });
 
     ws.on('disconnected', (data) => {
+      const wasAuthenticated = authState.authenticated;
       authState.connected = false;
       authState.authenticated = false;
+      authState.connectionPhase = 'idle';
 
+      console.log('[Auth] Disconnected:', data.code, data.reason);
+
+      // Handle access denied - don't reconnect
       if (data.code === 4001 || data.code === 4003) {
-        showAccessDenied();
+        showAccessDenied(data.reason || 'Access denied');
+        return;
       }
+
+      // Determine disconnect reason for toast
+      let disconnectReason = 'Connection lost';
+      if (data.code === 1006) {
+        disconnectReason = 'Server unreachable';
+      } else if (data.code === 1001) {
+        disconnectReason = 'Server going away';
+      } else if (data.code === 1011) {
+        disconnectReason = 'Server error';
+      } else if (data.reason) {
+        disconnectReason = data.reason;
+      }
+
+      // Show toast if was previously authenticated
+      if (wasAuthenticated) {
+        showConnectionToast('warn', 'Disconnected', disconnectReason);
+      }
+
+      // Auto-reconnect
+      scheduleReconnect();
     });
 
     ws.on('auth_success', (data) => {
+      console.log('[Auth] Authentication successful:', data.playerName || data.username);
+
       authState.authenticated = true;
       authState.session = data;
       authState.accessDenied = false;
+      authState.connectionPhase = 'connected';
+      authState.reconnectAttempts = 0;
+      authState.lastError = null;
+
+      // Clear any pending reconnect timer
+      if (authState.reconnectTimer) {
+        clearTimeout(authState.reconnectTimer);
+        authState.reconnectTimer = null;
+      }
 
       // Save session
       if (data.sessionId) {
@@ -355,46 +344,125 @@
         localStorage.setItem('mx_permanent_token', data.permanentToken);
       }
 
-      // Update UI with success animation
-      updateStatus('Connected', `Welcome back, ${data.playerName || data.username}`);
+      // Update UI with success
+      updateStatus('Connected', `Welcome, ${data.playerName || data.username}`);
       if (dom.authStatusArea) {
+        dom.authStatusArea.style.display = '';
         dom.authStatusArea.classList.remove('error');
         dom.authStatusArea.classList.add('success');
+      }
+      if (dom.authManualSection) {
+        dom.authManualSection.style.display = 'none';
       }
 
       // Play connection sound
       window.MX.sounds?.connect();
 
-      // Hide overlay after animation completes
+      // Show success toast
+      showConnectionToast('ok', 'Connected', `Welcome, ${data.playerName || data.username}`);
+
+      // Hide overlay after animation
       setTimeout(() => {
         hideAuthOverlay();
         window.dispatchEvent(new CustomEvent('mx:authenticated', { detail: data }));
-        window.MX.toast?.('ok', 'Connected', `Welcome, ${data.playerName || data.username}`);
-      }, 1200);
+      }, 800);
     });
 
     ws.on('auth_failed', (data) => {
-      authState.authenticated = false;
+      console.log('[Auth] Authentication failed:', data?.message);
 
-      // If manual auth was attempted, show error
-      if (authState.autoAuthAttempted && dom.authManualSection?.style.display !== 'none') {
-        showError(data.message || 'Authentication failed');
-        setLoading(false);
+      authState.authenticated = false;
+      authState.connectionPhase = 'idle';
+      authState.lastError = data?.message || 'Authentication failed';
+
+      // Determine specific error
+      let errorTitle = 'Authentication Failed';
+      let errorMessage = data?.message || 'Invalid credentials';
+
+      if (data?.code === 'INVALID_TOKEN') {
+        errorTitle = 'Invalid Token';
+        errorMessage = 'The token is invalid or expired. Get a new one with /mx gettoken';
+        localStorage.removeItem('mx_permanent_token');
+      } else if (data?.code === 'NO_PERMISSION') {
+        errorTitle = 'No Permission';
+        errorMessage = 'You need moderex.webpanel permission to access the panel';
+      } else if (data?.code === 'SESSION_EXPIRED') {
+        errorTitle = 'Session Expired';
+        errorMessage = 'Your session has expired. Please authenticate again.';
+        clearSavedSession();
       }
+
+      showConnectionToast('bad', errorTitle, errorMessage);
+      showManualAuth(errorMessage);
     });
 
     ws.on('access_denied', (data) => {
+      console.log('[Auth] Access denied:', data?.message);
       authState.accessDenied = true;
       authState.authenticated = false;
-      showAccessDenied(data.message);
+      authState.connectionPhase = 'idle';
+
+      showConnectionToast('bad', 'Access Denied', data?.message || 'You do not have permission to access the panel');
+      showAccessDenied(data?.message);
     });
 
     ws.on('session_expired', () => {
+      console.log('[Auth] Session expired');
       clearSavedSession();
       authState.authenticated = false;
+      authState.connectionPhase = 'idle';
+
+      showConnectionToast('warn', 'Session Expired', 'Please log in again');
       showAuthOverlay();
       showManualAuth('Session expired. Please log in again.');
     });
+
+    // Handle ping for connection health
+    ws.on('ping_update', (data) => {
+      if (data.ping === -1) {
+        console.warn('[Auth] Connection unstable');
+      }
+    });
+  }
+
+  /**
+   * Schedule auto-reconnect with exponential backoff
+   */
+  function scheduleReconnect() {
+    // Clear any existing timer
+    if (authState.reconnectTimer) {
+      clearTimeout(authState.reconnectTimer);
+    }
+
+    // Check max attempts
+    if (authState.reconnectAttempts >= authState.maxReconnectAttempts) {
+      console.log('[Auth] Max reconnect attempts reached');
+      showConnectionToast('bad', 'Connection Failed', 'Unable to connect after multiple attempts');
+      showManualAuth('Unable to connect. Please check your connection and try again.');
+      return;
+    }
+
+    // Exponential backoff: 1s, 2s, 4s, 8s, 16s, max 30s
+    const delay = Math.min(1000 * Math.pow(2, authState.reconnectAttempts), 30000);
+    authState.reconnectAttempts++;
+
+    console.log(`[Auth] Reconnecting in ${delay}ms (attempt ${authState.reconnectAttempts}/${authState.maxReconnectAttempts})`);
+
+    // Show reconnecting status
+    showAuthOverlay();
+    updateStatus('Reconnecting...', `Attempt ${authState.reconnectAttempts} of ${authState.maxReconnectAttempts}`);
+    if (dom.authStatusArea) {
+      dom.authStatusArea.style.display = '';
+      dom.authStatusArea.classList.remove('error', 'success');
+    }
+    if (dom.authManualSection) {
+      dom.authManualSection.style.display = 'none';
+    }
+
+    authState.reconnectTimer = setTimeout(() => {
+      console.log('[Auth] Attempting reconnect...');
+      startConnection();
+    }, delay);
   }
 
   /**
@@ -410,107 +478,58 @@
   }
 
   /**
-   * Set authentication mode
-   */
-  function setAuthMode(mode) {
-    authState.mode = mode;
-
-    if (dom.authMinecraftSection) {
-      dom.authMinecraftSection.style.display = mode === 'minecraft' ? 'block' : 'none';
-    }
-    if (dom.authTokenSection) {
-      dom.authTokenSection.style.display = mode === 'token' ? 'block' : 'none';
-    }
-
-    clearError();
-  }
-
-  /**
-   * Authenticate based on current mode
+   * Authenticate with permanent token (manual)
    */
   function authenticate() {
-    const mode = authState.mode || dom.authModeSelect?.value || 'minecraft';
+    const token = dom.authToken?.value?.trim();
 
-    let host, port;
-    if (authState.configLoaded) {
-      host = authState.serverHost;
-      port = authState.serverPort;
-    } else {
-      host = dom.serverHost?.value?.trim() || 'localhost';
-      port = parseInt(dom.serverPort?.value, 10) || 8081;
-      authState.serverHost = host;
-      authState.serverPort = port;
+    if (!token || token.length < 10) {
+      showError('Please enter a valid token');
+      showConnectionToast('warn', 'Invalid Token', 'Token must be at least 10 characters');
+      return;
     }
 
     clearError();
     setLoading(true);
 
-    if (mode === 'minecraft') {
-      authenticateMinecraft(host, port);
-    } else if (mode === 'token') {
-      authenticateToken(host, port);
-    }
-  }
-
-  /**
-   * Authenticate with connect code
-   */
-  function authenticateMinecraft(host, port) {
-    const code = dom.connectCode?.value?.trim().toUpperCase();
-
-    if (!code || code.length !== 6) {
-      showError('Please enter a valid 6-character connect code');
-      setLoading(false);
-      return;
-    }
-
-    ws.on('connected', function onConnect() {
-      ws.off('connected', onConnect);
-      ws.authWithCode(code);
-    });
-
-    ws.on('auth_failed', function onFail(data) {
-      ws.off('auth_failed', onFail);
-      showError(data.message || 'Invalid connect code');
-      setLoading(false);
-    });
-
-    if (!ws.isConnected()) {
-      ws.connect(host, port);
-    } else {
-      ws.authWithCode(code);
-    }
-  }
-
-  /**
-   * Authenticate with permanent token
-   */
-  function authenticateToken(host, port) {
-    const token = dom.authToken?.value?.trim();
-
-    if (!token || token.length < 10) {
-      showError('Please enter a valid token');
-      setLoading(false);
-      return;
-    }
-
+    // Save token
     localStorage.setItem('mx_permanent_token', token);
 
-    ws.on('connected', function onConnect() {
-      ws.off('connected', onConnect);
+    // Get host/port
+    let host = authState.serverHost;
+    let port = authState.serverPort;
+
+    if (!authState.configLoaded) {
+      host = dom.serverHost?.value?.trim() || window.location.hostname;
+      port = parseInt(dom.serverPort?.value, 10) || 8081;
+      authState.serverHost = host;
+      authState.serverPort = port;
+    }
+
+    // Connect and authenticate
+    if (ws.isConnected()) {
+      authState.connectionPhase = 'authenticating';
+      updateStatus('Authenticating...', 'Verifying token');
       ws.authWithToken(token);
-    });
 
-    ws.on('auth_failed', function onFail(data) {
-      ws.off('auth_failed', onFail);
-      showError(data.message || 'Invalid token');
-      setLoading(false);
-    });
-
-    if (!ws.isConnected()) {
-      ws.connect(host, port);
+      // Timeout for manual auth
+      setTimeout(() => {
+        if (!authState.authenticated) {
+          setLoading(false);
+          showError('Authentication timed out');
+        }
+      }, 5000);
     } else {
-      ws.authWithToken(token);
+      authState.connectionPhase = 'connecting';
+      updateStatus('Connecting...', 'Establishing connection');
+
+      connectWebSocket().then(() => {
+        ws.authWithToken(token);
+      }).catch((err) => {
+        setLoading(false);
+        showError(err.message || 'Connection failed');
+        showConnectionToast('bad', 'Connection Failed', err.message || 'Could not connect to server');
+      });
     }
   }
 
@@ -604,21 +623,6 @@
     } catch (e) {}
   }
 
-  function loadSavedConnection() {
-    try {
-      const saved = localStorage.getItem('mx_auth');
-      if (saved) {
-        const data = JSON.parse(saved);
-        if (dom.serverHost && data.host) dom.serverHost.value = data.host;
-        if (dom.serverPort && data.port) dom.serverPort.value = data.port;
-        if (dom.authModeSelect && data.mode) {
-          dom.authModeSelect.value = data.mode;
-          setAuthMode(data.mode);
-        }
-      }
-    } catch (e) {}
-  }
-
   /**
    * Public API
    */
@@ -630,12 +634,23 @@
     return authState.session;
   }
 
+  function getConnectionPhase() {
+    return authState.connectionPhase;
+  }
+
   function logout() {
     clearSavedAuth();
     ws.disconnect();
     authState.authenticated = false;
     authState.session = null;
-    authState.autoAuthAttempted = false;
+    authState.connectionPhase = 'idle';
+    authState.reconnectAttempts = 0;
+
+    // Clear reconnect timer
+    if (authState.reconnectTimer) {
+      clearTimeout(authState.reconnectTimer);
+      authState.reconnectTimer = null;
+    }
 
     // Reset UI
     if (dom.authStatusArea) {
@@ -646,14 +661,21 @@
     }
 
     showAuthOverlay();
-    loadServerConfig();
+    showManualAuth();
   }
 
   /**
-   * Reconnect after disconnect
+   * Manual reconnect
    */
   function reconnect() {
-    authState.autoAuthAttempted = false;
+    // Clear any pending timers
+    if (authState.reconnectTimer) {
+      clearTimeout(authState.reconnectTimer);
+      authState.reconnectTimer = null;
+    }
+
+    authState.reconnectAttempts = 0;
+    authState.connectionPhase = 'idle';
 
     // Reset UI
     if (dom.authStatusArea) {
@@ -665,15 +687,14 @@
     }
     clearError();
 
-    // Show auth overlay with connecting status
+    // Show auth overlay
     showAuthOverlay();
-    updateStatus('Reconnecting...');
 
-    // Disconnect and retry
+    // Disconnect and restart
     ws.disconnect();
     setTimeout(() => {
-      loadServerConfig();
-    }, 500);
+      startConnection();
+    }, 300);
   }
 
   // Initialize on DOM ready
@@ -684,9 +705,9 @@
   window.MX.auth = {
     isAuthenticated,
     getSession,
+    getConnectionPhase,
     logout,
     reconnect,
-    setAuthMode,
     authenticate
   };
 

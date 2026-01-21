@@ -204,7 +204,7 @@ public class AllPlayersWatchlistGui extends PaginatedGui<PlayerProfile> {
         nameBuilder.append(profile.getUsername());
         if (hasPunishment) nameBuilder.append(" <red>⚠");
 
-        meta.displayName(TextUtil.parse(nameBuilder.toString()));
+        meta.displayName(TextUtil.parseLore(nameBuilder.toString()));
 
         List<String> lore = new ArrayList<>();
         lore.add("<gray>UUID: <white>" + profile.getUuid().toString().substring(0, 8) + "...");
@@ -231,7 +231,7 @@ public class AllPlayersWatchlistGui extends PaginatedGui<PlayerProfile> {
                 "<green>Right-click: <white>Add to watchlist");
         lore.add("<aqua>Shift-click: <white>Punish player");
 
-        meta.lore(lore.stream().map(TextUtil::parse).toList());
+        meta.lore(lore.stream().map(TextUtil::parseLore).toList());
         head.setItemMeta(meta);
 
         return head;

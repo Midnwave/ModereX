@@ -80,6 +80,7 @@ public class CommandManager {
         registerPaperCommand(commandMap, "banlist", new BanListCommand(plugin), "View list of bans", List.of());
         registerPaperCommand(commandMap, "mutelist", new MuteListCommand(plugin), "View list of mutes", List.of());
         registerPaperCommand(commandMap, "warnlist", new WarnListCommand(plugin), "View list of warnings", List.of());
+        registerPaperCommand(commandMap, "viewpunishment", new ViewPunishmentCommand(plugin), "View punishment details by case ID", List.of("vp", "case", "punishinfo"));
 
         registerPaperCommand(commandMap, "dupeip", new DupeIPCommand(plugin), "Checks for alt accounts", List.of("alts", "checkalts"));
         registerPaperCommand(commandMap, "iphistory", new IPHistoryCommand(plugin), "View IP history", List.of());
@@ -97,6 +98,7 @@ public class CommandManager {
         registerPaperCommand(commandMap, "punish", new PunishCommand(plugin), "Open punishment GUI", List.of());
         registerPaperCommand(commandMap, "modlog", new ModLogCommand(plugin), "View moderation log", List.of());
         registerPaperCommand(commandMap, "staffchat", new StaffChatCommand(plugin), "Staff chat", List.of("sc"));
+        registerPaperCommand(commandMap, "watchlist", new WatchlistCommand(plugin), "Manage watchlist", List.of("wl"));
         registerPaperCommand(commandMap, "staffhelp", new StaffHelpCommand(plugin), "Request staff help", List.of());
         registerPaperCommand(commandMap, "staffmode", new StaffModeCommand(plugin), "Toggle staff mode", List.of("sm"));
         registerPaperCommand(commandMap, "vanish", new VanishCommand(plugin), "Toggle vanish", List.of("v"));
@@ -107,6 +109,7 @@ public class CommandManager {
         registerPaperCommand(commandMap, "undisguise", new UndisguiseCommand(plugin), "Remove disguise", List.of("ud"));
         registerPaperCommand(commandMap, "disguisename", new DisguiseNameCommand(plugin), "Change disguise name", List.of("dname"));
         registerPaperCommand(commandMap, "disguiseskin", new DisguiseSkinCommand(plugin), "Change disguise skin", List.of("dskin"));
+        registerPaperCommand(commandMap, "rules", new RulesCommand(plugin), "View server rules", List.of("serverrules"));
 
         registerPaperCommand(commandMap, "mban", new BanCommand(plugin), "Ban a player", List.of());
         registerPaperCommand(commandMap, "munban", new UnbanCommand(plugin), "Unban a player", List.of());
@@ -162,6 +165,7 @@ public class CommandManager {
         registerSpigotCommand("banlist", new BanListCommand(plugin));
         registerSpigotCommand("mutelist", new MuteListCommand(plugin));
         registerSpigotCommand("warnlist", new WarnListCommand(plugin));
+        registerSpigotCommand("viewpunishment", new ViewPunishmentCommand(plugin));
 
         registerSpigotCommand("dupeip", new DupeIPCommand(plugin));
         registerSpigotCommand("iphistory", new IPHistoryCommand(plugin));
@@ -179,6 +183,7 @@ public class CommandManager {
         registerSpigotCommand("punish", new PunishCommand(plugin));
         registerSpigotCommand("modlog", new ModLogCommand(plugin));
         registerSpigotCommand("staffchat", new StaffChatCommand(plugin));
+        registerSpigotCommand("watchlist", new WatchlistCommand(plugin));
         registerSpigotCommand("staffhelp", new StaffHelpCommand(plugin));
         registerSpigotCommand("staffmode", new StaffModeCommand(plugin));
         registerSpigotCommand("vanish", new VanishCommand(plugin));
@@ -189,6 +194,7 @@ public class CommandManager {
         registerSpigotCommand("undisguise", new UndisguiseCommand(plugin));
         registerSpigotCommand("disguisename", new DisguiseNameCommand(plugin));
         registerSpigotCommand("disguiseskin", new DisguiseSkinCommand(plugin));
+        registerSpigotCommand("rules", new RulesCommand(plugin));
 
         registerSpigotCommand("mban", new BanCommand(plugin));
         registerSpigotCommand("munban", new UnbanCommand(plugin));

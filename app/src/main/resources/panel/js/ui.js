@@ -35,6 +35,13 @@
     return `${seconds}s`;
   }
 
+  // Truncate text with ellipsis
+  function truncate(text, maxLen = 40) {
+    if (!text) return '';
+    text = String(text);
+    return text.length > maxLen ? text.substring(0, maxLen) + '...' : text;
+  }
+
   // DOM References
   let dom = {};
 
@@ -54,6 +61,13 @@
       statWatchHint: $('#statWatchHint'),
       statOnline: $('#statOnline'),
       statOnlineHint: $('#statOnlineHint'),
+      statBans: $('#statBans'),
+      statMutes: $('#statMutes'),
+      statWarns24h: $('#statWarns24h'),
+      statStaff: $('#statStaff'),
+      dashServerStatus: $('#dashServerStatus'),
+      dashUptime: $('#dashUptime'),
+      recentPunishments: $('#recentPunishments'),
       activityRows: $('#activityRows'),
       watchlistHighlights: $('#watchlistHighlights'),
       playerSearch: $('#playerSearch'),
@@ -164,7 +178,14 @@
       anticheatSearch: $('#anticheatSearch'),
       anticheatRows: $('#anticheatRows'),
       anticheatConfig: $('#anticheatConfig'),
-      anticheatDisabledCard: $('#anticheatDisabledCard')
+      anticheatDisabledCard: $('#anticheatDisabledCard'),
+      ruleSearch: $('#ruleSearch'),
+      ruleTypeFilter: $('#ruleTypeFilter'),
+      ruleStatusFilter: $('#ruleStatusFilter'),
+      rulesCount: $('#rulesCount'),
+      rulesPageInfo: $('#rulesPageInfo'),
+      rulesPrevBtn: $('#rulesPrevBtn'),
+      rulesNextBtn: $('#rulesNextBtn')
     };
   }
 
@@ -189,7 +210,16 @@
 
   function renderDashboard() {
     if (!dom.statActivePun) return;
+
+    // Filter punishments
     const activePun = state.punishments.filter(p => p.active && !p.revoked);
+    const activeBans = activePun.filter(p => p.type === 'BAN' || p.type === 'IPBAN');
+    const activeMutes = activePun.filter(p => p.type === 'MUTE');
+    const now = Date.now();
+    const oneDayAgo = now - 24 * 60 * 60 * 1000;
+    const recentWarns = state.punishments.filter(p => p.type === 'WARN' && p.createdAt >= oneDayAgo);
+
+    // Primary stats
     dom.statActivePun.textContent = activePun.length;
     dom.statPunHint.textContent = activePun.length ? `${activePun.length} active` : 'No active cases';
 
@@ -203,12 +233,68 @@
     const online = state.players.filter(p => p.status === 'online' || p.status === 'afk').length;
     const staffOnline = (state.staff || []).filter(s => s.status === 'online' || s.status === 'afk').length;
     dom.statOnline.textContent = online;
-    dom.statOnlineHint.textContent = `${online}/${state.players.length} total • ${staffOnline} staff online`;
+    dom.statOnlineHint.textContent = `${online}/${state.players.length} total • ${staffOnline} staff`;
 
+    // Secondary stats
+    if (dom.statBans) dom.statBans.textContent = activeBans.length;
+    if (dom.statMutes) dom.statMutes.textContent = activeMutes.length;
+    if (dom.statWarns24h) dom.statWarns24h.textContent = recentWarns.length;
+    if (dom.statStaff) dom.statStaff.textContent = staffOnline;
+
+    // Server status
+    if (dom.dashServerStatus) {
+      const isConnected = window.MX?.ws?.isConnected?.() || false;
+      dom.dashServerStatus.className = `badge ${isConnected ? 'green' : 'red'}`;
+      dom.dashServerStatus.innerHTML = isConnected
+        ? '<i class="fa-solid fa-circle"></i> Connected'
+        : '<i class="fa-solid fa-circle"></i> Disconnected';
+    }
+
+    // Server uptime (if available)
+    if (dom.dashUptime && state.serverInfo?.uptime) {
+      dom.dashUptime.textContent = formatRemainingTime(state.serverInfo.uptime);
+    }
+
+    // Activity rows
     const rows = state.activity.slice().sort((a, b) => b.t - a.t).slice(0, 7).map(a => `
       <tr><td>${escapeHtml(fmtShort(a.t))}</td><td>${escapeHtml(a.actor)}</td><td>${escapeHtml(a.action)}</td><td>${escapeHtml(a.target)}</td></tr>
     `).join('');
     dom.activityRows.innerHTML = rows || `<tr><td colspan="4" style="color:var(--muted)">No activity recorded.</td></tr>`;
+
+    // Recent punishments
+    if (dom.recentPunishments) {
+      const recentPuns = state.punishments.slice().sort((a, b) => b.createdAt - a.createdAt).slice(0, 5);
+      dom.recentPunishments.innerHTML = recentPuns.map(pun => {
+        const pl = state.players.find(p => p.id === pun.playerId);
+        const name = pl?.name || 'Unknown';
+        const avatarFallback = `https://minotar.net/helm/${encodeURIComponent(name)}/64.png`;
+        const typeBadge = pun.type === 'BAN' ? `<span class="badge red"><i class="fa-solid fa-ban"></i></span>` :
+          pun.type === 'MUTE' ? `<span class="badge yellow"><i class="fa-solid fa-volume-xmark"></i></span>` :
+          pun.type === 'KICK' ? `<span class="badge purple"><i class="fa-solid fa-person-walking-arrow-right"></i></span>` :
+          `<span class="badge blue"><i class="fa-solid fa-triangle-exclamation"></i></span>`;
+        const statusBadge = pun.revoked
+          ? `<span class="badge gray"><i class="fa-solid fa-xmark"></i> Revoked</span>`
+          : pun.active === false
+            ? `<span class="badge gray"><i class="fa-solid fa-check"></i> Expired</span>`
+            : `<span class="badge green"><i class="fa-solid fa-check"></i> Active</span>`;
+
+        return `
+          <div class="drawer-row" style="border-radius:var(--radius);cursor:pointer" onclick="viewPunishmentDetails('${pun.id}')">
+            <div style="display:flex;align-items:center;gap:10px">
+              <div class="phead" style="width:32px;height:32px"><img src="${avatarUrl(pl || { name: name })}" alt="" onerror="this.onerror=null;this.src='${avatarFallback}'" style="width:100%;height:100%;border-radius:4px"></div>
+              <div class="meta" style="flex:1">
+                <b>${escapeHtml(name)}</b>
+                <small>${escapeHtml(truncate(pun.reason || 'No reason', 35))} • ${escapeHtml(fmtShort(pun.createdAt))}</small>
+              </div>
+            </div>
+            <div style="display:flex;gap:6px;align-items:center">
+              ${typeBadge}
+              ${statusBadge}
+            </div>
+          </div>
+        `;
+      }).join('') || `<div class="hintline">No recent punishments.</div>`;
+    }
 
     // Match by UUID (from server) instead of internal ID
     const wlPlayers = [...state.watchlist].map(uuid =>
@@ -302,7 +388,7 @@
           <td onclick="openDrawer('${pun.playerId}','${pun.id}')"><div class="pwrap"><div class="phead"><img src="${avatarUrl(pl || { name: name })}" alt="" onerror="this.onerror=null;this.src='${avatarFallback}'"></div><div><b style="font-size:13px">${escapeHtml(pl?.name || 'Unknown')}</b></div></div></td>
           <td><span class="badge gray" style="font-family:var(--font-mono);font-size:11px">${escapeHtml(pun.id)}</span></td>
           <td>${typeBadge}</td>
-          <td>${escapeHtml(pun.reason || 'No reason')}</td>
+          <td class="reason-cell">${window.expandableReason ? expandableReason(pun.reason, 20) : escapeHtml(truncate(pun.reason || 'No reason', 20))}</td>
           <td>${escapeHtml(fmtLong(pun.createdAt))}</td>
           <td><span class="badge ${durClass}" title="Time remaining">${escapeHtml(durDisplay)}</span></td>
           <td>${escapeHtml(pun.staff || 'Console')}</td>
@@ -327,7 +413,7 @@
         <td><b>${escapeHtml(t.name)}</b></td>
         <td>${escapeHtml(t.type)}</td>
         <td>${escapeHtml(t.duration || 'instant')}</td>
-        <td>${escapeHtml(t.reason)}</td>
+        <td class="reason-cell">${window.expandableReason ? expandableReason(t.reason, 20) : escapeHtml(truncate(t.reason || 'No reason', 20))}</td>
         <td style="text-align:right">
           <button class="mini primary" onclick="editTemplateUI('${t.id}')"><i class="fa-solid fa-pen-to-square"></i> Edit</button>
           <button class="mini bad" onclick="deleteTemplate('${t.id}')"><i class="fa-solid fa-trash"></i></button>
@@ -338,126 +424,393 @@
 
   function renderRules() {
     if (!dom.rulesList) return;
-    const anticheatRule = (state.settings.anticheatReplace && state.anticheat?.enabled) ? `
+
+    // Get filter values
+    const searchQ = (dom.ruleSearch?.value || '').toLowerCase().trim();
+    const typeFilter = dom.ruleTypeFilter?.value || 'all';
+    const statusFilter = dom.ruleStatusFilter?.value || 'all';
+
+    // Anticheat rule (shown if enabled and matches filters)
+    const showAnticheat = state.settings.anticheatReplace && state.anticheat?.enabled &&
+      (typeFilter === 'all' || typeFilter === 'ANTICHEAT') &&
+      (statusFilter === 'all' || (statusFilter === 'enabled' && state.anticheatRule?.enabled) || (statusFilter === 'disabled' && !state.anticheatRule?.enabled)) &&
+      (!searchQ || 'anticheat alert threshold'.includes(searchQ));
+
+    // Get detected anticheat names for badge display
+    const detectedAnticheats = (state.anticheat?.anticheats || []).map(ac => ac.name).filter(Boolean);
+    const anticheatBadges = detectedAnticheats.length > 0
+      ? detectedAnticheats.map(name => `<span class="badge purple"><i class="fa-solid fa-shield-halved"></i> ${escapeHtml(name)}</span>`).join(' ')
+      : '<span class="badge gray"><i class="fa-solid fa-shield-halved"></i> None Detected</span>';
+
+    const anticheatRule = showAnticheat ? `
       <div class="card" style="margin:0">
         <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:10px">
           <div>
-            <div style="display:flex;align-items:center;gap:10px">
+            <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+              <i class="fa-solid fa-shield-halved" style="font-size:18px;color:var(--purple)"></i>
               <b style="font-size:14px">Anticheat Alert Threshold</b>
-              <span class="badge purple"><i class="fa-solid fa-shield-halved"></i> Grim</span>
+              ${anticheatBadges}
             </div>
             <div class="hintline">Auto punish when an alert exceeds the threshold window.</div>
           </div>
           <button class="toggle ${state.anticheatRule?.enabled ? 'on' : ''}" onclick="toggleAnticheatRule()"><span class="toggle-thumb"></span></button>
         </div>
         <div class="block" style="margin-top:12px">
-          <span class="badge gray">alerts</span>
+          <span class="badge gray">Threshold:</span>
           <input class="input" style="width:80px" type="number" min="1" value="${state.anticheatRule?.threshold || 6}" oninput="setAnticheatRule('threshold', this.value)">
-          <span class="badge gray">in</span>
+          <span class="badge gray">alert in</span>
           <input class="input" style="width:70px" type="number" min="1" value="${state.anticheatRule?.windowMins || 2}" oninput="setAnticheatRule('windowMins', this.value)">
-          <span class="badge gray">mins</span>
-          <select class="input" style="width:120px" onchange="setAnticheatRule('action', this.value)">
+          <span class="badge gray">minutes</span>
+          <select class="input" style="width:120px;margin-left:8px" onchange="setAnticheatRule('action', this.value)">
             ${['none','warn','mute','ban'].map(opt => `<option value="${opt}" ${state.anticheatRule?.action === opt ? 'selected' : ''}>${opt}</option>`).join('')}
           </select>
         </div>
       </div>
     ` : '';
 
-    dom.rulesList.innerHTML = anticheatRule + state.rules.map(r => {
-      const thr = r.threshold || { hits: 1, windowMins: 10 };
-      const descMap = {
-        contains: 'Flags when a phrase appears in a message (comma separated).',
-        regex: 'Uses a regular expression to detect a match.',
-        caps: 'Flags messages with caps above the set percentage.',
-        repeat: 'Detects repeated or similar messages across a window.',
-        link: 'Detects external links in chat.'
-      };
-      const conds = (r.conditions || []).map((c, idx) => {
-        const exactToggle = c.kind === 'contains' ? `
-          <div class="toggle-wrap">
-            <button class="toggle tiny ${c.match === 'exact' ? 'on' : ''}" onclick="toggleConditionExact('${r.id}', ${idx})"><span class="toggle-thumb"></span></button>
-            <div class="toggle-meta"><div class="toggle-title">Exact only</div></div>
-          </div>
-        ` : '';
-        const similarToggle = c.kind === 'repeat' ? `
-          <div class="toggle-wrap spacer">
-            <button class="toggle tiny ${c.similar ? 'on' : ''}" onclick="toggleConditionSimilar('${r.id}', ${idx})"><span class="toggle-thumb"></span></button>
-            <div class="toggle-meta"><div class="toggle-title">Include similar</div></div>
-          </div>
-        ` : '';
-        const inputField = c.kind === 'caps'
-          ? `<input class="input" type="number" min="1" max="100" step="1" value="${escapeHtml(c.value || '65')}" oninput="setConditionValue('${r.id}', ${idx}, this.value)" style="max-width:140px"/>`
-          : c.kind === 'repeat'
-            ? `<span class="badge gray">Applies to all messages</span>`
-            : `<input class="input" style="flex:1;min-width:220px" value="${escapeHtml(c.value || '')}" oninput="setConditionValue('${r.id}', ${idx}, this.value)" placeholder="Phrase(s), comma separated" ${c.kind === 'link' ? 'disabled' : ''}/>`;
-        return `
-          <div class="card" style="margin:0">
-            <div class="condition-row" style="margin-top:0">
-              <span class="badge blue"><i class="fa-solid fa-code-branch"></i> IF</span>
-              <select class="input" style="width:160px" onchange="setConditionKind('${r.id}', ${idx}, this.value)">
-                ${[['contains', 'Contains Phrase'], ['regex', 'Regex'], ['caps', 'Caps %'], ['repeat', 'Repeated Messages'], ['link', 'Link']].map(([k, l]) => `<option value="${k}" ${c.kind === k ? 'selected' : ''}>${l}</option>`).join('')}
-              </select>
-              ${inputField}
-              ${exactToggle}
-              ${similarToggle}
-              <button class="mini bad delete" ${r.locked ? 'disabled' : ''} onclick="removeCondition('${r.id}', ${idx})"><i class="fa-solid fa-trash"></i></button>
-            </div>
-            <div class="hintline" style="margin-top:6px">${escapeHtml(descMap[c.kind] || 'Rule condition')}</div>
-          </div>
-        `;
-      }).join('');
+    // Filter rules
+    let filteredRules = state.rules.filter(r => {
+      // Search filter
+      if (searchQ) {
+        const searchableText = `${r.name} ${r.notes || ''} ${(r.conditions || []).map(c => c.value || '').join(' ')}`.toLowerCase();
+        if (!searchableText.includes(searchQ)) return false;
+      }
 
-      return `
-        <div class="card" style="margin:0">
-          <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:10px">
-            <div>
-              <div style="display:flex;align-items:center;gap:10px">
-                <input class="input" style="max-width:240px" value="${escapeHtml(r.name)}" oninput="setRuleName('${r.id}', this.value)" ${r.locked ? 'disabled' : ''}/>
-                ${r.enabled ? `<span class="badge green"><i class="fa-solid fa-check"></i> Active</span>` : `<span class="badge gray"><i class="fa-solid fa-pause"></i> Inactive</span>`}
-                ${r.locked ? `<span class="badge gray"><i class="fa-solid fa-lock"></i> Default</span>` : ''}
-              </div>
-              <div class="hintline">${escapeHtml(r.notes || 'Applies before the message is sent.')}</div>
-            </div>
-            <div style="display:flex;gap:10px;align-items:center">
-              <button class="toggle ${r.enabled ? 'on' : ''}" onclick="toggleRule('${r.id}')"><span class="toggle-thumb"></span></button>
-              <button class="mini bad delete" ${r.locked ? 'disabled' : ''} onclick="deleteRule('${r.id}')"><i class="fa-solid fa-trash"></i></button>
-            </div>
+      // Type filter
+      if (typeFilter !== 'all') {
+        const ruleType = getRuleType(r);
+        if (ruleType.toUpperCase() !== typeFilter.toUpperCase()) return false;
+      }
+
+      // Status filter
+      if (statusFilter === 'enabled' && !r.enabled) return false;
+      if (statusFilter === 'disabled' && r.enabled) return false;
+
+      return true;
+    });
+
+    // Sort: built-in rules first, then by name
+    filteredRules.sort((a, b) => {
+      if (a.builtIn && !b.builtIn) return -1;
+      if (!a.builtIn && b.builtIn) return 1;
+      return (a.name || '').localeCompare(b.name || '');
+    });
+
+    // Pagination
+    const pageSize = state.rulesPageSize || 10;
+    const totalItems = filteredRules.length + (showAnticheat ? 1 : 0);
+    const totalPages = Math.max(1, Math.ceil(totalItems / pageSize));
+    state.rulesPage = Math.max(1, Math.min(totalPages, state.rulesPage || 1));
+
+    let ruleStart, ruleEnd;
+    if (state.rulesPage === 1) {
+      ruleStart = 0;
+      ruleEnd = showAnticheat ? pageSize - 1 : pageSize;
+    } else {
+      ruleStart = (state.rulesPage - 1) * pageSize - (showAnticheat ? 1 : 0);
+      ruleEnd = ruleStart + pageSize;
+    }
+    const paginatedRules = filteredRules.slice(ruleStart, ruleEnd);
+
+    // Update pagination UI
+    if (dom.rulesCount) {
+      dom.rulesCount.textContent = `${totalItems} rule${totalItems !== 1 ? 's' : ''}`;
+    }
+    if (dom.rulesPageInfo) {
+      dom.rulesPageInfo.textContent = `Page ${state.rulesPage} of ${totalPages}`;
+    }
+    if (dom.rulesPrevBtn) {
+      dom.rulesPrevBtn.disabled = state.rulesPage <= 1;
+    }
+    if (dom.rulesNextBtn) {
+      dom.rulesNextBtn.disabled = state.rulesPage >= totalPages;
+    }
+
+    // Render rules - different layout for built-in vs custom rules
+    const rulesHtml = paginatedRules.map(r => {
+      const thr = r.threshold || { hits: 1, windowMins: 10 };
+      const isBuiltIn = r.builtIn || r.locked || ['spam_prevention', 'caps_filter', 'link_filter'].includes(r.id);
+
+      // Determine rule icon based on type/conditions
+      const ruleType = getRuleType(r);
+      const icons = {
+        SPAM: 'fa-solid fa-message',
+        CAPS: 'fa-solid fa-font',
+        WORD_FILTER: 'fa-solid fa-filter',
+        link: 'fa-solid fa-link',
+        custom: 'fa-solid fa-robot'
+      };
+      const ruleIcon = icons[ruleType] || icons.custom;
+      const typeColors = {
+        SPAM: 'var(--warn)',
+        CAPS: 'var(--accent-light)',
+        WORD_FILTER: 'var(--bad)',
+        link: 'var(--primary-light)',
+        custom: 'var(--text-secondary)'
+      };
+      const iconColor = typeColors[ruleType] || typeColors.custom;
+
+      // Built-in rules get a simplified card
+      if (isBuiltIn) {
+        return renderBuiltInRuleCard(r, thr, ruleIcon, iconColor, ruleType);
+      }
+
+      // Custom rules get the full editor
+      return renderCustomRuleCard(r, thr, ruleIcon, iconColor);
+    }).join('');
+
+    // Combine anticheat rule (on first page) with regular rules
+    const showAnticheatOnPage = showAnticheat && state.rulesPage === 1;
+    dom.rulesList.innerHTML = (showAnticheatOnPage ? anticheatRule : '') +
+      (rulesHtml || (totalItems === 0 ? `<div class="hintline">No rules match your search. Click "Add Rule" to create one.</div>` : ''));
+  }
+
+  // Render a built-in rule card (spam, caps, links, afk) - simplified, no condition editing
+  function renderBuiltInRuleCard(r, thr, ruleIcon, iconColor, ruleType) {
+    // Get rule-specific configuration
+    const spamMessageCount = r.spamMessageCount || 3;
+    const spamTimeWindow = r.spamTimeWindowSeconds || 5;
+    const spamDetectSimilar = r.spamDetectSimilar !== false;
+    const capsMaxPercent = r.capsMaxPercentage || 70;
+    const capsMinLength = r.capsMinLength || 10;
+    const afkTimeout = r.afkTimeoutMinutes || 15;
+    const afkKickEnabled = r.afkKickEnabled || false;
+    const description = r.description || r.notes || getBuiltInDescription(r.id);
+
+    // Rule-specific configuration section
+    let configSection = '';
+
+    if (r.id === 'spam_protection' || ruleType === 'SPAM_PROTECTION') {
+      configSection = `
+        <div class="card" style="margin:10px 0 0 0;background:var(--bg-secondary);padding:12px">
+          <div class="hintline" style="margin:0 0 10px 0"><b>Spam Detection Settings</b></div>
+          <div class="block" style="gap:8px;flex-wrap:wrap">
+            <span class="badge gray">Block after</span>
+            <input class="input" type="number" min="2" max="20" value="${spamMessageCount}"
+              oninput="setRuleSetting('${r.id}', 'spamMessageCount', this.value)" style="width:60px"/>
+            <span class="badge gray">messages in</span>
+            <input class="input" type="number" min="1" max="60" value="${spamTimeWindow}"
+              oninput="setRuleSetting('${r.id}', 'spamTimeWindowSeconds', this.value)" style="width:60px"/>
+            <span class="badge gray">seconds</span>
           </div>
-          <div style="margin-top:12px" class="grid cols-2">
-            <div class="block">
-              <b style="font-size:12px">Auto Punish</b>
-              <select class="input" style="width:140px" onchange="setRuleAction('${r.id}', this.value)">
-                ${['none', 'warn', 'mute', 'kick', 'ban'].map(k => `<option value="${k}" ${r.action?.kind === k ? 'selected' : ''}>${k}</option>`).join('')}
-              </select>
-              ${r.action?.kind && r.action.kind !== 'none' ? `<input class="input" style="flex:1" value="${escapeHtml(r.action?.extra || '')}" oninput="setRuleActionExtra('${r.id}', this.value)" placeholder="Reason"/>` : ''}
-              ${['warn','mute','ban'].includes(r.action?.kind) ? `<input class="input" style="max-width:120px" value="${escapeHtml(r.action?.duration || '')}" oninput="setRuleActionDuration('${r.id}', this.value)" placeholder="Duration"/>` : ''}
-            </div>
-            <div class="block">
-              <b style="font-size:12px">Block Message</b>
-              <button class="toggle ${r.block ? 'on' : ''}" onclick="toggleRuleBlock('${r.id}')"><span class="toggle-thumb"></span></button>
-              <div class="hintline" style="margin-top:0">Prevents the message from sending.</div>
-            </div>
-          </div>
-          <div class="hintline" style="margin-top:6px">Auto punish applies when the rule triggers.</div>
-          <div style="margin-top:12px">
-            <div class="hintline" style="margin-top:0"><b>Conditions</b></div>
-            <div style="margin-top:8px;display:flex;flex-direction:column;gap:10px">
-              ${conds || `<div class="hintline">No conditions.</div>`}
-              <button class="mini primary" ${r.locked ? 'disabled' : ''} onclick="addCondition('${r.id}')"><i class="fa-solid fa-plus"></i> Add Condition</button>
-            </div>
-          </div>
-          <div style="margin-top:12px">
-            <div class="hintline" style="margin-top:0"><b>Exceptions</b> <span style="color:var(--text-secondary);font-weight:normal">(words/phrases to ignore)</span></div>
-            <textarea class="input" style="margin-top:8px;min-height:60px;font-family:var(--font-mono);font-size:12px" placeholder="Enter words or phrases that won't trigger this rule (one per line)" oninput="setRuleExceptions('${r.id}', this.value)" ${r.locked ? 'disabled' : ''}>${escapeHtml((r.exceptions || []).join('\n'))}</textarea>
-            <div class="hintline" style="margin-top:4px">Messages containing only these words will not trigger the rule.</div>
-          </div>
-          <div style="margin-top:12px" class="block">
-            <span class="badge gray">hits</span><input class="input" type="number" min="1" value="${thr.hits}" style="width:70px" oninput="setRuleThreshold('${r.id}', 'hits', this.value)">
-            <span class="badge gray">mins</span><input class="input" type="number" min="1" value="${thr.windowMins}" style="width:70px" oninput="setRuleThreshold('${r.id}', 'windowMins', this.value)">
+          <div class="toggle-wrap" style="margin-top:10px">
+            <button class="toggle tiny ${spamDetectSimilar ? 'on' : ''}" onclick="setRuleSetting('${r.id}', 'spamDetectSimilar', ${!spamDetectSimilar})"><span class="toggle-thumb"></span></button>
+            <div class="toggle-meta"><div class="toggle-title">Detect similar messages</div><div class="toggle-hint">Uses Levenshtein distance to detect near-duplicate messages</div></div>
           </div>
         </div>
       `;
-    }).join('') || `<div class="hintline">No rules. Click "Add Rule" to create one.</div>`;
+    } else if (r.id === 'caps_filter' || ruleType === 'CAPS_FILTER') {
+      configSection = `
+        <div class="card" style="margin:10px 0 0 0;background:var(--bg-secondary);padding:12px">
+          <div class="hintline" style="margin:0 0 10px 0"><b>Caps Filter Settings</b></div>
+          <div class="block" style="gap:8px;flex-wrap:wrap">
+            <span class="badge gray">Max caps allowed:</span>
+            <input class="input" type="number" min="10" max="100" value="${capsMaxPercent}"
+              oninput="setRuleSetting('${r.id}', 'capsMaxPercentage', this.value)" style="width:70px"/>
+            <span class="badge gray">%</span>
+          </div>
+          <div class="block" style="gap:8px;margin-top:8px;flex-wrap:wrap">
+            <span class="badge gray">Min message length:</span>
+            <input class="input" type="number" min="1" max="100" value="${capsMinLength}"
+              oninput="setRuleSetting('${r.id}', 'capsMinLength', this.value)" style="width:70px"/>
+            <span class="badge gray">characters</span>
+          </div>
+        </div>
+      `;
+    } else if (r.id === 'link_filter' || ruleType === 'LINK_FILTER') {
+      configSection = `
+        <div class="card" style="margin:10px 0 0 0;background:var(--bg-secondary);padding:12px">
+          <div class="hintline" style="margin:0"><b>Link Filter</b></div>
+          <div class="hintline" style="margin:6px 0 0 0">Automatically detects and blocks URLs, IP addresses, and server advertisements.</div>
+        </div>
+      `;
+    } else if (r.id === 'afk_kick' || ruleType === 'AFK_KICK') {
+      configSection = `
+        <div class="card" style="margin:10px 0 0 0;background:var(--bg-secondary);padding:12px">
+          <div class="hintline" style="margin:0 0 10px 0"><b>AFK Kick Settings</b></div>
+          <div class="toggle-wrap" style="margin-bottom:10px">
+            <button class="toggle tiny ${afkKickEnabled ? 'on' : ''}" onclick="setRuleSetting('${r.id}', 'afkKickEnabled', ${!afkKickEnabled})"><span class="toggle-thumb"></span></button>
+            <div class="toggle-meta"><div class="toggle-title">Enable AFK Kick</div><div class="toggle-hint">Automatically kick players who are inactive</div></div>
+          </div>
+          <div class="block" style="gap:8px;flex-wrap:wrap">
+            <span class="badge gray">Kick after</span>
+            <input class="input" type="number" min="1" max="120" value="${afkTimeout}"
+              oninput="setRuleSetting('${r.id}', 'afkTimeoutMinutes', this.value)" style="width:70px"/>
+            <span class="badge gray">minutes of inactivity</span>
+          </div>
+        </div>
+      `;
+    }
+
+    // Auto punishment section (not for AFK)
+    const showPunishment = r.id !== 'afk_kick';
+    const punishSection = showPunishment ? `
+      <div style="margin-top:12px" class="grid cols-2">
+        <div class="block">
+          <b style="font-size:12px">Auto Punish</b>
+          <select class="input" style="width:140px" onchange="setRuleAction('${r.id}', this.value)">
+            ${['none', 'warn', 'mute', 'kick', 'ban'].map(k => `<option value="${k}" ${r.action?.kind === k ? 'selected' : ''}>${k}</option>`).join('')}
+          </select>
+          ${r.action?.kind && r.action.kind !== 'none' ? `<input class="input" style="flex:1" value="${escapeHtml(r.action?.extra || '')}" oninput="setRuleActionExtra('${r.id}', this.value)" placeholder="Reason"/>` : ''}
+          ${['warn','mute','ban'].includes(r.action?.kind) ? `<input class="input" style="max-width:120px" value="${escapeHtml(r.action?.duration || '')}" oninput="setRuleActionDuration('${r.id}', this.value)" placeholder="Duration"/>` : ''}
+        </div>
+        <div class="block">
+          <b style="font-size:12px">Block Message</b>
+          <button class="toggle ${r.block ? 'on' : ''}" onclick="toggleRuleBlock('${r.id}')"><span class="toggle-thumb"></span></button>
+        </div>
+      </div>
+      <div class="block" style="margin-top:12px">
+        <span class="badge gray">Flag threshold:</span>
+        <input class="input" type="number" min="1" value="${thr.hits || 3}" style="width:70px" oninput="setRuleThreshold('${r.id}', 'hits', this.value)">
+        <span class="badge gray">violations in</span>
+        <input class="input" type="number" min="1" value="${thr.windowMins || 5}" style="width:70px" oninput="setRuleThreshold('${r.id}', 'windowMins', this.value)">
+        <span class="badge gray">minutes</span>
+      </div>
+    ` : '';
+
+    return `
+      <div class="card" style="margin:0">
+        <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:10px">
+          <div>
+            <div style="display:flex;align-items:center;gap:10px">
+              <i class="${ruleIcon}" style="font-size:18px;color:${iconColor}"></i>
+              <b style="font-size:14px">${escapeHtml(r.name)}</b>
+              ${r.enabled ? `<span class="badge green"><i class="fa-solid fa-check"></i> Active</span>` : `<span class="badge gray"><i class="fa-solid fa-pause"></i> Inactive</span>`}
+              <span class="badge blue"><i class="fa-solid fa-lock"></i> Built-in</span>
+            </div>
+            <div class="hintline">${escapeHtml(description)}</div>
+          </div>
+          <button class="toggle ${r.enabled ? 'on' : ''}" onclick="toggleRule('${r.id}')"><span class="toggle-thumb"></span></button>
+        </div>
+        ${configSection}
+        ${punishSection}
+      </div>
+    `;
+  }
+
+  // Get description for built-in rules
+  function getBuiltInDescription(ruleId) {
+    const descriptions = {
+      'spam_protection': 'Blocks rapid or repetitive messages automatically.',
+      'caps_filter': 'Converts excessive caps to lowercase.',
+      'link_filter': 'Blocks URLs and IP addresses in chat.',
+      'afk_kick': 'Kicks players after a period of inactivity.'
+    };
+    return descriptions[ruleId] || 'Built-in automod filter.';
+  }
+
+  // Render a custom rule card with full condition editing
+  function renderCustomRuleCard(r, thr, ruleIcon, iconColor) {
+    const descMap = {
+      contains: 'Flags when a phrase appears in a message (comma separated).',
+      regex: 'Uses a regular expression to detect a match.',
+      caps: 'Flags messages with caps above the set percentage.',
+      repeat: 'Detects repeated or similar messages across a window.',
+      link: 'Detects external links in chat.'
+    };
+
+    const conds = (r.conditions || []).map((c, idx) => {
+      const exactToggle = c.kind === 'contains' ? `
+        <div class="toggle-wrap">
+          <button class="toggle tiny ${c.match === 'exact' ? 'on' : ''}" onclick="toggleConditionExact('${r.id}', ${idx})"><span class="toggle-thumb"></span></button>
+          <div class="toggle-meta"><div class="toggle-title">Exact only</div></div>
+        </div>
+      ` : '';
+      const similarToggle = c.kind === 'repeat' ? `
+        <div class="toggle-wrap spacer">
+          <button class="toggle tiny ${c.similar ? 'on' : ''}" onclick="toggleConditionSimilar('${r.id}', ${idx})"><span class="toggle-thumb"></span></button>
+          <div class="toggle-meta"><div class="toggle-title">Include similar</div></div>
+        </div>
+      ` : '';
+      const inputField = c.kind === 'caps'
+        ? `<input class="input" type="number" min="1" max="100" step="1" value="${escapeHtml(c.value || '65')}" oninput="setConditionValue('${r.id}', ${idx}, this.value)" style="max-width:140px"/>`
+        : c.kind === 'repeat'
+          ? `<span class="badge gray">Applies to all messages</span>`
+          : `<input class="input" style="flex:1;min-width:220px" value="${escapeHtml(c.value || '')}" oninput="setConditionValue('${r.id}', ${idx}, this.value)" placeholder="Phrase(s), comma separated" ${c.kind === 'link' ? 'disabled' : ''}/>`;
+      return `
+        <div class="card" style="margin:0">
+          <div class="condition-row" style="margin-top:0">
+            <span class="badge blue"><i class="fa-solid fa-code-branch"></i> IF</span>
+            <select class="input" style="width:160px" onchange="setConditionKind('${r.id}', ${idx}, this.value)">
+              ${[['contains', 'Contains Phrase'], ['regex', 'Regex']].map(([k, l]) => `<option value="${k}" ${c.kind === k ? 'selected' : ''}>${l}</option>`).join('')}
+            </select>
+            ${inputField}
+            ${exactToggle}
+            ${similarToggle}
+            <button class="mini bad delete" onclick="removeCondition('${r.id}', ${idx})"><i class="fa-solid fa-trash"></i></button>
+          </div>
+          <div class="hintline" style="margin-top:6px">${escapeHtml(descMap[c.kind] || 'Rule condition')}</div>
+        </div>
+      `;
+    }).join('');
+
+    return `
+      <div class="card" style="margin:0">
+        <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:10px">
+          <div>
+            <div style="display:flex;align-items:center;gap:10px">
+              <i class="${ruleIcon}" style="font-size:18px;color:${iconColor}"></i>
+              <input class="input" style="max-width:240px" value="${escapeHtml(r.name)}" oninput="setRuleName('${r.id}', this.value)"/>
+              ${r.enabled ? `<span class="badge green"><i class="fa-solid fa-check"></i> Active</span>` : `<span class="badge gray"><i class="fa-solid fa-pause"></i> Inactive</span>`}
+            </div>
+            <div class="hintline">${escapeHtml(r.notes || 'Custom word filter rule.')}</div>
+          </div>
+          <div style="display:flex;gap:10px;align-items:center">
+            <button class="toggle ${r.enabled ? 'on' : ''}" onclick="toggleRule('${r.id}')"><span class="toggle-thumb"></span></button>
+            <button class="mini bad delete" onclick="deleteRule('${r.id}')"><i class="fa-solid fa-trash"></i></button>
+          </div>
+        </div>
+        <div style="margin-top:12px" class="grid cols-2">
+          <div class="block">
+            <b style="font-size:12px">Auto Punish</b>
+            <select class="input" style="width:140px" onchange="setRuleAction('${r.id}', this.value)">
+              ${['none', 'warn', 'mute', 'kick', 'ban'].map(k => `<option value="${k}" ${r.action?.kind === k ? 'selected' : ''}>${k}</option>`).join('')}
+            </select>
+            ${r.action?.kind && r.action.kind !== 'none' ? `<input class="input" style="flex:1" value="${escapeHtml(r.action?.extra || '')}" oninput="setRuleActionExtra('${r.id}', this.value)" placeholder="Reason"/>` : ''}
+            ${['warn','mute','ban'].includes(r.action?.kind) ? `<input class="input" style="max-width:120px" value="${escapeHtml(r.action?.duration || '')}" oninput="setRuleActionDuration('${r.id}', this.value)" placeholder="Duration"/>` : ''}
+          </div>
+          <div class="block">
+            <b style="font-size:12px">Block Message</b>
+            <button class="toggle ${r.block ? 'on' : ''}" onclick="toggleRuleBlock('${r.id}')"><span class="toggle-thumb"></span></button>
+          </div>
+        </div>
+        <div style="margin-top:12px">
+          <div class="hintline" style="margin-top:0"><b>Conditions</b> <span style="color:var(--text-secondary);font-weight:normal">(word/phrase filters)</span></div>
+          <div style="margin-top:8px;display:flex;flex-direction:column;gap:10px">
+            ${conds || `<div class="hintline">No conditions. Add words or phrases to filter.</div>`}
+            <button class="mini primary" onclick="addCondition('${r.id}')"><i class="fa-solid fa-plus"></i> Add Condition</button>
+          </div>
+        </div>
+        <div style="margin-top:12px">
+          <div class="hintline" style="margin-top:0"><b>Exceptions</b> <span style="color:var(--text-secondary);font-weight:normal">(words/phrases to ignore)</span></div>
+          <textarea class="input" style="margin-top:8px;min-height:60px;font-family:var(--font-mono);font-size:12px" placeholder="Enter words or phrases that won't trigger this rule (one per line)" oninput="setRuleExceptions('${r.id}', this.value)">${escapeHtml((r.exceptions || []).join('\n'))}</textarea>
+        </div>
+        <div class="block" style="margin-top:12px">
+          <span class="badge gray">Threshold:</span>
+          <input class="input" type="number" min="1" value="${thr.hits}" style="width:70px" oninput="setRuleThreshold('${r.id}', 'hits', this.value)">
+          <span class="badge gray">trigger in</span>
+          <input class="input" type="number" min="1" value="${thr.windowMins}" style="width:70px" oninput="setRuleThreshold('${r.id}', 'windowMins', this.value)">
+          <span class="badge gray">minutes</span>
+        </div>
+      </div>
+    `;
+  }
+
+  // Helper function to determine rule type for filtering
+  function getRuleType(rule) {
+    // Use explicit type from rule if available
+    if (rule.type) return rule.type.toUpperCase();
+    // Infer from id for built-in rules
+    if (rule.id === 'spam_prevention') return 'SPAM';
+    if (rule.id === 'caps_filter') return 'CAPS';
+    if (rule.id === 'link_filter') return 'WORD_FILTER';
+    // Infer from conditions
+    const conditions = rule.conditions || [];
+    if (conditions.some(c => c.kind === 'contains' || c.kind === 'regex')) return 'WORD_FILTER';
+    if (conditions.some(c => c.kind === 'caps')) return 'CAPS';
+    if (conditions.some(c => c.kind === 'repeat')) return 'SPAM';
+    if (conditions.some(c => c.kind === 'link')) return 'WORD_FILTER';
+    return 'WORD_FILTER';
   }
 
   function renderMessages() {
@@ -500,6 +853,30 @@
     if (dom.voiceChatStatus) dom.voiceChatStatus.textContent = state.integrations?.voiceChatDetected ? 'Detected' : 'Not detected';
     if (dom.luckPermsStatus) dom.luckPermsStatus.textContent = state.integrations?.luckPermsDetected ? 'Detected' : 'Not detected';
 
+    // Geyser/Floodgate status
+    const geyserStatus = document.getElementById('geyserStatus');
+    const floodgateStatus = document.getElementById('floodgateStatus');
+    const geyserDetails = document.getElementById('geyserDetails');
+    const floodgateDetails = document.getElementById('floodgateDetails');
+
+    if (geyserStatus) {
+      const geyserAvail = state.integrations?.geyserDetected;
+      geyserStatus.textContent = geyserAvail ? 'Detected' : 'Not detected';
+      geyserStatus.className = 'badge ' + (geyserAvail ? 'good' : 'gray');
+      if (geyserDetails && state.integrations?.geyserVersion) {
+        geyserDetails.textContent = 'v' + state.integrations.geyserVersion;
+      }
+    }
+
+    if (floodgateStatus) {
+      const floodgateAvail = state.integrations?.floodgateDetected;
+      floodgateStatus.textContent = floodgateAvail ? 'Detected' : 'Not detected';
+      floodgateStatus.className = 'badge ' + (floodgateAvail ? 'good' : 'gray');
+      if (floodgateDetails && state.integrations?.floodgateVersion) {
+        floodgateDetails.textContent = 'v' + state.integrations.floodgateVersion;
+      }
+    }
+
     // Anticheat display - show all known anticheats but highlight detected/hooked ones
     if (dom.anticheatList) {
       const hookedAcs = state.integrations?.hookedAnticheats || [];
@@ -535,6 +912,124 @@
     if (dom.webhookPreview) {
       dom.webhookPreview.innerHTML = escapeHtml(`ModereX Case Created\nPlayer: ${state.players[0]?.name || 'Player'}\nAction: BAN\nReason: Violation\nStaff: Admin`);
     }
+  }
+
+  function renderStaffSettings() {
+    const container = $('#staffNotificationSettings');
+    if (!container) return;
+
+    const settings = state.staffSettings || {};
+
+    // Generate alert level dropdown HTML
+    const levelOptions = (current, key) => `
+      <select class="input small" onchange="updateStaffSetting('${key}', this.value)">
+        <option value="EVERYONE" ${current === 'EVERYONE' ? 'selected' : ''}>Everyone</option>
+        <option value="WATCHLIST_ONLY" ${current === 'WATCHLIST_ONLY' ? 'selected' : ''}>Watchlist Only</option>
+        <option value="OFF" ${current === 'OFF' ? 'selected' : ''}>Off</option>
+      </select>
+    `;
+
+    const joinLeaveOptions = (current) => `
+      <select class="input small" onchange="updateStaffSetting('joinLeaveMessages', this.value)">
+        <option value="ALL" ${current === 'ALL' ? 'selected' : ''}>All Players</option>
+        <option value="STAFF_ONLY" ${current === 'STAFF_ONLY' ? 'selected' : ''}>Staff Only</option>
+        <option value="OFF" ${current === 'OFF' ? 'selected' : ''}>Off</option>
+      </select>
+    `;
+
+    const toggleHtml = (key, label) => `
+      <div class="check-toggle ${settings[key] ? 'on' : ''}" onclick="updateStaffSetting('${key}', ${!settings[key]})">
+        <span class="check-icon"><i class="fa-solid fa-check"></i></span>
+        <span>${escapeHtml(label)}</span>
+      </div>
+    `;
+
+    container.innerHTML = `
+      <div class="setting-group">
+        <h4><i class="fa-solid fa-terminal"></i> Command Monitoring</h4>
+        <div class="setting-row">
+          <span>Command Alerts</span>
+          ${levelOptions(settings.commandAlerts, 'commandAlerts')}
+        </div>
+        <div class="setting-row">
+          ${toggleHtml('showBlacklistedCommands', 'Show Blacklisted Commands')}
+        </div>
+      </div>
+
+      <div class="setting-group">
+        <h4><i class="fa-solid fa-shield-halved"></i> Anticheat Alerts</h4>
+        <div class="setting-row">
+          <span>Alert Level</span>
+          ${levelOptions(settings.anticheatAlertsLevel, 'anticheatAlertsLevel')}
+        </div>
+        <div class="setting-row">
+          <span>Minimum VL</span>
+          <input type="number" class="input tiny" min="1" max="100" value="${settings.anticheatMinVL || 10}"
+            onchange="updateStaffSetting('anticheatMinVL', parseInt(this.value))">
+        </div>
+      </div>
+
+      <div class="setting-group">
+        <h4><i class="fa-solid fa-robot"></i> Automod Alerts</h4>
+        <div class="setting-row">
+          <span>Automod Alerts</span>
+          ${levelOptions(settings.automodAlertsLevel, 'automodAlertsLevel')}
+        </div>
+        <div class="setting-row">
+          <span>Spam Alerts</span>
+          ${levelOptions(settings.spamAlertsLevel, 'spamAlertsLevel')}
+        </div>
+        <div class="setting-row">
+          <span>Filter Alerts</span>
+          ${levelOptions(settings.filterAlertsLevel, 'filterAlertsLevel')}
+        </div>
+      </div>
+
+      <div class="setting-group">
+        <h4><i class="fa-solid fa-eye"></i> Watchlist</h4>
+        <div class="setting-row toggles-row">
+          ${toggleHtml('watchlistJoinAlerts', 'Join Alerts')}
+          ${toggleHtml('watchlistQuitAlerts', 'Quit Alerts')}
+          ${toggleHtml('watchlistActivityAlerts', 'Activity Alerts')}
+        </div>
+      </div>
+
+      <div class="setting-group">
+        <h4><i class="fa-solid fa-door-open"></i> Join/Leave Messages</h4>
+        <div class="setting-row">
+          <span>Visibility</span>
+          ${joinLeaveOptions(settings.joinLeaveMessages)}
+        </div>
+      </div>
+
+      <div class="setting-group">
+        <h4><i class="fa-solid fa-comments"></i> Staff Chat</h4>
+        <div class="setting-row toggles-row">
+          ${toggleHtml('staffChatEnabled', 'Enabled')}
+          ${toggleHtml('staffChatSound', 'Sound')}
+        </div>
+      </div>
+
+      <div class="setting-group">
+        <h4><i class="fa-solid fa-gavel"></i> Punishment Alerts</h4>
+        <div class="setting-row">
+          <span>Ban Alerts</span>
+          ${levelOptions(settings.banAlertsLevel, 'banAlertsLevel')}
+        </div>
+        <div class="setting-row">
+          <span>Mute Alerts</span>
+          ${levelOptions(settings.muteAlertsLevel, 'muteAlertsLevel')}
+        </div>
+        <div class="setting-row">
+          <span>Kick Alerts</span>
+          ${levelOptions(settings.kickAlertsLevel, 'kickAlertsLevel')}
+        </div>
+        <div class="setting-row">
+          <span>Warn Alerts</span>
+          ${levelOptions(settings.warnAlertsLevel, 'warnAlertsLevel')}
+        </div>
+      </div>
+    `;
   }
 
   function renderAnticheat() {
@@ -646,10 +1141,10 @@
                         <span class="label">Threshold:</span>
                         <input type="number" class="input tiny" min="1" max="100" value="${pref.thresholdCount}"
                           onchange="updateCheckThreshold('${ac.name}','${check.name}',this.value,'${pref.timeWindowSeconds}')">
-                        <span class="label">in</span>
+                        <span class="label">alert in</span>
                         <input type="number" class="input tiny" min="10" max="3600" value="${pref.timeWindowSeconds}"
                           onchange="updateCheckThreshold('${ac.name}','${check.name}','${pref.thresholdCount}',this.value)">
-                        <span class="label">sec</span>
+                        <span class="label">seconds</span>
                       </div>
                     </div>
                   </div>
@@ -839,6 +1334,7 @@
   window.MX.ui = {
     initDom, getDom, renderAll, renderDashboard, renderPlayers, renderPunishments,
     renderTemplates, renderRules, renderMessages, renderIntegrations, renderAnticheat, renderWatchlist,
-    renderLogs, renderChatToggles, renderTopUser, renderWatchToastsToggle, refreshUnsavedUI, markUnsaved
+    renderLogs, renderChatToggles, renderTopUser, renderWatchToastsToggle, refreshUnsavedUI, markUnsaved,
+    renderStaffSettings
   };
 })();

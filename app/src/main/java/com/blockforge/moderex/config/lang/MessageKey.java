@@ -331,7 +331,12 @@ public enum MessageKey {
     ERROR_PUNISHMENT_NOT_FOUND("error.punishment-not-found"),
     ERROR_NO_ACTIVE_PUNISHMENT("error.no-active-punishment"),
     PLAYER_NOT_ONLINE("error.player-not-online"),
-    PUNISHMENT_NOT_FOUND("error.punishment-not-found");
+    PUNISHMENT_NOT_FOUND("error.punishment-not-found"),
+
+    // AFK
+    AFK_KICK_MESSAGE("afk.kick-message"),
+    AFK_KICK_REASON("afk.kick-reason"),
+    AFK_KICK_BROADCAST("afk.kick-broadcast");
 
     private final String path;
 

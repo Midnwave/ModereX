@@ -108,8 +108,11 @@ public class VanishManager {
         // Silent containers - handled in listener
         // No footsteps - handled in listener
 
-        // Give night vision to see in dark
-        player.addPotionEffect(new PotionEffect(PotionEffectType.NIGHT_VISION, Integer.MAX_VALUE, 0, false, false, false));
+        // Give night vision to see in dark (if enabled in staff settings)
+        StaffSettings settings = plugin.getStaffSettingsManager().getSettings(player);
+        if (settings.isVanishNightVision()) {
+            player.addPotionEffect(new PotionEffect(PotionEffectType.NIGHT_VISION, Integer.MAX_VALUE, 0, false, false, false));
+        }
 
         // Enable flight if configured and player has permission
         if (plugin.getConfig().getBoolean("vanish.enable-flight", false) &&
@@ -239,6 +242,17 @@ public class VanishManager {
 
         if (plugin.getConfigManager().getSettings().isVanishSaveVanishState()) {
             restoreVanishState(player);
+        }
+
+        // Auto vanish on join if enabled in staff settings
+        StaffSettings staffSettings = plugin.getStaffSettingsManager().getSettings(player);
+        if (staffSettings.isAutoVanishOnJoin() && player.hasPermission("moderex.command.vanish")) {
+            plugin.getServer().getScheduler().runTaskLater(plugin, () -> {
+                if (!isVanished(player)) {
+                    vanish(player);
+                    plugin.logDebug("[Vanish] Auto-vanished " + player.getName() + " on join (staff setting)");
+                }
+            }, 5L); // Small delay to ensure player is fully loaded
         }
     }
 

@@ -56,7 +56,7 @@ public class UnbanCommand extends BaseCommand {
                     return;
                 }
 
-                if (punishment.getType() != PunishmentType.BAN) {
+                if (punishment.getType() != PunishmentType.BAN && punishment.getType() != PunishmentType.IPBAN) {
                     sendMessage(sender, "<red>Punishment #" + punishmentId + " is not a ban.");
                     return;
                 }
@@ -82,19 +82,35 @@ public class UnbanCommand extends BaseCommand {
             UUID targetUuid = target.getUuid();
             String displayName = target.getDisplayName();
 
-            if (!plugin.getPunishmentManager().isBanned(targetUuid)) {
+            boolean isBanned = plugin.getPunishmentManager().isBanned(targetUuid);
+            var activeIpBan = plugin.getPunishmentManager().getActivePunishment(targetUuid, PunishmentType.IPBAN);
+
+            if (!isBanned && activeIpBan == null) {
                 sendMessage(sender, MessageKey.UNBAN_NOT_BANNED, "player", displayName);
                 return;
             }
 
-            plugin.getPunishmentManager().removePunishment(targetUuid, PunishmentType.BAN, staffUuid, staffName, reason)
-                    .thenAccept(success -> {
-                        if (success) {
-                            sendMessage(sender, MessageKey.UNBAN_SUCCESS, "player", displayName);
-                        } else {
-                            sendMessage(sender, "<red>Failed to unban player.");
-                        }
-                    });
+            // Remove regular ban if exists
+            if (isBanned) {
+                plugin.getPunishmentManager().removePunishment(targetUuid, PunishmentType.BAN, staffUuid, staffName, reason)
+                        .thenAccept(success -> {
+                            if (success) {
+                                sendMessage(sender, MessageKey.UNBAN_SUCCESS, "player", displayName);
+                            } else {
+                                sendMessage(sender, "<red>Failed to unban player.");
+                            }
+                        });
+            }
+
+            // Also remove IP ban if exists
+            if (activeIpBan != null) {
+                plugin.getPunishmentManager().removePunishment(targetUuid, PunishmentType.IPBAN, staffUuid, staffName, reason)
+                        .thenAccept(success -> {
+                            if (success) {
+                                sendMessage(sender, "<green>Also removed IP ban for <white>" + displayName);
+                            }
+                        });
+            }
         } else {
             sendMessage(sender, MessageKey.PLAYER_NOT_FOUND, "player", regularArgs.get(0));
         }

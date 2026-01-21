@@ -31,7 +31,8 @@ public class NCPHook extends AnticheatHook implements Listener {
         ncpPlugin = Bukkit.getPluginManager().getPlugin(PLUGIN_NAME);
         if (ncpPlugin == null) return false;
 
-        plugin.logDebug("[Anticheat] Found NCP v" + ncpPlugin.getDescription().getVersion());
+        version = ncpPlugin.getDescription().getVersion();
+        plugin.logDebug("[Anticheat] Found NCP v" + version);
         ClassLoader cl = ncpPlugin.getClass().getClassLoader();
 
         String[] classes = {

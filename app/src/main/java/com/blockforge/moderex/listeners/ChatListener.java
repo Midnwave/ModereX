@@ -123,6 +123,12 @@ public class ChatListener implements Listener {
             String chatMessage = result.isModified() ? result.getModifiedMessage() : message;
             plugin.getReplayManager().recordAction(player, ReplaySnapshot.ActionType.CHAT, chatMessage);
         }
+
+        // Broadcast to web panel live logs
+        if (plugin.getWebPanelServer() != null) {
+            String chatMessage = result.isModified() ? result.getModifiedMessage() : message;
+            plugin.getWebPanelServer().broadcastChatMessage(player.getName(), uuid, chatMessage);
+        }
     }
 
     public void clearSlowmodeData(UUID uuid) {

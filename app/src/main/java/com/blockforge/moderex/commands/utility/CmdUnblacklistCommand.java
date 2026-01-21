@@ -8,6 +8,8 @@ import org.bukkit.OfflinePlayer;
 import org.bukkit.command.CommandSender;
 
 import java.sql.SQLException;
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.UUID;
 
@@ -72,6 +74,34 @@ public class CmdUnblacklistCommand extends BaseCommand {
     protected List<String> tabComplete(CommandSender sender, String[] args) {
         if (args.length == 1) {
             return filterCompletions(getOnlinePlayerNames(sender), args[0]);
+        }
+        if (args.length == 2) {
+            // Try to get the player's blacklisted commands
+            String targetName = args[0];
+            OfflinePlayer target = Bukkit.getOfflinePlayer(targetName);
+            if (target.hasPlayedBefore() || target.isOnline()) {
+                UUID targetUuid = target.getUniqueId();
+                try {
+                    List<String> commands = plugin.getDatabaseManager().query("""
+                            SELECT command FROM moderex_command_blacklist
+                            WHERE player_uuid = ? AND (expires_at = -1 OR expires_at > ?)
+                            """,
+                            rs -> {
+                                List<String> list = new ArrayList<>();
+                                while (rs.next()) {
+                                    list.add(rs.getString("command"));
+                                }
+                                return list;
+                            },
+                            targetUuid.toString(),
+                            System.currentTimeMillis()
+                    );
+                    return filterCompletions(commands, args[1]);
+                } catch (SQLException e) {
+                    // Silently fail on tab complete
+                }
+            }
+            return Collections.emptyList();
         }
         return super.tabComplete(sender, args);
     }

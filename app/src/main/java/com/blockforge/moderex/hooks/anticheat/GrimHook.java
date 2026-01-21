@@ -22,6 +22,20 @@ import java.util.concurrent.ConcurrentHashMap;
  * Hook for GrimAC using their FlagEvent API
  * Grim 2.3.72+ uses an internal EventBus, not Bukkit events
  * FlagEvent gives us player, check name, violations, and verbose info
+ *
+ * TODO: Grim Auto-Punishment in Automod
+ * - Add automod rules that can auto-punish based on Grim VL thresholds
+ * - Configurable per-check punishments (e.g., "Reach VL > 50 = ban 7d")
+ * - Web panel UI for configuring these rules under automod page
+ * - Support for warning -> mute -> tempban -> ban escalation
+ * - Track VL across sessions (database storage)
+ *
+ * TODO: Older Grim Version Support (1.21+)
+ * - Support older Grim versions that may use different FlagEvent API
+ * - Auto-detect Grim version and use appropriate hook method
+ * - May need separate listeners for pre-EventBus versions
+ * - Test compatibility with Grim 2.3.x series variations
+ * - Handle different check names between versions
  */
 public class GrimHook extends AnticheatHook implements Listener {
 
@@ -113,6 +127,9 @@ public class GrimHook extends AnticheatHook implements Listener {
             plugin.getLogger().info("[Grim] Grim plugin not found");
             return false;
         }
+
+        // Set version from plugin description
+        version = grimPlugin.getDescription().getVersion();
 
         grimClassLoader = grimPlugin.getClass().getClassLoader();
         plugin.getLogger().info("[Grim] Using classloader: " + grimClassLoader.getClass().getName());

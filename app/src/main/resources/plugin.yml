@@ -142,6 +142,12 @@ commands:
     usage: /<command> [page]
     permission: moderex.warnlist
 
+  viewpunishment:
+    description: View detailed information about a punishment by case ID
+    usage: /<command> <caseId>
+    permission: moderex.command.viewpunishment
+    aliases: [vp, case, punishinfo]
+
   # Account & IP Commands
   dupeip:
     description: Display associated accounts of a user or IP
@@ -217,6 +223,12 @@ commands:
     usage: /<command>
     permission: moderex.staffhelp
 
+  watchlist:
+    description: Manage watchlist of suspicious players
+    usage: /<command> [gui|add|remove|list|note|check] [player] [reason/note]
+    aliases: [wl]
+    permission: moderex.command.watchlist
+
   vanish:
     description: Toggle vanish mode and manage vanished players
     usage: /<command> [toggle|enable|disable|player|list] [player]
@@ -255,6 +267,12 @@ commands:
     usage: /<command> <playerName>
     aliases: [dskin]
     permission: moderex.disguise
+
+  rules:
+    description: View server rules
+    usage: /<command> [page|rule#|category]
+    aliases: [serverrules]
+    permission: moderex.rules
 
   # Shorthand aliases for moderation commands
   mban:
@@ -321,6 +339,7 @@ permissions:
       moderex.banlist: true
       moderex.mutelist: true
       moderex.warnlist: true
+      moderex.command.viewpunishment: true
       moderex.dupeip: true
       moderex.iphistory: true
       moderex.ipreport: true
@@ -340,6 +359,8 @@ permissions:
       moderex.cmdunblacklist: true
       moderex.cmdhistory: true
       moderex.disguise: true
+      moderex.command.watchlist: true
+      moderex.rules: true
 
   # Core Punishment Permissions
   moderex.ban:
@@ -472,6 +493,10 @@ permissions:
 
   moderex.warnlist:
     description: View warning list
+    default: op
+
+  moderex.command.viewpunishment:
+    description: View detailed punishment information by case ID
     default: op
 
   # Account & IP Permissions
@@ -634,6 +659,10 @@ permissions:
     description: Disguise as any rank
     default: false
 
+  moderex.rules:
+    description: View server rules
+    default: true
+
   moderex.cmdblacklist:
     description: Blacklist commands for players
     default: op
@@ -644,6 +673,10 @@ permissions:
 
   moderex.cmdhistory:
     description: View command history
+    default: op
+
+  moderex.command.watchlist:
+    description: Manage watchlist of suspicious players
     default: op
 
   # Bypass Permissions

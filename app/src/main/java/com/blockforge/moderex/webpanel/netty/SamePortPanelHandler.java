@@ -14,8 +14,6 @@ import java.io.OutputStream;
 import java.net.HttpURLConnection;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
-import java.security.MessageDigest;
-import java.util.Base64;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -83,11 +81,18 @@ public class SamePortPanelHandler implements HttpRequestHandler {
 
     @Override
     public void handleWebSocketUpgrade(ChannelHandlerContext ctx, String path, String headers, String wsKey) {
-        // WebSocket upgrade - send to main WebSocket handler
-        // For now, reject and let users use the separate port for WebSocket
-        // Full WebSocket support through same-port requires more complex state management
-        plugin.logDebug("[SamePort] WebSocket upgrade requested but not supported in same-port mode");
-        sendError(ctx, 501, "WebSocket not supported on same port. Use the dedicated panel port.");
+        try {
+            // Send WebSocket upgrade response
+            WebSocketFrameHandler.sendUpgradeResponse(ctx, wsKey);
+
+            // Replace the HTTP handler with WebSocket handler
+            ctx.pipeline().replace("moderex_http_detector", "moderex_websocket", new WebSocketFrameHandler(plugin));
+
+            plugin.logDebug("[SamePort] WebSocket upgrade completed for path: " + path);
+        } catch (Exception e) {
+            plugin.logDebug("[SamePort] WebSocket upgrade failed: " + e.getMessage());
+            sendError(ctx, 500, "WebSocket upgrade failed");
+        }
     }
 
     private void handleConfigRequest(ChannelHandlerContext ctx, String headers) {

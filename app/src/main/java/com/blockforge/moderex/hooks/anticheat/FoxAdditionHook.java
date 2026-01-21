@@ -35,7 +35,8 @@ public class FoxAdditionHook extends AnticheatHook implements Listener {
         for (String name : PLUGIN_NAMES) {
             foxPlugin = Bukkit.getPluginManager().getPlugin(name);
             if (foxPlugin != null) {
-                plugin.logDebug("[Anticheat] Found Fox plugin: " + name + " v" + foxPlugin.getDescription().getVersion());
+                version = foxPlugin.getDescription().getVersion();
+                plugin.logDebug("[Anticheat] Found Fox plugin: " + name + " v" + version);
                 break;
             }
         }

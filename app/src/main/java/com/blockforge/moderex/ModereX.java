@@ -64,6 +64,8 @@ public final class ModereX extends JavaPlugin {
     private com.blockforge.moderex.monitor.ServerStatusManager serverStatusManager;
     private StaffSettingsManager staffSettingsManager;
     private com.blockforge.moderex.resourcepack.ResourcePackManager resourcePackManager;
+    private com.blockforge.moderex.rules.RulesManager rulesManager;
+    private com.blockforge.moderex.automod.AfkManager afkManager;
     private DebugWebhook debugWebhook;
 
     // Lockdown state
@@ -74,6 +76,9 @@ public final class ModereX extends JavaPlugin {
     public void onEnable() {
         instance = this;
         long startTime = System.currentTimeMillis();
+
+        // Print ASCII art banner
+        printBanner();
 
         logStartup("Initializing ModereX v" + getDescription().getVersion());
         logStartup("Detected Minecraft version: " + VersionUtil.getServerVersion());
@@ -131,6 +136,11 @@ public final class ModereX extends JavaPlugin {
         this.automodManager = new AutomodManager(this);
         automodManager.load();
 
+        logStartup("Initializing AFK manager...");
+        this.afkManager = new com.blockforge.moderex.automod.AfkManager(this);
+        getServer().getPluginManager().registerEvents(afkManager, this);
+        afkManager.start();
+
         // Note: AnticheatManager is already initialized in HookManager.initialize()
         // Use hookManager.getAnticheatManager() instead of creating a duplicate
         this.anticheatManager = hookManager.getAnticheatManager();
@@ -161,6 +171,10 @@ public final class ModereX extends JavaPlugin {
 
         logStartup("Initializing watchlist...");
         this.watchlistManager = new WatchlistManager(this);
+
+        logStartup("Initializing rules system...");
+        this.rulesManager = new com.blockforge.moderex.rules.RulesManager(this);
+        rulesManager.initialize();
 
         logStartup("Initializing replay system...");
         this.replayManager = new ReplayManager(this);
@@ -267,6 +281,11 @@ public final class ModereX extends JavaPlugin {
             punishmentScheduler.stop();
         }
 
+        // Stop AFK manager
+        if (afkManager != null) {
+            afkManager.stop();
+        }
+
         // Close database connections
         if (databaseManager != null) {
             databaseManager.shutdown();
@@ -365,6 +384,30 @@ public final class ModereX extends JavaPlugin {
         hybridPanelServer.start();
     }
 
+    private void printBanner() {
+        // ANSI color codes for console
+        String DARK_BLUE = "\u001B[34m";
+        String LIGHT_BLUE = "\u001B[36m";
+        String RESET = "\u001B[0m";
+
+        // Slanted ASCII art for "ModereX"
+        String[] banner = {
+            "",
+            DARK_BLUE + "    __  ___          __              " + LIGHT_BLUE + "_ __",
+            DARK_BLUE + "   /  |/  /___  ____/ /__  ________ " + LIGHT_BLUE + "| |/ /",
+            DARK_BLUE + "  / /|_/ / __ \\/ __  / _ \\/ ___/ _ \\" + LIGHT_BLUE + "|   / ",
+            DARK_BLUE + " / /  / / /_/ / /_/ /  __/ /  /  __/" + LIGHT_BLUE + "/   |  ",
+            DARK_BLUE + "/_/  /_/\\____/\\__,_/\\___/_/   \\___/" + LIGHT_BLUE + "/_/|_|  ",
+            "",
+            RESET + "           Advanced Moderation for Minecraft",
+            ""
+        };
+
+        for (String line : banner) {
+            getServer().getConsoleSender().sendMessage(line + RESET);
+        }
+    }
+
     private void logStartup(String message) {
         getLogger().info(message);
         // Send success messages to webhook (plugin startup messages are success)
@@ -424,6 +467,10 @@ public final class ModereX extends JavaPlugin {
         return automodManager;
     }
 
+    public com.blockforge.moderex.automod.AfkManager getAfkManager() {
+        return afkManager;
+    }
+
     public com.blockforge.moderex.hooks.anticheat.AnticheatManager getAnticheatManager() {
         return anticheatManager;
     }
@@ -462,6 +509,10 @@ public final class ModereX extends JavaPlugin {
 
     public WatchlistManager getWatchlistManager() {
         return watchlistManager;
+    }
+
+    public com.blockforge.moderex.rules.RulesManager getRulesManager() {
+        return rulesManager;
     }
 
     public com.blockforge.moderex.player.PlayerProfileManager getPlayerProfileManager() {

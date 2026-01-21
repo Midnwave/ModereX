@@ -288,6 +288,54 @@ public class StaffSettings {
     // Per-check alert preferences map (checkKey -> preference)
     private Map<String, CheckAlertPreference> checkAlertPreferences = new HashMap<>();
 
+    // Custom anticheat presets per staff
+    private Map<String, AnticheatPreset> customPresets = new HashMap<>();
+
+    public static class AnticheatPreset {
+        private String name;
+        private AlertLevel alertLevel;
+        private int thresholdCount;
+        private int timeWindowSeconds;
+        private long createdAt;
+
+        public AnticheatPreset() {}
+
+        public AnticheatPreset(String name, AlertLevel alertLevel, int thresholdCount, int timeWindowSeconds) {
+            this.name = name;
+            this.alertLevel = alertLevel;
+            this.thresholdCount = thresholdCount;
+            this.timeWindowSeconds = timeWindowSeconds;
+            this.createdAt = System.currentTimeMillis();
+        }
+
+        public String getName() { return name; }
+        public void setName(String name) { this.name = name; }
+        public AlertLevel getAlertLevel() { return alertLevel; }
+        public void setAlertLevel(AlertLevel alertLevel) { this.alertLevel = alertLevel; }
+        public int getThresholdCount() { return thresholdCount; }
+        public void setThresholdCount(int thresholdCount) { this.thresholdCount = thresholdCount; }
+        public int getTimeWindowSeconds() { return timeWindowSeconds; }
+        public void setTimeWindowSeconds(int timeWindowSeconds) { this.timeWindowSeconds = timeWindowSeconds; }
+        public long getCreatedAt() { return createdAt; }
+        public void setCreatedAt(long createdAt) { this.createdAt = createdAt; }
+    }
+
+    public Map<String, AnticheatPreset> getCustomPresets() {
+        return customPresets;
+    }
+
+    public void saveCustomPreset(String name, AlertLevel level, int threshold, int window) {
+        customPresets.put(name.toLowerCase(), new AnticheatPreset(name, level, threshold, window));
+    }
+
+    public AnticheatPreset getCustomPreset(String name) {
+        return customPresets.get(name.toLowerCase());
+    }
+
+    public void deleteCustomPreset(String name) {
+        customPresets.remove(name.toLowerCase());
+    }
+
     public Map<String, CheckAlertPreference> getCheckAlertPreferences() {
         return checkAlertPreferences;
     }
