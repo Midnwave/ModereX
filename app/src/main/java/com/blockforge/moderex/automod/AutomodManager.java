@@ -11,6 +11,20 @@ import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.regex.Pattern;
 
+/**
+ * AutomodManager handles automatic chat moderation, spam prevention, and content filtering.
+ *
+ * TODO: Nickname Moderation System
+ * - Add nickname/display name filtering similar to chat filtering
+ * - Hook into PlayerJoinEvent to check nicknames
+ * - Hook into nickname change plugins (EssentialsX, TAB, etc.)
+ * - Block inappropriate nicknames on join/change
+ * - Auto-reset to default name if blocked
+ * - Configurable word filter rules for nicknames
+ * - Staff bypass permission (moderex.bypass.nickname)
+ * - Log blocked nickname attempts
+ * - Web panel UI for managing nickname rules
+ */
 public class AutomodManager {
 
     private final ModereX plugin;
