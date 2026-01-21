@@ -5670,6 +5670,45 @@ html {
   flex-shrink: 0;
 }
 
+/* Aliases for JS class names */
+.debug-entry .debug-cat {
+  background: rgba(255, 255, 255, 0.1);
+  padding: 2px 6px;
+  border-radius: 3px;
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  color: var(--text-secondary);
+  flex-shrink: 0;
+}
+
+.debug-entry .debug-msg {
+  flex: 1;
+  color: var(--text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Error message styling - make errors red */
+.debug-entry.debug-error .debug-msg {
+  color: var(--bad);
+  font-weight: 500;
+}
+
+.debug-entry.debug-error {
+  border-color: rgba(239, 68, 68, 0.3);
+  background: rgba(239, 68, 68, 0.1);
+}
+
+.debug-entry.debug-warn .debug-msg {
+  color: var(--warn);
+}
+
+.debug-entry.debug-success .debug-msg {
+  color: var(--ok);
+}
+
 /* Hide debug container on print */
 @media print {
   .debug-log-container {

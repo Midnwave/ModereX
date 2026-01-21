@@ -86,20 +86,23 @@
     ws.onerror = (error) => {
       console.error('[WS] Error:', error);
       emit('error', error);
-      if (window.debugLog) window.debugLog('WS', 'Connection error occurred', 'error');
+      // Show actual error details
+      const errorMsg = error.message || error.type || 'Connection error';
+      if (window.debugLog) window.debugLog('WS', `Error: ${errorMsg}`, 'error');
     };
 
     ws.onmessage = (event) => {
       try {
         const message = JSON.parse(event.data);
-        // Only log non-PONG messages to avoid spam
-        if (message.type !== 'PONG') {
+        // Filter out spammy messages from debug log
+        const silentTypes = ['PONG', 'SERVER_STATUS', 'HEARTBEAT_ACK'];
+        if (!silentTypes.includes(message.type)) {
           if (window.debugLog) window.debugLog('WS', `Received: ${message.type}`, 'info');
         }
         handleMessage(message);
       } catch (e) {
         console.error('[WS] Failed to parse message:', e);
-        if (window.debugLog) window.debugLog('WS', 'Failed to parse server message', 'error');
+        if (window.debugLog) window.debugLog('WS', `Parse error: ${e.message}`, 'error');
       }
     };
   }
