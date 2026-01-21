@@ -9,95 +9,157 @@ import org.bukkit.entity.Player;
 import java.sql.SQLException;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 /**
- * AutomodManager handles automatic chat moderation, spam prevention, and content filtering.
- *
- * TODO: Nickname Moderation System
- * - Add nickname/display name filtering similar to chat filtering
- * - Hook into PlayerJoinEvent to check nicknames
- * - Hook into nickname change plugins (EssentialsX, TAB, etc.)
- * - Block inappropriate nicknames on join/change
- * - Auto-reset to default name if blocked
- * - Configurable word filter rules for nicknames
- * - Staff bypass permission (moderex.bypass.nickname)
- * - Log blocked nickname attempts
- * - Web panel UI for managing nickname rules
+ * AutomodManager handles automatic chat moderation, spam prevention, content filtering,
+ * nickname moderation, and command message detection.
  */
 public class AutomodManager {
 
     private final ModereX plugin;
     private final Map<String, AutomodRule> rules = new ConcurrentHashMap<>();
     private final Map<UUID, List<Long>> messageTimestamps = new ConcurrentHashMap<>();
-    private final Map<UUID, String> lastMessages = new ConcurrentHashMap<>();
 
-    // Spam prevention settings
-    private boolean spamPreventionEnabled = true;
-    private int maxMessagesPerSecond = 3;
-    private int duplicateMessageThreshold = 2;
-    private boolean capsFilterEnabled = true;
-    private double maxCapsPercentage = 0.7;
-    private int minCapsLength = 10;
+    // URL/Link detection pattern
+    private static final Pattern URL_PATTERN = Pattern.compile(
+            "(?i)\\b(?:https?://|www\\.|[a-z0-9][a-z0-9-]*\\.[a-z]{2,}(?:/|\\b))",
+            Pattern.CASE_INSENSITIVE
+    );
+
+    // IP address pattern
+    private static final Pattern IP_PATTERN = Pattern.compile(
+            "\\b(?:\\d{1,3}\\.){3}\\d{1,3}(?::\\d{1,5})?\\b"
+    );
+
+    // Message commands that should be filtered (base names, will match any plugin prefix)
+    private static final Set<String> MESSAGE_COMMANDS = Set.of(
+            "msg", "message", "tell", "whisper", "w", "m", "pm", "dm",
+            "r", "reply", "er", "emsg", "etell", "ewhisper", "ew",
+            "mail", "helpop", "ac", "adminchat", "socialspy"
+    );
+
+    // Color code patterns for nickname filtering
+    private static final Pattern COLOR_CODE_PATTERN = Pattern.compile(
+            "(?i)(&[0-9a-fk-or]|&#[0-9a-f]{6}|<#[0-9a-f]{6}>|\\{#[0-9a-f]{6}\\}|" +
+            "§[0-9a-fk-or]|<[a-z_]+>|\\[[a-z_]+\\])"
+    );
 
     public AutomodManager(ModereX plugin) {
         this.plugin = plugin;
     }
 
+    /**
+     * Load all automod rules from database and create built-in rules.
+     */
     public void load() {
         rules.clear();
-
-        // Load default rules
-        loadDefaultRules();
-
-        // Load custom rules from database
+        loadBuiltInRules();
         loadCustomRules();
-
         plugin.getLogger().info("Loaded " + rules.size() + " automod rules.");
     }
 
-    private void loadDefaultRules() {
-        // Spam prevention rule (built-in, cannot be deleted)
-        AutomodRule spamRule = new AutomodRule();
-        spamRule.setId("spam_prevention");
-        spamRule.setName("Spam Prevention");
-        spamRule.setType(AutomodRule.RuleType.SPAM);
-        spamRule.setBuiltIn(true);
-        spamRule.setEnabled(spamPreventionEnabled);
+    /**
+     * Create built-in rules that cannot be deleted.
+     */
+    private void loadBuiltInRules() {
+        // Spam Protection (built-in)
+        AutomodRule spamRule = AutomodRule.createBuiltIn(
+                "spam_protection", "Spam Protection", AutomodRule.RuleType.SPAM_PROTECTION
+        );
+        spamRule.setDescription("Blocks rapid or repetitive messages");
+        spamRule.setSpamMessageCount(3);
+        spamRule.setSpamTimeWindowSeconds(5);
+        spamRule.setSpamDetectSimilar(true);
+        spamRule.setEnabled(plugin.getConfigManager().getSettings().isSpamPreventionEnabled());
         rules.put(spamRule.getId(), spamRule);
 
-        // Caps filter rule (built-in)
-        AutomodRule capsRule = new AutomodRule();
-        capsRule.setId("caps_filter");
-        capsRule.setName("Caps Filter");
-        capsRule.setType(AutomodRule.RuleType.CAPS);
-        capsRule.setBuiltIn(true);
-        capsRule.setEnabled(capsFilterEnabled);
+        // Caps Filter (built-in)
+        AutomodRule capsRule = AutomodRule.createBuiltIn(
+                "caps_filter", "Caps Lock Filter", AutomodRule.RuleType.CAPS_FILTER
+        );
+        capsRule.setDescription("Converts excessive caps to lowercase");
+        capsRule.setCapsMaxPercentage(70);
+        capsRule.setCapsMinLength(10);
+        capsRule.setFlagAction(AutomodRule.FlagAction.MODIFY);
+        capsRule.setEnabled(plugin.getConfigManager().getSettings().isCapsFilterEnabled());
         rules.put(capsRule.getId(), capsRule);
 
-        // Link filter rule (built-in)
-        AutomodRule linkRule = new AutomodRule();
-        linkRule.setId("link_filter");
-        linkRule.setName("Link Filter");
-        linkRule.setType(AutomodRule.RuleType.WORD_FILTER);
-        linkRule.setBuiltIn(true);
-        linkRule.setEnabled(true);
+        // Link Filter (built-in)
+        AutomodRule linkRule = AutomodRule.createBuiltIn(
+                "link_filter", "Link Filter", AutomodRule.RuleType.LINK_FILTER
+        );
+        linkRule.setDescription("Blocks URLs and IP addresses");
+        linkRule.setEnabled(plugin.getConfigManager().getSettings().isLinkFilterEnabled());
         rules.put(linkRule.getId(), linkRule);
+
+        // AFK Kick (built-in)
+        AutomodRule afkRule = AutomodRule.createBuiltIn(
+                "afk_kick", "AFK Auto-Kick", AutomodRule.RuleType.AFK_KICK
+        );
+        afkRule.setDescription("Kicks players after inactivity");
+        afkRule.setAfkTimeoutMinutes(15);
+        afkRule.setAfkKickEnabled(false);
+        afkRule.setEnabled(false);
+        rules.put(afkRule.getId(), afkRule);
+
+        // Load built-in rule configs from database (to restore user settings)
+        loadBuiltInRuleConfigs();
     }
 
+    /**
+     * Load built-in rule configurations from database.
+     */
+    private void loadBuiltInRuleConfigs() {
+        try {
+            plugin.getDatabaseManager().query("""
+                    SELECT * FROM moderex_automod_rules WHERE type IN ('SPAM_PROTECTION', 'CAPS_FILTER', 'LINK_FILTER', 'AFK_KICK')
+                    """,
+                    rs -> {
+                        while (rs.next()) {
+                            String id = rs.getString("rule_id");
+                            if (id == null) id = rs.getString("name").toLowerCase().replace(" ", "_");
+
+                            AutomodRule existing = rules.get(id);
+                            if (existing != null) {
+                                existing.setEnabled(rs.getBoolean("enabled"));
+                                existing.loadConfigJson(rs.getString("config"));
+                            }
+                        }
+                        return null;
+                    }
+            );
+        } catch (SQLException e) {
+            // Table might not have rule_id column yet, that's fine
+            plugin.logDebug("Could not load built-in rule configs: " + e.getMessage());
+        }
+    }
+
+    /**
+     * Load custom rules from database.
+     */
     private void loadCustomRules() {
         try {
             plugin.getDatabaseManager().query("""
-                    SELECT * FROM moderex_automod_rules WHERE type = 'WORD_FILTER'
+                    SELECT * FROM moderex_automod_rules WHERE type = 'WORD_FILTER' OR type = 'NICKNAME'
                     """,
                     rs -> {
                         while (rs.next()) {
                             AutomodRule rule = new AutomodRule();
                             rule.setId(String.valueOf(rs.getInt("id")));
                             rule.setName(rs.getString("name"));
-                            rule.setType(AutomodRule.RuleType.WORD_FILTER);
                             rule.setEnabled(rs.getBoolean("enabled"));
-                            rule.loadConfig(rs.getString("config"));
+                            rule.loadConfigJson(rs.getString("config"));
+
+                            // Set type from database or default to WORD_FILTER
+                            String typeStr = rs.getString("type");
+                            try {
+                                rule.setType(AutomodRule.RuleType.valueOf(typeStr));
+                            } catch (Exception e) {
+                                rule.setType(AutomodRule.RuleType.WORD_FILTER);
+                            }
+
                             rules.put(rule.getId(), rule);
                         }
                         return null;
@@ -108,113 +170,153 @@ public class AutomodManager {
         }
     }
 
+    /**
+     * Process a chat message through all enabled automod rules.
+     */
     public FilterResult processMessage(Player player, String message) {
-        // Bypass permission check
         if (player.hasPermission("moderex.bypass.automod")) {
             return FilterResult.allow();
         }
 
         UUID uuid = player.getUniqueId();
 
-        // Check spam prevention
-        if (spamPreventionEnabled) {
-            FilterResult spamResult = checkSpam(uuid, message);
-            if (spamResult.isBlocked()) {
-                alertStaff(player, "Spam Prevention", message);
-                return spamResult;
+        // Check each rule in priority order
+        List<AutomodRule> sortedRules = new ArrayList<>(rules.values());
+        sortedRules.sort(Comparator.comparingInt(AutomodRule::getPriority).reversed());
+
+        for (AutomodRule rule : sortedRules) {
+            if (!rule.isEnabled()) continue;
+            if (rule.isNicknameOnly()) continue; // Skip nickname-only rules for chat
+
+            FilterResult result = processRule(player, uuid, message, rule);
+            if (result.isBlocked() || result.isModified()) {
+                return result;
             }
         }
 
-        // Check caps filter
-        if (capsFilterEnabled) {
-            FilterResult capsResult = checkCaps(message);
-            if (capsResult.isModified()) {
-                return capsResult;
-            }
+        return FilterResult.allow();
+    }
+
+    /**
+     * Process a command message (e.g., /msg, /tell) through automod.
+     */
+    public FilterResult processCommandMessage(Player player, String command, String message) {
+        if (player.hasPermission("moderex.bypass.automod")) {
+            return FilterResult.allow();
         }
 
-        // Check word filter rules
+        // Check if this is a message command
+        String baseCmd = command.toLowerCase().split(":")[0]; // Handle plugin:command format
+        if (baseCmd.startsWith("/")) baseCmd = baseCmd.substring(1);
+
+        // Check against known message commands
+        String finalBaseCmd = baseCmd;
+        boolean isMessageCommand = MESSAGE_COMMANDS.stream()
+                .anyMatch(cmd -> finalBaseCmd.equals(cmd) || finalBaseCmd.endsWith(":" + cmd));
+
+        if (!isMessageCommand) {
+            return FilterResult.allow();
+        }
+
+        // Process through chat filters
+        return processMessage(player, message);
+    }
+
+    /**
+     * Process a nickname through applicable automod rules.
+     */
+    public FilterResult processNickname(Player player, String nickname) {
+        if (player.hasPermission("moderex.bypass.automod.nickname")) {
+            return FilterResult.allow();
+        }
+
+        // Strip color codes for filtering
+        String strippedNick = stripColorCodes(nickname);
+
         for (AutomodRule rule : rules.values()) {
-            if (!rule.isEnabled() || rule.getType() != AutomodRule.RuleType.WORD_FILTER) {
-                continue;
-            }
+            if (!rule.isEnabled()) continue;
+            if (rule.getType() != AutomodRule.RuleType.WORD_FILTER &&
+                rule.getType() != AutomodRule.RuleType.NICKNAME) continue;
+            if (!rule.isApplyToNicknames() && rule.getType() != AutomodRule.RuleType.NICKNAME) continue;
 
-            FilterResult result = checkWordFilter(rule, message);
+            FilterResult result = checkWordFilter(rule, strippedNick);
             if (result.isBlocked()) {
-                alertStaff(player, rule.getName(), message);
+                alertStaff(player, rule.getName(), "Nickname: " + nickname);
                 handleAutoPunishment(player, rule);
                 return result;
             }
         }
 
-        // Store message for duplicate detection
-        lastMessages.put(uuid, message.toLowerCase().replaceAll("\\s+", ""));
-
         return FilterResult.allow();
     }
 
-    private FilterResult checkSpam(UUID uuid, String message) {
-        long now = System.currentTimeMillis();
+    /**
+     * Strip color codes from a string for filtering.
+     */
+    public String stripColorCodes(String text) {
+        return COLOR_CODE_PATTERN.matcher(text).replaceAll("");
+    }
 
-        // Check message rate
+    /**
+     * Process a single rule against a message.
+     */
+    private FilterResult processRule(Player player, UUID uuid, String message, AutomodRule rule) {
+        return switch (rule.getType()) {
+            case SPAM_PROTECTION -> checkSpam(player, uuid, message, rule);
+            case CAPS_FILTER -> checkCaps(message, rule);
+            case LINK_FILTER -> checkLinks(player, message, rule);
+            case WORD_FILTER, NICKNAME -> {
+                FilterResult result = checkWordFilter(rule, message);
+                if (result.isBlocked()) {
+                    alertStaff(player, rule.getName(), message);
+                    handleAutoPunishment(player, rule);
+                }
+                yield result;
+            }
+            case ANTICHEAT -> FilterResult.allow(); // Handled separately
+            case AFK_KICK -> FilterResult.allow(); // Handled by AfkManager
+        };
+    }
+
+    /**
+     * Check spam protection rule.
+     */
+    private FilterResult checkSpam(Player player, UUID uuid, String message, AutomodRule rule) {
+        long now = System.currentTimeMillis();
+        long windowMs = rule.getSpamTimeWindowSeconds() * 1000L;
+
+        // Get/create timestamp list
         List<Long> timestamps = messageTimestamps.computeIfAbsent(uuid, k -> new ArrayList<>());
 
-        // Remove old timestamps (older than 1 second)
-        timestamps.removeIf(t -> now - t > 1000);
+        // Remove old timestamps
+        timestamps.removeIf(t -> now - t > windowMs);
 
-        if (timestamps.size() >= maxMessagesPerSecond) {
+        // Check message count
+        if (timestamps.size() >= rule.getSpamMessageCount()) {
+            alertStaff(player, rule.getName(), "Rapid messages: " + message);
+            handleAutoPunishment(player, rule);
             return FilterResult.block("spam");
         }
 
-        timestamps.add(now);
-
-        // Check duplicate messages
-        String lastMessage = lastMessages.get(uuid);
-        if (lastMessage != null) {
-            String normalized = message.toLowerCase().replaceAll("\\s+", "");
-            if (isSimilar(lastMessage, normalized)) {
+        // Check similar messages
+        if (rule.isSpamDetectSimilar() && rule.isSimilarToLast(uuid, message)) {
+            int violations = rule.recordViolation(uuid);
+            if (violations >= 2) { // Allow one similar message
+                alertStaff(player, rule.getName(), "Similar message: " + message);
+                handleAutoPunishment(player, rule);
                 return FilterResult.block("duplicate");
             }
         }
 
+        timestamps.add(now);
         return FilterResult.allow();
     }
 
-    private boolean isSimilar(String msg1, String msg2) {
-        // Simple similarity check - can be enhanced with Levenshtein distance
-        if (msg1.equals(msg2)) return true;
-
-        // Check if one contains the other
-        if (msg1.contains(msg2) || msg2.contains(msg1)) return true;
-
-        // Check similarity ratio
-        int maxLen = Math.max(msg1.length(), msg2.length());
-        if (maxLen == 0) return true;
-
-        int commonChars = countCommonChars(msg1, msg2);
-        return (double) commonChars / maxLen > 0.8;
-    }
-
-    private int countCommonChars(String s1, String s2) {
-        int count = 0;
-        Map<Character, Integer> charCount = new HashMap<>();
-
-        for (char c : s1.toCharArray()) {
-            charCount.merge(c, 1, Integer::sum);
-        }
-
-        for (char c : s2.toCharArray()) {
-            if (charCount.getOrDefault(c, 0) > 0) {
-                count++;
-                charCount.merge(c, -1, Integer::sum);
-            }
-        }
-
-        return count;
-    }
-
-    private FilterResult checkCaps(String message) {
-        if (message.length() < minCapsLength) {
+    /**
+     * Check caps filter rule.
+     */
+    private FilterResult checkCaps(String message, AutomodRule rule) {
+        if (message.length() < rule.getCapsMinLength()) {
             return FilterResult.allow();
         }
 
@@ -230,55 +332,13 @@ public class AutomodManager {
             }
         }
 
-        if (letterCount > 0 && (double) capsCount / letterCount > maxCapsPercentage) {
-            // Convert to lowercase instead of blocking
-            return FilterResult.modify(message.toLowerCase());
-        }
-
-        return FilterResult.allow();
-    }
-
-    private FilterResult checkWordFilter(AutomodRule rule, String message) {
-        List<String> blacklistedWords = rule.getBlacklistedWords();
-        List<String> exclusions = rule.getExclusionWords();
-        boolean exactMatch = rule.isExactMatch();
-
-        String lowerMessage = message.toLowerCase();
-
-        for (String word : blacklistedWords) {
-            String lowerWord = word.toLowerCase();
-
-            if (exactMatch) {
-                // Check for exact word match
-                Pattern pattern = Pattern.compile("\\b" + Pattern.quote(lowerWord) + "\\b",
-                        Pattern.CASE_INSENSITIVE);
-                if (pattern.matcher(message).find()) {
-                    // Check exclusions
-                    boolean excluded = false;
-                    for (String exclusion : exclusions) {
-                        if (lowerMessage.contains(exclusion.toLowerCase())) {
-                            excluded = true;
-                            break;
-                        }
-                    }
-                    if (!excluded) {
-                        return FilterResult.block(rule.getName());
-                    }
-                }
-            } else {
-                // Check if message contains the word/phrase
-                if (lowerMessage.contains(lowerWord)) {
-                    // Check exclusions
-                    boolean excluded = false;
-                    for (String exclusion : exclusions) {
-                        if (lowerMessage.contains(exclusion.toLowerCase())) {
-                            excluded = true;
-                            break;
-                        }
-                    }
-                    if (!excluded) {
-                        return FilterResult.block(rule.getName());
-                    }
+        if (letterCount > 0) {
+            double capsPercent = (double) capsCount / letterCount * 100;
+            if (capsPercent > rule.getCapsMaxPercentage()) {
+                if (rule.getFlagAction() == AutomodRule.FlagAction.MODIFY) {
+                    return FilterResult.modify(message.toLowerCase());
+                } else {
+                    return FilterResult.block("caps");
                 }
             }
         }
@@ -286,41 +346,121 @@ public class AutomodManager {
         return FilterResult.allow();
     }
 
+    /**
+     * Check link filter rule.
+     */
+    private FilterResult checkLinks(Player player, String message, AutomodRule rule) {
+        if (URL_PATTERN.matcher(message).find() || IP_PATTERN.matcher(message).find()) {
+            alertStaff(player, rule.getName(), message);
+            handleAutoPunishment(player, rule);
+            return FilterResult.block("link");
+        }
+        return FilterResult.allow();
+    }
+
+    /**
+     * Check word filter rule.
+     */
+    private FilterResult checkWordFilter(AutomodRule rule, String message) {
+        List<String> phrases = rule.getBlacklistedPhrases();
+        List<String> exclusions = rule.getExclusionPhrases();
+        AutomodRule.FilterMode mode = rule.getFilterMode();
+
+        if (phrases == null || phrases.isEmpty()) {
+            return FilterResult.allow();
+        }
+
+        String lowerMessage = message.toLowerCase();
+
+        for (String phrase : phrases) {
+            if (phrase == null || phrase.isEmpty()) continue;
+            String lowerPhrase = phrase.toLowerCase();
+
+            boolean matches = switch (mode) {
+                case EXACT_MESSAGE -> lowerMessage.trim().equals(lowerPhrase.trim());
+                case REGEX -> {
+                    try {
+                        yield Pattern.compile(phrase, Pattern.CASE_INSENSITIVE).matcher(message).find();
+                    } catch (Exception e) {
+                        yield false;
+                    }
+                }
+                case CONTAINS_PHRASE -> {
+                    // Word boundary check for better accuracy
+                    Pattern pattern = Pattern.compile(
+                            "\\b" + Pattern.quote(lowerPhrase) + "\\b",
+                            Pattern.CASE_INSENSITIVE
+                    );
+                    yield pattern.matcher(message).find() || lowerMessage.contains(lowerPhrase);
+                }
+            };
+
+            if (matches) {
+                // Check exclusions
+                boolean excluded = false;
+                if (exclusions != null) {
+                    for (String exclusion : exclusions) {
+                        if (exclusion != null && lowerMessage.contains(exclusion.toLowerCase())) {
+                            excluded = true;
+                            break;
+                        }
+                    }
+                }
+
+                if (!excluded) {
+                    return FilterResult.block(rule.getName());
+                }
+            }
+        }
+
+        return FilterResult.allow();
+    }
+
+    /**
+     * Handle auto punishment for a rule violation.
+     */
     private void handleAutoPunishment(Player player, AutomodRule rule) {
-        AutomodRule.AutoPunishment autoPunish = rule.getAutoPunishment();
-        if (autoPunish == null || !autoPunish.isEnabled()) {
+        AutomodRule.AutoPunishment punishment = rule.getAutoPunishment();
+        if (punishment == null || !punishment.isEnabled()) {
             return;
         }
 
-        // Track violations
-        int violations = rule.incrementViolation(player.getUniqueId());
+        int violations = rule.getViolationCount(player.getUniqueId());
+        if (violations < punishment.getTriggerCount()) {
+            return;
+        }
 
-        if (violations >= autoPunish.getTriggerCount()) {
-            // Reset violation count
-            rule.resetViolations(player.getUniqueId());
+        // Reset violations
+        rule.resetViolations(player.getUniqueId());
 
-            // Execute punishment
-            String reason = "Automod: " + rule.getName();
-            switch (autoPunish.getType()) {
-                case MUTE -> plugin.getPunishmentManager().mute(
+        // Execute punishment
+        String reason = punishment.getReason() != null ? punishment.getReason() :
+                "Automod: " + rule.getName();
+
+        plugin.getServer().getScheduler().runTask(plugin, () -> {
+            switch (punishment.getType()) {
+                case MUTE, IPMUTE -> plugin.getPunishmentManager().mute(
                         player.getUniqueId(), player.getName(), null, "Automod",
-                        autoPunish.getDuration(), reason
+                        punishment.getDuration(), reason
                 );
                 case KICK -> plugin.getPunishmentManager().kick(
                         player.getUniqueId(), player.getName(), null, "Automod", reason
                 );
-                case BAN -> plugin.getPunishmentManager().ban(
+                case BAN, IPBAN -> plugin.getPunishmentManager().ban(
                         player.getUniqueId(), player.getName(), null, "Automod",
-                        autoPunish.getDuration(), reason
+                        punishment.getDuration(), reason
                 );
                 case WARN -> plugin.getPunishmentManager().warn(
                         player.getUniqueId(), player.getName(), null, "Automod",
-                        autoPunish.getDuration(), reason
+                        punishment.getDuration(), reason
                 );
             }
-        }
+        });
     }
 
+    /**
+     * Alert staff about an automod violation.
+     */
     private void alertStaff(Player player, String ruleName, String message) {
         Component alert = plugin.getLanguageManager().get(MessageKey.AUTOMOD_ALERT,
                 "player", player.getName(),
@@ -332,12 +472,63 @@ public class AutomodManager {
                 staff.sendMessage(alert);
             }
         }
+
+        // Broadcast to web panel
+        if (plugin.getWebPanelServer() != null) {
+            plugin.getWebPanelServer().broadcastAutomodAlert(
+                    player.getName(), player.getUniqueId(), ruleName, message
+            );
+        }
     }
 
-    public AutomodRule createRule(String name) {
+    /**
+     * Handle an anticheat alert and process through anticheat rules.
+     */
+    public void handleAnticheatAlert(Player player, String anticheat, String checkName,
+                                     String checkType, int violations, double vlLevel) {
+        // Find or create anticheat rule for this check
+        String ruleId = "ac_" + anticheat.toLowerCase() + "_" + checkName.toLowerCase().replace(" ", "_");
+        AutomodRule rule = rules.get(ruleId);
+
+        if (rule == null) {
+            // Create new anticheat rule (disabled by default)
+            rule = new AutomodRule();
+            rule.setId(ruleId);
+            rule.setName(anticheat + " - " + checkName);
+            rule.setType(AutomodRule.RuleType.ANTICHEAT);
+            rule.setBuiltIn(true);
+            rule.setEnabled(false);
+            rule.setAnticheatName(anticheat);
+            rule.setCheckName(checkName);
+            rule.setDescription("Auto-generated rule for " + anticheat + " " + checkName + " alerts");
+            rules.put(ruleId, rule);
+
+            // Save to database
+            saveRule(rule);
+        }
+
+        if (!rule.isEnabled()) return;
+
+        // Record violation
+        int count = rule.recordViolation(player.getUniqueId());
+
+        // Check threshold
+        if (count >= rule.getAnticheatAlertThreshold()) {
+            alertStaff(player, rule.getName(), checkName + " (VL: " + (int) vlLevel + ")");
+            handleAutoPunishment(player, rule);
+            rule.resetViolations(player.getUniqueId());
+        }
+    }
+
+    // === CRUD Operations ===
+
+    /**
+     * Create a new custom rule.
+     */
+    public AutomodRule createRule(String name, AutomodRule.RuleType type) {
         AutomodRule rule = new AutomodRule();
         rule.setName(name);
-        rule.setType(AutomodRule.RuleType.WORD_FILTER);
+        rule.setType(type);
         rule.setEnabled(true);
         rule.setBuiltIn(false);
 
@@ -346,7 +537,7 @@ public class AutomodManager {
                     INSERT INTO moderex_automod_rules (name, type, enabled, config, created_at, updated_at)
                     VALUES (?, ?, ?, ?, ?, ?)
                     """,
-                    name, "WORD_FILTER", true, rule.toConfigString(),
+                    name, type.name(), true, rule.toConfigJson(),
                     System.currentTimeMillis(), System.currentTimeMillis()
             );
 
@@ -361,7 +552,6 @@ public class AutomodManager {
                 rules.put(rule.getId(), rule);
             }
 
-            // Broadcast to web panel clients
             broadcastAutomodRulesUpdate();
         } catch (SQLException e) {
             plugin.logError("Failed to create automod rule", e);
@@ -370,8 +560,11 @@ public class AutomodManager {
         return rule;
     }
 
+    /**
+     * Save a rule to the database.
+     */
     public void saveRule(AutomodRule rule) {
-        // Handle built-in rules separately - save to config
+        // Handle built-in rules
         if (rule.isBuiltIn()) {
             saveBuiltInRule(rule);
             broadcastAutomodRulesUpdate();
@@ -384,34 +577,67 @@ public class AutomodManager {
                     SET name = ?, enabled = ?, config = ?, updated_at = ?
                     WHERE id = ?
                     """,
-                    rule.getName(), rule.isEnabled(), rule.toConfigString(),
+                    rule.getName(), rule.isEnabled(), rule.toConfigJson(),
                     System.currentTimeMillis(), Integer.parseInt(rule.getId())
             );
 
-            // Broadcast to web panel clients
             broadcastAutomodRulesUpdate();
         } catch (SQLException e) {
             plugin.logError("Failed to save automod rule", e);
         }
     }
 
+    /**
+     * Save a built-in rule's settings.
+     */
     private void saveBuiltInRule(AutomodRule rule) {
+        // Update settings
         switch (rule.getId()) {
-            case "spam_prevention" -> {
-                spamPreventionEnabled = rule.isEnabled();
+            case "spam_protection" -> {
                 plugin.getConfigManager().getSettings().setSpamPreventionEnabled(rule.isEnabled());
             }
             case "caps_filter" -> {
-                capsFilterEnabled = rule.isEnabled();
                 plugin.getConfigManager().getSettings().setCapsFilterEnabled(rule.isEnabled());
             }
             case "link_filter" -> {
                 plugin.getConfigManager().getSettings().setLinkFilterEnabled(rule.isEnabled());
             }
         }
+
+        // Save to database for full config
+        try {
+            // Try to update existing
+            int updated = plugin.getDatabaseManager().update("""
+                    UPDATE moderex_automod_rules
+                    SET enabled = ?, config = ?, updated_at = ?
+                    WHERE rule_id = ? OR (name = ? AND type = ?)
+                    """,
+                    rule.isEnabled(), rule.toConfigJson(), System.currentTimeMillis(),
+                    rule.getId(), rule.getName(), rule.getType().name()
+            );
+
+            if (updated == 0) {
+                // Insert new
+                plugin.getDatabaseManager().update("""
+                        INSERT INTO moderex_automod_rules (rule_id, name, type, enabled, config, created_at, updated_at)
+                        VALUES (?, ?, ?, ?, ?, ?, ?)
+                        """,
+                        rule.getId(), rule.getName(), rule.getType().name(),
+                        rule.isEnabled(), rule.toConfigJson(),
+                        System.currentTimeMillis(), System.currentTimeMillis()
+                );
+            }
+        } catch (SQLException e) {
+            // Column might not exist, try simple approach
+            plugin.logDebug("Could not save built-in rule config: " + e.getMessage());
+        }
+
         plugin.saveConfig();
     }
 
+    /**
+     * Delete a rule.
+     */
     public void deleteRule(String ruleId) {
         AutomodRule rule = rules.get(ruleId);
         if (rule == null || rule.isBuiltIn()) return;
@@ -422,8 +648,6 @@ public class AutomodManager {
                     Integer.parseInt(ruleId)
             );
             rules.remove(ruleId);
-
-            // Broadcast to web panel clients
             broadcastAutomodRulesUpdate();
         } catch (SQLException e) {
             plugin.logError("Failed to delete automod rule", e);
@@ -431,15 +655,17 @@ public class AutomodManager {
     }
 
     /**
-     * Broadcasts automod rules update to all connected web panel clients.
+     * Broadcast automod rules update to web panel clients.
      */
-    private void broadcastAutomodRulesUpdate() {
+    public void broadcastAutomodRulesUpdate() {
         if (plugin.getWebPanelServer() != null) {
             plugin.getServer().getScheduler().runTaskAsynchronously(plugin, () -> {
                 plugin.getWebPanelServer().broadcastAutomodRules();
             });
         }
     }
+
+    // === Getters ===
 
     public Collection<AutomodRule> getRules() {
         return rules.values();
@@ -451,84 +677,46 @@ public class AutomodManager {
 
     public void clearPlayerData(UUID uuid) {
         messageTimestamps.remove(uuid);
-        lastMessages.remove(uuid);
+        for (AutomodRule rule : rules.values()) {
+            rule.resetViolations(uuid);
+        }
     }
 
-    // Settings methods
+    // Legacy compatibility
     public boolean isSpamPreventionEnabled() {
-        return spamPreventionEnabled;
+        AutomodRule rule = rules.get("spam_protection");
+        return rule != null && rule.isEnabled();
     }
 
     public void setSpamPreventionEnabled(boolean enabled) {
-        this.spamPreventionEnabled = enabled;
-        AutomodRule spamRule = rules.get("spam_prevention");
-        if (spamRule != null) {
-            spamRule.setEnabled(enabled);
+        AutomodRule rule = rules.get("spam_protection");
+        if (rule != null) {
+            rule.setEnabled(enabled);
+            saveRule(rule);
         }
     }
 
     public boolean isCapsFilterEnabled() {
-        return capsFilterEnabled;
+        AutomodRule rule = rules.get("caps_filter");
+        return rule != null && rule.isEnabled();
     }
 
     public void setCapsFilterEnabled(boolean enabled) {
-        this.capsFilterEnabled = enabled;
-        AutomodRule capsRule = rules.get("caps_filter");
-        if (capsRule != null) {
-            capsRule.setEnabled(enabled);
+        AutomodRule rule = rules.get("caps_filter");
+        if (rule != null) {
+            rule.setEnabled(enabled);
+            saveRule(rule);
         }
     }
 
-    public void handleAnticheatAlert(Player player, String anticheat, String checkName,
-                                     String checkType, int violations, double vlLevel) {
-        // Check for anticheat-based automod rules
-        for (AutomodRule rule : rules.values()) {
-            if (!rule.isEnabled()) continue;
-            if (rule.getType() != AutomodRule.RuleType.ANTICHEAT) continue;
-
-            // Increment violation count
-            int currentViolations = rule.incrementViolation(player.getUniqueId());
-
-            // Check if auto-punishment should trigger
-            AutomodRule.AutoPunishment punishment = rule.getAutoPunishment();
-            if (punishment != null && punishment.isEnabled()) {
-                if (currentViolations >= punishment.getTriggerCount()) {
-                    executeAutoPunishment(player, punishment, checkName, vlLevel);
-                    rule.resetViolations(player.getUniqueId());
-                }
-            }
-        }
+    // Legacy createRule method
+    public AutomodRule createRule(String name) {
+        return createRule(name, AutomodRule.RuleType.WORD_FILTER);
     }
 
-    private void executeAutoPunishment(Player player, AutomodRule.AutoPunishment punishment,
-                                       String checkName, double vlLevel) {
-        String reason = "Automod: " + checkName + " (VL: " + (int) vlLevel + ")";
-        String duration = punishment.getDuration() == -1 ? "permanent" :
-                com.blockforge.moderex.util.DurationParser.format(punishment.getDuration());
-
-        plugin.getServer().getScheduler().runTask(plugin, () -> {
-            switch (punishment.getType()) {
-                case WARN -> plugin.getServer().dispatchCommand(
-                        plugin.getServer().getConsoleSender(),
-                        "warn " + player.getName() + " " + reason
-                );
-                case MUTE -> plugin.getServer().dispatchCommand(
-                        plugin.getServer().getConsoleSender(),
-                        "mute " + player.getName() + " " + duration + " " + reason
-                );
-                case KICK -> plugin.getServer().dispatchCommand(
-                        plugin.getServer().getConsoleSender(),
-                        "kick " + player.getName() + " " + reason
-                );
-                case BAN -> plugin.getServer().dispatchCommand(
-                        plugin.getServer().getConsoleSender(),
-                        "ban " + player.getName() + " " + duration + " " + reason
-                );
-                default -> {}
-            }
-        });
-    }
-
+    /**
+     * Filter result from processing a message.
+     */
     public static class FilterResult {
         private final boolean blocked;
         private final boolean modified;
@@ -554,20 +742,9 @@ public class AutomodManager {
             return new FilterResult(false, true, newMessage, null);
         }
 
-        public boolean isBlocked() {
-            return blocked;
-        }
-
-        public boolean isModified() {
-            return modified;
-        }
-
-        public String getModifiedMessage() {
-            return modifiedMessage;
-        }
-
-        public String getReason() {
-            return reason;
-        }
+        public boolean isBlocked() { return blocked; }
+        public boolean isModified() { return modified; }
+        public String getModifiedMessage() { return modifiedMessage; }
+        public String getReason() { return reason; }
     }
 }

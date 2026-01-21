@@ -64,6 +64,7 @@ public final class ModereX extends JavaPlugin {
     private StaffSettingsManager staffSettingsManager;
     private com.blockforge.moderex.resourcepack.ResourcePackManager resourcePackManager;
     private com.blockforge.moderex.rules.RulesManager rulesManager;
+    private com.blockforge.moderex.automod.AfkManager afkManager;
     private DebugWebhook debugWebhook;
 
     // Lockdown state
@@ -133,6 +134,11 @@ public final class ModereX extends JavaPlugin {
         logStartup("Initializing automod system...");
         this.automodManager = new AutomodManager(this);
         automodManager.load();
+
+        logStartup("Initializing AFK manager...");
+        this.afkManager = new com.blockforge.moderex.automod.AfkManager(this);
+        getServer().getPluginManager().registerEvents(afkManager, this);
+        afkManager.start();
 
         // Note: AnticheatManager is already initialized in HookManager.initialize()
         // Use hookManager.getAnticheatManager() instead of creating a duplicate
@@ -271,6 +277,11 @@ public final class ModereX extends JavaPlugin {
         // Stop punishment scheduler
         if (punishmentScheduler != null) {
             punishmentScheduler.stop();
+        }
+
+        // Stop AFK manager
+        if (afkManager != null) {
+            afkManager.stop();
         }
 
         // Close database connections
@@ -447,6 +458,10 @@ public final class ModereX extends JavaPlugin {
 
     public AutomodManager getAutomodManager() {
         return automodManager;
+    }
+
+    public com.blockforge.moderex.automod.AfkManager getAfkManager() {
+        return afkManager;
     }
 
     public com.blockforge.moderex.hooks.anticheat.AnticheatManager getAnticheatManager() {

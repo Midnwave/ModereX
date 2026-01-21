@@ -1061,6 +1061,26 @@
                 <button class="toggle" id="deviceTrustEnabled" onclick="toggleDeviceTrust()"><span class="toggle-thumb"></span></button>
               </div>
             </div>
+
+            <!-- Developer Tools -->
+            <div class="card">
+              <h3><i class="fa-solid fa-bug" style="color:var(--warn)"></i> Developer Tools</h3>
+              <p>Advanced debugging and diagnostic options for troubleshooting.</p>
+              <div class="settings-row" style="margin-top:14px">
+                <div class="settings-row-left">
+                  <div class="settings-row-icon yellow"><i class="fa-solid fa-terminal"></i></div>
+                  <div class="settings-row-text">
+                    <div class="settings-row-title">Debug Mode</div>
+                    <div class="settings-row-sub">Shows debug notifications for syncs, saves, errors, and WebSocket events</div>
+                  </div>
+                </div>
+                <button class="toggle" id="debugModeEnabled" onclick="toggleDebugMode()"><span class="toggle-thumb"></span></button>
+              </div>
+              <div id="debugModeInfo" class="info-box" style="display:none;margin-top:12px">
+                <i class="fa-solid fa-info-circle" style="color:var(--primary-light)"></i>
+                <span>Debug notifications will appear at the bottom of the screen showing database syncs, WebSocket messages, and errors.</span>
+              </div>
+            </div>
           </div>
         </section>
 

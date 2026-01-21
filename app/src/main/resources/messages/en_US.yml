@@ -149,6 +149,14 @@ automod:
   spam-blocked: "<red>Please don't spam!"
 
 # ============================================
+# AFK SYSTEM
+# ============================================
+afk:
+  kick-message: "<red>You were kicked for being AFK."
+  kick-reason: "AFK - Inactive for too long"
+  kick-broadcast: "<gray>[<red>AFK</red>] <yellow><player></yellow> <gray>was kicked for being AFK."
+
+# ============================================
 # ANTICHEAT
 # ============================================
 anticheat:
