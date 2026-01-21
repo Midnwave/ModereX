@@ -59,24 +59,8 @@
           </div>
         </div>
 
-        <!-- Auth Mode Selector -->
-        <div class="auth-section">
-          <label class="auth-label">Authentication Method</label>
-          <select class="input" id="authModeSelect">
-            <option value="minecraft">In-Game Connect Code</option>
-            <option value="token">Permanent Token</option>
-          </select>
-        </div>
-
-        <!-- Minecraft Auth Section -->
-        <div class="auth-section" id="authMinecraftSection">
-          <label class="auth-label">Connect Code</label>
-          <p class="auth-hint">Run <code>/mx connect</code> in-game to get your code</p>
-          <input type="text" class="input code-input" id="connectCode" placeholder="XXXXXX" maxlength="6" autocomplete="off" spellcheck="false">
-        </div>
-
         <!-- Token Auth Section -->
-        <div class="auth-section" id="authTokenSection" style="display:none">
+        <div class="auth-section" id="authTokenSection">
           <label class="auth-label">Permanent Token</label>
           <p class="auth-hint">Run <code>/mx gettoken</code> in-game to get your token</p>
           <input type="password" class="input" id="authToken" placeholder="Paste your token here..." autocomplete="off" spellcheck="false">
