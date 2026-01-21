@@ -89,6 +89,19 @@ public class CmdBlacklistCommand extends BaseCommand {
         if (args.length == 1) {
             return filterCompletions(getOnlinePlayerNames(sender), args[0]);
         }
+        if (args.length == 2) {
+            // Suggest common commands that might be blacklisted
+            List<String> suggestions = Arrays.asList(
+                    "home", "tpa", "tpaccept", "tpahere", "spawn", "warp",
+                    "sethome", "delhome", "tp", "back", "pay", "sell", "buy",
+                    "msg", "tell", "whisper", "r", "reply", "mail",
+                    "ah", "auction", "shop", "market", "trade",
+                    "clan", "guild", "party", "team", "faction",
+                    "kit", "kits", "crate", "vote", "daily",
+                    "fly", "god", "heal", "feed", "gamemode"
+            );
+            return filterCompletions(suggestions, args[1]);
+        }
         if (args.length == 3) {
             return filterCompletions(Arrays.asList("1h", "1d", "7d", "30d", "permanent"), args[2]);
         }
