@@ -13,223 +13,239 @@ import org.bukkit.conversations.*;
 import org.bukkit.inventory.ItemStack;
 
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
 
+/**
+ * Redesigned Automod GUI - Clean, user-friendly interface
+ *
+ * Layout:
+ * - Top row: Navigation and info
+ * - Built-in filters section (toggleable)
+ * - Custom word filter rules
+ * - Anticheat rules (at the end)
+ * - Bottom: Create new rule, navigation
+ */
 public class AutomodGui extends BaseGui {
 
-    private Tab currentTab = Tab.FILTERS;
-    private int rulePage = 0;
-    private static final int RULES_PER_PAGE = 14;
+    private int currentPage = 0;
+    private static final int RULES_PER_PAGE = 21; // 3 rows of 7
 
     public AutomodGui(ModereX plugin) {
-        super(plugin, "<gradient:#a855f7:#ec4899>Automod Settings</gradient>", 6);
+        super(plugin, "<gradient:#a855f7:#ec4899>Automod Manager</gradient>", 6);
     }
 
     @Override
     protected void populate() {
-        fillEmpty(Material.BLACK_STAINED_GLASS_PANE);
+        fillEmpty(Material.GRAY_STAINED_GLASS_PANE);
 
         AutomodManager automod = plugin.getAutomodManager();
 
-        // Tab buttons (row 1)
-        setItem(10, createTabButton(Tab.FILTERS, Material.COMPARATOR), () -> {
-            currentTab = Tab.FILTERS;
-            rulePage = 0;
-            refresh();
-        });
+        // === TOP ROW: Header and Stats ===
+        // Decorative corners
+        setItem(0, createItem(Material.PURPLE_STAINED_GLASS_PANE, " "));
+        setItem(8, createItem(Material.PURPLE_STAINED_GLASS_PANE, " "));
 
-        setItem(11, createTabButton(Tab.RULES, Material.BOOK), () -> {
-            currentTab = Tab.RULES;
-            rulePage = 0;
-            refresh();
-        });
-
-        setItem(12, createTabButton(Tab.PUNISHMENTS, Material.BARRIER), () -> {
-            currentTab = Tab.PUNISHMENTS;
-            refresh();
-        });
-
-        setItem(14, createItem(Material.PAPER, "<aqua>Statistics",
-                "<gray>Active rules: <white>" + countActiveRules(),
-                "<gray>Total rules: <white>" + automod.getRules().size(),
-                "<gray>Spam filter: " + (automod.isSpamPreventionEnabled() ? "<green>ON" : "<red>OFF"),
-                "<gray>Caps filter: " + (automod.isCapsFilterEnabled() ? "<green>ON" : "<red>OFF")));
-
-        // Render current tab content
-        switch (currentTab) {
-            case FILTERS -> renderFiltersTab();
-            case RULES -> renderRulesTab();
-            case PUNISHMENTS -> renderPunishmentsTab();
-        }
-
-        // Bottom navigation
-        setItem(45, createItem(Material.ARROW, "<yellow>Go Back", "<gray>Return to main menu"),
-                () -> openGui(new MainMenuGui(plugin)));
-
-        setItem(49, createItem(Material.LIME_DYE, "<green>+ New Rule",
-                "<gray>Create a new automod rule",
+        // Title/Info
+        setItem(4, createItem(Material.COMMAND_BLOCK, "<gradient:#a855f7:#ec4899>Automod Manager</gradient>",
+                "<gray>Configure automatic moderation",
                 "",
-                "<yellow>Click to create"), this::promptCreateRule);
-
-        setItem(53, createCloseButton(), this::close);
-    }
-
-    private ItemStack createTabButton(Tab tab, Material icon) {
-        boolean selected = (currentTab == tab);
-
-        List<String> lore = new ArrayList<>();
-        lore.add("<gray>" + tab.description);
-        lore.add("");
-        lore.add(selected ? "<green>▶ Currently viewing" : "<yellow>Click to view");
-
-        return createItem(
-                selected ? Material.LIME_STAINED_GLASS_PANE : icon,
-                (selected ? "<green>" : "<white>") + tab.displayName,
-                lore
-        );
-    }
-
-    // ========== Filters Tab ==========
-
-    private void renderFiltersTab() {
-        AutomodManager automod = plugin.getAutomodManager();
-
-        // Centered content - row 2 (slots 20-24)
-        boolean spamEnabled = automod.isSpamPreventionEnabled();
-        setItem(20, createToggle("Spam Prevention", spamEnabled,
-                "Block rapid messages and duplicates", Material.REPEATER), () -> {
-            automod.setSpamPreventionEnabled(!spamEnabled);
-            viewer.playSound(viewer.getLocation(), Sound.UI_BUTTON_CLICK, 1f, 1f);
-            refresh();
-        });
-
-        boolean capsEnabled = automod.isCapsFilterEnabled();
-        setItem(22, createToggle("Caps Filter", capsEnabled,
-                "Convert excessive caps to lowercase", Material.NAME_TAG), () -> {
-            automod.setCapsFilterEnabled(!capsEnabled);
-            viewer.playSound(viewer.getLocation(), Sound.UI_BUTTON_CLICK, 1f, 1f);
-            refresh();
-        });
-
-        setItem(24, createItem(Material.CLOCK, "<gold>Spam Settings",
-                "<gray>Fine-tune spam detection",
+                "<white>Active Rules: <green>" + countActiveRules(),
+                "<white>Total Rules: <yellow>" + automod.getRules().size(),
                 "",
-                "<white>Message delay: <yellow>2s",
-                "<white>Similar threshold: <yellow>80%",
+                "<dark_gray>Rules are checked in order"));
+
+        // === ROW 2: Built-in Filters (Quick Toggles) ===
+        setItem(9, createItem(Material.PURPLE_STAINED_GLASS_PANE, " "));
+
+        // Spam Protection
+        AutomodRule spamRule = automod.getRule("spam_protection");
+        boolean spamEnabled = spamRule != null && spamRule.isEnabled();
+        setItem(10, createBuiltInToggle("Spam Filter", spamEnabled, Material.REPEATER,
+                "Block rapid & duplicate messages",
+                spamRule != null ? "Messages: " + spamRule.getSpamMessageCount() + " in " + spamRule.getSpamTimeWindowSeconds() + "s" : null),
+                clickType -> {
+                    if (clickType.isShiftClick() && spamRule != null) {
+                        openSpamSettings(spamRule);
+                    } else if (spamRule != null) {
+                        spamRule.setEnabled(!spamRule.isEnabled());
+                        automod.saveRule(spamRule);
+                        playToggleSound(spamRule.isEnabled());
+                        refresh();
+                    }
+                });
+
+        // Caps Filter
+        AutomodRule capsRule = automod.getRule("caps_filter");
+        boolean capsEnabled = capsRule != null && capsRule.isEnabled();
+        setItem(11, createBuiltInToggle("Caps Filter", capsEnabled, Material.NAME_TAG,
+                "Convert excessive CAPS to lowercase",
+                capsRule != null ? "Max: " + capsRule.getCapsMaxPercentage() + "% caps" : null),
+                clickType -> {
+                    if (clickType.isShiftClick() && capsRule != null) {
+                        openCapsSettings(capsRule);
+                    } else if (capsRule != null) {
+                        capsRule.setEnabled(!capsRule.isEnabled());
+                        automod.saveRule(capsRule);
+                        playToggleSound(capsRule.isEnabled());
+                        refresh();
+                    }
+                });
+
+        // Link Filter
+        AutomodRule linkRule = automod.getRule("link_filter");
+        boolean linkEnabled = linkRule != null && linkRule.isEnabled();
+        setItem(12, createBuiltInToggle("Link Filter", linkEnabled, Material.CHAIN,
+                "Block URLs and IP addresses",
+                null),
+                () -> {
+                    if (linkRule != null) {
+                        linkRule.setEnabled(!linkRule.isEnabled());
+                        automod.saveRule(linkRule);
+                        playToggleSound(linkRule.isEnabled());
+                        refresh();
+                    }
+                });
+
+        // AFK Kick
+        AutomodRule afkRule = automod.getRule("afk_kick");
+        boolean afkEnabled = afkRule != null && afkRule.isEnabled();
+        setItem(13, createBuiltInToggle("AFK Auto-Kick", afkEnabled, Material.CLOCK,
+                "Kick inactive players",
+                afkRule != null && afkRule.isAfkKickEnabled() ? "After: " + afkRule.getAfkTimeoutMinutes() + " min" : null),
+                clickType -> {
+                    if (clickType.isShiftClick() && afkRule != null) {
+                        openAfkSettings(afkRule);
+                    } else if (afkRule != null) {
+                        afkRule.setEnabled(!afkRule.isEnabled());
+                        automod.saveRule(afkRule);
+                        playToggleSound(afkRule.isEnabled());
+                        refresh();
+                    }
+                });
+
+        // Info button
+        setItem(16, createItem(Material.BOOK, "<aqua>How It Works",
+                "<gray>Built-in filters process messages",
+                "<gray>automatically when enabled.",
                 "",
-                "<dark_gray>Edit via config.yml"));
+                "<yellow>Click <white>to toggle on/off",
+                "<yellow>Shift+Click <white>to configure"));
 
-        // Row 3 - Additional info
-        setItem(31, createItem(Material.BOOK, "<aqua>How Filters Work",
-                "<gray>Spam: Blocks messages sent",
-                "<gray>too quickly or duplicates.",
-                "",
-                "<gray>Caps: Automatically converts",
-                "<gray>messages with >50% caps."));
-    }
+        setItem(17, createItem(Material.PURPLE_STAINED_GLASS_PANE, " "));
 
-    // ========== Rules Tab ==========
-
-    private void renderRulesTab() {
-        List<AutomodRule> rules = new ArrayList<>(plugin.getAutomodManager().getRules());
-        int totalPages = (int) Math.ceil(rules.size() / (double) RULES_PER_PAGE);
-        if (totalPages == 0) totalPages = 1;
-
-        // Rules display area - centered (slots 19-25, 28-34)
-        int[] slots = {19, 20, 21, 22, 23, 24, 25, 28, 29, 30, 31, 32, 33, 34};
-        int startIndex = rulePage * RULES_PER_PAGE;
-
-        for (int i = 0; i < slots.length && (startIndex + i) < rules.size(); i++) {
-            AutomodRule rule = rules.get(startIndex + i);
-            setItem(slots[i], createRuleItem(rule), clickType -> {
-                if (clickType.isShiftClick() && !rule.isBuiltIn()) {
-                    plugin.getAutomodManager().deleteRule(rule.getId());
-                    viewer.sendMessage(TextUtil.parse("<red>Rule deleted."));
-                    viewer.playSound(viewer.getLocation(), Sound.BLOCK_NOTE_BLOCK_BASS, 1f, 0.5f);
-                    refresh();
-                } else {
-                    openRuleEditor(rule);
-                }
-            });
+        // === SEPARATOR ===
+        for (int i = 18; i < 27; i++) {
+            setItem(i, createItem(Material.BLACK_STAINED_GLASS_PANE, " "));
         }
+        setItem(22, createItem(Material.PAPER, "<white>Custom & Anticheat Rules",
+                "<gray>Word filters and anticheat rules below"));
 
-        if (rules.isEmpty()) {
-            setItem(22, createItem(Material.GRAY_DYE, "<gray>No Rules",
-                    "<gray>Create your first rule",
-                    "<gray>with the button below"));
-        }
+        // === RULES LIST (Rows 4-6, slots 27-53) ===
+        List<AutomodRule> displayRules = getSortedRules();
+        int totalPages = Math.max(1, (int) Math.ceil(displayRules.size() / (double) RULES_PER_PAGE));
 
-        // Pagination - row 4
-        if (rulePage > 0) {
-            setItem(37, createPreviousButton(rulePage + 1), () -> {
-                rulePage--;
-                refresh();
-            });
-        }
+        // Display rules in grid (slots 28-34, 37-43, 46-52)
+        int[] ruleSlots = {
+            28, 29, 30, 31, 32, 33, 34,
+            37, 38, 39, 40, 41, 42, 43,
+            46, 47, 48, 49, 50, 51, 52
+        };
 
-        setItem(40, createItem(Material.PAPER, "<white>Page " + (rulePage + 1) + "/" + totalPages,
-                "<gray>" + rules.size() + " total rules"));
-
-        if (rulePage < totalPages - 1) {
-            setItem(43, createNextButton(rulePage + 1, totalPages), () -> {
-                rulePage++;
-                refresh();
-            });
-        }
-    }
-
-    // ========== Punishments Tab ==========
-
-    private void renderPunishmentsTab() {
-        // Display rules that have auto-punishments configured
-        List<AutomodRule> rulesWithPunishments = new ArrayList<>();
-        for (AutomodRule rule : plugin.getAutomodManager().getRules()) {
-            if (rule.getAutoPunishment() != null && rule.getAutoPunishment().isEnabled()) {
-                rulesWithPunishments.add(rule);
+        int startIndex = currentPage * RULES_PER_PAGE;
+        for (int i = 0; i < ruleSlots.length; i++) {
+            int ruleIndex = startIndex + i;
+            if (ruleIndex < displayRules.size()) {
+                AutomodRule rule = displayRules.get(ruleIndex);
+                setItem(ruleSlots[i], createRuleItem(rule), clickType -> {
+                    if (clickType.isShiftClick() && !rule.isBuiltIn()) {
+                        // Confirm delete
+                        viewer.sendMessage(TextUtil.parse("<red>Shift+click again to confirm deletion of: " + rule.getName()));
+                        automod.deleteRule(rule.getId());
+                        viewer.playSound(viewer.getLocation(), Sound.BLOCK_NOTE_BLOCK_BASS, 1f, 0.5f);
+                        refresh();
+                    } else {
+                        openRuleEditor(rule);
+                    }
+                });
+            } else {
+                setItem(ruleSlots[i], createItem(Material.LIGHT_GRAY_STAINED_GLASS_PANE, " "));
             }
         }
 
-        setItem(20, createItem(Material.BOOK, "<gold>Auto-Punishments",
-                "<gray>Configure automatic actions",
-                "<gray>when rules are triggered.",
+        // === BOTTOM ROW: Navigation ===
+        // Back button
+        setItem(45, createItem(Material.ARROW, "<yellow>← Back", "<gray>Return to main menu"),
+                () -> openGui(new MainMenuGui(plugin)));
+
+        // Previous page
+        if (currentPage > 0) {
+            setItem(27, createItem(Material.ARROW, "<yellow>Previous Page",
+                    "<gray>Page " + currentPage + "/" + totalPages), () -> {
+                currentPage--;
+                refresh();
+            });
+        } else {
+            setItem(27, createItem(Material.GRAY_STAINED_GLASS_PANE, " "));
+        }
+
+        // Create new rule
+        setItem(35, createItem(Material.LIME_DYE, "<green>+ New Word Filter",
+                "<gray>Create a custom word filter rule",
                 "",
-                "<white>" + rulesWithPunishments.size() + " <gray>rules with punishments"));
+                "<yellow>Click to create"), this::promptCreateRule);
 
-        // Show rules with punishments
-        int[] slots = {28, 29, 30, 31, 32, 33, 34};
-        int slotIndex = 0;
+        // Page indicator
+        setItem(36, createItem(Material.PAPER, "<white>Page " + (currentPage + 1) + "/" + totalPages,
+                "<gray>" + displayRules.size() + " rules total",
+                "<gray>" + countAnticheatRules() + " anticheat rules"));
 
-        for (AutomodRule rule : rulesWithPunishments) {
-            if (slotIndex >= slots.length) break;
-
-            AutomodRule.AutoPunishment punishment = rule.getAutoPunishment();
-            String duration = punishment.getDuration() == -1 ? "permanent" :
-                    DurationParser.format(punishment.getDuration());
-
-            setItem(slots[slotIndex], createItem(Material.BARRIER,
-                    "<red>" + rule.getName(),
-                    "<gray>Action: <white>" + punishment.getType().name(),
-                    "<gray>Duration: <white>" + duration,
-                    "<gray>After: <white>" + punishment.getTriggerCount() + " violations",
-                    "",
-                    "<yellow>Click to edit"), () -> openRuleEditor(rule));
-            slotIndex++;
+        // Next page
+        if (currentPage < totalPages - 1) {
+            setItem(44, createItem(Material.ARROW, "<yellow>Next Page",
+                    "<gray>Page " + (currentPage + 2) + "/" + totalPages), () -> {
+                currentPage++;
+                refresh();
+            });
+        } else {
+            setItem(44, createItem(Material.GRAY_STAINED_GLASS_PANE, " "));
         }
 
-        if (rulesWithPunishments.isEmpty()) {
-            setItem(31, createItem(Material.GRAY_DYE, "<gray>No Auto-Punishments",
-                    "<gray>Configure punishments in",
-                    "<gray>rule settings"));
-        }
-
-        // Info
-        setItem(22, createItem(Material.IRON_SWORD, "<aqua>Tip",
-                "<gray>Click on any rule in the",
-                "<gray>Rules tab to configure",
-                "<gray>auto-punishments for it"));
+        // Close button
+        setItem(53, createCloseButton(), this::close);
     }
 
-    // ========== Helper Methods ==========
+    // ==================== HELPER METHODS ====================
+
+    private List<AutomodRule> getSortedRules() {
+        List<AutomodRule> rules = new ArrayList<>();
+
+        // Add custom word filter rules first
+        for (AutomodRule rule : plugin.getAutomodManager().getRules()) {
+            if (!rule.isBuiltIn() && rule.getType() == AutomodRule.RuleType.WORD_FILTER) {
+                rules.add(rule);
+            }
+        }
+
+        // Add nickname rules
+        for (AutomodRule rule : plugin.getAutomodManager().getRules()) {
+            if (!rule.isBuiltIn() && rule.getType() == AutomodRule.RuleType.NICKNAME) {
+                rules.add(rule);
+            }
+        }
+
+        // Add anticheat rules at the end (sorted alphabetically)
+        List<AutomodRule> acRules = new ArrayList<>();
+        for (AutomodRule rule : plugin.getAutomodManager().getRules()) {
+            if (rule.getType() == AutomodRule.RuleType.ANTICHEAT) {
+                acRules.add(rule);
+            }
+        }
+        acRules.sort(Comparator.comparing(AutomodRule::getName));
+        rules.addAll(acRules);
+
+        return rules;
+    }
 
     private int countActiveRules() {
         int count = 0;
@@ -239,120 +255,439 @@ public class AutomodGui extends BaseGui {
         return count;
     }
 
-    private ItemStack createToggle(String name, boolean enabled, String description, Material icon) {
+    private int countAnticheatRules() {
+        int count = 0;
+        for (AutomodRule rule : plugin.getAutomodManager().getRules()) {
+            if (rule.getType() == AutomodRule.RuleType.ANTICHEAT) count++;
+        }
+        return count;
+    }
+
+    private ItemStack createBuiltInToggle(String name, boolean enabled, Material icon, String description, String extra) {
         List<String> lore = new ArrayList<>();
         lore.add("<gray>" + description);
+        if (extra != null) {
+            lore.add("<dark_gray>" + extra);
+        }
         lore.add("");
         lore.add(enabled ? "<green>✓ Enabled" : "<red>✗ Disabled");
         lore.add("");
-        lore.add("<yellow>Click to toggle");
+        lore.add("<yellow>Click <gray>to toggle");
+        lore.add("<yellow>Shift+Click <gray>to configure");
 
         return createItem(
-                enabled ? Material.LIME_DYE : Material.RED_DYE,
-                (enabled ? "<green>" : "<red>") + name,
-                lore
+            enabled ? Material.LIME_DYE : Material.RED_DYE,
+            (enabled ? "<green>" : "<red>") + name,
+            lore
         );
     }
 
     private ItemStack createRuleItem(AutomodRule rule) {
         List<String> lore = new ArrayList<>();
-        lore.add("<gray>Type: <white>" + rule.getType().name());
-        lore.add("<gray>Status: " + (rule.isEnabled() ? "<green>Enabled" : "<red>Disabled"));
 
-        if (rule.getType() == AutomodRule.RuleType.WORD_FILTER) {
-            List<String> words = rule.getBlacklistedWords();
-            lore.add("<gray>Words: <white>" + words.size());
+        // Type indicator
+        String typeDisplay = switch (rule.getType()) {
+            case WORD_FILTER -> "<blue>Word Filter";
+            case NICKNAME -> "<light_purple>Nickname Filter";
+            case ANTICHEAT -> "<red>Anticheat: " + (rule.getAnticheatName() != null ? rule.getAnticheatName() : "Unknown");
+            default -> "<gray>" + rule.getType().name();
+        };
+        lore.add(typeDisplay);
+
+        // Status
+        lore.add(rule.isEnabled() ? "<green>✓ Enabled" : "<red>✗ Disabled");
+
+        // Type-specific info
+        if (rule.getType() == AutomodRule.RuleType.WORD_FILTER || rule.getType() == AutomodRule.RuleType.NICKNAME) {
+            List<String> words = rule.getBlacklistedPhrases();
+            lore.add("<gray>Phrases: <white>" + words.size());
             if (!words.isEmpty()) {
                 String preview = words.get(0);
-                if (preview.length() > 10) preview = preview.substring(0, 10) + "...";
-                lore.add("<dark_gray>Preview: " + preview + (words.size() > 1 ? " +" + (words.size() - 1) : ""));
+                if (preview.length() > 15) preview = preview.substring(0, 15) + "...";
+                lore.add("<dark_gray>→ " + preview + (words.size() > 1 ? " +" + (words.size() - 1) + " more" : ""));
             }
+        } else if (rule.getType() == AutomodRule.RuleType.ANTICHEAT) {
+            lore.add("<gray>Check: <white>" + (rule.getCheckName() != null ? rule.getCheckName() : "Unknown"));
+            lore.add("<gray>Threshold: <white>" + rule.getAnticheatAlertThreshold() + " alerts in " + rule.getAnticheatTimeWindowSeconds() + "s");
         }
 
+        // Auto-punishment indicator
         if (rule.getAutoPunishment() != null && rule.getAutoPunishment().isEnabled()) {
-            lore.add("<gold>⚠ Auto-punishment: " + rule.getAutoPunishment().getType().name());
+            String punishType = rule.getAutoPunishment().getType().name();
+            lore.add("<gold>⚠ Auto: " + punishType + " after " + rule.getAutoPunishment().getTriggerCount() + " flags");
         }
 
         lore.add("");
-        if (rule.isBuiltIn()) {
-            lore.add("<red>Built-in rule");
-        } else {
-            lore.add("<yellow>Click to edit");
-            lore.add("<red>Shift+click to delete");
+        lore.add("<yellow>Click <gray>to edit");
+        if (!rule.isBuiltIn()) {
+            lore.add("<red>Shift+Click <gray>to delete");
         }
 
-        Material icon = rule.isEnabled() ? Material.LIME_DYE : Material.RED_DYE;
-        if (rule.getAutoPunishment() != null && rule.getAutoPunishment().isEnabled()) {
+        // Icon based on type and status
+        Material icon;
+        if (rule.getType() == AutomodRule.RuleType.ANTICHEAT) {
+            icon = rule.isEnabled() ? Material.DIAMOND_SWORD : Material.IRON_SWORD;
+        } else if (rule.getAutoPunishment() != null && rule.getAutoPunishment().isEnabled()) {
             icon = Material.ORANGE_DYE;
+        } else {
+            icon = rule.isEnabled() ? Material.LIME_DYE : Material.GRAY_DYE;
         }
 
-        return createItem(icon, (rule.isEnabled() ? "<green>" : "<gray>") + rule.getName(), lore);
+        return createItem(icon, (rule.isEnabled() ? "<white>" : "<gray>") + rule.getName(), lore);
+    }
+
+    private void playToggleSound(boolean enabled) {
+        viewer.playSound(viewer.getLocation(),
+            enabled ? Sound.BLOCK_NOTE_BLOCK_PLING : Sound.BLOCK_NOTE_BLOCK_BASS,
+            1f, enabled ? 1.2f : 0.8f);
+    }
+
+    // ==================== BUILT-IN RULE SETTINGS ====================
+
+    private void openSpamSettings(AutomodRule rule) {
+        openGui(new SpamSettingsGui(plugin, rule, this));
+    }
+
+    private void openCapsSettings(AutomodRule rule) {
+        openGui(new CapsSettingsGui(plugin, rule, this));
+    }
+
+    private void openAfkSettings(AutomodRule rule) {
+        openGui(new AfkSettingsGui(plugin, rule, this));
     }
 
     private void openRuleEditor(AutomodRule rule) {
-        plugin.getGuiManager().open(viewer, new RuleEditorGui(plugin, rule, this));
+        openGui(new RuleEditorGui(plugin, rule, this));
     }
 
     private void promptCreateRule() {
         close();
-        viewer.sendMessage(TextUtil.parse("<aqua>Enter a name for the new rule:"));
+        viewer.sendMessage(TextUtil.parse("<aqua>Enter a name for your new word filter rule:"));
         viewer.sendMessage(TextUtil.parse("<gray>Type 'cancel' to cancel"));
 
         new ConversationFactory(plugin)
-                .withModality(true)
-                .withFirstPrompt(new StringPrompt() {
-                    @Override
-                    public String getPromptText(ConversationContext context) {
-                        return "";
-                    }
+            .withModality(true)
+            .withFirstPrompt(new StringPrompt() {
+                @Override
+                public String getPromptText(ConversationContext context) {
+                    return "";
+                }
 
-                    @Override
-                    public Prompt acceptInput(ConversationContext context, String input) {
-                        if (input.equalsIgnoreCase("cancel")) {
-                            context.getForWhom().sendRawMessage(toLegacy("<red>Cancelled."));
-                        } else {
-                            AutomodRule newRule = plugin.getAutomodManager().createRule(input);
-                            context.getForWhom().sendRawMessage(toLegacy("<green>Rule '" + input + "' created!"));
-
-                            plugin.getServer().getScheduler().runTask(plugin, () -> {
-                                plugin.getGuiManager().open(viewer, new RuleEditorGui(plugin, newRule, AutomodGui.this));
-                            });
-                            return Prompt.END_OF_CONVERSATION;
-                        }
+                @Override
+                public Prompt acceptInput(ConversationContext context, String input) {
+                    if (input.equalsIgnoreCase("cancel")) {
+                        context.getForWhom().sendRawMessage(toLegacy("<red>Cancelled."));
+                    } else {
+                        AutomodRule newRule = plugin.getAutomodManager().createRule(input, AutomodRule.RuleType.WORD_FILTER);
+                        context.getForWhom().sendRawMessage(toLegacy("<green>Created rule: " + input));
 
                         plugin.getServer().getScheduler().runTask(plugin, () -> {
-                            plugin.getGuiManager().open(viewer, AutomodGui.this);
+                            openGui(new RuleEditorGui(plugin, newRule, AutomodGui.this));
                         });
                         return Prompt.END_OF_CONVERSATION;
                     }
-                })
-                .withLocalEcho(false)
-                .withTimeout(60)
-                .buildConversation(viewer)
-                .begin();
+
+                    plugin.getServer().getScheduler().runTask(plugin, () -> {
+                        plugin.getGuiManager().open(viewer, AutomodGui.this);
+                    });
+                    return Prompt.END_OF_CONVERSATION;
+                }
+            })
+            .withLocalEcho(false)
+            .withTimeout(60)
+            .buildConversation(viewer)
+            .begin();
     }
 
-    private enum Tab {
-        FILTERS("Filters", "Global chat filters"),
-        RULES("Rules", "Word filter rules"),
-        PUNISHMENTS("Punishments", "Auto-punishment config");
+    // ==================== SPAM SETTINGS GUI ====================
 
-        final String displayName;
-        final String description;
+    public static class SpamSettingsGui extends BaseGui {
+        private final AutomodRule rule;
+        private final AutomodGui parent;
 
-        Tab(String displayName, String description) {
-            this.displayName = displayName;
-            this.description = description;
+        public SpamSettingsGui(ModereX plugin, AutomodRule rule, AutomodGui parent) {
+            super(plugin, "<gradient:#a855f7:#ec4899>Spam Protection Settings</gradient>", 4);
+            this.rule = rule;
+            this.parent = parent;
+        }
+
+        @Override
+        protected void populate() {
+            fillEmpty(Material.GRAY_STAINED_GLASS_PANE);
+
+            // Enable/Disable toggle
+            setItem(10, createItem(
+                rule.isEnabled() ? Material.LIME_DYE : Material.RED_DYE,
+                rule.isEnabled() ? "<green>Enabled" : "<red>Disabled",
+                "<gray>Toggle spam protection on/off",
+                "",
+                "<yellow>Click to toggle"), () -> {
+                rule.setEnabled(!rule.isEnabled());
+                plugin.getAutomodManager().saveRule(rule);
+                refresh();
+            });
+
+            // Message count
+            setItem(12, createItem(Material.PAPER,
+                "<gold>Message Limit: <white>" + rule.getSpamMessageCount(),
+                "<gray>Messages allowed before flagging",
+                "",
+                "<yellow>Left-click: +1",
+                "<yellow>Right-click: -1"), clickType -> {
+                if (clickType.isLeftClick()) {
+                    rule.setSpamMessageCount(Math.min(20, rule.getSpamMessageCount() + 1));
+                } else if (clickType.isRightClick()) {
+                    rule.setSpamMessageCount(Math.max(2, rule.getSpamMessageCount() - 1));
+                }
+                plugin.getAutomodManager().saveRule(rule);
+                refresh();
+            });
+
+            // Time window
+            setItem(13, createItem(Material.CLOCK,
+                "<gold>Time Window: <white>" + rule.getSpamTimeWindowSeconds() + "s",
+                "<gray>Time window for counting messages",
+                "",
+                "<yellow>Left-click: +1s",
+                "<yellow>Right-click: -1s",
+                "<yellow>Shift: ±5s"), clickType -> {
+                int change = clickType.isShiftClick() ? 5 : 1;
+                if (clickType.isLeftClick()) {
+                    rule.setSpamTimeWindowSeconds(Math.min(60, rule.getSpamTimeWindowSeconds() + change));
+                } else if (clickType.isRightClick()) {
+                    rule.setSpamTimeWindowSeconds(Math.max(1, rule.getSpamTimeWindowSeconds() - change));
+                }
+                plugin.getAutomodManager().saveRule(rule);
+                refresh();
+            });
+
+            // Similar message detection
+            setItem(14, createItem(
+                rule.isSpamDetectSimilar() ? Material.LIME_DYE : Material.RED_DYE,
+                "<gold>Detect Similar: " + (rule.isSpamDetectSimilar() ? "<green>ON" : "<red>OFF"),
+                "<gray>Block messages that are similar",
+                "<gray>to previously sent messages",
+                "",
+                "<yellow>Click to toggle"), () -> {
+                rule.setSpamDetectSimilar(!rule.isSpamDetectSimilar());
+                plugin.getAutomodManager().saveRule(rule);
+                refresh();
+            });
+
+            // Similarity threshold
+            int similarityPercent = (int) (rule.getSpamSimilarityThreshold() * 100);
+            setItem(16, createItem(Material.COMPARATOR,
+                "<gold>Similarity: <white>" + similarityPercent + "%",
+                "<gray>How similar messages must be",
+                "<gray>to be considered duplicates",
+                "",
+                "<yellow>Left-click: +5%",
+                "<yellow>Right-click: -5%"), clickType -> {
+                double change = 0.05;
+                if (clickType.isLeftClick()) {
+                    rule.setSpamSimilarityThreshold(Math.min(1.0, rule.getSpamSimilarityThreshold() + change));
+                } else if (clickType.isRightClick()) {
+                    rule.setSpamSimilarityThreshold(Math.max(0.5, rule.getSpamSimilarityThreshold() - change));
+                }
+                plugin.getAutomodManager().saveRule(rule);
+                refresh();
+            });
+
+            // Auto-punishment section
+            setItem(22, createPunishmentButtonItem(rule), clickType -> openGui(new PunishmentConfigGui(plugin, rule, this)));
+
+            // Navigation
+            setItem(27, createBackButton(), () -> openGui(parent));
+            setItem(35, createItem(Material.LIME_CONCRETE, "<green>Save & Close"), () -> {
+                plugin.getAutomodManager().saveRule(rule);
+                viewer.playSound(viewer.getLocation(), Sound.ENTITY_EXPERIENCE_ORB_PICKUP, 1f, 1f);
+                openGui(parent);
+            });
+        }
+
+        private ItemStack createPunishmentButtonItem(AutomodRule rule) {
+            AutomodRule.AutoPunishment punishment = rule.getAutoPunishment();
+            boolean hasPunishment = punishment != null && punishment.isEnabled();
+
+            List<String> lore = new ArrayList<>();
+            if (hasPunishment) {
+                lore.add("<green>✓ Enabled");
+                lore.add("<gray>Type: <white>" + punishment.getType().name());
+                if (punishment.getDuration() != 0) {
+                    String duration = punishment.getDuration() == -1 ? "Permanent" : DurationParser.format(punishment.getDuration());
+                    lore.add("<gray>Duration: <white>" + duration);
+                }
+                lore.add("<gray>After: <white>" + punishment.getTriggerCount() + " violations");
+            } else {
+                lore.add("<red>✗ Disabled");
+                lore.add("<gray>No auto-punishment configured");
+            }
+            lore.add("");
+            lore.add("<yellow>Click to configure");
+
+            return createItem(
+                hasPunishment ? Material.DIAMOND_SWORD : Material.WOODEN_SWORD,
+                "<gold>Auto-Punishment",
+                lore
+            );
         }
     }
 
-    // ========== Rule Editor GUI ==========
+    // ==================== CAPS SETTINGS GUI ====================
 
-    public static class RuleEditorGui extends BaseGui {
-
+    public static class CapsSettingsGui extends BaseGui {
         private final AutomodRule rule;
         private final AutomodGui parent;
-        private EditorTab editorTab = EditorTab.GENERAL;
+
+        public CapsSettingsGui(ModereX plugin, AutomodRule rule, AutomodGui parent) {
+            super(plugin, "<gradient:#a855f7:#ec4899>Caps Filter Settings</gradient>", 4);
+            this.rule = rule;
+            this.parent = parent;
+        }
+
+        @Override
+        protected void populate() {
+            fillEmpty(Material.GRAY_STAINED_GLASS_PANE);
+
+            // Enable/Disable toggle
+            setItem(10, createItem(
+                rule.isEnabled() ? Material.LIME_DYE : Material.RED_DYE,
+                rule.isEnabled() ? "<green>Enabled" : "<red>Disabled",
+                "<gray>Toggle caps filter on/off",
+                "",
+                "<yellow>Click to toggle"), () -> {
+                rule.setEnabled(!rule.isEnabled());
+                plugin.getAutomodManager().saveRule(rule);
+                refresh();
+            });
+
+            // Max caps percentage
+            setItem(12, createItem(Material.NAME_TAG,
+                "<gold>Max Caps: <white>" + rule.getCapsMaxPercentage() + "%",
+                "<gray>Maximum percentage of capital",
+                "<gray>letters allowed in a message",
+                "",
+                "<yellow>Left-click: +5%",
+                "<yellow>Right-click: -5%"), clickType -> {
+                if (clickType.isLeftClick()) {
+                    rule.setCapsMaxPercentage(Math.min(100, rule.getCapsMaxPercentage() + 5));
+                } else if (clickType.isRightClick()) {
+                    rule.setCapsMaxPercentage(Math.max(10, rule.getCapsMaxPercentage() - 5));
+                }
+                plugin.getAutomodManager().saveRule(rule);
+                refresh();
+            });
+
+            // Minimum length
+            setItem(14, createItem(Material.PAPER,
+                "<gold>Min Length: <white>" + rule.getCapsMinLength() + " chars",
+                "<gray>Minimum message length to check",
+                "<gray>Short messages are ignored",
+                "",
+                "<yellow>Left-click: +1",
+                "<yellow>Right-click: -1",
+                "<yellow>Shift: ±5"), clickType -> {
+                int change = clickType.isShiftClick() ? 5 : 1;
+                if (clickType.isLeftClick()) {
+                    rule.setCapsMinLength(Math.min(50, rule.getCapsMinLength() + change));
+                } else if (clickType.isRightClick()) {
+                    rule.setCapsMinLength(Math.max(3, rule.getCapsMinLength() - change));
+                }
+                plugin.getAutomodManager().saveRule(rule);
+                refresh();
+            });
+
+            // Preview
+            setItem(16, createItem(Material.BOOK, "<aqua>How It Works",
+                "<gray>When a message exceeds " + rule.getCapsMaxPercentage() + "% caps",
+                "<gray>and is longer than " + rule.getCapsMinLength() + " characters,",
+                "<gray>it will be converted to lowercase.",
+                "",
+                "<white>Example:",
+                "<red>HELLO WORLD → <green>hello world"));
+
+            // Navigation
+            setItem(27, createBackButton(), () -> openGui(parent));
+            setItem(35, createItem(Material.LIME_CONCRETE, "<green>Save & Close"), () -> {
+                plugin.getAutomodManager().saveRule(rule);
+                viewer.playSound(viewer.getLocation(), Sound.ENTITY_EXPERIENCE_ORB_PICKUP, 1f, 1f);
+                openGui(parent);
+            });
+        }
+    }
+
+    // ==================== AFK SETTINGS GUI ====================
+
+    public static class AfkSettingsGui extends BaseGui {
+        private final AutomodRule rule;
+        private final AutomodGui parent;
+
+        public AfkSettingsGui(ModereX plugin, AutomodRule rule, AutomodGui parent) {
+            super(plugin, "<gradient:#a855f7:#ec4899>AFK Auto-Kick Settings</gradient>", 4);
+            this.rule = rule;
+            this.parent = parent;
+        }
+
+        @Override
+        protected void populate() {
+            fillEmpty(Material.GRAY_STAINED_GLASS_PANE);
+
+            // Enable/Disable toggle
+            setItem(11, createItem(
+                rule.isEnabled() ? Material.LIME_DYE : Material.RED_DYE,
+                rule.isEnabled() ? "<green>Enabled" : "<red>Disabled",
+                "<gray>Toggle AFK auto-kick on/off",
+                "",
+                "<yellow>Click to toggle"), () -> {
+                rule.setEnabled(!rule.isEnabled());
+                plugin.getAutomodManager().saveRule(rule);
+                refresh();
+            });
+
+            // Timeout
+            setItem(13, createItem(Material.CLOCK,
+                "<gold>Timeout: <white>" + rule.getAfkTimeoutMinutes() + " minutes",
+                "<gray>Time before kicking AFK player",
+                "",
+                "<yellow>Left-click: +1 min",
+                "<yellow>Right-click: -1 min",
+                "<yellow>Shift: ±5 min"), clickType -> {
+                int change = clickType.isShiftClick() ? 5 : 1;
+                if (clickType.isLeftClick()) {
+                    rule.setAfkTimeoutMinutes(Math.min(120, rule.getAfkTimeoutMinutes() + change));
+                } else if (clickType.isRightClick()) {
+                    rule.setAfkTimeoutMinutes(Math.max(1, rule.getAfkTimeoutMinutes() - change));
+                }
+                plugin.getAutomodManager().saveRule(rule);
+                refresh();
+            });
+
+            // Info
+            setItem(15, createItem(Material.BOOK, "<aqua>How It Works",
+                "<gray>Players who are inactive for",
+                "<gray>" + rule.getAfkTimeoutMinutes() + " minutes will be kicked.",
+                "",
+                "<gray>Activity includes:",
+                "<white>• Moving",
+                "<white>• Chatting",
+                "<white>• Breaking/placing blocks",
+                "<white>• Interacting"));
+
+            // Navigation
+            setItem(27, createBackButton(), () -> openGui(parent));
+            setItem(35, createItem(Material.LIME_CONCRETE, "<green>Save & Close"), () -> {
+                plugin.getAutomodManager().saveRule(rule);
+                viewer.playSound(viewer.getLocation(), Sound.ENTITY_EXPERIENCE_ORB_PICKUP, 1f, 1f);
+                openGui(parent);
+            });
+        }
+    }
+
+    // ==================== RULE EDITOR GUI (Single Page) ====================
+
+    public static class RuleEditorGui extends BaseGui {
+        private final AutomodRule rule;
+        private final AutomodGui parent;
 
         public RuleEditorGui(ModereX plugin, AutomodRule rule, AutomodGui parent) {
             super(plugin, "<gradient:#a855f7:#ec4899>Edit: " + rule.getName() + "</gradient>", 5);
@@ -362,48 +697,154 @@ public class AutomodGui extends BaseGui {
 
         @Override
         protected void populate() {
-            fillEmpty(Material.BLACK_STAINED_GLASS_PANE);
+            fillEmpty(Material.GRAY_STAINED_GLASS_PANE);
 
-            // Tab buttons
-            setItem(10, createEditorTabButton(EditorTab.GENERAL, Material.COMPARATOR), () -> {
-                editorTab = EditorTab.GENERAL;
+            // === TOP ROW: Basic Settings ===
+            // Enable/Disable
+            setItem(10, createItem(
+                rule.isEnabled() ? Material.LIME_DYE : Material.RED_DYE,
+                rule.isEnabled() ? "<green>✓ Enabled" : "<red>✗ Disabled",
+                "<gray>Toggle this rule on/off",
+                "",
+                "<yellow>Click to toggle"), () -> {
+                rule.setEnabled(!rule.isEnabled());
+                plugin.getAutomodManager().saveRule(rule);
+                viewer.playSound(viewer.getLocation(), Sound.UI_BUTTON_CLICK, 1f, 1f);
                 refresh();
             });
 
-            setItem(11, createEditorTabButton(EditorTab.WORDS, Material.PAPER), () -> {
-                editorTab = EditorTab.WORDS;
-                refresh();
-            });
+            // Rule type info
+            String typeDisplay = switch (rule.getType()) {
+                case WORD_FILTER -> "<blue>Word Filter";
+                case NICKNAME -> "<light_purple>Nickname Filter";
+                case ANTICHEAT -> "<red>Anticheat Rule";
+                default -> "<gray>" + rule.getType().name();
+            };
+            setItem(11, createItem(Material.BOOK,
+                "<gold>Type: " + typeDisplay,
+                rule.getDescription() != null ? "<gray>" + rule.getDescription() : "<gray>No description"));
 
-            setItem(12, createEditorTabButton(EditorTab.PUNISHMENT, Material.BARRIER), () -> {
-                editorTab = EditorTab.PUNISHMENT;
-                refresh();
-            });
+            // === WORD FILTER SETTINGS ===
+            if (rule.getType() == AutomodRule.RuleType.WORD_FILTER || rule.getType() == AutomodRule.RuleType.NICKNAME) {
+                // Filter mode
+                setItem(13, createItem(
+                    rule.isExactMatch() ? Material.TARGET : Material.GLASS,
+                    "<gold>Mode: " + (rule.isExactMatch() ? "<yellow>Exact Match" : "<aqua>Contains"),
+                    "<gray>How to match phrases",
+                    "",
+                    rule.isExactMatch()
+                        ? "<white>Matches whole message only"
+                        : "<white>Matches anywhere in message",
+                    "",
+                    "<yellow>Click to toggle"), () -> {
+                    rule.setExactMatch(!rule.isExactMatch());
+                    plugin.getAutomodManager().saveRule(rule);
+                    refresh();
+                });
 
-            switch (editorTab) {
-                case GENERAL -> renderGeneralTab();
-                case WORDS -> renderWordsTab();
-                case PUNISHMENT -> renderPunishmentTab();
+                // Blacklisted words
+                List<String> words = rule.getBlacklistedPhrases();
+                List<String> wordLore = new ArrayList<>();
+                wordLore.add("<gray>Phrases that trigger this rule");
+                wordLore.add("");
+                wordLore.add("<white>" + words.size() + " phrases configured");
+                if (!words.isEmpty()) {
+                    wordLore.add("");
+                    for (int i = 0; i < Math.min(5, words.size()); i++) {
+                        String word = words.get(i);
+                        if (word.length() > 20) word = word.substring(0, 20) + "...";
+                        wordLore.add("<gray>• " + word);
+                    }
+                    if (words.size() > 5) {
+                        wordLore.add("<dark_gray>... and " + (words.size() - 5) + " more");
+                    }
+                }
+                wordLore.add("");
+                wordLore.add("<yellow>Click to edit");
+
+                setItem(15, createItem(Material.PAPER, "<gold>Blacklisted Phrases", wordLore),
+                    this::promptEditWords);
+
+                // Exclusions
+                List<String> exclusions = rule.getExclusionPhrases();
+                setItem(16, createItem(Material.EMERALD,
+                    "<aqua>Exclusions: <white>" + exclusions.size(),
+                    "<gray>Phrases that bypass this filter",
+                    "",
+                    "<yellow>Click to edit"),
+                    this::promptEditExclusions);
             }
 
-            // Bottom navigation
+            // === ANTICHEAT SETTINGS ===
+            if (rule.getType() == AutomodRule.RuleType.ANTICHEAT) {
+                // Anticheat name
+                setItem(13, createItem(Material.DIAMOND_SWORD,
+                    "<gold>Anticheat: <white>" + (rule.getAnticheatName() != null ? rule.getAnticheatName() : "Unknown"),
+                    "<gold>Check: <white>" + (rule.getCheckName() != null ? rule.getCheckName() : "Unknown"),
+                    "",
+                    "<gray>This rule triggers when players",
+                    "<gray>flag this anticheat check"));
+
+                // Alert threshold
+                setItem(15, createItem(Material.COMPARATOR,
+                    "<gold>Threshold: <white>" + rule.getAnticheatAlertThreshold() + " alerts",
+                    "<gray>Alerts needed to trigger action",
+                    "",
+                    "<yellow>Left: +1 | Right: -1",
+                    "<yellow>Shift: ±5"), clickType -> {
+                    int change = clickType.isShiftClick() ? 5 : 1;
+                    if (clickType.isLeftClick()) {
+                        rule.setAnticheatAlertThreshold(Math.min(100, rule.getAnticheatAlertThreshold() + change));
+                    } else if (clickType.isRightClick()) {
+                        rule.setAnticheatAlertThreshold(Math.max(1, rule.getAnticheatAlertThreshold() - change));
+                    }
+                    plugin.getAutomodManager().saveRule(rule);
+                    refresh();
+                });
+
+                // Time window
+                setItem(16, createItem(Material.CLOCK,
+                    "<gold>Time Window: <white>" + rule.getAnticheatTimeWindowSeconds() + "s",
+                    "<gray>Reset violations after this time",
+                    "",
+                    "<yellow>Left: +5s | Right: -5s",
+                    "<yellow>Shift: ±30s"), clickType -> {
+                    int change = clickType.isShiftClick() ? 30 : 5;
+                    if (clickType.isLeftClick()) {
+                        rule.setAnticheatTimeWindowSeconds(Math.min(600, rule.getAnticheatTimeWindowSeconds() + change));
+                    } else if (clickType.isRightClick()) {
+                        rule.setAnticheatTimeWindowSeconds(Math.max(10, rule.getAnticheatTimeWindowSeconds() - change));
+                    }
+                    plugin.getAutomodManager().saveRule(rule);
+                    refresh();
+                });
+            }
+
+            // === AUTO PUNISHMENT (Middle Row) ===
+            setItem(22, createPunishmentButtonItem(rule), clickType -> openGui(new PunishmentConfigGui(plugin, rule, this)));
+
+            // === BOTTOM ROW ===
+            // Back button
             setItem(36, createBackButton(), () -> openGui(parent));
 
+            // Delete button (if not built-in)
             if (!rule.isBuiltIn()) {
                 setItem(40, createItem(Material.BARRIER, "<red>Delete Rule",
-                        "<gray>Permanently delete this rule",
-                        "",
-                        "<red>Shift+click to confirm"), clickType -> {
+                    "<gray>Permanently delete this rule",
+                    "",
+                    "<red>Shift+click to confirm"), clickType -> {
                     if (clickType.isShiftClick()) {
                         plugin.getAutomodManager().deleteRule(rule.getId());
                         viewer.sendMessage(TextUtil.parse("<red>Rule deleted."));
+                        viewer.playSound(viewer.getLocation(), Sound.BLOCK_NOTE_BLOCK_BASS, 1f, 0.5f);
                         openGui(parent);
                     }
                 });
             }
 
+            // Save & Close
             setItem(44, createItem(Material.LIME_CONCRETE, "<green>Save & Close",
-                    "<gray>Save changes and return"), () -> {
+                "<gray>Save changes and return"), () -> {
                 plugin.getAutomodManager().saveRule(rule);
                 viewer.sendMessage(TextUtil.parse("<green>Rule saved!"));
                 viewer.playSound(viewer.getLocation(), Sound.ENTITY_EXPERIENCE_ORB_PICKUP, 1f, 1f);
@@ -411,101 +852,157 @@ public class AutomodGui extends BaseGui {
             });
         }
 
-        private ItemStack createEditorTabButton(EditorTab tab, Material icon) {
-            boolean selected = (editorTab == tab);
+        private void promptEditWords() {
+            close();
+            viewer.sendMessage(TextUtil.parse("<aqua>Enter phrases to filter (comma-separated):"));
+            viewer.sendMessage(TextUtil.parse("<gray>Current: " + String.join(", ", rule.getBlacklistedPhrases())));
+            viewer.sendMessage(TextUtil.parse("<gray>Type 'cancel' to cancel, 'clear' to remove all"));
+
+            new ConversationFactory(plugin)
+                .withModality(true)
+                .withFirstPrompt(new StringPrompt() {
+                    @Override
+                    public String getPromptText(ConversationContext context) {
+                        return "";
+                    }
+
+                    @Override
+                    public Prompt acceptInput(ConversationContext context, String input) {
+                        if (input.equalsIgnoreCase("clear")) {
+                            rule.setBlacklistedPhrases(new ArrayList<>());
+                            plugin.getAutomodManager().saveRule(rule);
+                            context.getForWhom().sendRawMessage(toLegacy("<yellow>Phrases cleared."));
+                        } else if (!input.equalsIgnoreCase("cancel")) {
+                            List<String> words = new ArrayList<>();
+                            for (String word : input.split(",")) {
+                                word = word.trim();
+                                if (!word.isEmpty()) {
+                                    words.add(word);
+                                }
+                            }
+                            rule.setBlacklistedPhrases(words);
+                            plugin.getAutomodManager().saveRule(rule);
+                            context.getForWhom().sendRawMessage(toLegacy("<green>Updated with " + words.size() + " phrases."));
+                        }
+
+                        plugin.getServer().getScheduler().runTask(plugin, () -> {
+                            plugin.getGuiManager().open(viewer, RuleEditorGui.this);
+                        });
+                        return Prompt.END_OF_CONVERSATION;
+                    }
+                })
+                .withLocalEcho(false)
+                .withTimeout(120)
+                .buildConversation(viewer)
+                .begin();
+        }
+
+        private void promptEditExclusions() {
+            close();
+            viewer.sendMessage(TextUtil.parse("<aqua>Enter exclusion phrases (comma-separated):"));
+            viewer.sendMessage(TextUtil.parse("<gray>Current: " + String.join(", ", rule.getExclusionPhrases())));
+            viewer.sendMessage(TextUtil.parse("<gray>Type 'cancel' to cancel, 'clear' to remove all"));
+
+            new ConversationFactory(plugin)
+                .withModality(true)
+                .withFirstPrompt(new StringPrompt() {
+                    @Override
+                    public String getPromptText(ConversationContext context) {
+                        return "";
+                    }
+
+                    @Override
+                    public Prompt acceptInput(ConversationContext context, String input) {
+                        if (input.equalsIgnoreCase("clear")) {
+                            rule.setExclusionPhrases(new ArrayList<>());
+                            plugin.getAutomodManager().saveRule(rule);
+                            context.getForWhom().sendRawMessage(toLegacy("<yellow>Exclusions cleared."));
+                        } else if (!input.equalsIgnoreCase("cancel")) {
+                            List<String> words = new ArrayList<>();
+                            for (String word : input.split(",")) {
+                                word = word.trim();
+                                if (!word.isEmpty()) {
+                                    words.add(word);
+                                }
+                            }
+                            rule.setExclusionPhrases(words);
+                            plugin.getAutomodManager().saveRule(rule);
+                            context.getForWhom().sendRawMessage(toLegacy("<green>Updated with " + words.size() + " exclusions."));
+                        }
+
+                        plugin.getServer().getScheduler().runTask(plugin, () -> {
+                            plugin.getGuiManager().open(viewer, RuleEditorGui.this);
+                        });
+                        return Prompt.END_OF_CONVERSATION;
+                    }
+                })
+                .withLocalEcho(false)
+                .withTimeout(120)
+                .buildConversation(viewer)
+                .begin();
+        }
+
+        private ItemStack createPunishmentButtonItem(AutomodRule rule) {
+            AutomodRule.AutoPunishment punishment = rule.getAutoPunishment();
+            boolean hasPunishment = punishment != null && punishment.isEnabled();
+
+            List<String> lore = new ArrayList<>();
+            if (hasPunishment) {
+                lore.add("<green>✓ Enabled");
+                lore.add("<gray>Type: <white>" + punishment.getType().name());
+                if (punishment.getDuration() != 0) {
+                    String duration = punishment.getDuration() == -1 ? "Permanent" : DurationParser.format(punishment.getDuration());
+                    lore.add("<gray>Duration: <white>" + duration);
+                }
+                lore.add("<gray>After: <white>" + punishment.getTriggerCount() + " violations");
+            } else {
+                lore.add("<red>✗ Disabled");
+                lore.add("<gray>No auto-punishment configured");
+            }
+            lore.add("");
+            lore.add("<yellow>Click to configure");
+
             return createItem(
-                    selected ? Material.LIME_STAINED_GLASS_PANE : icon,
-                    (selected ? "<green>" : "<white>") + tab.displayName,
-                    "<gray>" + tab.description,
-                    "",
-                    selected ? "<green>▶ Viewing" : "<yellow>Click to view"
+                hasPunishment ? Material.DIAMOND_SWORD : Material.WOODEN_SWORD,
+                "<gold>Auto-Punishment",
+                lore
             );
         }
+    }
 
-        private void renderGeneralTab() {
-            // Enabled toggle
-            setItem(20, createItem(
-                    rule.isEnabled() ? Material.LIME_DYE : Material.RED_DYE,
-                    rule.isEnabled() ? "<green>Enabled" : "<red>Disabled",
-                    "<gray>Toggle rule on/off",
-                    "",
-                    "<yellow>Click to toggle"), () -> {
-                rule.setEnabled(!rule.isEnabled());
-                plugin.getAutomodManager().saveRule(rule);
-                refresh();
-            });
+    // ==================== PUNISHMENT CONFIG GUI ====================
 
-            // Exact match toggle
-            setItem(22, createItem(
-                    rule.isExactMatch() ? Material.TARGET : Material.GLASS,
-                    rule.isExactMatch() ? "<green>Exact Match: ON" : "<yellow>Exact Match: OFF",
-                    "<gray>Match whole words only",
-                    "<gray>vs anywhere in message",
-                    "",
-                    "<yellow>Click to toggle"), () -> {
-                rule.setExactMatch(!rule.isExactMatch());
-                plugin.getAutomodManager().saveRule(rule);
-                refresh();
-            });
+    public static class PunishmentConfigGui extends BaseGui {
+        private final AutomodRule rule;
+        private final BaseGui parent;
 
-            // Rule type info
-            setItem(24, createItem(Material.BOOK, "<aqua>Rule Type",
-                    "<white>" + rule.getType().name(),
-                    "",
-                    "<gray>Type cannot be changed"));
+        public PunishmentConfigGui(ModereX plugin, AutomodRule rule, BaseGui parent) {
+            super(plugin, "<gradient:#ff6b6b:#ee5a5a>Auto-Punishment Config</gradient>", 4);
+            this.rule = rule;
+            this.parent = parent;
         }
 
-        private void renderWordsTab() {
-            // Blacklisted words
-            setItem(20, createItem(Material.PAPER, "<gold>Blacklisted Words",
-                    "<gray>Words to filter",
-                    "",
-                    "<white>" + rule.getBlacklistedWords().size() + " words",
-                    "",
-                    "<yellow>Click to edit"), this::promptEditWords);
+        @Override
+        protected void populate() {
+            fillEmpty(Material.GRAY_STAINED_GLASS_PANE);
 
-            // Preview some words
-            List<String> words = rule.getBlacklistedWords();
-            if (!words.isEmpty()) {
-                StringBuilder preview = new StringBuilder();
-                for (int i = 0; i < Math.min(5, words.size()); i++) {
-                    if (i > 0) preview.append(", ");
-                    preview.append(words.get(i));
-                }
-                if (words.size() > 5) preview.append("...");
-
-                setItem(29, createItem(Material.WRITABLE_BOOK, "<gray>Preview",
-                        "<white>" + preview));
-            }
-
-            // Exclusions
-            setItem(24, createItem(Material.EMERALD, "<aqua>Exclusions",
-                    "<gray>Words that bypass filter",
-                    "",
-                    "<white>" + rule.getExclusionWords().size() + " exclusions",
-                    "",
-                    "<yellow>Click to edit"), this::promptEditExclusions);
-        }
-
-        private void renderPunishmentTab() {
             AutomodRule.AutoPunishment punishment = rule.getAutoPunishment();
             boolean hasPunishment = punishment != null && punishment.isEnabled();
 
             // Enable toggle
-            setItem(20, createItem(
-                    hasPunishment ? Material.LIME_DYE : Material.RED_DYE,
-                    hasPunishment ? "<green>Auto-Punish: ON" : "<red>Auto-Punish: OFF",
-                    "<gray>Automatically punish",
-                    "<gray>when rule is triggered",
-                    "",
-                    "<yellow>Click to toggle"), () -> {
+            setItem(10, createItem(
+                hasPunishment ? Material.LIME_DYE : Material.RED_DYE,
+                hasPunishment ? "<green>Auto-Punish: ON" : "<red>Auto-Punish: OFF",
+                "<gray>Automatically punish when rule triggers",
+                "",
+                "<yellow>Click to toggle"), () -> {
                 if (punishment == null) {
                     AutomodRule.AutoPunishment newPunishment = new AutomodRule.AutoPunishment();
                     newPunishment.setEnabled(true);
                     newPunishment.setType(PunishmentType.WARN);
                     newPunishment.setDuration(0);
                     newPunishment.setTriggerCount(3);
-                    newPunishment.setTimeWindow(300000); // 5 minutes
+                    newPunishment.setTimeWindow(300000);
                     rule.setAutoPunishment(newPunishment);
                 } else {
                     punishment.setEnabled(!punishment.isEnabled());
@@ -516,13 +1013,13 @@ public class AutomodGui extends BaseGui {
 
             if (hasPunishment) {
                 // Punishment type
-                setItem(21, createItem(Material.IRON_SWORD,
-                        "<gold>Type: " + punishment.getType().name(),
-                        "<gray>What punishment to apply",
-                        "",
-                        "<yellow>Click to cycle"), () -> {
+                setItem(12, createItem(Material.IRON_SWORD,
+                    "<gold>Type: <white>" + punishment.getType().name(),
+                    "<gray>What punishment to apply",
+                    "",
+                    "<yellow>Click to cycle"), () -> {
                     PunishmentType[] types = {PunishmentType.WARN, PunishmentType.MUTE,
-                            PunishmentType.KICK, PunishmentType.BAN};
+                        PunishmentType.KICK, PunishmentType.BAN};
                     int current = 0;
                     for (int i = 0; i < types.length; i++) {
                         if (types[i] == punishment.getType()) {
@@ -537,14 +1034,15 @@ public class AutomodGui extends BaseGui {
 
                 // Duration (for mute/ban)
                 if (punishment.getType() == PunishmentType.MUTE || punishment.getType() == PunishmentType.BAN) {
-                    String duration = punishment.getDuration() == -1 ? "Permanent" :
-                            punishment.getDuration() == 0 ? "Not set" : DurationParser.format(punishment.getDuration());
-                    setItem(22, createItem(Material.CLOCK,
-                            "<gold>Duration: " + duration,
-                            "<gray>How long the punishment lasts",
-                            "",
-                            "<yellow>Left: +1h | Right: -1h",
-                            "<yellow>Shift+click: Toggle permanent"), clickType -> {
+                    String duration = punishment.getDuration() == -1 ? "<red>Permanent" :
+                        punishment.getDuration() == 0 ? "<gray>Not set" :
+                        "<white>" + DurationParser.format(punishment.getDuration());
+                    setItem(13, createItem(Material.CLOCK,
+                        "<gold>Duration: " + duration,
+                        "<gray>How long the punishment lasts",
+                        "",
+                        "<yellow>Left: +1h | Right: -1h",
+                        "<yellow>Shift+click: Toggle permanent"), clickType -> {
                         if (clickType.isShiftClick()) {
                             punishment.setDuration(punishment.getDuration() == -1 ? 3600000 : -1);
                         } else if (clickType.isLeftClick()) {
@@ -564,11 +1062,11 @@ public class AutomodGui extends BaseGui {
                 }
 
                 // Trigger count
-                setItem(23, createItem(Material.REDSTONE,
-                        "<gold>Trigger After: " + punishment.getTriggerCount() + " violations",
-                        "<gray>How many violations before punishing",
-                        "",
-                        "<yellow>Left: +1 | Right: -1"), clickType -> {
+                setItem(15, createItem(Material.REDSTONE,
+                    "<gold>Trigger After: <white>" + punishment.getTriggerCount() + " violations",
+                    "<gray>How many violations before punishing",
+                    "",
+                    "<yellow>Left: +1 | Right: -1"), clickType -> {
                     if (clickType.isLeftClick()) {
                         punishment.setTriggerCount(Math.min(20, punishment.getTriggerCount() + 1));
                     } else if (clickType.isRightClick()) {
@@ -580,11 +1078,11 @@ public class AutomodGui extends BaseGui {
 
                 // Time window
                 String window = DurationParser.format(punishment.getTimeWindow());
-                setItem(24, createItem(Material.HOPPER,
-                        "<gold>Time Window: " + window,
-                        "<gray>Reset violations after this time",
-                        "",
-                        "<yellow>Left: +1m | Right: -1m"), clickType -> {
+                setItem(16, createItem(Material.HOPPER,
+                    "<gold>Time Window: <white>" + window,
+                    "<gray>Reset violations after this time",
+                    "",
+                    "<yellow>Left: +1m | Right: -1m"), clickType -> {
                     if (clickType.isLeftClick()) {
                         punishment.setTimeWindow(Math.min(3600000, punishment.getTimeWindow() + 60000));
                     } else if (clickType.isRightClick()) {
@@ -594,108 +1092,18 @@ public class AutomodGui extends BaseGui {
                     refresh();
                 });
             }
-        }
 
-        private void promptEditWords() {
-            close();
-            viewer.sendMessage(TextUtil.parse("<aqua>Enter blacklisted words (comma-separated):"));
-            viewer.sendMessage(TextUtil.parse("<gray>Current: " + String.join(", ", rule.getBlacklistedWords())));
-            viewer.sendMessage(TextUtil.parse("<gray>Type 'cancel' to cancel"));
-
-            new ConversationFactory(plugin)
-                    .withModality(true)
-                    .withFirstPrompt(new StringPrompt() {
-                        @Override
-                        public String getPromptText(ConversationContext context) {
-                            return "";
-                        }
-
-                        @Override
-                        public Prompt acceptInput(ConversationContext context, String input) {
-                            if (!input.equalsIgnoreCase("cancel")) {
-                                List<String> words = new ArrayList<>();
-                                for (String word : input.split(",")) {
-                                    word = word.trim();
-                                    if (!word.isEmpty()) {
-                                        words.add(word);
-                                    }
-                                }
-                                rule.setBlacklistedWords(words);
-                                plugin.getAutomodManager().saveRule(rule);
-                                context.getForWhom().sendRawMessage(toLegacy("<green>Updated with " + words.size() + " words."));
-                            }
-
-                            plugin.getServer().getScheduler().runTask(plugin, () -> {
-                                plugin.getGuiManager().open(viewer, RuleEditorGui.this);
-                            });
-                            return Prompt.END_OF_CONVERSATION;
-                        }
-                    })
-                    .withLocalEcho(false)
-                    .withTimeout(120)
-                    .buildConversation(viewer)
-                    .begin();
-        }
-
-        private void promptEditExclusions() {
-            close();
-            viewer.sendMessage(TextUtil.parse("<aqua>Enter exclusion words (comma-separated):"));
-            viewer.sendMessage(TextUtil.parse("<gray>Current: " + String.join(", ", rule.getExclusionWords())));
-            viewer.sendMessage(TextUtil.parse("<gray>Type 'cancel' to cancel, 'clear' to remove all"));
-
-            new ConversationFactory(plugin)
-                    .withModality(true)
-                    .withFirstPrompt(new StringPrompt() {
-                        @Override
-                        public String getPromptText(ConversationContext context) {
-                            return "";
-                        }
-
-                        @Override
-                        public Prompt acceptInput(ConversationContext context, String input) {
-                            if (input.equalsIgnoreCase("clear")) {
-                                rule.setExclusionWords(new ArrayList<>());
-                                plugin.getAutomodManager().saveRule(rule);
-                                context.getForWhom().sendRawMessage(toLegacy("<yellow>Exclusions cleared."));
-                            } else if (!input.equalsIgnoreCase("cancel")) {
-                                List<String> words = new ArrayList<>();
-                                for (String word : input.split(",")) {
-                                    word = word.trim();
-                                    if (!word.isEmpty()) {
-                                        words.add(word);
-                                    }
-                                }
-                                rule.setExclusionWords(words);
-                                plugin.getAutomodManager().saveRule(rule);
-                                context.getForWhom().sendRawMessage(toLegacy("<green>Updated with " + words.size() + " exclusions."));
-                            }
-
-                            plugin.getServer().getScheduler().runTask(plugin, () -> {
-                                plugin.getGuiManager().open(viewer, RuleEditorGui.this);
-                            });
-                            return Prompt.END_OF_CONVERSATION;
-                        }
-                    })
-                    .withLocalEcho(false)
-                    .withTimeout(120)
-                    .buildConversation(viewer)
-                    .begin();
-        }
-
-        private enum EditorTab {
-            GENERAL("General", "Basic rule settings"),
-            WORDS("Words", "Blacklist and exclusions"),
-            PUNISHMENT("Punishment", "Auto-punishment settings");
-
-            final String displayName;
-            final String description;
-
-            EditorTab(String displayName, String description) {
-                this.displayName = displayName;
-                this.description = description;
-            }
+            // Navigation
+            setItem(27, createBackButton(), () -> openGui(parent));
+            setItem(35, createItem(Material.LIME_CONCRETE, "<green>Save & Close"), () -> {
+                plugin.getAutomodManager().saveRule(rule);
+                viewer.playSound(viewer.getLocation(), Sound.ENTITY_EXPERIENCE_ORB_PICKUP, 1f, 1f);
+                openGui(parent);
+            });
         }
     }
+
+    // ==================== SHARED METHODS ====================
 
     private static String toLegacy(String miniMessage) {
         return LegacyComponentSerializer.legacySection().serialize(TextUtil.parse(miniMessage));

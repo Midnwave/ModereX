@@ -1,6 +1,7 @@
 package com.blockforge.moderex;
 
 import com.blockforge.moderex.automod.AutomodManager;
+import com.blockforge.moderex.automod.api.AutomodAPI;
 import com.blockforge.moderex.commands.CommandManager;
 import com.blockforge.moderex.config.ConfigManager;
 import com.blockforge.moderex.config.lang.LanguageManager;
@@ -47,6 +48,7 @@ public final class ModereX extends JavaPlugin {
     private StaffChatManager staffChatManager;
     private VanishManager vanishManager;
     private VanishAPI vanishAPI;
+    private AutomodAPI automodAPI;
     private com.blockforge.moderex.disguise.DisguiseManager disguiseManager;
     private com.blockforge.moderex.staff.StaffModeManager staffModeManager;
     private com.blockforge.moderex.geoip.GeoIPManager geoIPManager;
@@ -135,6 +137,7 @@ public final class ModereX extends JavaPlugin {
         logStartup("Initializing automod system...");
         this.automodManager = new AutomodManager(this);
         automodManager.load();
+        this.automodAPI = new AutomodAPI(this);
 
         logStartup("Initializing AFK manager...");
         this.afkManager = new com.blockforge.moderex.automod.AfkManager(this);
@@ -493,6 +496,10 @@ public final class ModereX extends JavaPlugin {
 
     public VanishAPI getVanishAPI() {
         return vanishAPI;
+    }
+
+    public AutomodAPI getAutomodAPI() {
+        return automodAPI;
     }
 
     public com.blockforge.moderex.disguise.DisguiseManager getDisguiseManager() {
