@@ -3318,18 +3318,26 @@
       // Always log the event with explicit type for filtering
       logEvent('WARN', 'anticheat', `Anticheat | ${data.check || 'Unknown'}`, `${data.playerName} (VL: ${data.vl || 0})`, { playerId: player?.id, kind: 'anticheat', type: 'ANTICHEAT' });
 
-      // Check user's anticheat mode setting
-      const mode = settings.anticheatMode || 'watchlist';
-      if (mode === 'off') return;
+      // Get per-check alert preference from staff settings
+      const anticheat = (data.anticheat || 'grim').toLowerCase();
+      const checkName = data.check || 'Unknown';
+      const prefKey = `${anticheat}.${checkName}`;
+      const checkPref = state.anticheat?.alertPrefs?.[prefKey] || { alertLevel: 'EVERYONE', thresholdCount: 1, timeWindowSeconds: 60 };
 
-      // Check if player is on watchlist (for watchlist-only mode)
-      const isWatchlisted = player && state.watchlist?.has(player.id);
-      if (mode === 'watchlist' && !isWatchlisted) return;
+      // Determine if we should show this alert based on per-check preference
+      const alertLevel = checkPref.alertLevel || 'EVERYONE';
+      if (alertLevel === 'OFF') return;
+
+      // Check if player is on watchlist
+      const isWatchlisted = player && (state.watchlist?.has(player.id) || state.watchlist?.has(player.uuid));
+
+      // If watchlist only, skip non-watchlisted players
+      if (alertLevel === 'WATCHLIST_ONLY' && !isWatchlisted) return;
 
       // Show alert based on user's preferred style
-      const style = settings.watchlistStyle || 'bar';
-      const title = `Anticheat: ${data.check}`;
-      const sub = `${data.playerName} - VL: ${data.vl}`;
+      const style = settings.watchlistStyle || 'toast';
+      const title = `Anticheat: ${checkName}`;
+      const sub = `${data.playerName} - VL: ${data.vl || 0}`;
       const playerData = { playerId: player?.id };
 
       if (style === 'bar' || style === 'both') {
