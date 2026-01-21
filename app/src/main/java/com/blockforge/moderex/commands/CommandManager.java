@@ -97,6 +97,7 @@ public class CommandManager {
         registerPaperCommand(commandMap, "punish", new PunishCommand(plugin), "Open punishment GUI", List.of());
         registerPaperCommand(commandMap, "modlog", new ModLogCommand(plugin), "View moderation log", List.of());
         registerPaperCommand(commandMap, "staffchat", new StaffChatCommand(plugin), "Staff chat", List.of("sc"));
+        registerPaperCommand(commandMap, "watchlist", new WatchlistCommand(plugin), "Manage watchlist", List.of("wl"));
         registerPaperCommand(commandMap, "staffhelp", new StaffHelpCommand(plugin), "Request staff help", List.of());
         registerPaperCommand(commandMap, "vanish", new VanishCommand(plugin), "Toggle vanish", List.of("v"));
         registerPaperCommand(commandMap, "cmdblacklist", new CmdBlacklistCommand(plugin), "Blacklist command", List.of());
@@ -105,6 +106,7 @@ public class CommandManager {
         registerPaperCommand(commandMap, "disguise", new DisguiseCommand(plugin), "Disguise as another player", List.of("d"));
         registerPaperCommand(commandMap, "disguisename", new DisguiseNameCommand(plugin), "Change disguise name", List.of("dname"));
         registerPaperCommand(commandMap, "disguiseskin", new DisguiseSkinCommand(plugin), "Change disguise skin", List.of("dskin"));
+        registerPaperCommand(commandMap, "rules", new RulesCommand(plugin), "View server rules", List.of("serverrules"));
 
         registerPaperCommand(commandMap, "mban", new BanCommand(plugin), "Ban a player", List.of());
         registerPaperCommand(commandMap, "munban", new UnbanCommand(plugin), "Unban a player", List.of());
@@ -177,6 +179,7 @@ public class CommandManager {
         registerSpigotCommand("punish", new PunishCommand(plugin));
         registerSpigotCommand("modlog", new ModLogCommand(plugin));
         registerSpigotCommand("staffchat", new StaffChatCommand(plugin));
+        registerSpigotCommand("watchlist", new WatchlistCommand(plugin));
         registerSpigotCommand("staffhelp", new StaffHelpCommand(plugin));
         registerSpigotCommand("vanish", new VanishCommand(plugin));
         registerSpigotCommand("cmdblacklist", new CmdBlacklistCommand(plugin));
@@ -185,6 +188,7 @@ public class CommandManager {
         registerSpigotCommand("disguise", new DisguiseCommand(plugin));
         registerSpigotCommand("disguisename", new DisguiseNameCommand(plugin));
         registerSpigotCommand("disguiseskin", new DisguiseSkinCommand(plugin));
+        registerSpigotCommand("rules", new RulesCommand(plugin));
 
         registerSpigotCommand("mban", new BanCommand(plugin));
         registerSpigotCommand("munban", new UnbanCommand(plugin));
