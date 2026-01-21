@@ -98,11 +98,13 @@ public class CommandManager {
         registerPaperCommand(commandMap, "modlog", new ModLogCommand(plugin), "View moderation log", List.of());
         registerPaperCommand(commandMap, "staffchat", new StaffChatCommand(plugin), "Staff chat", List.of("sc"));
         registerPaperCommand(commandMap, "staffhelp", new StaffHelpCommand(plugin), "Request staff help", List.of());
+        registerPaperCommand(commandMap, "staffmode", new StaffModeCommand(plugin), "Toggle staff mode", List.of("sm"));
         registerPaperCommand(commandMap, "vanish", new VanishCommand(plugin), "Toggle vanish", List.of("v"));
         registerPaperCommand(commandMap, "cmdblacklist", new CmdBlacklistCommand(plugin), "Blacklist command", List.of());
         registerPaperCommand(commandMap, "cmdunblacklist", new CmdUnblacklistCommand(plugin), "Remove command blacklist", List.of());
         registerPaperCommand(commandMap, "cmdhistory", new CmdHistoryCommand(plugin), "View command history", List.of());
         registerPaperCommand(commandMap, "disguise", new DisguiseCommand(plugin), "Disguise as another player", List.of("d"));
+        registerPaperCommand(commandMap, "undisguise", new UndisguiseCommand(plugin), "Remove disguise", List.of("ud"));
         registerPaperCommand(commandMap, "disguisename", new DisguiseNameCommand(plugin), "Change disguise name", List.of("dname"));
         registerPaperCommand(commandMap, "disguiseskin", new DisguiseSkinCommand(plugin), "Change disguise skin", List.of("dskin"));
 
@@ -178,11 +180,13 @@ public class CommandManager {
         registerSpigotCommand("modlog", new ModLogCommand(plugin));
         registerSpigotCommand("staffchat", new StaffChatCommand(plugin));
         registerSpigotCommand("staffhelp", new StaffHelpCommand(plugin));
+        registerSpigotCommand("staffmode", new StaffModeCommand(plugin));
         registerSpigotCommand("vanish", new VanishCommand(plugin));
         registerSpigotCommand("cmdblacklist", new CmdBlacklistCommand(plugin));
         registerSpigotCommand("cmdunblacklist", new CmdUnblacklistCommand(plugin));
         registerSpigotCommand("cmdhistory", new CmdHistoryCommand(plugin));
         registerSpigotCommand("disguise", new DisguiseCommand(plugin));
+        registerSpigotCommand("undisguise", new UndisguiseCommand(plugin));
         registerSpigotCommand("disguisename", new DisguiseNameCommand(plugin));
         registerSpigotCommand("disguiseskin", new DisguiseSkinCommand(plugin));
 
