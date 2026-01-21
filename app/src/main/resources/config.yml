@@ -98,6 +98,19 @@ proxy:
   type: bungeecord
 
 # ============================================
+# GEOIP SETTINGS
+# ============================================
+geoip:
+  # Enable GeoIP lookups for geographic information based on IP addresses
+  enabled: false
+
+  # Path to MaxMind GeoLite2-City database file
+  # Download for free from: https://dev.maxmind.com/geoip/geolite2-free-geolocation-data
+  # You'll need to create a free account to download the database
+  # After downloading, extract the .mmdb file and place it at this path
+  database-path: 'plugins/ModereX/GeoLite2-City.mmdb'
+
+# ============================================
 # UPDATE CHECKER
 # ============================================
 update-checker:
