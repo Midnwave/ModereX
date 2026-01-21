@@ -48,6 +48,7 @@ public final class ModereX extends JavaPlugin {
     private VanishManager vanishManager;
     private VanishAPI vanishAPI;
     private com.blockforge.moderex.disguise.DisguiseManager disguiseManager;
+    private com.blockforge.moderex.staff.StaffModeManager staffModeManager;
     private com.blockforge.moderex.geoip.GeoIPManager geoIPManager;
     private WatchlistManager watchlistManager;
     private com.blockforge.moderex.player.PlayerProfileManager playerProfileManager;
@@ -151,6 +152,7 @@ public final class ModereX extends JavaPlugin {
         this.vanishAPI = new VanishAPI(this);
         getServer().getPluginManager().registerEvents(new VanishEventFilter(this, vanishAPI), this);
         this.disguiseManager = new com.blockforge.moderex.disguise.DisguiseManager(this);
+        this.staffModeManager = new com.blockforge.moderex.staff.StaffModeManager(this);
         this.staffSettingsManager = new StaffSettingsManager(this);
 
         logStartup("Initializing GeoIP system...");
@@ -280,6 +282,11 @@ public final class ModereX extends JavaPlugin {
         // Cleanup disguise manager
         if (disguiseManager != null) {
             disguiseManager.cleanup();
+        }
+
+        // Cleanup staff mode manager
+        if (staffModeManager != null) {
+            staffModeManager.cleanup();
         }
 
         // Shutdown GeoIP manager
@@ -443,6 +450,10 @@ public final class ModereX extends JavaPlugin {
 
     public com.blockforge.moderex.disguise.DisguiseManager getDisguiseManager() {
         return disguiseManager;
+    }
+
+    public com.blockforge.moderex.staff.StaffModeManager getStaffModeManager() {
+        return staffModeManager;
     }
 
     public com.blockforge.moderex.geoip.GeoIPManager getGeoIPManager() {
