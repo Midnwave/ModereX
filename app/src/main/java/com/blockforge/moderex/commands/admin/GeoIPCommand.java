@@ -12,8 +12,8 @@ import java.util.List;
 import java.util.Optional;
 
 /**
- * Displays geographic information for a player's IP address.
- * Requires the GeoIP database to be configured in config.yml.
+ * Shows geographic information for a player's IP address.
+ * Needs the GeoIP database to be configured in config.yml.
  */
 public class GeoIPCommand extends BaseCommand {
 

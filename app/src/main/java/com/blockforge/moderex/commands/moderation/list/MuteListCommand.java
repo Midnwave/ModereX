@@ -11,9 +11,7 @@ import org.bukkit.command.CommandSender;
 import java.util.List;
 
 /**
- * /mutelist [page]
- *
- * Display a paginated list of active mutes.
+ * Shows a paginated list of active mutes.
  */
 public class MuteListCommand extends BaseCommand {
 
@@ -41,7 +39,6 @@ public class MuteListCommand extends BaseCommand {
 
         final int finalPage = page;
 
-        // Fetch active mutes
         plugin.getPunishmentManager().getActivePunishmentsList(PunishmentType.MUTE, page, MUTES_PER_PAGE).thenAccept(mutes -> {
             plugin.getPunishmentManager().getActivePunishmentsCount(PunishmentType.MUTE).thenAccept(totalMutes -> {
                 int totalPages = (int) Math.ceil((double) totalMutes / MUTES_PER_PAGE);
@@ -52,10 +49,8 @@ public class MuteListCommand extends BaseCommand {
                     return;
                 }
 
-                // Display header
                 sendMessage(sender, MessageKey.MUTELIST_HEADER);
 
-                // Display each mute
                 for (Punishment mute : mutes) {
                     String duration = mute.isPermanent() ? "Permanent" :
                         DurationParser.format(mute.getExpiresAt() - mute.getCreatedAt());
@@ -67,7 +62,6 @@ public class MuteListCommand extends BaseCommand {
                             "duration", duration);
                 }
 
-                // Display footer
                 sendMessage(sender, MessageKey.MUTELIST_FOOTER,
                         "page", String.valueOf(finalPage),
                         "total", String.valueOf(totalPages));

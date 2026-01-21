@@ -19,7 +19,6 @@ public class StaffChatCommand extends BaseCommand {
         Player player = (Player) sender;
 
         if (args.length == 0) {
-            // Toggle staff chat
             plugin.getStaffChatManager().toggleStaffChat(player);
             return;
         }
@@ -30,7 +29,6 @@ public class StaffChatCommand extends BaseCommand {
             case "on" -> plugin.getStaffChatManager().enableStaffChat(player);
             case "off" -> plugin.getStaffChatManager().disableStaffChat(player);
             default -> {
-                // Send as message
                 String message = joinArgs(args, 0);
                 plugin.getStaffChatManager().sendMessage(player, message);
             }

@@ -14,8 +14,6 @@ import java.util.Arrays;
 import java.util.List;
 
 /**
- * /tempmute <player> <duration> [reason] [flags]
- *
  * Temporarily mutes a player with required duration.
  */
 public class TempMuteCommand extends PunishmentCommandBase {

@@ -9,9 +9,7 @@ import org.bukkit.command.CommandSender;
 import java.util.List;
 
 /**
- * /checkban <user>
- *
- * Check whether a player is banned and display active ban information.
+ * Checks whether a player is banned and display active ban information.
  * Can use player name, UUID, or punishment ID.
  */
 public class CheckBanCommand extends BaseCommand {
@@ -34,7 +32,6 @@ public class CheckBanCommand extends BaseCommand {
             return;
         }
 
-        // Handle by punishment ID
         if (target.isPunishmentId()) {
             plugin.getPunishmentManager().getPunishmentById(target.getPunishmentId()).thenAccept(punishment -> {
                 if (punishment == null || punishment.getType() != com.blockforge.moderex.punishment.PunishmentType.BAN) {
@@ -47,7 +44,6 @@ public class CheckBanCommand extends BaseCommand {
             return;
         }
 
-        // Handle by player
         if (target.isPlayer() && target.getUuid() != null) {
             com.blockforge.moderex.punishment.Punishment punishment =
                 plugin.getPunishmentManager().getActivePunishment(target.getUuid(), com.blockforge.moderex.punishment.PunishmentType.BAN);

@@ -54,7 +54,6 @@ public class CmdHistoryCommand extends BaseCommand {
 
         plugin.getServer().getScheduler().runTaskAsynchronously(plugin, () -> {
             try {
-                // Get total count
                 int totalCount = plugin.getDatabaseManager().query("""
                         SELECT COUNT(*) as count FROM moderex_command_history WHERE player_uuid = ?
                         """,
@@ -64,7 +63,6 @@ public class CmdHistoryCommand extends BaseCommand {
 
                 int totalPages = (int) Math.ceil((double) totalCount / ENTRIES_PER_PAGE);
 
-                // Get paginated results
                 List<CommandEntry> entries = plugin.getDatabaseManager().query("""
                         SELECT command, executed_at FROM moderex_command_history
                         WHERE player_uuid = ?
@@ -89,7 +87,6 @@ public class CmdHistoryCommand extends BaseCommand {
                 final int finalTotalPages = Math.max(1, totalPages);
 
                 plugin.getServer().getScheduler().runTask(plugin, () -> {
-                    // Header
                     sender.sendMessage(plugin.getLanguageManager().get(MessageKey.CMD_HISTORY_HEADER,
                             "player", displayName));
 
@@ -103,7 +100,6 @@ public class CmdHistoryCommand extends BaseCommand {
                         }
                     }
 
-                    // Footer
                     sender.sendMessage(plugin.getLanguageManager().get(MessageKey.CMD_HISTORY_FOOTER,
                             "page", String.valueOf(finalPage),
                             "total", String.valueOf(finalTotalPages)));

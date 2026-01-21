@@ -14,8 +14,6 @@ import java.util.Arrays;
 import java.util.List;
 
 /**
- * /mute <player> [<duration | reason>]{reason} [flags]
- *
  * Mutes a player, preventing them from sending chat messages or using certain commands.
  * Supports various flags for customization.
  */
@@ -163,7 +161,7 @@ public class MuteCommand extends PunishmentCommandBase {
                     sendMessage(context.getSender(), MessageKey.MODIFY_SUCCESS,
                         "id", String.valueOf(punishmentId));
                 } else {
-                    sendMessage(context.getSender(), "<red>Failed to modify punishment. Check if ID exists.");
+                    sendMessage(context.getSender(), "<red>Failed to modify punishment. Checks ID exists.");
                 }
             });
         } catch (NumberFormatException e) {

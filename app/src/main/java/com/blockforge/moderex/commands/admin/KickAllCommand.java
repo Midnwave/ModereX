@@ -11,7 +11,6 @@ import org.bukkit.entity.Player;
 import java.util.ArrayList;
 import java.util.List;
 
-// kicks all players - not recorded as a punishment
 public class KickAllCommand extends BaseCommand {
 
     private static final MiniMessage MM = MiniMessage.miniMessage();
@@ -27,7 +26,6 @@ public class KickAllCommand extends BaseCommand {
 
         List<Player> playersToKick = new ArrayList<>();
         for (Player player : Bukkit.getOnlinePlayers()) {
-            // don't kick the sender
             if (sender instanceof Player senderPlayer && player.getUniqueId().equals(senderPlayer.getUniqueId())) {
                 continue;
             }
@@ -114,7 +112,6 @@ public class KickAllCommand extends BaseCommand {
         return sb.toString() + text;
     }
 
-    // font info for message centering
     private enum DefaultFontInfo {
         A('A', 5), a('a', 5), B('B', 5), b('b', 5), C('C', 5), c('c', 5), D('D', 5), d('d', 5),
         E('E', 5), e('e', 5), F('F', 5), f('f', 4), G('G', 5), g('g', 5), H('H', 5), h('h', 5),

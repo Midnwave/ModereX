@@ -23,7 +23,6 @@ public class VanishCommand extends BaseCommand {
 
     @Override
     protected void execute(CommandSender sender, String[] args) {
-        // /vanish - toggle for self (player only)
         if (args.length == 0) {
             if (!(sender instanceof Player)) {
                 sender.sendMessage(plugin.getLanguageManager().get(MessageKey.PLAYER_ONLY));
@@ -36,13 +35,11 @@ public class VanishCommand extends BaseCommand {
 
         String subcommand = args[0].toLowerCase();
 
-        // /vanish list - show vanished players
         if (subcommand.equals("list")) {
             handleList(sender);
             return;
         }
 
-        // /vanish toggle <player> or /vanish player <player>
         if (subcommand.equals("toggle") || subcommand.equals("player")) {
             if (args.length < 2) {
                 sendMessage(sender, "<red>Usage: /vanish " + subcommand + " <player>");
@@ -70,7 +67,6 @@ public class VanishCommand extends BaseCommand {
             return;
         }
 
-        // /vanish enable <player>
         if (subcommand.equals("enable") || subcommand.equals("on")) {
             if (args.length < 2) {
                 sendMessage(sender, "<red>Usage: /vanish enable <player>");
@@ -98,7 +94,6 @@ public class VanishCommand extends BaseCommand {
             return;
         }
 
-        // /vanish disable <player>
         if (subcommand.equals("disable") || subcommand.equals("off")) {
             if (args.length < 2) {
                 sendMessage(sender, "<red>Usage: /vanish disable <player>");
@@ -126,7 +121,6 @@ public class VanishCommand extends BaseCommand {
             return;
         }
 
-        // If no valid subcommand, treat first arg as player name (for /vanish <player>)
         if (args.length == 1) {
             if (!sender.hasPermission("moderex.command.vanish.others")) {
                 sender.sendMessage(plugin.getLanguageManager().get(MessageKey.NO_PERMISSION));
@@ -154,7 +148,6 @@ public class VanishCommand extends BaseCommand {
 
     private void handleList(CommandSender sender) {
         if (!(sender instanceof Player)) {
-            // Console sees all vanished players
             List<UUID> vanished = new ArrayList<>(plugin.getVanishManager().getVanishedPlayers());
             if (vanished.isEmpty()) {
                 sendMessage(sender, "<yellow>No players are currently vanished");
@@ -213,7 +206,6 @@ public class VanishCommand extends BaseCommand {
         if (args.length == 1) {
             List<String> completions = new ArrayList<>(Arrays.asList("toggle", "enable", "disable", "player", "list"));
 
-            // Add online player names if they have permission
             if (sender.hasPermission("moderex.command.vanish.others")) {
                 completions.addAll(getOnlinePlayerNames(sender));
             }

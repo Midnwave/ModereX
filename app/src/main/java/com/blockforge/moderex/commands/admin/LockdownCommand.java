@@ -11,8 +11,6 @@ import java.util.Arrays;
 import java.util.List;
 
 /**
- * /lockdown [server:local|global] [end]
- *
  * Activate or deactivate lockdown mode.
  * Prevents users from joining unless they have moderex.lockdown.bypass permission.
  * Useful as a temporary whitelist function.
@@ -28,7 +26,6 @@ public class LockdownCommand extends BaseCommand {
         boolean isGlobal = false;
         boolean isEnd = false;
 
-        // Parse arguments
         for (String arg : args) {
             if (arg.equalsIgnoreCase("server:global")) {
                 isGlobal = true;
@@ -40,32 +37,26 @@ public class LockdownCommand extends BaseCommand {
         }
 
         if (isEnd) {
-            // End lockdown
             if (isGlobal) {
                 plugin.setGlobalLockdown(false);
                 sendMessage(sender, MessageKey.LOCKDOWN_DISABLED);
-                // Broadcast to staff
                 plugin.broadcastToPermission(MessageKey.LOCKDOWN_BROADCAST_DISABLED,
                         "moderex.notify.lockdown",
                         "staff", sender.getName());
             } else {
                 plugin.setLocalLockdown(false);
                 sendMessage(sender, MessageKey.LOCKDOWN_DISABLED);
-                // Broadcast to staff
                 plugin.broadcastToPermission(MessageKey.LOCKDOWN_BROADCAST_DISABLED,
                         "moderex.notify.lockdown",
                         "staff", sender.getName());
             }
         } else {
-            // Start lockdown
             if (isGlobal) {
                 plugin.setGlobalLockdown(true);
                 sendMessage(sender, MessageKey.LOCKDOWN_ENABLED);
 
-                // Kick non-allowed players
                 kickNonAllowedPlayers();
 
-                // Broadcast to staff
                 plugin.broadcastToPermission(MessageKey.LOCKDOWN_BROADCAST_ENABLED,
                         "moderex.notify.lockdown",
                         "staff", sender.getName());
@@ -73,10 +64,8 @@ public class LockdownCommand extends BaseCommand {
                 plugin.setLocalLockdown(true);
                 sendMessage(sender, MessageKey.LOCKDOWN_ENABLED);
 
-                // Kick non-allowed players
                 kickNonAllowedPlayers();
 
-                // Broadcast to staff
                 plugin.broadcastToPermission(MessageKey.LOCKDOWN_BROADCAST_ENABLED,
                         "moderex.notify.lockdown",
                         "staff", sender.getName());

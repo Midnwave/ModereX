@@ -17,7 +17,7 @@ import java.util.List;
  * /history <user> [type]
  * Alias: /hist
  *
- * Display punishment history for a player.
+ * Shows punishment history for a player.
  * Optional type filter: bans, mutes, warnings, kicks, all
  */
 public class HistoryCommand extends BaseCommand {
@@ -48,7 +48,6 @@ public class HistoryCommand extends BaseCommand {
             return;
         }
 
-        // Convert type string to PunishmentType enum
         PunishmentType punishmentType = null;
         if (!type.equals("all")) {
             punishmentType = switch (type) {
@@ -62,7 +61,6 @@ public class HistoryCommand extends BaseCommand {
 
         final PunishmentType finalType = punishmentType;
 
-        // Fetch and display punishment history from database
         plugin.getPunishmentManager().getHistory(target.getUuid(), finalType).thenAccept(history -> {
             if (history.isEmpty()) {
                 sendMessage(sender, MessageKey.HISTORY_HEADER,
@@ -72,7 +70,6 @@ public class HistoryCommand extends BaseCommand {
                 return;
             }
 
-            // Display header
             sendMessage(sender, MessageKey.HISTORY_HEADER,
                     "player", target.getDisplayName(),
                     "filter", type);
@@ -81,7 +78,6 @@ public class HistoryCommand extends BaseCommand {
                 sendMessage(sender, MessageKey.HISTORY_TYPE_FILTER, "type", type);
             }
 
-            // Display each punishment
             for (Punishment punishment : history) {
                 String status = punishment.isActive() ? "<green>Active</green>" :
                               (punishment.isRemoved() ? "<red>Revoked</red>" : "<yellow>Expired</yellow>");
@@ -99,7 +95,6 @@ public class HistoryCommand extends BaseCommand {
                         "status", status);
             }
 
-            // Display footer (no pagination implemented yet, so show count as both page and total)
             sendMessage(sender, MessageKey.HISTORY_FOOTER,
                     "count", String.valueOf(history.size()),
                     "page", "1",

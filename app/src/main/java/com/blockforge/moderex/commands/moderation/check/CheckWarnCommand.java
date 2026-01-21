@@ -9,9 +9,7 @@ import org.bukkit.command.CommandSender;
 import java.util.List;
 
 /**
- * /checkwarn <user>
- *
- * Check whether a player has active warnings and display warning information.
+ * Checks whether a player has active warnings and display warning information.
  * Can use player name, UUID, or punishment ID.
  */
 public class CheckWarnCommand extends BaseCommand {
@@ -34,7 +32,6 @@ public class CheckWarnCommand extends BaseCommand {
             return;
         }
 
-        // Handle by punishment ID
         if (target.isPunishmentId()) {
             plugin.getPunishmentManager().getPunishmentById(target.getPunishmentId()).thenAccept(punishment -> {
                 if (punishment == null || punishment.getType() != com.blockforge.moderex.punishment.PunishmentType.WARN) {
@@ -48,7 +45,6 @@ public class CheckWarnCommand extends BaseCommand {
             return;
         }
 
-        // Handle by player
         if (target.isPlayer() && target.getUuid() != null) {
             plugin.getPunishmentManager().getActiveWarnings(target.getUuid()).thenAccept(warnings -> {
                 sendMessage(sender, MessageKey.CHECKWARN_HEADER, "player", target.getDisplayName());

@@ -11,8 +11,6 @@ import java.util.Arrays;
 import java.util.List;
 
 /**
- * /prunehistory <user> [duration]
- *
  * Remove inactive punishments from history.
  * This also reverts template progression when applicable.
  * If duration specified, only removes punishments older than that duration.
@@ -38,7 +36,6 @@ public class PruneHistoryCommand extends BaseCommand {
             return;
         }
 
-        // Check for --confirm flag
         boolean hasConfirm = false;
         long duration = -1;
 
@@ -52,7 +49,6 @@ public class PruneHistoryCommand extends BaseCommand {
 
         final long finalDuration = duration;
 
-        // Show confirmation message if --confirm not provided
         if (!hasConfirm) {
             sendMessage(sender, MessageKey.PRUNEHISTORY_CONFIRM,
                     "player", target.getDisplayName());
@@ -64,7 +60,6 @@ public class PruneHistoryCommand extends BaseCommand {
             return;
         }
 
-        // Execute prune and report results
         plugin.getPunishmentManager().pruneHistory(target.getUuid(), finalDuration).thenAccept(count -> {
             if (count == 0) {
                 sendMessage(sender, MessageKey.PRUNEHISTORY_EMPTY,

@@ -11,9 +11,7 @@ import org.bukkit.command.CommandSender;
 import java.util.List;
 
 /**
- * /warnlist [page]
- *
- * Display a paginated list of active warnings.
+ * Shows a paginated list of active warnings.
  */
 public class WarnListCommand extends BaseCommand {
 
@@ -41,7 +39,6 @@ public class WarnListCommand extends BaseCommand {
 
         final int finalPage = page;
 
-        // Fetch active warnings
         plugin.getPunishmentManager().getActivePunishmentsList(PunishmentType.WARN, page, WARNINGS_PER_PAGE).thenAccept(warnings -> {
             plugin.getPunishmentManager().getActivePunishmentsCount(PunishmentType.WARN).thenAccept(totalWarnings -> {
                 int totalPages = (int) Math.ceil((double) totalWarnings / WARNINGS_PER_PAGE);
@@ -52,10 +49,8 @@ public class WarnListCommand extends BaseCommand {
                     return;
                 }
 
-                // Display header
                 sendMessage(sender, MessageKey.WARNLIST_HEADER);
 
-                // Display each warning
                 for (Punishment warning : warnings) {
                     String duration = warning.isPermanent() ? "Permanent" :
                         DurationParser.format(warning.getExpiresAt() - warning.getCreatedAt());
@@ -67,7 +62,6 @@ public class WarnListCommand extends BaseCommand {
                             "duration", duration);
                 }
 
-                // Display footer
                 sendMessage(sender, MessageKey.WARNLIST_FOOTER,
                         "page", String.valueOf(finalPage),
                         "total", String.valueOf(totalPages));

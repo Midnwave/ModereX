@@ -84,7 +84,6 @@ public abstract class BaseCommand implements CommandExecutor, TabCompleter {
                 .collect(Collectors.toList());
     }
 
-    // includes vanished players for staff
     protected List<String> getOnlinePlayerNames(CommandSender sender) {
         return Bukkit.getOnlinePlayers().stream()
                 .filter(p -> !plugin.getVanishManager().isVanished(p) ||

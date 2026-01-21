@@ -11,9 +11,7 @@ import org.bukkit.command.CommandSender;
 import java.util.List;
 
 /**
- * /banlist [page]
- *
- * Display a paginated list of active bans.
+ * Shows a paginated list of active bans.
  */
 public class BanListCommand extends BaseCommand {
 
@@ -41,7 +39,6 @@ public class BanListCommand extends BaseCommand {
 
         final int finalPage = page;
 
-        // Fetch active bans
         plugin.getPunishmentManager().getActivePunishmentsList(PunishmentType.BAN, page, BANS_PER_PAGE).thenAccept(bans -> {
             plugin.getPunishmentManager().getActivePunishmentsCount(PunishmentType.BAN).thenAccept(totalBans -> {
                 int totalPages = (int) Math.ceil((double) totalBans / BANS_PER_PAGE);
@@ -52,10 +49,8 @@ public class BanListCommand extends BaseCommand {
                     return;
                 }
 
-                // Display header
                 sendMessage(sender, MessageKey.BANLIST_HEADER);
 
-                // Display each ban
                 for (Punishment ban : bans) {
                     String duration = ban.isPermanent() ? "Permanent" :
                         DurationParser.format(ban.getExpiresAt() - ban.getCreatedAt());
@@ -67,7 +62,6 @@ public class BanListCommand extends BaseCommand {
                             "duration", duration);
                 }
 
-                // Display footer
                 sendMessage(sender, MessageKey.BANLIST_FOOTER,
                         "page", String.valueOf(finalPage),
                         "total", String.valueOf(totalPages));

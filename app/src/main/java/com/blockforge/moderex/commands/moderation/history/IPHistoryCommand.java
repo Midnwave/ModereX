@@ -10,9 +10,7 @@ import org.bukkit.command.ConsoleCommandSender;
 import java.util.List;
 
 /**
- * /iphistory <user|ip>
- *
- * Display associated accounts and IP addresses of user/IP.
+ * Shows associated accounts and IP addresses of user/IP.
  * Console-only by default (requires moderex.iphistory permission for players).
  */
 public class IPHistoryCommand extends BaseCommand {
@@ -23,7 +21,6 @@ public class IPHistoryCommand extends BaseCommand {
 
     @Override
     protected void execute(CommandSender sender, String[] args) {
-        // Require moderex.iphistory permission for non-console users
         if (!(sender instanceof ConsoleCommandSender) && !sender.hasPermission("moderex.iphistory")) {
             sendMessage(sender, MessageKey.NO_PERMISSION);
             return;
@@ -44,16 +41,9 @@ public class IPHistoryCommand extends BaseCommand {
         if (target.isIp()) {
             sendMessage(sender, MessageKey.IPHISTORY_HEADER, "target", target.getIp());
             sendMessage(sender, "<gray>IP history will be implemented with full tracking system");
-            // Placeholder: Full implementation would query player's IP login history
-            // sendMessage(sender, MessageKey.IPHISTORY_EMPTY);
-            // or display with MessageKey.IPHISTORY_ENTRY
         } else if (target.isPlayer()) {
             sendMessage(sender, MessageKey.IPHISTORY_HEADER, "target", target.getDisplayName());
             sendMessage(sender, "<gray>IP history will be implemented with full tracking system");
-            // Placeholder: Full implementation would query player's IP login history
-            // Note: Use MessageKey.IPHISTORY_CONSOLE_ONLY for permission checks
-            // sendMessage(sender, MessageKey.IPHISTORY_EMPTY);
-            // or display with MessageKey.IPHISTORY_ENTRY
         } else {
             sendMessage(sender, MessageKey.PLAYER_NOT_FOUND, "player", args[0]);
         }

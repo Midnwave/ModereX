@@ -121,7 +121,6 @@ public class MxCommand extends BaseCommand {
                         player.getLocation().getZ()
                 );
 
-                // Save the replay
                 session.save(plugin.getDataFolder().toPath().resolve("replays"));
 
                 plugin.getServer().getScheduler().runTask(plugin, () -> {
@@ -322,7 +321,6 @@ public class MxCommand extends BaseCommand {
             return;
         }
 
-        // Generate a temporary URL token for this player
         String tempToken = plugin.getWebAuthManager().generateTempToken(player.getUniqueId(), player.getName());
         int port = plugin.getConfigManager().getSettings().getWebPanelPort();
         String host = plugin.getConfigManager().getSettings().getWebPanelHost();
@@ -337,7 +335,6 @@ public class MxCommand extends BaseCommand {
         sendMessage(sender, "<white>      <bold>Web Panel Quick Connect</bold>");
         sendMessage(sender, "");
 
-        // Create clickable URL
         Component clickableUrl = TextUtil.parse("<green><bold>[CLICK HERE TO OPEN PANEL]</bold></green>")
                 .clickEvent(ClickEvent.openUrl(url))
                 .hoverEvent(HoverEvent.showText(TextUtil.parse("<gray>Click to open web panel\n<yellow>" + url)));
@@ -369,7 +366,6 @@ public class MxCommand extends BaseCommand {
             return;
         }
 
-        // Check if player already has a token
         if (plugin.getWebAuthManager().hasPermanentToken(player.getUniqueId())) {
             sendMessage(sender, "");
             sendMessage(sender, "<yellow>You already have a permanent token.");
@@ -379,10 +375,8 @@ public class MxCommand extends BaseCommand {
             return;
         }
 
-        // Generate permanent token
         String token = plugin.getWebAuthManager().generatePermanentToken(player.getUniqueId());
 
-        // Create a secure book to display the token (not logged in chat)
         openTokenBook(player, token);
 
         sendMessage(sender, "");
@@ -395,7 +389,6 @@ public class MxCommand extends BaseCommand {
     }
 
     private void openTokenBook(Player player, String token) {
-        // Page 1: Warning and instructions
         Component page1 = Component.empty()
                 .append(Component.text("SECURE TOKEN")
                         .color(NamedTextColor.DARK_RED)
@@ -432,7 +425,6 @@ public class MxCommand extends BaseCommand {
                         .color(NamedTextColor.DARK_AQUA)
                         .decorate(TextDecoration.ITALIC));
 
-        // Page 2: The actual token with copy button
         Component page2 = Component.empty()
                 .append(Component.text("YOUR TOKEN")
                         .color(NamedTextColor.GOLD)
@@ -463,7 +455,6 @@ public class MxCommand extends BaseCommand {
                         .color(NamedTextColor.WHITE)
                         .clickEvent(ClickEvent.copyToClipboard(token)));
 
-        // Page 3: Additional info
         Component page3 = Component.empty()
                 .append(Component.text("IMPORTANT INFO")
                         .color(NamedTextColor.GOLD)
@@ -490,7 +481,6 @@ public class MxCommand extends BaseCommand {
                         .color(NamedTextColor.DARK_GRAY)
                         .decorate(TextDecoration.ITALIC));
 
-        // Create and open the book
         Book book = Book.builder()
                 .title(Component.text("Web Panel Token"))
                 .author(Component.text("ModereX"))
@@ -610,10 +600,8 @@ public class MxCommand extends BaseCommand {
             return;
         }
 
-        // Usage: /mx sendalert <player> <anticheat> <check> [vl]
         if (args.length < 3) {
             sendMessage(sender, "<red>Usage: /mx sendalert <player> <anticheat> <check> [vl]");
-            // Show a proper example with an online player
             String examplePlayer = Bukkit.getOnlinePlayers().isEmpty() ? "PlayerName" :
                     Bukkit.getOnlinePlayers().iterator().next().getName();
             sendMessage(sender, "<gray>Example: /mx sendalert " + examplePlayer + " Grim KillAura 25");
@@ -622,13 +610,10 @@ public class MxCommand extends BaseCommand {
 
         Player target = Bukkit.getPlayer(args[0]);
 
-        // If target not found by name, check if it's "CONSOLE" or if sender is a player
         if (target == null) {
-            // If CONSOLE or invalid name was used, try to use sender if they're a player
             if (sender instanceof Player p && (args[0].equalsIgnoreCase("CONSOLE") || args[0].equalsIgnoreCase(sender.getName()))) {
                 target = p;
             } else {
-                // List online players to help
                 String online = Bukkit.getOnlinePlayers().isEmpty() ? "No players online" :
                         String.join(", ", Bukkit.getOnlinePlayers().stream().limit(5).map(Player::getName).toList());
                 sendMessage(sender, "<red>Player not found: " + args[0]);
@@ -653,10 +638,9 @@ public class MxCommand extends BaseCommand {
         sendMessage(sender, "<yellow>Sending test alert: " + target.getName() + " flagged " +
                 anticheat + ":" + checkName + " x" + vl);
 
-        // Use the anticheat manager to send the alert through normal channels
         plugin.getAnticheatManager().notifyStaff(target, anticheat, checkName, vl);
 
-        sendMessage(sender, "<green>Test alert sent! Check console for debug info if debug mode is enabled.");
+        sendMessage(sender, "<green>Test alert sent! Checks console for debug info if debug mode is enabled.");
     }
 
     private void handleChat(CommandSender sender, String[] args) {
@@ -756,8 +740,6 @@ public class MxCommand extends BaseCommand {
 
         sendMessage(sender, "<yellow>Warning Settings GUI coming soon!");
     }
-
-    // ==================== Moderation Commands ====================
 
     private void handleBan(CommandSender sender, String[] args) {
         if (!sender.hasPermission("moderex.command.ban")) {
@@ -991,7 +973,7 @@ public class MxCommand extends BaseCommand {
         UUID targetUuid = target.getUniqueId();
         String displayName = target.getName() != null ? target.getName() : targetName;
 
-        long duration = DurationParser.parse("30d"); // Default 30 day warning expiry
+        long duration = DurationParser.parse("30d");
         String reason = "No reason specified";
 
         if (args.length >= 2) {
@@ -1342,14 +1324,12 @@ public class MxCommand extends BaseCommand {
         if (args.length == 4) {
             String sub = args[0].toLowerCase();
             if (sub.equals("sendalert")) {
-                // Check names
                 return filterCompletions(Arrays.asList("KillAura", "Reach", "Speed", "Fly", "NoSlow", "Timer", "Velocity", "Scaffold", "FastBreak", "AutoClicker"), args[3]);
             }
         }
         if (args.length == 5) {
             String sub = args[0].toLowerCase();
             if (sub.equals("sendalert")) {
-                // VL suggestions
                 return filterCompletions(Arrays.asList("5", "10", "15", "20", "25", "50"), args[4]);
             }
         }

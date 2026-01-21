@@ -40,12 +40,10 @@ public class DisguiseCommand extends BaseCommand {
             return;
         }
 
-        // Parse flags
         FlagParser flagParser = new FlagParser(args);
         List<String> regularArgs = flagParser.getRegularArgs();
 
         if (regularArgs.isEmpty()) {
-            // Open GUI by default
             openGui(player);
             return;
         }
@@ -63,12 +61,10 @@ public class DisguiseCommand extends BaseCommand {
                 sendHelp(player);
             }
             default -> {
-                // /disguise <name> [rank] or /disguise <playerName>
                 String disguiseName = regularArgs.get(0);
                 String skinName = disguiseName;
                 String rank = regularArgs.size() > 1 ? regularArgs.get(1) : "default";
 
-                // Process flags
                 if (flagParser.getSetDisplayName() != null) {
                     disguiseName = flagParser.getSetDisplayName();
                 }
@@ -76,31 +72,25 @@ public class DisguiseCommand extends BaseCommand {
                 if (flagParser.getSetSkin() != null) {
                     skinName = flagParser.getSetSkin();
                 } else {
-                    // Check if it's a player name - if so, copy their skin
                     Player targetPlayer = Bukkit.getPlayer(disguiseName);
                     if (targetPlayer != null) {
-                        // Player found - use their actual name for skin
                         skinName = targetPlayer.getName();
-                        // Use their name as display name too, or custom if provided
                         if (regularArgs.size() == 1 && flagParser.getSetDisplayName() == null) {
                             disguiseName = targetPlayer.getName();
                         }
                     }
                 }
 
-                // Check for fake rank flag
                 if (flagParser.getFakeRank() != null) {
                     rank = flagParser.getFakeRank();
                 }
 
-                // Check permission for this rank
                 if (!player.hasPermission("moderex.disguise.rank." + rank.toLowerCase())) {
                     player.sendMessage(Component.text("You don't have permission to disguise as rank: " + rank)
                             .color(NamedTextColor.RED));
                     return;
                 }
 
-                // Build disguise flags
                 DisguiseFlags flags = new DisguiseFlags(
                         flagParser.isHideRank(),
                         flagParser.getFakeRank(),
@@ -108,7 +98,6 @@ public class DisguiseCommand extends BaseCommand {
                         !flagParser.hasFlag("change-tab-complete") || flagParser.isChangeTabComplete()
                 );
 
-                // Create and apply disguise with skin and flags
                 DisguiseProfile profile = new DisguiseProfile(disguiseName, skinName, rank, flags);
                 plugin.getDisguiseManager().disguise(player, profile);
             }
@@ -145,7 +134,7 @@ public class DisguiseCommand extends BaseCommand {
         player.sendMessage(Component.text("  --hide-rank").color(NamedTextColor.YELLOW)
                 .append(Component.text(" - Hide your rank").color(NamedTextColor.GRAY)));
         player.sendMessage(Component.text("  --fake-rank <rank>").color(NamedTextColor.YELLOW)
-                .append(Component.text(" - Display a fake rank").color(NamedTextColor.GRAY)));
+                .append(Component.text(" - Shows a fake rank").color(NamedTextColor.GRAY)));
         player.sendMessage(Component.text("  --set-skin <player>").color(NamedTextColor.YELLOW)
                 .append(Component.text(" - Set skin to copy").color(NamedTextColor.GRAY)));
         player.sendMessage(Component.text("  --set-display-name <name>").color(NamedTextColor.YELLOW)
@@ -160,15 +149,12 @@ public class DisguiseCommand extends BaseCommand {
     public List<String> tabComplete(CommandSender sender, String[] args) {
         List<String> completions = new ArrayList<>();
 
-        // Parse flags to get regular args
         FlagParser flagParser = new FlagParser(args);
         List<String> regularArgs = flagParser.getRegularArgs();
 
-        // Check if current arg is a flag
         String lastArg = args.length > 0 ? args[args.length - 1] : "";
 
         if (lastArg.startsWith("--")) {
-            // Suggest flag completions
             completions.addAll(Arrays.asList(
                     "--hide-rank",
                     "--fake-rank",
@@ -180,12 +166,10 @@ public class DisguiseCommand extends BaseCommand {
             return filterByPrefix(completions, lastArg);
         }
 
-        // Check if we need to complete a flag value
         if (args.length >= 2) {
             String prevArg = args[args.length - 2];
 
             if (prevArg.equals("--fake-rank")) {
-                // Suggest available ranks
                 if (sender instanceof Player player) {
                     if (plugin.getServer().getPluginManager().getPlugin("LuckPerms") != null) {
                         try {
@@ -203,26 +187,20 @@ public class DisguiseCommand extends BaseCommand {
                 }
                 return completions;
             } else if (prevArg.equals("--set-skin")) {
-                // Suggest online player names
                 return getOnlinePlayerNamesForCompletion();
             } else if (prevArg.equals("--set-display-name")) {
-                // No suggestions for display name
                 return completions;
             }
         }
 
-        // Regular argument completion
         if (regularArgs.isEmpty()) {
             completions.add("gui");
             completions.add("remove");
             completions.add("help");
-            // Also add online player names
             completions.addAll(getOnlinePlayerNamesForCompletion());
         } else if (regularArgs.size() == 1) {
-            // Check if first arg is a subcommand
             String firstArg = regularArgs.get(0).toLowerCase();
             if (!Arrays.asList("gui", "remove", "help").contains(firstArg)) {
-                // Suggest available ranks for second argument
                 if (sender instanceof Player player) {
                     if (plugin.getServer().getPluginManager().getPlugin("LuckPerms") != null) {
                         try {

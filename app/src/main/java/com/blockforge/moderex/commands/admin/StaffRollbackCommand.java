@@ -11,8 +11,6 @@ import java.util.Arrays;
 import java.util.List;
 
 /**
- * /staffrollback <user> [duration]
- *
  * Rollback all executed punishments for a given staff member.
  * If duration is specified, only rollback punishments within that timeframe.
  * Console can be rolled back via /staffrollback [CONSOLE]
@@ -45,7 +43,6 @@ public class StaffRollbackCommand extends BaseCommand {
             }
         }
 
-        // Check for --confirm flag
         boolean hasConfirm = false;
         long duration = -1;
 
@@ -61,7 +58,6 @@ public class StaffRollbackCommand extends BaseCommand {
         final long finalDuration = duration;
         final TargetResolver finalTarget = target;
 
-        // Show confirmation message if --confirm not provided
         if (!hasConfirm) {
             sendMessage(sender, MessageKey.STAFFROLLBACK_CONFIRM,
                     "staff", displayName);
@@ -74,7 +70,6 @@ public class StaffRollbackCommand extends BaseCommand {
             return;
         }
 
-        // Execute rollback and report results
         java.util.UUID staffUuid = isConsole ? null : finalTarget.getUuid();
         plugin.getPunishmentManager().rollbackStaff(staffUuid, finalDuration).thenAccept(count -> {
             if (count == 0) {
@@ -85,7 +80,6 @@ public class StaffRollbackCommand extends BaseCommand {
                         "count", String.valueOf(count),
                         "staff", displayName);
 
-                // Broadcast to staff
                 plugin.broadcastToPermission(MessageKey.STAFFROLLBACK_BROADCAST,
                         "moderex.notify.staffrollback",
                         "count", String.valueOf(count),

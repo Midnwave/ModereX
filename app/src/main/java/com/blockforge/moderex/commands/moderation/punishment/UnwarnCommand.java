@@ -16,8 +16,6 @@ import java.util.List;
 import java.util.UUID;
 
 /**
- * /unwarn <player|id> [reason] [flags]
- *
  * Removes an active warning. Can target by player name, UUID, or punishment ID.
  */
 public class UnwarnCommand extends BaseCommand {
@@ -48,7 +46,6 @@ public class UnwarnCommand extends BaseCommand {
         UUID staffUuid = sender instanceof Player p ? p.getUniqueId() : null;
         String staffName = sender.getName();
 
-        // Handle by punishment ID
         if (target.isPunishmentId()) {
             Long punishmentId = target.getPunishmentId();
             plugin.getPunishmentManager().getPunishmentById(punishmentId).thenAccept(punishment -> {
@@ -79,12 +76,10 @@ public class UnwarnCommand extends BaseCommand {
             return;
         }
 
-        // Handle by player
         if (target.isPlayer() && target.getUuid() != null) {
             UUID targetUuid = target.getUuid();
             String displayName = target.getDisplayName();
 
-            // Check if player has warnings
             if (!plugin.getPunishmentManager().hasWarnings(targetUuid)) {
                 sendMessage(sender, "<red>" + displayName + " has no active warnings.");
                 return;
@@ -115,7 +110,6 @@ public class UnwarnCommand extends BaseCommand {
         }
 
         if (regularArgIndex == 1) {
-            // Tab completion for warned players (using online players for now)
             return filterCompletions(getOnlinePlayerNames(sender), currentArg);
         }
         return super.tabComplete(sender, args);

@@ -45,12 +45,10 @@ public class IPMuteCommand extends PunishmentCommandBase {
             }
         }
 
-        // For IP mutes, skip the IP permission check (it's implied by the command)
         if (!checkFlagPermissions(sender, flagParser, false, true, true)) {
             return;
         }
 
-        // Target must be online for IP mute
         Player target = Bukkit.getPlayer(regularArgs.get(0));
 
         if (target == null) {

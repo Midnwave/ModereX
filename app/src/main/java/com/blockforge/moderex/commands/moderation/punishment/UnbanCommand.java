@@ -18,8 +18,6 @@ import java.util.List;
 import java.util.UUID;
 
 /**
- * /unban <player|id> [reason] [flags]
- *
  * Removes an active ban. Can target by player name, UUID, or punishment ID.
  */
 public class UnbanCommand extends BaseCommand {
@@ -50,7 +48,6 @@ public class UnbanCommand extends BaseCommand {
         UUID staffUuid = sender instanceof Player p ? p.getUniqueId() : null;
         String staffName = sender.getName();
 
-        // Handle by punishment ID
         if (target.isPunishmentId()) {
             Long punishmentId = target.getPunishmentId();
             plugin.getPunishmentManager().getPunishmentById(punishmentId).thenAccept(punishment -> {
@@ -81,7 +78,6 @@ public class UnbanCommand extends BaseCommand {
             return;
         }
 
-        // Handle by player
         if (target.isPlayer() && target.getUuid() != null) {
             UUID targetUuid = target.getUuid();
             String displayName = target.getDisplayName();
@@ -116,7 +112,6 @@ public class UnbanCommand extends BaseCommand {
         }
 
         if (regularArgIndex == 1) {
-            // Tab completion for banned players (using online players for now)
             return filterCompletions(getOnlinePlayerNames(sender), currentArg);
         }
         return super.tabComplete(sender, args);
