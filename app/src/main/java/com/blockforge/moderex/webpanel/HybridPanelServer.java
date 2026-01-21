@@ -1301,34 +1301,73 @@ public class HybridPanelServer {
 
     private void updateAutomodRule(WebSocketConnection conn, JsonObject data, WebPanelSession session) {
         try {
-            String ruleId = data.get("id").getAsString();
-            AutomodRule rule = plugin.getAutomodManager().getRule(ruleId);
+            // Support multiple formats: { id: "..." } or { ruleId: "...", rule: {...} }
+            String ruleId = null;
+            JsonObject ruleData = data;
 
-            if (rule == null) {
-                sendError(conn, "NOT_FOUND", "Rule not found");
+            if (data.has("ruleId")) {
+                ruleId = data.get("ruleId").getAsString();
+                if (data.has("rule") && data.get("rule").isJsonObject()) {
+                    ruleData = data.getAsJsonObject("rule");
+                }
+            } else if (data.has("id")) {
+                ruleId = data.get("id").getAsString();
+            } else if (ruleData.has("id")) {
+                ruleId = ruleData.get("id").getAsString();
+            }
+
+            if (ruleId == null) {
+                sendError(conn, "INVALID_REQUEST", "Missing rule ID");
                 return;
             }
 
-            // Update rule properties
-            if (data.has("enabled")) rule.setEnabled(data.get("enabled").getAsBoolean());
-            if (data.has("priority")) rule.setPriority(data.get("priority").getAsInt());
-            if (data.has("exactMatch")) rule.setExactMatch(data.get("exactMatch").getAsBoolean());
+            AutomodRule rule = plugin.getAutomodManager().getRule(ruleId);
+
+            if (rule == null) {
+                sendError(conn, "NOT_FOUND", "Rule not found: " + ruleId);
+                return;
+            }
+
+            // Update rule properties from ruleData
+            if (ruleData.has("enabled")) rule.setEnabled(ruleData.get("enabled").getAsBoolean());
+            if (ruleData.has("priority")) rule.setPriority(ruleData.get("priority").getAsInt());
+            if (ruleData.has("exactMatch")) rule.setExactMatch(ruleData.get("exactMatch").getAsBoolean());
+
+            // Update spam protection settings
+            if (ruleData.has("spamMessageCount")) rule.setSpamMessageCount(ruleData.get("spamMessageCount").getAsInt());
+            if (ruleData.has("spamTimeWindowSeconds")) rule.setSpamTimeWindowSeconds(ruleData.get("spamTimeWindowSeconds").getAsInt());
+            if (ruleData.has("spamDetectSimilar")) rule.setSpamDetectSimilar(ruleData.get("spamDetectSimilar").getAsBoolean());
+            if (ruleData.has("spamSimilarityThreshold")) rule.setSpamSimilarityThreshold(ruleData.get("spamSimilarityThreshold").getAsDouble());
+
+            // Update caps filter settings
+            if (ruleData.has("capsMaxPercentage")) rule.setCapsMaxPercentage(ruleData.get("capsMaxPercentage").getAsInt());
+            if (ruleData.has("capsMinLength")) rule.setCapsMinLength(ruleData.get("capsMinLength").getAsInt());
+
+            // Update AFK settings
+            if (ruleData.has("afkTimeoutMinutes")) rule.setAfkTimeoutMinutes(ruleData.get("afkTimeoutMinutes").getAsInt());
+            if (ruleData.has("afkKickEnabled")) rule.setAfkKickEnabled(ruleData.get("afkKickEnabled").getAsBoolean());
 
             // Update blacklisted words
-            if (data.has("blacklistedWords")) {
+            if (ruleData.has("blacklistedWords")) {
                 List<String> words = new ArrayList<>();
-                data.getAsJsonArray("blacklistedWords").forEach(e -> words.add(e.getAsString()));
+                ruleData.getAsJsonArray("blacklistedWords").forEach(e -> words.add(e.getAsString()));
                 rule.setBlacklistedWords(words);
+            } else if (ruleData.has("blacklistedPhrases")) {
+                List<String> words = new ArrayList<>();
+                ruleData.getAsJsonArray("blacklistedPhrases").forEach(e -> words.add(e.getAsString()));
+                rule.setBlacklistedPhrases(words);
             }
 
             // Update exclusion/whitelist words
-            if (data.has("exclusionWords") || data.has("whitelist")) {
+            if (ruleData.has("exclusionWords") || ruleData.has("whitelist") || ruleData.has("exclusionPhrases")) {
                 List<String> words = new ArrayList<>();
-                JsonArray arr = data.has("exclusionWords") ?
-                        data.getAsJsonArray("exclusionWords") :
-                        data.getAsJsonArray("whitelist");
-                arr.forEach(e -> words.add(e.getAsString()));
-                rule.setExclusionWords(words);
+                JsonArray arr = ruleData.has("exclusionWords") ? ruleData.getAsJsonArray("exclusionWords") :
+                        ruleData.has("exclusionPhrases") ? ruleData.getAsJsonArray("exclusionPhrases") :
+                        ruleData.getAsJsonArray("whitelist");
+                if (arr != null) {
+                    arr.forEach(e -> words.add(e.getAsString()));
+                    rule.setExclusionWords(words);
+                }
             }
 
             // Save rule
