@@ -80,6 +80,7 @@ public class CommandManager {
         registerPaperCommand(commandMap, "banlist", new BanListCommand(plugin), "View list of bans", List.of());
         registerPaperCommand(commandMap, "mutelist", new MuteListCommand(plugin), "View list of mutes", List.of());
         registerPaperCommand(commandMap, "warnlist", new WarnListCommand(plugin), "View list of warnings", List.of());
+        registerPaperCommand(commandMap, "viewpunishment", new ViewPunishmentCommand(plugin), "View punishment details by case ID", List.of("vp", "case", "punishinfo"));
 
         registerPaperCommand(commandMap, "dupeip", new DupeIPCommand(plugin), "Checks for alt accounts", List.of("alts", "checkalts"));
         registerPaperCommand(commandMap, "iphistory", new IPHistoryCommand(plugin), "View IP history", List.of());
@@ -162,6 +163,7 @@ public class CommandManager {
         registerSpigotCommand("banlist", new BanListCommand(plugin));
         registerSpigotCommand("mutelist", new MuteListCommand(plugin));
         registerSpigotCommand("warnlist", new WarnListCommand(plugin));
+        registerSpigotCommand("viewpunishment", new ViewPunishmentCommand(plugin));
 
         registerSpigotCommand("dupeip", new DupeIPCommand(plugin));
         registerSpigotCommand("iphistory", new IPHistoryCommand(plugin));

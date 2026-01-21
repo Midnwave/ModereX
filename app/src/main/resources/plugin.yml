@@ -142,6 +142,12 @@ commands:
     usage: /<command> [page]
     permission: moderex.warnlist
 
+  viewpunishment:
+    description: View detailed information about a punishment by case ID
+    usage: /<command> <caseId>
+    permission: moderex.command.viewpunishment
+    aliases: [vp, case, punishinfo]
+
   # Account & IP Commands
   dupeip:
     description: Display associated accounts of a user or IP
@@ -333,6 +339,7 @@ permissions:
       moderex.banlist: true
       moderex.mutelist: true
       moderex.warnlist: true
+      moderex.command.viewpunishment: true
       moderex.dupeip: true
       moderex.iphistory: true
       moderex.ipreport: true
@@ -486,6 +493,10 @@ permissions:
 
   moderex.warnlist:
     description: View warning list
+    default: op
+
+  moderex.command.viewpunishment:
+    description: View detailed punishment information by case ID
     default: op
 
   # Account & IP Permissions
