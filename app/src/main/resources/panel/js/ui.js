@@ -35,6 +35,13 @@
     return `${seconds}s`;
   }
 
+  // Truncate text with ellipsis
+  function truncate(text, maxLen = 40) {
+    if (!text) return '';
+    text = String(text);
+    return text.length > maxLen ? text.substring(0, maxLen) + '...' : text;
+  }
+
   // DOM References
   let dom = {};
 
@@ -54,6 +61,13 @@
       statWatchHint: $('#statWatchHint'),
       statOnline: $('#statOnline'),
       statOnlineHint: $('#statOnlineHint'),
+      statBans: $('#statBans'),
+      statMutes: $('#statMutes'),
+      statWarns24h: $('#statWarns24h'),
+      statStaff: $('#statStaff'),
+      dashServerStatus: $('#dashServerStatus'),
+      dashUptime: $('#dashUptime'),
+      recentPunishments: $('#recentPunishments'),
       activityRows: $('#activityRows'),
       watchlistHighlights: $('#watchlistHighlights'),
       playerSearch: $('#playerSearch'),
@@ -164,7 +178,14 @@
       anticheatSearch: $('#anticheatSearch'),
       anticheatRows: $('#anticheatRows'),
       anticheatConfig: $('#anticheatConfig'),
-      anticheatDisabledCard: $('#anticheatDisabledCard')
+      anticheatDisabledCard: $('#anticheatDisabledCard'),
+      ruleSearch: $('#ruleSearch'),
+      ruleTypeFilter: $('#ruleTypeFilter'),
+      ruleStatusFilter: $('#ruleStatusFilter'),
+      rulesCount: $('#rulesCount'),
+      rulesPageInfo: $('#rulesPageInfo'),
+      rulesPrevBtn: $('#rulesPrevBtn'),
+      rulesNextBtn: $('#rulesNextBtn')
     };
   }
 
@@ -189,7 +210,16 @@
 
   function renderDashboard() {
     if (!dom.statActivePun) return;
+
+    // Filter punishments
     const activePun = state.punishments.filter(p => p.active && !p.revoked);
+    const activeBans = activePun.filter(p => p.type === 'BAN' || p.type === 'IPBAN');
+    const activeMutes = activePun.filter(p => p.type === 'MUTE');
+    const now = Date.now();
+    const oneDayAgo = now - 24 * 60 * 60 * 1000;
+    const recentWarns = state.punishments.filter(p => p.type === 'WARN' && p.createdAt >= oneDayAgo);
+
+    // Primary stats
     dom.statActivePun.textContent = activePun.length;
     dom.statPunHint.textContent = activePun.length ? `${activePun.length} active` : 'No active cases';
 
@@ -203,12 +233,68 @@
     const online = state.players.filter(p => p.status === 'online' || p.status === 'afk').length;
     const staffOnline = (state.staff || []).filter(s => s.status === 'online' || s.status === 'afk').length;
     dom.statOnline.textContent = online;
-    dom.statOnlineHint.textContent = `${online}/${state.players.length} total • ${staffOnline} staff online`;
+    dom.statOnlineHint.textContent = `${online}/${state.players.length} total • ${staffOnline} staff`;
 
+    // Secondary stats
+    if (dom.statBans) dom.statBans.textContent = activeBans.length;
+    if (dom.statMutes) dom.statMutes.textContent = activeMutes.length;
+    if (dom.statWarns24h) dom.statWarns24h.textContent = recentWarns.length;
+    if (dom.statStaff) dom.statStaff.textContent = staffOnline;
+
+    // Server status
+    if (dom.dashServerStatus) {
+      const isConnected = window.MX?.ws?.isConnected?.() || false;
+      dom.dashServerStatus.className = `badge ${isConnected ? 'green' : 'red'}`;
+      dom.dashServerStatus.innerHTML = isConnected
+        ? '<i class="fa-solid fa-circle"></i> Connected'
+        : '<i class="fa-solid fa-circle"></i> Disconnected';
+    }
+
+    // Server uptime (if available)
+    if (dom.dashUptime && state.serverInfo?.uptime) {
+      dom.dashUptime.textContent = formatRemainingTime(state.serverInfo.uptime);
+    }
+
+    // Activity rows
     const rows = state.activity.slice().sort((a, b) => b.t - a.t).slice(0, 7).map(a => `
       <tr><td>${escapeHtml(fmtShort(a.t))}</td><td>${escapeHtml(a.actor)}</td><td>${escapeHtml(a.action)}</td><td>${escapeHtml(a.target)}</td></tr>
     `).join('');
     dom.activityRows.innerHTML = rows || `<tr><td colspan="4" style="color:var(--muted)">No activity recorded.</td></tr>`;
+
+    // Recent punishments
+    if (dom.recentPunishments) {
+      const recentPuns = state.punishments.slice().sort((a, b) => b.createdAt - a.createdAt).slice(0, 5);
+      dom.recentPunishments.innerHTML = recentPuns.map(pun => {
+        const pl = state.players.find(p => p.id === pun.playerId);
+        const name = pl?.name || 'Unknown';
+        const avatarFallback = `https://minotar.net/helm/${encodeURIComponent(name)}/64.png`;
+        const typeBadge = pun.type === 'BAN' ? `<span class="badge red"><i class="fa-solid fa-ban"></i></span>` :
+          pun.type === 'MUTE' ? `<span class="badge yellow"><i class="fa-solid fa-volume-xmark"></i></span>` :
+          pun.type === 'KICK' ? `<span class="badge purple"><i class="fa-solid fa-person-walking-arrow-right"></i></span>` :
+          `<span class="badge blue"><i class="fa-solid fa-triangle-exclamation"></i></span>`;
+        const statusBadge = pun.revoked
+          ? `<span class="badge gray"><i class="fa-solid fa-xmark"></i> Revoked</span>`
+          : pun.active === false
+            ? `<span class="badge gray"><i class="fa-solid fa-check"></i> Expired</span>`
+            : `<span class="badge green"><i class="fa-solid fa-check"></i> Active</span>`;
+
+        return `
+          <div class="drawer-row" style="border-radius:var(--radius);cursor:pointer" onclick="viewPunishmentDetails('${pun.id}')">
+            <div style="display:flex;align-items:center;gap:10px">
+              <div class="phead" style="width:32px;height:32px"><img src="${avatarUrl(pl || { name: name })}" alt="" onerror="this.onerror=null;this.src='${avatarFallback}'" style="width:100%;height:100%;border-radius:4px"></div>
+              <div class="meta" style="flex:1">
+                <b>${escapeHtml(name)}</b>
+                <small>${escapeHtml(truncate(pun.reason || 'No reason', 35))} • ${escapeHtml(fmtShort(pun.createdAt))}</small>
+              </div>
+            </div>
+            <div style="display:flex;gap:6px;align-items:center">
+              ${typeBadge}
+              ${statusBadge}
+            </div>
+          </div>
+        `;
+      }).join('') || `<div class="hintline">No recent punishments.</div>`;
+    }
 
     // Match by UUID (from server) instead of internal ID
     const wlPlayers = [...state.watchlist].map(uuid =>
@@ -302,7 +388,7 @@
           <td onclick="openDrawer('${pun.playerId}','${pun.id}')"><div class="pwrap"><div class="phead"><img src="${avatarUrl(pl || { name: name })}" alt="" onerror="this.onerror=null;this.src='${avatarFallback}'"></div><div><b style="font-size:13px">${escapeHtml(pl?.name || 'Unknown')}</b></div></div></td>
           <td><span class="badge gray" style="font-family:var(--font-mono);font-size:11px">${escapeHtml(pun.id)}</span></td>
           <td>${typeBadge}</td>
-          <td>${escapeHtml(pun.reason || 'No reason')}</td>
+          <td class="reason-cell">${window.expandableReason ? expandableReason(pun.reason, 20) : escapeHtml(truncate(pun.reason || 'No reason', 20))}</td>
           <td>${escapeHtml(fmtLong(pun.createdAt))}</td>
           <td><span class="badge ${durClass}" title="Time remaining">${escapeHtml(durDisplay)}</span></td>
           <td>${escapeHtml(pun.staff || 'Console')}</td>
@@ -327,7 +413,7 @@
         <td><b>${escapeHtml(t.name)}</b></td>
         <td>${escapeHtml(t.type)}</td>
         <td>${escapeHtml(t.duration || 'instant')}</td>
-        <td>${escapeHtml(t.reason)}</td>
+        <td class="reason-cell">${window.expandableReason ? expandableReason(t.reason, 20) : escapeHtml(truncate(t.reason || 'No reason', 20))}</td>
         <td style="text-align:right">
           <button class="mini primary" onclick="editTemplateUI('${t.id}')"><i class="fa-solid fa-pen-to-square"></i> Edit</button>
           <button class="mini bad" onclick="deleteTemplate('${t.id}')"><i class="fa-solid fa-trash"></i></button>
@@ -338,13 +424,31 @@
 
   function renderRules() {
     if (!dom.rulesList) return;
-    const anticheatRule = (state.settings.anticheatReplace && state.anticheat?.enabled) ? `
+
+    // Get filter values
+    const searchQ = (dom.ruleSearch?.value || '').toLowerCase().trim();
+    const typeFilter = dom.ruleTypeFilter?.value || 'all';
+    const statusFilter = dom.ruleStatusFilter?.value || 'all';
+
+    // Anticheat rule (shown if enabled and matches filters)
+    const showAnticheat = state.settings.anticheatReplace && state.anticheat?.enabled &&
+      (typeFilter === 'all' || typeFilter === 'anticheat') &&
+      (statusFilter === 'all' || (statusFilter === 'enabled' && state.anticheatRule?.enabled) || (statusFilter === 'disabled' && !state.anticheatRule?.enabled)) &&
+      (!searchQ || 'anticheat alert threshold'.includes(searchQ));
+
+    // Get detected anticheat names for badge display
+    const detectedAnticheats = (state.anticheat?.anticheats || []).map(ac => ac.name).filter(Boolean);
+    const anticheatBadges = detectedAnticheats.length > 0
+      ? detectedAnticheats.map(name => `<span class="badge purple"><i class="fa-solid fa-shield-halved"></i> ${escapeHtml(name)}</span>`).join(' ')
+      : '<span class="badge gray"><i class="fa-solid fa-shield-halved"></i> None Detected</span>';
+
+    const anticheatRule = showAnticheat ? `
       <div class="card" style="margin:0">
         <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:10px">
           <div>
-            <div style="display:flex;align-items:center;gap:10px">
+            <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
               <b style="font-size:14px">Anticheat Alert Threshold</b>
-              <span class="badge purple"><i class="fa-solid fa-shield-halved"></i> Grim</span>
+              ${anticheatBadges}
             </div>
             <div class="hintline">Auto punish when an alert exceeds the threshold window.</div>
           </div>
@@ -363,7 +467,63 @@
       </div>
     ` : '';
 
-    dom.rulesList.innerHTML = anticheatRule + state.rules.map(r => {
+    // Filter rules
+    let filteredRules = state.rules.filter(r => {
+      // Search filter
+      if (searchQ) {
+        const searchableText = `${r.name} ${r.notes || ''} ${(r.conditions || []).map(c => c.value || '').join(' ')}`.toLowerCase();
+        if (!searchableText.includes(searchQ)) return false;
+      }
+
+      // Type filter
+      if (typeFilter !== 'all') {
+        const ruleType = getRuleType(r);
+        if (ruleType !== typeFilter) return false;
+      }
+
+      // Status filter
+      if (statusFilter === 'enabled' && !r.enabled) return false;
+      if (statusFilter === 'disabled' && r.enabled) return false;
+
+      return true;
+    });
+
+    // Pagination
+    const pageSize = state.rulesPageSize || 10;
+    const totalItems = filteredRules.length + (showAnticheat ? 1 : 0);
+    const totalPages = Math.max(1, Math.ceil(totalItems / pageSize));
+    state.rulesPage = Math.max(1, Math.min(totalPages, state.rulesPage || 1));
+
+    // Calculate slice indices for filtered rules
+    // On page 1, if anticheat is shown, we show anticheat + (pageSize - 1) rules
+    // On later pages, we adjust the start index to account for anticheat taking a slot on page 1
+    let ruleStart, ruleEnd;
+    if (state.rulesPage === 1) {
+      ruleStart = 0;
+      ruleEnd = showAnticheat ? pageSize - 1 : pageSize;
+    } else {
+      // Offset for anticheat taking one slot on page 1
+      ruleStart = (state.rulesPage - 1) * pageSize - (showAnticheat ? 1 : 0);
+      ruleEnd = ruleStart + pageSize;
+    }
+    const paginatedRules = filteredRules.slice(ruleStart, ruleEnd);
+
+    // Update pagination UI
+    if (dom.rulesCount) {
+      dom.rulesCount.textContent = `${totalItems} rule${totalItems !== 1 ? 's' : ''}`;
+    }
+    if (dom.rulesPageInfo) {
+      dom.rulesPageInfo.textContent = `Page ${state.rulesPage} of ${totalPages}`;
+    }
+    if (dom.rulesPrevBtn) {
+      dom.rulesPrevBtn.disabled = state.rulesPage <= 1;
+    }
+    if (dom.rulesNextBtn) {
+      dom.rulesNextBtn.disabled = state.rulesPage >= totalPages;
+    }
+
+    // Render rules
+    const rulesHtml = paginatedRules.map(r => {
       const thr = r.threshold || { hits: 1, windowMins: 10 };
       const descMap = {
         contains: 'Flags when a phrase appears in a message (comma separated).',
@@ -457,7 +617,22 @@
           </div>
         </div>
       `;
-    }).join('') || `<div class="hintline">No rules. Click "Add Rule" to create one.</div>`;
+    }).join('');
+
+    // Combine anticheat rule (on first page) with regular rules
+    const showAnticheatOnPage = showAnticheat && state.rulesPage === 1;
+    dom.rulesList.innerHTML = (showAnticheatOnPage ? anticheatRule : '') +
+      (rulesHtml || (totalItems === 0 ? `<div class="hintline">No rules match your search. Click "Add Rule" to create one.</div>` : ''));
+  }
+
+  // Helper function to determine rule type for filtering
+  function getRuleType(rule) {
+    const conditions = rule.conditions || [];
+    if (conditions.some(c => c.kind === 'contains' || c.kind === 'regex')) return 'word';
+    if (conditions.some(c => c.kind === 'caps')) return 'caps';
+    if (conditions.some(c => c.kind === 'repeat')) return 'spam';
+    if (conditions.some(c => c.kind === 'link')) return 'link';
+    return 'custom';
   }
 
   function renderMessages() {
@@ -500,6 +675,30 @@
     if (dom.voiceChatStatus) dom.voiceChatStatus.textContent = state.integrations?.voiceChatDetected ? 'Detected' : 'Not detected';
     if (dom.luckPermsStatus) dom.luckPermsStatus.textContent = state.integrations?.luckPermsDetected ? 'Detected' : 'Not detected';
 
+    // Geyser/Floodgate status
+    const geyserStatus = document.getElementById('geyserStatus');
+    const floodgateStatus = document.getElementById('floodgateStatus');
+    const geyserDetails = document.getElementById('geyserDetails');
+    const floodgateDetails = document.getElementById('floodgateDetails');
+
+    if (geyserStatus) {
+      const geyserAvail = state.integrations?.geyserDetected;
+      geyserStatus.textContent = geyserAvail ? 'Detected' : 'Not detected';
+      geyserStatus.className = 'badge ' + (geyserAvail ? 'good' : 'gray');
+      if (geyserDetails && state.integrations?.geyserVersion) {
+        geyserDetails.textContent = 'v' + state.integrations.geyserVersion;
+      }
+    }
+
+    if (floodgateStatus) {
+      const floodgateAvail = state.integrations?.floodgateDetected;
+      floodgateStatus.textContent = floodgateAvail ? 'Detected' : 'Not detected';
+      floodgateStatus.className = 'badge ' + (floodgateAvail ? 'good' : 'gray');
+      if (floodgateDetails && state.integrations?.floodgateVersion) {
+        floodgateDetails.textContent = 'v' + state.integrations.floodgateVersion;
+      }
+    }
+
     // Anticheat display - show all known anticheats but highlight detected/hooked ones
     if (dom.anticheatList) {
       const hookedAcs = state.integrations?.hookedAnticheats || [];
@@ -535,6 +734,124 @@
     if (dom.webhookPreview) {
       dom.webhookPreview.innerHTML = escapeHtml(`ModereX Case Created\nPlayer: ${state.players[0]?.name || 'Player'}\nAction: BAN\nReason: Violation\nStaff: Admin`);
     }
+  }
+
+  function renderStaffSettings() {
+    const container = $('#staffNotificationSettings');
+    if (!container) return;
+
+    const settings = state.staffSettings || {};
+
+    // Generate alert level dropdown HTML
+    const levelOptions = (current, key) => `
+      <select class="input small" onchange="updateStaffSetting('${key}', this.value)">
+        <option value="EVERYONE" ${current === 'EVERYONE' ? 'selected' : ''}>Everyone</option>
+        <option value="WATCHLIST_ONLY" ${current === 'WATCHLIST_ONLY' ? 'selected' : ''}>Watchlist Only</option>
+        <option value="OFF" ${current === 'OFF' ? 'selected' : ''}>Off</option>
+      </select>
+    `;
+
+    const joinLeaveOptions = (current) => `
+      <select class="input small" onchange="updateStaffSetting('joinLeaveMessages', this.value)">
+        <option value="ALL" ${current === 'ALL' ? 'selected' : ''}>All Players</option>
+        <option value="STAFF_ONLY" ${current === 'STAFF_ONLY' ? 'selected' : ''}>Staff Only</option>
+        <option value="OFF" ${current === 'OFF' ? 'selected' : ''}>Off</option>
+      </select>
+    `;
+
+    const toggleHtml = (key, label) => `
+      <div class="check-toggle ${settings[key] ? 'on' : ''}" onclick="updateStaffSetting('${key}', ${!settings[key]})">
+        <span class="check-icon"><i class="fa-solid fa-check"></i></span>
+        <span>${escapeHtml(label)}</span>
+      </div>
+    `;
+
+    container.innerHTML = `
+      <div class="setting-group">
+        <h4><i class="fa-solid fa-terminal"></i> Command Monitoring</h4>
+        <div class="setting-row">
+          <span>Command Alerts</span>
+          ${levelOptions(settings.commandAlerts, 'commandAlerts')}
+        </div>
+        <div class="setting-row">
+          ${toggleHtml('showBlacklistedCommands', 'Show Blacklisted Commands')}
+        </div>
+      </div>
+
+      <div class="setting-group">
+        <h4><i class="fa-solid fa-shield-halved"></i> Anticheat Alerts</h4>
+        <div class="setting-row">
+          <span>Alert Level</span>
+          ${levelOptions(settings.anticheatAlertsLevel, 'anticheatAlertsLevel')}
+        </div>
+        <div class="setting-row">
+          <span>Minimum VL</span>
+          <input type="number" class="input tiny" min="1" max="100" value="${settings.anticheatMinVL || 10}"
+            onchange="updateStaffSetting('anticheatMinVL', parseInt(this.value))">
+        </div>
+      </div>
+
+      <div class="setting-group">
+        <h4><i class="fa-solid fa-robot"></i> Automod Alerts</h4>
+        <div class="setting-row">
+          <span>Automod Alerts</span>
+          ${levelOptions(settings.automodAlertsLevel, 'automodAlertsLevel')}
+        </div>
+        <div class="setting-row">
+          <span>Spam Alerts</span>
+          ${levelOptions(settings.spamAlertsLevel, 'spamAlertsLevel')}
+        </div>
+        <div class="setting-row">
+          <span>Filter Alerts</span>
+          ${levelOptions(settings.filterAlertsLevel, 'filterAlertsLevel')}
+        </div>
+      </div>
+
+      <div class="setting-group">
+        <h4><i class="fa-solid fa-eye"></i> Watchlist</h4>
+        <div class="setting-row toggles-row">
+          ${toggleHtml('watchlistJoinAlerts', 'Join Alerts')}
+          ${toggleHtml('watchlistQuitAlerts', 'Quit Alerts')}
+          ${toggleHtml('watchlistActivityAlerts', 'Activity Alerts')}
+        </div>
+      </div>
+
+      <div class="setting-group">
+        <h4><i class="fa-solid fa-door-open"></i> Join/Leave Messages</h4>
+        <div class="setting-row">
+          <span>Visibility</span>
+          ${joinLeaveOptions(settings.joinLeaveMessages)}
+        </div>
+      </div>
+
+      <div class="setting-group">
+        <h4><i class="fa-solid fa-comments"></i> Staff Chat</h4>
+        <div class="setting-row toggles-row">
+          ${toggleHtml('staffChatEnabled', 'Enabled')}
+          ${toggleHtml('staffChatSound', 'Sound')}
+        </div>
+      </div>
+
+      <div class="setting-group">
+        <h4><i class="fa-solid fa-gavel"></i> Punishment Alerts</h4>
+        <div class="setting-row">
+          <span>Ban Alerts</span>
+          ${levelOptions(settings.banAlertsLevel, 'banAlertsLevel')}
+        </div>
+        <div class="setting-row">
+          <span>Mute Alerts</span>
+          ${levelOptions(settings.muteAlertsLevel, 'muteAlertsLevel')}
+        </div>
+        <div class="setting-row">
+          <span>Kick Alerts</span>
+          ${levelOptions(settings.kickAlertsLevel, 'kickAlertsLevel')}
+        </div>
+        <div class="setting-row">
+          <span>Warn Alerts</span>
+          ${levelOptions(settings.warnAlertsLevel, 'warnAlertsLevel')}
+        </div>
+      </div>
+    `;
   }
 
   function renderAnticheat() {
@@ -839,6 +1156,7 @@
   window.MX.ui = {
     initDom, getDom, renderAll, renderDashboard, renderPlayers, renderPunishments,
     renderTemplates, renderRules, renderMessages, renderIntegrations, renderAnticheat, renderWatchlist,
-    renderLogs, renderChatToggles, renderTopUser, renderWatchToastsToggle, refreshUnsavedUI, markUnsaved
+    renderLogs, renderChatToggles, renderTopUser, renderWatchToastsToggle, refreshUnsavedUI, markUnsaved,
+    renderStaffSettings
   };
 })();
