@@ -1848,6 +1848,25 @@
         window.MX.sounds?.toggle();
         toast('ok', state.settings.slowEnabled ? 'Slowmode Enabled' : 'Slowmode Disabled',
           state.settings.slowEnabled ? `Players must wait ${seconds}s between messages` : 'Players can chat freely', {silent: true});
+      } else if (key.startsWith('mute')) {
+        // Mute settings - send to server
+        const muteKey = key.replace('mute', '').toLowerCase();
+        const muteKeyMap = { chat: 'chat', msg: 'msg', signs: 'signs', books: 'books', broadcast: 'broadcast', voice: 'voice', voicejoin: 'voiceJoin' };
+        const serverKey = muteKeyMap[muteKey] || muteKey;
+        ws.updateMuteSettings({ [serverKey]: state.settings[key] });
+        window.MX.sounds?.toggle();
+        toast('ok', 'Mute Setting Updated', `${key} is now ${state.settings[key] ? 'blocked' : 'allowed'}`, { silent: true });
+      } else if (key === 'warnNotify' || key === 'warnAutoEscalate') {
+        // Warn settings - send to server
+        const warnKeyMap = { warnNotify: 'notify', warnAutoEscalate: 'autoEscalate' };
+        ws.updateWarnSettings({ [warnKeyMap[key]]: state.settings[key] });
+        window.MX.sounds?.toggle();
+        toast('ok', 'Warn Setting Updated', `${key} is now ${state.settings[key] ? 'enabled' : 'disabled'}`, { silent: true });
+      } else if (key === 'anticheatReplace') {
+        // Anticheat settings - send to server
+        ws.updateAnticheatSettings({ rebrandAlerts: state.settings[key] });
+        window.MX.sounds?.toggle();
+        toast('ok', 'Anticheat Setting Updated', `Alert rebranding is now ${state.settings[key] ? 'enabled' : 'disabled'}`, { silent: true });
       } else {
         // For other settings, mark as unsaved
         ui.markUnsaved('settings', true);
@@ -2904,6 +2923,7 @@
       ws.requestAutomodRules();
       ws.requestUserSettings();
       ws.requestChatStatus();
+      ws.requestServerSettings();
       ws.requestAnticheatAlerts();
       ws.requestStaffAlertPrefs();
       ws.requestAlertPresets();
@@ -3341,6 +3361,37 @@
       state.settings.slowSeconds = data.slowmodeSeconds || 0;
       state.settings.slowEnabled = data.slowmodeSeconds > 0;
       ui.renderDashboard();
+    });
+
+    ws.on('SERVER_SETTINGS', (data) => {
+      if (!isLiveMode) return;
+      // Chat settings
+      if (typeof data.chatEnabled !== 'undefined') state.settings.chatDisabled = !data.chatEnabled;
+      if (typeof data.slowmodeSeconds !== 'undefined') {
+        state.settings.slowSeconds = data.slowmodeSeconds || 0;
+        state.settings.slowEnabled = data.slowmodeSeconds > 0;
+      }
+      // Mute settings
+      if (data.muteSettings) {
+        state.settings.muteChat = data.muteSettings.chat ?? true;
+        state.settings.muteMsg = data.muteSettings.msg ?? true;
+        state.settings.muteSigns = data.muteSettings.signs ?? true;
+        state.settings.muteBooks = data.muteSettings.books ?? true;
+        state.settings.muteBroadcast = data.muteSettings.broadcast ?? false;
+        state.settings.muteVoice = data.muteSettings.voice ?? true;
+        state.settings.muteVoiceJoin = data.muteSettings.voiceJoin ?? true;
+      }
+      // Warn settings
+      if (data.warnSettings) {
+        state.settings.warnNotify = data.warnSettings.notify ?? true;
+        state.settings.warnAutoEscalate = data.warnSettings.autoEscalate ?? false;
+      }
+      // Anticheat settings
+      if (data.anticheatSettings) {
+        state.settings.anticheatReplace = data.anticheatSettings.rebrandAlerts ?? false;
+      }
+      ui.renderDashboard();
+      ui.renderChatToggles();
     });
   }
 
