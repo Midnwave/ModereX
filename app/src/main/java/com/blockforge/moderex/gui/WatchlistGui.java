@@ -8,16 +8,33 @@ import org.bukkit.Bukkit;
 import org.bukkit.Material;
 import org.bukkit.OfflinePlayer;
 import org.bukkit.conversations.*;
-import org.bukkit.entity.Player;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.SkullMeta;
 
 import java.util.*;
+import com.blockforge.moderex.watchlist.WatchlistManager;
 
 public class WatchlistGui extends PaginatedGui<UUID> {
 
+    private final Map<UUID, WatchlistManager.WatchlistEntry> entryCache = new HashMap<>();
+
     public WatchlistGui(ModereX plugin) {
         super(plugin, "<aqua>Watchlist", 6);
+        loadEntries();
+    }
+
+    private void loadEntries() {
+        // Load watchlist entry details for all watched players
+        for (UUID uuid : plugin.getWatchlistManager().getWatchedPlayers()) {
+            plugin.getWatchlistManager().getWatchlistEntry(uuid).thenAccept(entry -> {
+                if (entry != null) {
+                    entryCache.put(uuid, entry);
+                    if (viewer != null && plugin.getGuiManager().hasGuiOpen(viewer)) {
+                        plugin.getServer().getScheduler().runTask(plugin, this::refresh);
+                    }
+                }
+            });
+        }
     }
 
     @Override
@@ -38,29 +55,45 @@ public class WatchlistGui extends PaginatedGui<UUID> {
 
         // Online status
         if (player.isOnline()) {
-            meta.displayName(TextUtil.parse("<green>" + name + " <gray>(Online)"));
-            lore.add("<green>Currently Online");
+            meta.displayName(TextUtil.parseLore("<green>" + name + " <gray>(Online)"));
+            lore.add("<green>● Currently Online");
         } else {
-            meta.displayName(TextUtil.parse("<yellow>" + name + " <gray>(Offline)"));
+            meta.displayName(TextUtil.parseLore("<yellow>" + name + " <gray>(Offline)"));
             long lastPlayed = player.getLastPlayed();
             if (lastPlayed > 0) {
-                lore.add("<gray>Last seen: <white>" + formatTimeAgo(lastPlayed));
+                lore.add("<red>● Last seen: <white>" + formatTimeAgo(lastPlayed));
             }
         }
 
         lore.add("");
         lore.add("<gray>UUID: <white>" + uuid.toString().substring(0, 8) + "...");
+
+        // Show watchlist entry details
+        WatchlistManager.WatchlistEntry entry = entryCache.get(uuid);
+        if (entry != null) {
+            lore.add("");
+            if (entry.reason() != null && !entry.reason().isEmpty()) {
+                lore.add("<aqua>Note: <white>" + entry.reason());
+            }
+            if (entry.addedBy() != null) {
+                lore.add("<gray>Added by: <white>" + entry.addedBy());
+            }
+            if (entry.addedAt() > 0) {
+                lore.add("<gray>Added: <white>" + formatTimeAgo(entry.addedAt()));
+            }
+        }
+
         lore.add("");
         lore.add("<yellow>Left-click: <white>View player");
         lore.add("<red>Right-click: <white>Remove from watchlist");
-        lore.add("<aqua>Shift-click: <white>Add note");
+        lore.add("<aqua>Shift-click: <white>Edit note");
 
-        meta.lore(lore.stream().map(TextUtil::parse).toList());
+        meta.lore(lore.stream().map(TextUtil::parseLore).toList());
         head.setItemMeta(meta);
 
         setItem(slot, head, clickType -> {
             if (clickType.isShiftClick()) {
-                // Add note
+                // Add/Edit note
                 addNoteToWatchlist(uuid, name);
             } else if (clickType.isRightClick()) {
                 // Remove from watchlist
@@ -258,14 +291,14 @@ public class WatchlistGui extends PaginatedGui<UUID> {
             ItemStack head = new ItemStack(Material.PLAYER_HEAD);
             SkullMeta meta = (SkullMeta) head.getItemMeta();
             meta.setOwningPlayer(Bukkit.getOfflinePlayer(targetUuid));
-            meta.displayName(TextUtil.parse("<yellow>" + targetName));
+            meta.displayName(TextUtil.parseLore("<yellow>" + targetName));
 
             List<String> lore = new ArrayList<>();
             lore.add("<gray>UUID: <white>" + targetUuid.toString());
             lore.add("");
             lore.add("<red>Player is offline");
 
-            meta.lore(lore.stream().map(TextUtil::parse).toList());
+            meta.lore(lore.stream().map(TextUtil::parseLore).toList());
             head.setItemMeta(meta);
             setItem(4, head);
 
