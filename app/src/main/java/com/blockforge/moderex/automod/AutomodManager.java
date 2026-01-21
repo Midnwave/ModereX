@@ -2,6 +2,7 @@ package com.blockforge.moderex.automod;
 
 import com.blockforge.moderex.ModereX;
 import com.blockforge.moderex.config.lang.MessageKey;
+import com.blockforge.moderex.hooks.anticheat.AnticheatChecks;
 import com.blockforge.moderex.punishment.PunishmentType;
 import net.kyori.adventure.text.Component;
 import org.bukkit.entity.Player;
@@ -651,6 +652,136 @@ public class AutomodManager {
             broadcastAutomodRulesUpdate();
         } catch (SQLException e) {
             plugin.logError("Failed to delete automod rule", e);
+        }
+    }
+
+    /**
+     * Register anticheat rules for each check from a detected anticheat.
+     * Each check becomes its own rule (disabled by default).
+     *
+     * @param anticheatName The anticheat name (e.g., "Grim")
+     * @param version The anticheat version (e.g., "2.3.72")
+     */
+    public void registerAnticheatRules(String anticheatName, String version) {
+        List<AnticheatChecks.CheckInfo> checks = AnticheatChecks.getChecks(anticheatName);
+        if (checks.isEmpty()) {
+            plugin.logDebug("[Automod] No known checks for anticheat: " + anticheatName);
+            return;
+        }
+
+        plugin.getLogger().info("[Automod] Registering " + checks.size() + " anticheat rules for " +
+                anticheatName + " " + version);
+
+        int registered = 0;
+        for (AnticheatChecks.CheckInfo check : checks) {
+            String ruleId = "ac_" + anticheatName.toLowerCase() + "_" + check.getName().toLowerCase();
+
+            // Skip if rule already exists
+            if (rules.containsKey(ruleId)) {
+                continue;
+            }
+
+            // Create the rule
+            AutomodRule rule = new AutomodRule();
+            rule.setId(ruleId);
+            rule.setName(anticheatName + " - " + check.getDisplayName());
+            rule.setDescription(check.getDescription() + " (" + anticheatName + " " + version + ")");
+            rule.setType(AutomodRule.RuleType.ANTICHEAT);
+            rule.setBuiltIn(false);  // Not built-in, but persistent
+            rule.setEnabled(false);  // Disabled by default
+            rule.setPriority(1000 + registered);  // Low priority (shown at end)
+            rule.setAnticheatName(anticheatName);
+            rule.setCheckName(check.getName());
+            rule.setAnticheatAlertThreshold(10);  // Default threshold
+            rule.setAnticheatTimeWindowSeconds(60);  // Default time window
+
+            // Add to rules map
+            rules.put(ruleId, rule);
+
+            // Save to database
+            saveAnticheatRule(rule);
+
+            registered++;
+        }
+
+        if (registered > 0) {
+            plugin.getLogger().info("[Automod] Registered " + registered + " new anticheat rules for " +
+                    anticheatName + " " + version);
+            broadcastAutomodRulesUpdate();
+        }
+    }
+
+    /**
+     * Save an anticheat rule to the database.
+     */
+    private void saveAnticheatRule(AutomodRule rule) {
+        try {
+            // Check if rule already exists in database
+            boolean exists = plugin.getDatabaseManager().query("""
+                    SELECT 1 FROM moderex_automod_rules WHERE rule_id = ? LIMIT 1
+                    """,
+                    rs -> rs.next(),
+                    rule.getId()
+            );
+
+            if (exists) {
+                // Update existing
+                plugin.getDatabaseManager().update("""
+                        UPDATE moderex_automod_rules
+                        SET name = ?, enabled = ?, config = ?, updated_at = ?
+                        WHERE rule_id = ?
+                        """,
+                        rule.getName(), rule.isEnabled(), rule.toConfigJson(),
+                        System.currentTimeMillis(), rule.getId()
+                );
+            } else {
+                // Insert new
+                plugin.getDatabaseManager().update("""
+                        INSERT INTO moderex_automod_rules (rule_id, name, type, enabled, config, created_at, updated_at)
+                        VALUES (?, ?, ?, ?, ?, ?, ?)
+                        """,
+                        rule.getId(), rule.getName(), rule.getType().name(),
+                        rule.isEnabled(), rule.toConfigJson(),
+                        System.currentTimeMillis(), System.currentTimeMillis()
+                );
+            }
+        } catch (SQLException e) {
+            plugin.logError("Failed to save anticheat rule: " + rule.getId(), e);
+        }
+    }
+
+    /**
+     * Load anticheat rules from the database.
+     */
+    public void loadAnticheatRulesFromDatabase() {
+        try {
+            plugin.getDatabaseManager().query("""
+                    SELECT rule_id, name, type, enabled, config FROM moderex_automod_rules
+                    WHERE type = 'ANTICHEAT' AND rule_id IS NOT NULL
+                    """,
+                    rs -> {
+                        while (rs.next()) {
+                            String ruleId = rs.getString("rule_id");
+                            if (ruleId == null || rules.containsKey(ruleId)) continue;
+
+                            AutomodRule rule = new AutomodRule();
+                            rule.setId(ruleId);
+                            rule.setName(rs.getString("name"));
+                            rule.setType(AutomodRule.RuleType.ANTICHEAT);
+                            rule.setEnabled(rs.getBoolean("enabled"));
+
+                            String config = rs.getString("config");
+                            if (config != null) {
+                                rule.loadConfigJson(config);
+                            }
+
+                            rules.put(ruleId, rule);
+                        }
+                        return null;
+                    }
+            );
+        } catch (SQLException e) {
+            plugin.logError("Failed to load anticheat rules from database", e);
         }
     }
 

@@ -33,7 +33,8 @@ public class SpartanHook extends AnticheatHook implements Listener {
             return false;
         }
 
-        plugin.logDebug("[Anticheat] Found Spartan v" + spartanPlugin.getDescription().getVersion());
+        version = spartanPlugin.getDescription().getVersion();
+        plugin.logDebug("[Anticheat] Found Spartan v" + version);
         ClassLoader spartanClassLoader = spartanPlugin.getClass().getClassLoader();
 
         String[] eventClasses = {
