@@ -19,6 +19,7 @@
       // Request integration status from backend
       ws.send('GET_ANTICHEAT_INFO');
       ws.send('GET_LUCKPERMS_STATUS');
+      ws.send('GET_GEYSER_STATUS');
       ws.send('GET_MODERATION_PLUGINS');
     }
   };
@@ -97,6 +98,57 @@
       badge.innerHTML = '<i class="fa-solid fa-xmark"></i> Not detected';
       if (details) {
         details.innerHTML = 'LuckPerms not found on this server';
+      }
+    }
+  };
+
+  window.renderGeyserStatus = function(status) {
+    const geyserBadge = document.getElementById('geyserStatus');
+    const geyserDetails = document.getElementById('geyserDetails');
+    const floodgateBadge = document.getElementById('floodgateStatus');
+    const floodgateDetails = document.getElementById('floodgateDetails');
+
+    // Update state
+    const state = window.MX?.state;
+    if (state) {
+      state.integrations = state.integrations || {};
+      state.integrations.geyserDetected = status?.geyserAvailable || false;
+      state.integrations.floodgateDetected = status?.floodgateAvailable || false;
+      state.integrations.geyserVersion = status?.geyserVersion || null;
+      state.integrations.floodgateVersion = status?.floodgateVersion || null;
+    }
+
+    // Update Geyser badge
+    if (geyserBadge) {
+      if (status?.geyserAvailable) {
+        geyserBadge.className = 'badge good';
+        geyserBadge.innerHTML = '<i class="fa-solid fa-check"></i> Active';
+        if (geyserDetails) {
+          geyserDetails.textContent = `v${status.geyserVersion || 'Unknown'}`;
+        }
+      } else {
+        geyserBadge.className = 'badge gray';
+        geyserBadge.innerHTML = '<i class="fa-solid fa-xmark"></i> Not detected';
+        if (geyserDetails) {
+          geyserDetails.textContent = 'Bedrock-Java proxy';
+        }
+      }
+    }
+
+    // Update Floodgate badge
+    if (floodgateBadge) {
+      if (status?.floodgateAvailable) {
+        floodgateBadge.className = 'badge good';
+        floodgateBadge.innerHTML = '<i class="fa-solid fa-check"></i> Active';
+        if (floodgateDetails) {
+          floodgateDetails.textContent = `v${status.floodgateVersion || 'Unknown'}`;
+        }
+      } else {
+        floodgateBadge.className = 'badge gray';
+        floodgateBadge.innerHTML = '<i class="fa-solid fa-xmark"></i> Not detected';
+        if (floodgateDetails) {
+          floodgateDetails.textContent = 'Bedrock authentication';
+        }
       }
     }
   };
@@ -267,11 +319,24 @@
         if (state) {
           state.integrations = state.integrations || {};
           state.integrations.hookedAnticheats = data.plugins;
+          // Also update anticheat state for consistency with anticheat page
+          state.anticheat = state.anticheat || {};
+          if (!state.anticheat.anticheats || state.anticheat.anticheats.length === 0) {
+            // Only update if we don't already have detailed data from ANTICHEAT_ALERTS
+            state.anticheat.anticheats = data.plugins.map(p => ({
+              name: p.name,
+              checks: [],
+              categories: {}
+            }));
+          }
         }
         renderAnticheatIntegrations(data.plugins);
         // Also update the integrations page UI
         if (window.MX?.ui?.renderIntegrations) {
           window.MX.ui.renderIntegrations();
+        }
+        if (window.MX?.ui?.renderAnticheat) {
+          window.MX.ui.renderAnticheat();
         }
       }
     });
@@ -285,6 +350,12 @@
           state.integrations.luckPermsDetected = data.available;
         }
         renderLuckPermsStatus(data);
+      }
+    });
+
+    ws.on('GEYSER_STATUS', (data) => {
+      if (data) {
+        renderGeyserStatus(data);
       }
     });
 
@@ -325,6 +396,249 @@
     div.textContent = text;
     return div.innerHTML;
   }
+
+  // ===== SERVER RULES =====
+
+  // State for rules
+  let rulesData = {
+    rules: [],
+    requireAcceptance: false,
+    version: '1.0'
+  };
+
+  window.renderRules = function() {
+    const ws = window.MX?.ws;
+    if (ws && ws.isConnected()) {
+      ws.send('GET_RULES');
+    }
+  };
+
+  window.renderRulesUI = function(data) {
+    rulesData = data || rulesData;
+
+    // Update settings UI
+    const versionInput = document.getElementById('rulesVersion');
+    const requireToggle = document.getElementById('requireAcceptanceToggle');
+
+    if (versionInput) versionInput.value = rulesData.version || '1.0';
+    if (requireToggle) {
+      requireToggle.classList.toggle('on', rulesData.requireAcceptance);
+      requireToggle.setAttribute('aria-pressed', rulesData.requireAcceptance);
+    }
+
+    // Render rules list
+    const container = document.getElementById('rulesListContainer');
+    if (!container) return;
+
+    if (!rulesData.rules || rulesData.rules.length === 0) {
+      container.innerHTML = '<div style="color:var(--text-secondary);font-size:13px;padding:20px;text-align:center">No rules configured. Click "Add Rule" to create your first rule.</div>';
+      return;
+    }
+
+    container.innerHTML = rulesData.rules.map((rule, index) => {
+      const categoryColor = getCategoryColor(rule.category);
+      return `
+        <div class="rule-item" data-order="${rule.order}" style="display:flex;align-items:flex-start;gap:12px;padding:14px;border:1px solid var(--border);border-radius:var(--radius);background:rgba(0,0,0,0.2);margin-bottom:10px;cursor:pointer" onclick="editRule(${rule.order})">
+          <div style="min-width:32px;height:32px;border-radius:var(--radius);background:linear-gradient(135deg,${categoryColor}40,${categoryColor}20);display:flex;align-items:center;justify-content:center;font-weight:700;color:${categoryColor}">${rule.order}</div>
+          <div style="flex:1">
+            <div style="font-weight:600;margin-bottom:4px">${escapeHtml(rule.title)}</div>
+            <div style="font-size:13px;color:var(--text-secondary)">${escapeHtml(rule.description)}</div>
+            <div style="margin-top:8px">
+              <span class="badge" style="background:${categoryColor}20;color:${categoryColor};font-size:10px">${escapeHtml(rule.category || 'general')}</span>
+            </div>
+          </div>
+          <button class="btn mini bad" onclick="event.stopPropagation();deleteRule(${rule.order})" title="Delete rule"><i class="fa-solid fa-trash"></i></button>
+        </div>
+      `;
+    }).join('');
+  };
+
+  function getCategoryColor(category) {
+    if (!category) return '#ffc107';
+    switch (category.toLowerCase()) {
+      case 'general': return '#ffc107';
+      case 'chat': return '#00bcd4';
+      case 'gameplay': return '#4caf50';
+      case 'pvp': return '#f44336';
+      case 'building': return '#ff9800';
+      default: return '#9e9e9e';
+    }
+  }
+
+  window.addNewRule = function() {
+    const newRule = {
+      order: (rulesData.rules?.length || 0) + 1,
+      title: 'New Rule',
+      description: 'Enter rule description...',
+      category: 'general'
+    };
+
+    openRuleEditor(newRule, true);
+  };
+
+  window.editRule = function(order) {
+    const rule = rulesData.rules.find(r => r.order === order);
+    if (rule) {
+      openRuleEditor(rule, false);
+    }
+  };
+
+  function openRuleEditor(rule, isNew) {
+    const modal = document.createElement('div');
+    modal.className = 'overlay';
+    modal.id = 'ruleEditorOverlay';
+    modal.style.display = 'flex';
+    modal.innerHTML = `
+      <div class="modal" style="max-width:500px" onclick="event.stopPropagation()">
+        <div class="modal-top">
+          <b>${isNew ? 'Add Rule' : 'Edit Rule'}</b>
+          <button class="mini" onclick="closeRuleEditor()"><i class="fa-solid fa-xmark"></i></button>
+        </div>
+        <div class="modal-body">
+          <div class="hintline" style="margin-top:0">Rule Title</div>
+          <input type="text" class="input" id="ruleTitle" value="${escapeHtml(rule.title)}" placeholder="Rule title...">
+
+          <div class="hintline">Description</div>
+          <textarea class="input" id="ruleDescription" rows="3" placeholder="Describe the rule...">${escapeHtml(rule.description)}</textarea>
+
+          <div class="hintline">Category</div>
+          <select class="input" id="ruleCategory">
+            <option value="general" ${rule.category === 'general' ? 'selected' : ''}>General</option>
+            <option value="chat" ${rule.category === 'chat' ? 'selected' : ''}>Chat</option>
+            <option value="gameplay" ${rule.category === 'gameplay' ? 'selected' : ''}>Gameplay</option>
+            <option value="pvp" ${rule.category === 'pvp' ? 'selected' : ''}>PvP</option>
+            <option value="building" ${rule.category === 'building' ? 'selected' : ''}>Building</option>
+          </select>
+
+          <div class="block" style="margin-top:20px">
+            <button class="btn primary" onclick="saveRuleFromEditor(${rule.order}, ${isNew})"><i class="fa-solid fa-check"></i> ${isNew ? 'Add' : 'Save'}</button>
+            <button class="btn" onclick="closeRuleEditor()">Cancel</button>
+          </div>
+        </div>
+      </div>
+    `;
+    modal.onclick = closeRuleEditor;
+    document.body.appendChild(modal);
+  }
+
+  window.closeRuleEditor = function() {
+    const overlay = document.getElementById('ruleEditorOverlay');
+    if (overlay) overlay.remove();
+  };
+
+  window.saveRuleFromEditor = function(order, isNew) {
+    const title = document.getElementById('ruleTitle')?.value?.trim();
+    const description = document.getElementById('ruleDescription')?.value?.trim();
+    const category = document.getElementById('ruleCategory')?.value || 'general';
+
+    if (!title) {
+      window.toast('warn', 'Invalid', 'Rule title is required');
+      return;
+    }
+
+    const ws = window.MX?.ws;
+    if (!ws || !ws.isConnected()) {
+      window.toast('warn', 'Not Connected', 'Cannot save rule - not connected to server');
+      return;
+    }
+
+    if (isNew) {
+      ws.send('ADD_RULE', { title, description, category });
+    } else {
+      // Update existing rule in local state
+      const ruleIndex = rulesData.rules.findIndex(r => r.order === order);
+      if (ruleIndex >= 0) {
+        rulesData.rules[ruleIndex] = { order, title, description, category };
+        ws.send('UPDATE_RULES', { rules: rulesData.rules });
+      }
+    }
+
+    closeRuleEditor();
+  };
+
+  window.deleteRule = function(order) {
+    if (!confirm('Delete this rule?')) return;
+
+    const ws = window.MX?.ws;
+    if (!ws || !ws.isConnected()) {
+      window.toast('warn', 'Not Connected', 'Cannot delete rule - not connected to server');
+      return;
+    }
+
+    ws.send('DELETE_RULE', { order });
+  };
+
+  window.saveRules = function() {
+    const ws = window.MX?.ws;
+    if (!ws || !ws.isConnected()) {
+      window.toast('warn', 'Not Connected', 'Cannot save rules - not connected to server');
+      return;
+    }
+
+    const version = document.getElementById('rulesVersion')?.value?.trim() || '1.0';
+
+    // Save settings
+    ws.send('UPDATE_RULES_SETTINGS', {
+      requireAcceptance: rulesData.requireAcceptance,
+      version: version
+    });
+
+    // Save rules
+    ws.send('UPDATE_RULES', { rules: rulesData.rules });
+
+    window.toast('ok', 'Saved', 'Rules saved successfully');
+  };
+
+  window.toggleRequireAcceptance = function() {
+    rulesData.requireAcceptance = !rulesData.requireAcceptance;
+    const toggle = document.getElementById('requireAcceptanceToggle');
+    if (toggle) {
+      toggle.classList.toggle('on', rulesData.requireAcceptance);
+      toggle.setAttribute('aria-pressed', rulesData.requireAcceptance);
+    }
+  };
+
+  // Override go function to handle rules page
+  const originalGoExt = window.go;
+  window.go = function(page) {
+    if (originalGoExt) {
+      originalGoExt(page);
+    }
+
+    if (page === 'rules') {
+      renderRules();
+    }
+  };
+
+  // Add WebSocket handlers for rules
+  function registerRulesHandlers() {
+    const ws = window.MX?.ws;
+    if (!ws) {
+      setTimeout(registerRulesHandlers, 100);
+      return;
+    }
+
+    ws.on('RULES_DATA', (data) => {
+      if (data) {
+        renderRulesUI(data);
+      }
+    });
+
+    ws.on('RULES_UPDATE', (data) => {
+      if (data) {
+        renderRulesUI(data);
+        window.toast('info', 'Rules Updated', 'Server rules have been updated');
+      }
+    });
+
+    ws.on('RULES_ACCEPTED', (data) => {
+      if (data) {
+        window.toast('info', 'Rules Accepted', `A player has accepted the server rules`);
+      }
+    });
+  }
+
+  registerRulesHandlers();
 
   console.log('[ModereX Extensions] Feature extensions loaded');
 })();

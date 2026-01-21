@@ -10,6 +10,8 @@ public class HookManager {
     private LuckPermsHook luckPermsHook;
     private PlaceholderAPIHook placeholderAPIHook;
     private CoreProtectHook coreProtectHook;
+    private GeyserHook geyserHook;
+    private FloodgateHook floodgateHook;
     private AnticheatManager anticheatManager;
     private String detectedAnticheat;
 
@@ -51,6 +53,32 @@ public class HookManager {
             } catch (Exception e) {
                 plugin.logError("Failed to hook into CoreProtect", e);
                 coreProtectHook = null;
+            }
+        }
+
+        // Hook into Geyser (Bedrock proxy)
+        if (isPluginEnabled("Geyser-Spigot") || isPluginEnabled("Geyser")) {
+            try {
+                geyserHook = new GeyserHook(plugin);
+                if (!geyserHook.initialize()) {
+                    geyserHook = null;
+                }
+            } catch (Exception e) {
+                plugin.logDebug("Failed to hook into Geyser: " + e.getMessage());
+                geyserHook = null;
+            }
+        }
+
+        // Hook into Floodgate (Bedrock authentication)
+        if (isPluginEnabled("floodgate") || isPluginEnabled("Floodgate")) {
+            try {
+                floodgateHook = new FloodgateHook(plugin);
+                if (!floodgateHook.initialize()) {
+                    floodgateHook = null;
+                }
+            } catch (Exception e) {
+                plugin.logDebug("Failed to hook into Floodgate: " + e.getMessage());
+                floodgateHook = null;
             }
         }
 
@@ -151,6 +179,38 @@ public class HookManager {
 
     public AnticheatManager getAnticheatManager() {
         return anticheatManager;
+    }
+
+    public GeyserHook getGeyserHook() {
+        return geyserHook;
+    }
+
+    public boolean hasGeyser() {
+        return geyserHook != null && geyserHook.isAvailable();
+    }
+
+    public boolean isGeyserAvailable() {
+        return geyserHook != null && geyserHook.isAvailable();
+    }
+
+    public String getGeyserVersion() {
+        return geyserHook != null ? geyserHook.getVersion() : "N/A";
+    }
+
+    public FloodgateHook getFloodgateHook() {
+        return floodgateHook;
+    }
+
+    public boolean hasFloodgate() {
+        return floodgateHook != null && floodgateHook.isAvailable();
+    }
+
+    public boolean isFloodgateAvailable() {
+        return floodgateHook != null && floodgateHook.isAvailable();
+    }
+
+    public String getFloodgateVersion() {
+        return floodgateHook != null ? floodgateHook.getVersion() : "N/A";
     }
 
     public void shutdown() {

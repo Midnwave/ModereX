@@ -34,7 +34,7 @@
       sev: { INFO: true, WARN: true, ERROR: true },
       types: {
         WARN: true, MUTE: true, BAN: true, IPBAN: true, UNBAN: true, UNMUTE: true, UNWARN: true, EXPIRE: true,
-        KICK: true, COMMAND: true, CHAT: true, JOIN: true, LEAVE: true, AUTOMOD: true, SYSTEM: true
+        KICK: true, COMMAND: true, CHAT: true, JOIN: true, LEAVE: true, AUTOMOD: true, ANTICHEAT: true, SYSTEM: true
       },
       pageSize: 100,
       page: 1
@@ -73,6 +73,10 @@
     integrations: {
       voiceChatDetected: false,
       luckPermsDetected: false,
+      geyserDetected: false,
+      floodgateDetected: false,
+      geyserVersion: null,
+      floodgateVersion: null,
       anticheats: ['Grim', 'Vulcan', 'Matrix', 'Spartan', 'AAC', 'NoCheatPlus', 'Intave', 'NCP', 'Kauri', 'Verus', 'Negativity', 'AntiCheatReloaded', 'Themis', 'Astra', 'Polar', 'Warden', 'Flappy', 'Karhu']
     },
     anticheat: {
@@ -88,6 +92,26 @@
       threshold: 6,
       windowMins: 2,
       action: 'mute'
+    },
+    // Staff notification settings (synced with in-game)
+    staffSettings: {
+      commandAlerts: 'WATCHLIST_ONLY',
+      showBlacklistedCommands: true,
+      anticheatAlertsLevel: 'EVERYONE',
+      anticheatMinVL: 10,
+      automodAlertsLevel: 'WATCHLIST_ONLY',
+      spamAlertsLevel: 'WATCHLIST_ONLY',
+      filterAlertsLevel: 'WATCHLIST_ONLY',
+      watchlistJoinAlerts: true,
+      watchlistQuitAlerts: true,
+      watchlistActivityAlerts: true,
+      joinLeaveMessages: 'ALL',
+      staffChatEnabled: true,
+      staffChatSound: true,
+      banAlertsLevel: 'EVERYONE',
+      muteAlertsLevel: 'EVERYONE',
+      kickAlertsLevel: 'EVERYONE',
+      warnAlertsLevel: 'EVERYONE'
     }
   };
 
