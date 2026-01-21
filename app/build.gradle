@@ -53,6 +53,9 @@ dependencies {
     // JSON processing
     implementation 'com.google.code.gson:gson:2.11.0'
 
+    // GeoIP2 for geographic IP lookups
+    implementation 'com.maxmind.geoip2:geoip2:4.2.1'
+
     // Adventure API (included in Paper but good to have explicit)
     compileOnly 'net.kyori:adventure-api:4.17.0'
     compileOnly 'net.kyori:adventure-text-minimessage:4.17.0'
@@ -88,6 +91,8 @@ shadowJar {
     relocate 'org.java_websocket', 'com.blockforge.moderex.lib.websocket'
     relocate 'com.google.gson', 'com.blockforge.moderex.lib.gson'
     relocate 'org.slf4j', 'com.blockforge.moderex.lib.slf4j'
+    relocate 'com.maxmind.geoip2', 'com.blockforge.moderex.lib.geoip2'
+    relocate 'com.maxmind.db', 'com.blockforge.moderex.lib.maxminddb'
 
     // Don't minimize - include all dependency classes to avoid ClassNotFound errors
     // minimize() can aggressively remove classes that are loaded via reflection

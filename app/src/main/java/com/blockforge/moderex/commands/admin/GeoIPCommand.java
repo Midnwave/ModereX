@@ -3,18 +3,17 @@ package com.blockforge.moderex.commands.admin;
 import com.blockforge.moderex.ModereX;
 import com.blockforge.moderex.commands.BaseCommand;
 import com.blockforge.moderex.config.lang.MessageKey;
-import com.blockforge.moderex.util.TargetResolver;
+import com.blockforge.moderex.geoip.GeoIPData;
 import org.bukkit.Bukkit;
 import org.bukkit.command.CommandSender;
 import org.bukkit.entity.Player;
 
 import java.util.List;
+import java.util.Optional;
 
 /**
- * /geoip <user>
- *
- * Display user's country based on their IP address.
- * Requires GeoIP database to be configured.
+ * Displays geographic information for a player's IP address.
+ * Requires the GeoIP database to be configured in config.yml.
  */
 public class GeoIPCommand extends BaseCommand {
 
@@ -25,7 +24,7 @@ public class GeoIPCommand extends BaseCommand {
     @Override
     protected void execute(CommandSender sender, String[] args) {
         if (args.length == 0) {
-            sendMessage(sender, "<red>Usage: /geoip <user>");
+            sendMessage(sender, "<red>Usage: /geoip <player>");
             return;
         }
 
@@ -44,12 +43,27 @@ public class GeoIPCommand extends BaseCommand {
             return;
         }
 
-        // GeoIP database not configured - show appropriate message
-        sendMessage(sender, MessageKey.GEOIP_DATABASE_MISSING);
-        // Full implementation would:
-        // 1. Check if GeoIP database is configured
-        // 2. Look up IP address in GeoIP database
-        // 3. Display: Country, Region, City (if available)
+        if (!plugin.getGeoIPManager().isEnabled()) {
+            sendMessage(sender, MessageKey.GEOIP_DATABASE_MISSING);
+            return;
+        }
+
+        Optional<GeoIPData> geoData = plugin.getGeoIPManager().lookup(ip);
+
+        if (geoData.isEmpty()) {
+            sendMessage(sender, MessageKey.GEOIP_NOT_AVAILABLE, "player", target.getName());
+            return;
+        }
+
+        GeoIPData data = geoData.get();
+
+        sendMessage(sender, MessageKey.GEOIP_HEADER, "player", target.getName());
+        sendMessage(sender, MessageKey.GEOIP_COUNTRY,
+                "country", data.getCountry(),
+                "flag", data.getFlagEmoji());
+        sendMessage(sender, MessageKey.GEOIP_REGION, "region", data.getRegion());
+        sendMessage(sender, MessageKey.GEOIP_CITY, "city", data.getCity());
+        sendMessage(sender, MessageKey.GEOIP_IP, "ip", data.getIpAddress());
     }
 
     @Override
