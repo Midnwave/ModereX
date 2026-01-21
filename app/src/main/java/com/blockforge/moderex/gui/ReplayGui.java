@@ -145,8 +145,10 @@ public class ReplayGui extends PaginatedGui<ReplaySessionInfo> {
                 "",
                 "<yellow>Click to configure"), () -> openGui(new ReplaySettingsGui(plugin)));
 
-        // Recording indicator
-        setItem(8, createRecordingStatusItem());
+        // Recording indicator / Manual record button
+        setItem(8, createRecordingStatusItem(), () -> {
+            openGui(new SelectPlayerToRecordGui(plugin));
+        });
     }
 
     private ItemStack createFilterButton(ReplayFilter filterType, String label, Material icon) {
@@ -185,8 +187,8 @@ public class ReplayGui extends PaginatedGui<ReplaySessionInfo> {
             SkullMeta meta = (SkullMeta) item.getItemMeta();
             OfflinePlayer player = Bukkit.getOfflinePlayer(replay.primaryUuid());
             meta.setOwningPlayer(player);
-            meta.displayName(TextUtil.parse(color + replay.primaryName() + " <gray>- " + formatReason(replay.reason())));
-            meta.lore(lore.stream().map(TextUtil::parse).toList());
+            meta.displayName(TextUtil.parseLore(color + replay.primaryName() + " <gray>- " + formatReason(replay.reason())));
+            meta.lore(lore.stream().map(TextUtil::parseLore).toList());
             item.setItemMeta(meta);
         } catch (Exception e) {
             item = createItem(material,
@@ -593,7 +595,7 @@ public class ReplayGui extends PaginatedGui<ReplaySessionInfo> {
             ItemStack head = new ItemStack(Material.PLAYER_HEAD);
             SkullMeta meta = (SkullMeta) head.getItemMeta();
             meta.setOwningPlayer(player);
-            meta.displayName(TextUtil.parse("<yellow>" + player.getName()));
+            meta.displayName(TextUtil.parseLore("<yellow>" + player.getName()));
 
             List<String> lore = new ArrayList<>();
             lore.add("<gray>UUID: <white>" + player.getUniqueId().toString().substring(0, 8) + "...");
@@ -603,7 +605,7 @@ public class ReplayGui extends PaginatedGui<ReplaySessionInfo> {
             // Would need a method in ReplayManager to check this
             lore.add("<yellow>Click to start recording");
 
-            meta.lore(lore.stream().map(TextUtil::parse).toList());
+            meta.lore(lore.stream().map(TextUtil::parseLore).toList());
             head.setItemMeta(meta);
 
             setItem(slot, head, () -> {
