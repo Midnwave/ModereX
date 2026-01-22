@@ -28,17 +28,6 @@ import java.util.*;
 import java.util.concurrent.*;
 
 /**
- * HybridPanelServer serves both HTTP and WebSocket on the same port for the web panel.
- *
- * TODO: Netty Fix and Same-Port Web Panel Support
- * - Implement proper Netty channel injection to share Minecraft server port
- * - Detect HTTP traffic vs game packets in the pipeline
- * - Route HTTP/WebSocket requests to web panel handler
- * - Keep game traffic unaffected
- * - Handle SSL/TLS termination for HTTPS support
- * - Test with Velocity/BungeeCord proxied connections
- * - Fallback to dedicated port if injection fails
- *
  * TODO: Advanced Global Search Bar
  * - Search across all data: players, punishments, automod, watchlist, etc.
  * - Fuzzy matching for player names and UUIDs
