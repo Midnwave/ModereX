@@ -1065,6 +1065,9 @@ public class HybridPanelServer {
             case "GET_ANTICHEAT_CHECKS" -> sendAnticheatChecks(conn);
             case "GET_STAFF_ANTICHEAT_SETTINGS" -> sendStaffAnticheatSettings(conn, session);
             case "UPDATE_STAFF_ANTICHEAT_SETTING" -> updateStaffAnticheatSetting(conn, data, session);
+            case "GET_STAFF_ALERT_PREFS" -> sendStaffAlertPrefs(conn, session);
+            case "UPDATE_STAFF_ALERT_PREF" -> updateStaffAlertPref(conn, data, session);
+            case "GET_ALERT_PRESETS" -> sendAlertPresets(conn);
             case "GET_WATCHLIST" -> sendWatchlist(conn);
             case "GET_SETTINGS" -> sendSettings(conn);
             case "GET_USER_SETTINGS" -> sendUserSettings(conn, session);
@@ -1860,6 +1863,177 @@ public class HybridPanelServer {
             plugin.logError("Failed to update staff anticheat setting", e);
             sendError(conn, "UPDATE_FAILED", "Failed to update anticheat setting: " + e.getMessage());
         }
+    }
+
+    /**
+     * Send staff alert preferences (frontend format: anticheat.checkName keys).
+     */
+    private void sendStaffAlertPrefs(WebSocketConnection conn, WebPanelSession session) {
+        JsonObject response = new JsonObject();
+        response.addProperty("type", "STAFF_ALERT_PREFS");
+        JsonObject data = new JsonObject();
+
+        var staffSettings = plugin.getStaffSettingsManager().getSettings(session.playerUuid);
+        if (staffSettings == null) {
+            staffSettings = new com.blockforge.moderex.staff.StaffSettings(session.playerUuid);
+        }
+
+        // Build preferences organized by anticheat
+        // Format: { "grim": { "killaura": { alertLevel, thresholdCount, timeWindowSeconds }, ... }, ... }
+        JsonObject preferences = new JsonObject();
+        for (String anticheatName : plugin.getAnticheatManager().getEnabledAnticheats()) {
+            JsonObject anticheatPrefs = new JsonObject();
+            String acLower = anticheatName.toLowerCase();
+
+            for (var entry : staffSettings.getCheckAlertPreferences().entrySet()) {
+                String checkKey = entry.getKey();
+                if (checkKey.toLowerCase().startsWith(acLower + ":")) {
+                    var pref = entry.getValue();
+                    String checkName = checkKey.substring(checkKey.indexOf(':') + 1);
+                    JsonObject prefObj = new JsonObject();
+                    prefObj.addProperty("alertLevel", pref.getAlertLevel().name());
+                    prefObj.addProperty("thresholdCount", pref.getThresholdCount());
+                    prefObj.addProperty("timeWindowSeconds", pref.getTimeWindowSeconds());
+                    anticheatPrefs.add(checkName, prefObj);
+                }
+            }
+            preferences.add(acLower, anticheatPrefs);
+        }
+
+        data.add("preferences", preferences);
+        response.add("data", data);
+        conn.send(GSON.toJson(response));
+
+        debugSuccess(DebugCategory.ANTICHEAT, "Alert prefs sent",
+                "Sent " + staffSettings.getCheckAlertPreferences().size() + " prefs to " + session.playerName);
+    }
+
+    /**
+     * Update staff alert preference (frontend format with anticheat and checkName separate).
+     */
+    private void updateStaffAlertPref(WebSocketConnection conn, JsonObject data, WebPanelSession session) {
+        try {
+            String anticheat = data.has("anticheat") ? data.get("anticheat").getAsString() : "";
+            String checkName = data.has("checkName") ? data.get("checkName").getAsString() : "";
+            String alertLevel = data.has("alertLevel") ? data.get("alertLevel").getAsString() : "EVERYONE";
+            int thresholdCount = data.has("thresholdCount") ? data.get("thresholdCount").getAsInt() : 1;
+            int timeWindowSeconds = data.has("timeWindowSeconds") ? data.get("timeWindowSeconds").getAsInt() : 60;
+
+            if (anticheat.isEmpty() || checkName.isEmpty()) {
+                sendError(conn, "MISSING_PARAMETER", "Anticheat and check name are required");
+                debugError(ErrorCode.REQUEST_MISSING_PARAMETER, "Missing anticheat or checkName in UPDATE_STAFF_ALERT_PREF");
+                return;
+            }
+
+            // Get or create staff settings
+            var staffSettings = plugin.getStaffSettingsManager().getSettings(session.playerUuid);
+            if (staffSettings == null) {
+                staffSettings = new com.blockforge.moderex.staff.StaffSettings(session.playerUuid);
+            }
+
+            var pref = staffSettings.getCheckAlertPreference(anticheat, checkName);
+
+            // Update preference
+            try {
+                pref.setAlertLevel(com.blockforge.moderex.staff.StaffSettings.AlertLevel.valueOf(alertLevel.toUpperCase()));
+            } catch (IllegalArgumentException e) {
+                pref.setAlertLevel(com.blockforge.moderex.staff.StaffSettings.AlertLevel.EVERYONE);
+            }
+            pref.setThresholdCount(thresholdCount);
+            pref.setTimeWindowSeconds(timeWindowSeconds);
+
+            // Save to database
+            staffSettings.setCheckAlertPreference(anticheat, checkName, pref);
+            plugin.getStaffSettingsManager().saveSettings(staffSettings);
+
+            // Debug log
+            debugSuccess(DebugCategory.ANTICHEAT, "Alert pref updated",
+                    session.playerName + " set " + anticheat + ":" + checkName +
+                    " -> " + alertLevel + " (thr:" + thresholdCount + ", win:" + timeWindowSeconds + "s)");
+
+            // Send success response
+            JsonObject response = new JsonObject();
+            response.addProperty("type", "STAFF_ALERT_PREF_UPDATED");
+            JsonObject responseData = new JsonObject();
+            responseData.addProperty("anticheat", anticheat);
+            responseData.addProperty("checkName", checkName);
+            responseData.addProperty("alertLevel", pref.getAlertLevel().name());
+            responseData.addProperty("thresholdCount", pref.getThresholdCount());
+            responseData.addProperty("timeWindowSeconds", pref.getTimeWindowSeconds());
+            response.add("data", responseData);
+            conn.send(GSON.toJson(response));
+
+            plugin.logDebug("[WebPanel] " + session.playerName + " updated alert pref: " + anticheat + ":" + checkName);
+
+        } catch (Exception e) {
+            plugin.logError("Failed to update staff alert pref", e);
+            sendError(conn, "UPDATE_FAILED", "Failed to update alert preference: " + e.getMessage());
+            debugError(ErrorCode.OPERATION_UPDATE_FAILED, "Error updating alert pref: " + e.getMessage());
+        }
+    }
+
+    /**
+     * Send available alert presets.
+     */
+    private void sendAlertPresets(WebSocketConnection conn) {
+        JsonObject response = new JsonObject();
+        response.addProperty("type", "ALERT_PRESETS");
+        JsonObject data = new JsonObject();
+        JsonArray presets = new JsonArray();
+
+        // All On preset
+        JsonObject allOn = new JsonObject();
+        allOn.addProperty("id", "all_on");
+        allOn.addProperty("name", "All On");
+        allOn.addProperty("description", "Receive all anticheat alerts");
+        allOn.addProperty("alertLevel", "EVERYONE");
+        allOn.addProperty("thresholdCount", 1);
+        allOn.addProperty("timeWindowSeconds", 60);
+        presets.add(allOn);
+
+        // Watchlist Only preset
+        JsonObject watchlist = new JsonObject();
+        watchlist.addProperty("id", "watchlist_only");
+        watchlist.addProperty("name", "Watchlist Only");
+        watchlist.addProperty("description", "Only alerts for watched players");
+        watchlist.addProperty("alertLevel", "WATCHLIST_ONLY");
+        watchlist.addProperty("thresholdCount", 1);
+        watchlist.addProperty("timeWindowSeconds", 60);
+        presets.add(watchlist);
+
+        // Reduced Spam preset
+        JsonObject reduced = new JsonObject();
+        reduced.addProperty("id", "reduced_spam");
+        reduced.addProperty("name", "Reduced Spam");
+        reduced.addProperty("description", "Higher thresholds to reduce alert spam");
+        reduced.addProperty("alertLevel", "EVERYONE");
+        reduced.addProperty("thresholdCount", 5);
+        reduced.addProperty("timeWindowSeconds", 30);
+        presets.add(reduced);
+
+        // Combat Focus preset
+        JsonObject combat = new JsonObject();
+        combat.addProperty("id", "combat_focus");
+        combat.addProperty("name", "Combat Focus");
+        combat.addProperty("description", "Focus on combat-related checks");
+        combat.addProperty("alertLevel", "EVERYONE");
+        combat.addProperty("thresholdCount", 3);
+        combat.addProperty("timeWindowSeconds", 60);
+        presets.add(combat);
+
+        // All Off preset
+        JsonObject allOff = new JsonObject();
+        allOff.addProperty("id", "all_off");
+        allOff.addProperty("name", "All Off");
+        allOff.addProperty("description", "Disable all anticheat alerts");
+        allOff.addProperty("alertLevel", "OFF");
+        allOff.addProperty("thresholdCount", 1);
+        allOff.addProperty("timeWindowSeconds", 60);
+        presets.add(allOff);
+
+        data.add("presets", presets);
+        response.add("data", data);
+        conn.send(GSON.toJson(response));
     }
 
     private void sendWatchlist(WebSocketConnection conn) {
