@@ -97,7 +97,14 @@
         // Filter out spammy messages from debug log
         const silentTypes = ['PONG', 'SERVER_STATUS', 'HEARTBEAT_ACK'];
         if (!silentTypes.includes(message.type)) {
-          if (window.debugLog) window.debugLog('WS', `Received: ${message.type}`, 'info');
+          // Show detailed error messages
+          if (message.type === 'ERROR' && message.data) {
+            const code = message.data.code || 'UNKNOWN';
+            const errorMsg = message.data.message || 'Unknown error';
+            if (window.debugLog) window.debugLog('WS', `Error [${code}]: ${errorMsg}`, 'error');
+          } else {
+            if (window.debugLog) window.debugLog('WS', `Received: ${message.type}`, 'info');
+          }
         }
         handleMessage(message);
       } catch (e) {
