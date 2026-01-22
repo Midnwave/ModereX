@@ -252,24 +252,65 @@ public class StaffSettingsGui extends BaseGui {
     // ========== Anticheat Settings Tab ==========
 
     private void renderAnticheatSettings() {
-        // Global settings - Row 1
-        setItem(20, createAlertLevelButton("AC Alerts",
+        // Section header
+        setItem(2, createItem(Material.IRON_SWORD, "<gradient:#ff6b6b:#ee5a5a>Anticheat Settings",
+                "<gray>Configure alerts and rules",
+                "<gray>for anticheat detections"));
+
+        // Row 1 - Global alert setting & quick access buttons
+        setItem(19, createAlertLevelButton("AC Alerts",
                 settings.getAnticheatAlerts(), Material.IRON_SWORD), () -> {
             settings.setAnticheatAlerts(settings.getAnticheatAlerts().next());
             refresh();
         });
 
-        setItem(22, createItem(Material.COMPARATOR, "<gold>Anticheat Rules",
-                "<gray>Configure check rules,",
-                "<gray>thresholds, and auto-punishments",
+        // Personal alert preferences (per-check)
+        int configuredChecks = settings.getCheckAlertPreferences().size();
+        setItem(21, createItem(Material.BELL, "<aqua>My Alert Preferences",
+                "<gray>Configure which checks alert YOU",
                 "",
-                "<yellow>Click to open"), () -> {
+                "<white>" + configuredChecks + " <gray>checks configured",
+                "",
+                "<yellow>Click to configure"), () -> {
             plugin.getGuiManager().open(viewer, new AnticheatRulesGui(plugin));
         });
 
-        // Per-anticheat toggles - Row 2 & 3 (centered)
+        // Server-wide automod rules (admin only)
+        if (viewer.hasPermission("moderex.admin.automod")) {
+            int anticheatRules = countAnticheatAutomodRules();
+            setItem(23, createItem(Material.COMPARATOR, "<gold>Automod Rules",
+                    "<gray>Server-wide auto-punishment rules",
+                    "",
+                    "<white>" + anticheatRules + " <gray>anticheat rules active",
+                    "",
+                    "<yellow>Click to manage"), () -> {
+                plugin.getGuiManager().open(viewer, new AutomodGui(plugin));
+            });
+        } else {
+            setItem(23, createItem(Material.GRAY_DYE, "<gray>Automod Rules",
+                    "<red>Requires admin permission"));
+        }
+
+        // Minimum VL threshold
+        setItem(25, createItem(Material.COMPARATOR,
+                "<gold>Min VL Threshold: <white>" + settings.getAnticheatMinVL(),
+                "<gray>Minimum violation level required",
+                "<gray>before showing alerts",
+                "",
+                "<yellow>Left: +1 | Right: -1",
+                "<yellow>Shift: +/-5"), clickType -> {
+            int delta = clickType.isShiftClick() ? 5 : 1;
+            if (clickType.isLeftClick()) {
+                settings.setAnticheatMinVL(Math.min(100, settings.getAnticheatMinVL() + delta));
+            } else if (clickType.isRightClick()) {
+                settings.setAnticheatMinVL(Math.max(1, settings.getAnticheatMinVL() - delta));
+            }
+            refresh();
+        });
+
+        // Row 2 - Per-anticheat toggles (centered)
         List<String> enabledACs = plugin.getAnticheatManager().getEnabledAnticheats();
-        int[] slots = {29, 30, 31, 32, 33, 38, 39, 40, 41, 42};
+        int[] slots = {29, 30, 31, 32, 33};
         int slotIndex = 0;
 
         for (String acName : enabledACs) {
@@ -284,10 +325,21 @@ public class StaffSettingsGui extends BaseGui {
                     "<gray>Toggle alerts from " + acName,
                     "",
                     enabled ? "<green>✓ Enabled" : "<red>✗ Disabled",
+                    "<gray>Min VL: <white>" + pref.getMinVL(),
                     "",
-                    "<yellow>Click to toggle"
-            ), () -> {
-                pref.setEnabled(!pref.isEnabled());
+                    "<yellow>Click to toggle",
+                    "<yellow>Shift+click: Adjust min VL"
+            ), clickType -> {
+                if (clickType.isShiftClick()) {
+                    // Adjust min VL
+                    if (clickType.isLeftClick()) {
+                        pref.setMinVL(Math.min(100, pref.getMinVL() + 5));
+                    } else {
+                        pref.setMinVL(Math.max(1, pref.getMinVL() - 5));
+                    }
+                } else {
+                    pref.setEnabled(!pref.isEnabled());
+                }
                 refresh();
             });
 
@@ -298,6 +350,42 @@ public class StaffSettingsGui extends BaseGui {
             setItem(31, createItem(Material.GRAY_DYE, "<gray>No Anticheats Detected",
                     "<gray>Install an anticheat plugin"));
         }
+
+        // Row 3 - Quick actions
+        setItem(38, createItem(Material.LIME_DYE, "<green>Enable All ACs",
+                "<gray>Enable alerts from all anticheats"), () -> {
+            for (String acName : enabledACs) {
+                settings.getAnticheatPreference(acName).setEnabled(true);
+            }
+            refresh();
+        });
+
+        setItem(42, createItem(Material.RED_DYE, "<red>Disable All ACs",
+                "<gray>Disable alerts from all anticheats"), () -> {
+            for (String acName : enabledACs) {
+                settings.getAnticheatPreference(acName).setEnabled(false);
+            }
+            refresh();
+        });
+
+        // Info
+        setItem(40, createItem(Material.BOOK, "<aqua>How It Works",
+                "<gray>• <white>AC Alerts: <gray>Global toggle",
+                "<gray>• <white>My Preferences: <gray>Per-check settings",
+                "<gray>• <white>Automod Rules: <gray>Auto-punishments",
+                "",
+                "<gray>Alerts respect both global toggle",
+                "<gray>and your personal per-check settings"));
+    }
+
+    private int countAnticheatAutomodRules() {
+        int count = 0;
+        for (var rule : plugin.getAutomodManager().getRules()) {
+            if (rule.getType() == com.blockforge.moderex.automod.AutomodRule.RuleType.ANTICHEAT) {
+                count++;
+            }
+        }
+        return count;
     }
 
     // ========== Personal Settings Tab ==========

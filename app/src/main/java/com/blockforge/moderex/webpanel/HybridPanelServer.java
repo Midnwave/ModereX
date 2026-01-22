@@ -2206,7 +2206,11 @@ public class HybridPanelServer {
         }
     }
 
-    private void broadcastTemplates() {
+    /**
+     * Broadcast updated templates list to all connected web panel clients.
+     * Call this after any template changes (create, update, delete) from in-game.
+     */
+    public void broadcastTemplates() {
         JsonObject broadcast = new JsonObject();
         broadcast.addProperty("type", "TEMPLATES");
         JsonArray templates = new JsonArray();

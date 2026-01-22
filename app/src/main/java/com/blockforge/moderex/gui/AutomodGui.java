@@ -4,6 +4,8 @@ import com.blockforge.moderex.ModereX;
 import com.blockforge.moderex.automod.AutomodManager;
 import com.blockforge.moderex.automod.AutomodRule;
 import com.blockforge.moderex.punishment.PunishmentType;
+import com.blockforge.moderex.staff.StaffSettings;
+import com.blockforge.moderex.staff.StaffSettings.AlertLevel;
 import com.blockforge.moderex.util.DurationParser;
 import com.blockforge.moderex.util.TextUtil;
 import net.kyori.adventure.text.serializer.legacy.LegacyComponentSerializer;
@@ -159,11 +161,16 @@ public class AutomodGui extends BaseGui {
                 AutomodRule rule = displayRules.get(ruleIndex);
                 setItem(ruleSlots[i], createRuleItem(rule), clickType -> {
                     if (clickType.isShiftClick() && !rule.isBuiltIn()) {
-                        // Confirm delete
-                        viewer.sendMessage(TextUtil.parse("<red>Shift+click again to confirm deletion of: " + rule.getName()));
-                        automod.deleteRule(rule.getId());
-                        viewer.playSound(viewer.getLocation(), Sound.BLOCK_NOTE_BLOCK_BASS, 1f, 0.5f);
-                        refresh();
+                        // For anticheat rules, open alert settings instead of deleting
+                        if (rule.getType() == AutomodRule.RuleType.ANTICHEAT) {
+                            openAnticheatAlertSettings(rule);
+                        } else {
+                            // Delete non-anticheat rules
+                            viewer.sendMessage(TextUtil.parse("<red>Deleted rule: " + rule.getName()));
+                            automod.deleteRule(rule.getId());
+                            viewer.playSound(viewer.getLocation(), Sound.BLOCK_NOTE_BLOCK_BASS, 1f, 0.5f);
+                            refresh();
+                        }
                     } else {
                         openRuleEditor(rule);
                     }
@@ -320,7 +327,11 @@ public class AutomodGui extends BaseGui {
         lore.add("");
         lore.add("<yellow>Click <gray>to edit");
         if (!rule.isBuiltIn()) {
-            lore.add("<red>Shift+Click <gray>to delete");
+            if (rule.getType() == AutomodRule.RuleType.ANTICHEAT) {
+                lore.add("<aqua>Shift+Click <gray>to configure alerts");
+            } else {
+                lore.add("<red>Shift+Click <gray>to delete");
+            }
         }
 
         // Icon based on type and status
@@ -354,6 +365,10 @@ public class AutomodGui extends BaseGui {
 
     private void openAfkSettings(AutomodRule rule) {
         openGui(new AfkSettingsGui(plugin, rule, this));
+    }
+
+    private void openAnticheatAlertSettings(AutomodRule rule) {
+        openGui(new AnticheatAlertSettingsGui(plugin, rule, this));
     }
 
     private void openRuleEditor(AutomodRule rule) {
@@ -678,6 +693,160 @@ public class AutomodGui extends BaseGui {
             setItem(35, createItem(Material.LIME_CONCRETE, "<green>Save & Close"), () -> {
                 plugin.getAutomodManager().saveRule(rule);
                 viewer.playSound(viewer.getLocation(), Sound.ENTITY_EXPERIENCE_ORB_PICKUP, 1f, 1f);
+                openGui(parent);
+            });
+        }
+    }
+
+    // ==================== ANTICHEAT ALERT SETTINGS GUI ====================
+
+    public static class AnticheatAlertSettingsGui extends BaseGui {
+        private final AutomodRule rule;
+        private final AutomodGui parent;
+        private final StaffSettings staffSettings;
+
+        public AnticheatAlertSettingsGui(ModereX plugin, AutomodRule rule, AutomodGui parent) {
+            super(plugin, "<gradient:#ff6b6b:#ee5a5a>Alert Settings: " + rule.getName() + "</gradient>", 4);
+            this.rule = rule;
+            this.parent = parent;
+            this.staffSettings = plugin.getStaffSettingsManager().getSettings(parent.viewer);
+        }
+
+        @Override
+        protected void populate() {
+            fillEmpty(Material.GRAY_STAINED_GLASS_PANE);
+
+            String checkKey = (rule.getAnticheatName() != null ? rule.getAnticheatName() : "unknown") + ":"
+                + (rule.getCheckName() != null ? rule.getCheckName() : "unknown");
+            StaffSettings.CheckAlertPreference pref = staffSettings.getCheckAlertPreference(
+                rule.getAnticheatName() != null ? rule.getAnticheatName() : "unknown",
+                rule.getCheckName() != null ? rule.getCheckName() : "unknown"
+            );
+
+            // Info header
+            setItem(4, createItem(Material.DIAMOND_SWORD,
+                "<gold>Alert Configuration",
+                "<gray>Configure how you receive alerts",
+                "<gray>for this anticheat check.",
+                "",
+                "<white>Anticheat: <aqua>" + (rule.getAnticheatName() != null ? rule.getAnticheatName() : "Unknown"),
+                "<white>Check: <aqua>" + (rule.getCheckName() != null ? rule.getCheckName() : "Unknown")));
+
+            // Alert Level toggle
+            AlertLevel currentLevel = pref.getAlertLevel();
+            String levelColor = currentLevel.getColor();
+            setItem(10, createItem(
+                currentLevel == AlertLevel.EVERYONE ? Material.LIME_DYE :
+                    currentLevel == AlertLevel.WATCHLIST_ONLY ? Material.YELLOW_DYE : Material.RED_DYE,
+                "<gold>Alert Level: " + levelColor + currentLevel.getDisplayName(),
+                "<gray>" + currentLevel.getDescription(),
+                "",
+                "<dark_gray>Options:",
+                "<green>Everyone <gray>- All players",
+                "<yellow>Watchlist Only <gray>- Monitored players",
+                "<red>Off <gray>- No alerts",
+                "",
+                "<yellow>Click to cycle"), () -> {
+                pref.setAlertLevel(currentLevel.next());
+                plugin.getStaffSettingsManager().saveSettings(staffSettings);
+                refresh();
+            });
+
+            // Threshold count
+            setItem(12, createItem(Material.COMPARATOR,
+                "<gold>Alert Threshold: <white>" + pref.getThresholdCount(),
+                "<gray>Number of alerts required before",
+                "<gray>you receive a notification.",
+                "",
+                "<dark_gray>1 = Every alert",
+                "<dark_gray>5 = After 5 alerts",
+                "",
+                "<yellow>Left-click: +1",
+                "<yellow>Right-click: -1",
+                "<yellow>Shift: ±5"), clickType -> {
+                int change = clickType.isShiftClick() ? 5 : 1;
+                if (clickType.isLeftClick()) {
+                    pref.setThresholdCount(Math.min(50, pref.getThresholdCount() + change));
+                } else if (clickType.isRightClick()) {
+                    pref.setThresholdCount(Math.max(1, pref.getThresholdCount() - change));
+                }
+                plugin.getStaffSettingsManager().saveSettings(staffSettings);
+                refresh();
+            });
+
+            // Time window
+            setItem(14, createItem(Material.CLOCK,
+                "<gold>Time Window: <white>" + pref.getTimeWindowSeconds() + "s",
+                "<gray>Alerts reset after this time.",
+                "<gray>Threshold count within this window.",
+                "",
+                "<yellow>Left-click: +10s",
+                "<yellow>Right-click: -10s",
+                "<yellow>Shift: ±60s"), clickType -> {
+                int change = clickType.isShiftClick() ? 60 : 10;
+                if (clickType.isLeftClick()) {
+                    pref.setTimeWindowSeconds(Math.min(600, pref.getTimeWindowSeconds() + change));
+                } else if (clickType.isRightClick()) {
+                    pref.setTimeWindowSeconds(Math.max(10, pref.getTimeWindowSeconds() - change));
+                }
+                plugin.getStaffSettingsManager().saveSettings(staffSettings);
+                refresh();
+            });
+
+            // Quick presets
+            setItem(16, createItem(Material.BOOK,
+                "<aqua>Quick Presets",
+                "<gray>Apply common configurations:",
+                "",
+                "<yellow>Left-click: <white>High Priority",
+                "<dark_gray>  Every alert, 60s window",
+                "<yellow>Right-click: <white>Medium",
+                "<dark_gray>  3 alerts in 30s",
+                "<yellow>Shift+click: <white>Low Priority",
+                "<dark_gray>  10 alerts in 120s"), clickType -> {
+                if (clickType.isShiftClick()) {
+                    // Low priority
+                    pref.setAlertLevel(AlertLevel.WATCHLIST_ONLY);
+                    pref.setThresholdCount(10);
+                    pref.setTimeWindowSeconds(120);
+                } else if (clickType.isRightClick()) {
+                    // Medium
+                    pref.setAlertLevel(AlertLevel.EVERYONE);
+                    pref.setThresholdCount(3);
+                    pref.setTimeWindowSeconds(30);
+                } else {
+                    // High priority
+                    pref.setAlertLevel(AlertLevel.EVERYONE);
+                    pref.setThresholdCount(1);
+                    pref.setTimeWindowSeconds(60);
+                }
+                plugin.getStaffSettingsManager().saveSettings(staffSettings);
+                viewer.playSound(viewer.getLocation(), Sound.UI_BUTTON_CLICK, 1f, 1.2f);
+                refresh();
+            });
+
+            // Current summary
+            String summary;
+            if (pref.getAlertLevel() == AlertLevel.OFF) {
+                summary = "<red>Alerts are disabled";
+            } else {
+                summary = pref.getAlertLevel().getColor() + pref.getAlertLevel().getDisplayName() +
+                    "<gray>, after <white>" + pref.getThresholdCount() +
+                    " <gray>alerts in <white>" + pref.getTimeWindowSeconds() + "s";
+            }
+            setItem(22, createItem(Material.PAPER,
+                "<white>Current Configuration",
+                summary,
+                "",
+                "<gray>These are YOUR personal settings.",
+                "<gray>Other staff have their own preferences."));
+
+            // Navigation
+            setItem(27, createBackButton(), () -> openGui(parent));
+            setItem(35, createItem(Material.LIME_CONCRETE, "<green>Save & Close"), () -> {
+                plugin.getStaffSettingsManager().saveSettings(staffSettings);
+                viewer.playSound(viewer.getLocation(), Sound.ENTITY_EXPERIENCE_ORB_PICKUP, 1f, 1f);
+                viewer.sendMessage(TextUtil.parse("<green>Alert settings saved for <white>" + rule.getName()));
                 openGui(parent);
             });
         }
