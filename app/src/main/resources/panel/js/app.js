@@ -2343,8 +2343,23 @@
       };
     }
 
+    // Get theme color RGB values for canvas drawing
+    function getThemeRGB() {
+      const color = state.userSettings?.themeColor || '#2d7aed';
+      const r = parseInt(color.slice(1, 3), 16);
+      const g = parseInt(color.slice(3, 5), 16);
+      const b = parseInt(color.slice(5, 7), 16);
+      // Create a lighter version for particles (add 80 to each, clamped to 255)
+      const lr = Math.min(r + 90, 255);
+      const lg = Math.min(g + 90, 255);
+      const lb = Math.min(b + 90, 255);
+      return { r, g, b, lr, lg, lb };
+    }
+
     function draw() {
       ctx.clearRect(0, 0, w, h);
+      const theme = getThemeRGB();
+
       for (const p of particles) {
         p.x += p.vx; p.y += p.vy;
         if (p.x < 0) p.x = w; if (p.x > w) p.x = 0; if (p.y < 0) p.y = h; if (p.y > h) p.y = 0;
@@ -2360,7 +2375,7 @@
           const dist = Math.sqrt(dx * dx + dy * dy);
           if (dist < maxDist) {
             const alpha = (1 - dist / maxDist) * 0.5;
-            ctx.strokeStyle = `rgba(90, 156, 255, ${alpha})`;
+            ctx.strokeStyle = `rgba(${theme.r}, ${theme.g}, ${theme.b}, ${alpha})`;
             ctx.lineWidth = 1;
             ctx.beginPath();
             ctx.moveTo(a.x, a.y);
@@ -2374,7 +2389,7 @@
         const glow = p.a + Math.sin(p.tw) * 0.05;
         ctx.beginPath();
         ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
-        ctx.fillStyle = `rgba(180, 210, 255, ${glow})`;
+        ctx.fillStyle = `rgba(${theme.lr}, ${theme.lg}, ${theme.lb}, ${glow})`;
         ctx.fill();
       }
       requestAnimationFrame(draw);
@@ -4136,17 +4151,34 @@
     const colorLight = hslToHex(hsl.h, Math.min(hsl.s + 15, 100), Math.min(hsl.l + 15, 85));
     const colorDark = hslToHex(hsl.h, hsl.s, Math.max(hsl.l - 15, 15));
 
-    // Extract RGB for glow
+    // Extract RGB for glow and opacity variations
     const r = parseInt(color.slice(1, 3), 16);
     const g = parseInt(color.slice(3, 5), 16);
     const b = parseInt(color.slice(5, 7), 16);
-    const colorGlow = `rgba(${r}, ${g}, ${b}, 0.35)`;
 
-    // Apply CSS variables
+    // Apply main CSS variables
     root.style.setProperty('--primary', color);
     root.style.setProperty('--primary-light', colorLight);
     root.style.setProperty('--primary-dark', colorDark);
-    root.style.setProperty('--primary-glow', colorGlow);
+    root.style.setProperty('--primary-rgb', `${r}, ${g}, ${b}`);
+
+    // Apply opacity variations for all UI elements
+    root.style.setProperty('--primary-glow', `rgba(${r}, ${g}, ${b}, 0.35)`);
+    root.style.setProperty('--primary-05', `rgba(${r}, ${g}, ${b}, 0.05)`);
+    root.style.setProperty('--primary-08', `rgba(${r}, ${g}, ${b}, 0.08)`);
+    root.style.setProperty('--primary-10', `rgba(${r}, ${g}, ${b}, 0.10)`);
+    root.style.setProperty('--primary-12', `rgba(${r}, ${g}, ${b}, 0.12)`);
+    root.style.setProperty('--primary-15', `rgba(${r}, ${g}, ${b}, 0.15)`);
+    root.style.setProperty('--primary-18', `rgba(${r}, ${g}, ${b}, 0.18)`);
+    root.style.setProperty('--primary-20', `rgba(${r}, ${g}, ${b}, 0.20)`);
+    root.style.setProperty('--primary-22', `rgba(${r}, ${g}, ${b}, 0.22)`);
+    root.style.setProperty('--primary-25', `rgba(${r}, ${g}, ${b}, 0.25)`);
+    root.style.setProperty('--primary-30', `rgba(${r}, ${g}, ${b}, 0.30)`);
+    root.style.setProperty('--primary-35', `rgba(${r}, ${g}, ${b}, 0.35)`);
+    root.style.setProperty('--primary-40', `rgba(${r}, ${g}, ${b}, 0.40)`);
+    root.style.setProperty('--primary-45', `rgba(${r}, ${g}, ${b}, 0.45)`);
+    root.style.setProperty('--primary-50', `rgba(${r}, ${g}, ${b}, 0.50)`);
+    root.style.setProperty('--primary-60', `rgba(${r}, ${g}, ${b}, 0.60)`);
     root.style.setProperty('--line-glow', `rgba(${r}, ${g}, ${b}, 0.22)`);
 
     // Check if it's a light color - add text shadows for readability
@@ -4394,10 +4426,32 @@
     const g = parseInt(color.slice(3, 5), 16);
     const b = parseInt(color.slice(5, 7), 16);
 
+    // Apply main CSS variables
     root.style.setProperty('--primary', color);
     root.style.setProperty('--primary-light', colorLight);
     root.style.setProperty('--primary-dark', colorDark);
+    root.style.setProperty('--primary-rgb', `${r}, ${g}, ${b}`);
+
+    // Apply all opacity variations for UI elements
     root.style.setProperty('--primary-glow', `rgba(${r}, ${g}, ${b}, 0.35)`);
+    root.style.setProperty('--primary-04', `rgba(${r}, ${g}, ${b}, 0.04)`);
+    root.style.setProperty('--primary-05', `rgba(${r}, ${g}, ${b}, 0.05)`);
+    root.style.setProperty('--primary-06', `rgba(${r}, ${g}, ${b}, 0.06)`);
+    root.style.setProperty('--primary-08', `rgba(${r}, ${g}, ${b}, 0.08)`);
+    root.style.setProperty('--primary-10', `rgba(${r}, ${g}, ${b}, 0.10)`);
+    root.style.setProperty('--primary-12', `rgba(${r}, ${g}, ${b}, 0.12)`);
+    root.style.setProperty('--primary-15', `rgba(${r}, ${g}, ${b}, 0.15)`);
+    root.style.setProperty('--primary-18', `rgba(${r}, ${g}, ${b}, 0.18)`);
+    root.style.setProperty('--primary-20', `rgba(${r}, ${g}, ${b}, 0.20)`);
+    root.style.setProperty('--primary-22', `rgba(${r}, ${g}, ${b}, 0.22)`);
+    root.style.setProperty('--primary-25', `rgba(${r}, ${g}, ${b}, 0.25)`);
+    root.style.setProperty('--primary-28', `rgba(${r}, ${g}, ${b}, 0.28)`);
+    root.style.setProperty('--primary-30', `rgba(${r}, ${g}, ${b}, 0.30)`);
+    root.style.setProperty('--primary-35', `rgba(${r}, ${g}, ${b}, 0.35)`);
+    root.style.setProperty('--primary-40', `rgba(${r}, ${g}, ${b}, 0.40)`);
+    root.style.setProperty('--primary-45', `rgba(${r}, ${g}, ${b}, 0.45)`);
+    root.style.setProperty('--primary-50', `rgba(${r}, ${g}, ${b}, 0.50)`);
+    root.style.setProperty('--primary-60', `rgba(${r}, ${g}, ${b}, 0.60)`);
     root.style.setProperty('--line-glow', `rgba(${r}, ${g}, ${b}, 0.22)`);
 
     const isLight = hsl.l > 60;
