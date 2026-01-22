@@ -1352,6 +1352,10 @@ public class HybridPanelServer {
             if (ruleData.has("afkTimeoutMinutes")) rule.setAfkTimeoutMinutes(ruleData.get("afkTimeoutMinutes").getAsInt());
             if (ruleData.has("afkKickEnabled")) rule.setAfkKickEnabled(ruleData.get("afkKickEnabled").getAsBoolean());
 
+            // Update anticheat settings
+            if (ruleData.has("anticheatAlertThreshold")) rule.setAnticheatAlertThreshold(ruleData.get("anticheatAlertThreshold").getAsInt());
+            if (ruleData.has("anticheatTimeWindowSeconds")) rule.setAnticheatTimeWindowSeconds(ruleData.get("anticheatTimeWindowSeconds").getAsInt());
+
             // Update blacklisted words
             if (ruleData.has("blacklistedWords")) {
                 List<String> words = new ArrayList<>();
@@ -1372,6 +1376,59 @@ public class HybridPanelServer {
                 if (arr != null) {
                     arr.forEach(e -> words.add(e.getAsString()));
                     rule.setExclusionWords(words);
+                }
+            }
+
+            // Update block flag (maps to FlagAction.BLOCK)
+            if (ruleData.has("block")) {
+                boolean shouldBlock = ruleData.get("block").getAsBoolean();
+                rule.setFlagAction(shouldBlock ? AutomodRule.FlagAction.BLOCK : AutomodRule.FlagAction.LOG_ONLY);
+            }
+
+            // Update action from frontend format
+            if (ruleData.has("action") && ruleData.get("action").isJsonObject()) {
+                JsonObject actionObj = ruleData.getAsJsonObject("action");
+                String kind = actionObj.has("kind") ? actionObj.get("kind").getAsString() : "none";
+                String extra = actionObj.has("extra") ? actionObj.get("extra").getAsString() : "";
+                String duration = actionObj.has("duration") ? actionObj.get("duration").getAsString() : "";
+
+                if ("none".equals(kind)) {
+                    rule.setAutoPunishment(null);
+                } else {
+                    AutomodRule.AutoPunishment ap = rule.getAutoPunishment();
+                    if (ap == null) {
+                        ap = new AutomodRule.AutoPunishment();
+                        rule.setAutoPunishment(ap);
+                    }
+                    ap.setEnabled(true);
+                    try {
+                        ap.setType(com.blockforge.moderex.punishment.PunishmentType.valueOf(kind.toUpperCase()));
+                    } catch (IllegalArgumentException e) {
+                        ap.setType(com.blockforge.moderex.punishment.PunishmentType.WARN);
+                    }
+                    ap.setReason(extra);
+                    // Parse duration string to milliseconds (e.g., "1d" -> 86400000)
+                    if (duration != null && !duration.isEmpty()) {
+                        if (duration.equalsIgnoreCase("perm") || duration.equalsIgnoreCase("permanent")) {
+                            ap.setDuration(-1);
+                        } else {
+                            ap.setDuration(DurationParser.parse(duration));
+                        }
+                    }
+                }
+            }
+
+            // Update threshold from frontend format
+            if (ruleData.has("threshold") && ruleData.get("threshold").isJsonObject()) {
+                JsonObject thrObj = ruleData.getAsJsonObject("threshold");
+                if (rule.getAutoPunishment() == null) {
+                    rule.setAutoPunishment(new AutomodRule.AutoPunishment());
+                }
+                if (thrObj.has("hits")) {
+                    rule.getAutoPunishment().setTriggerCount(thrObj.get("hits").getAsInt());
+                }
+                if (thrObj.has("windowMins")) {
+                    rule.getAutoPunishment().setTimeWindow(thrObj.get("windowMins").getAsInt() * 60);
                 }
             }
 
@@ -1518,6 +1575,8 @@ public class HybridPanelServer {
             // Flag action and filter mode
             r.addProperty("flagAction", rule.getFlagAction() != null ? rule.getFlagAction().name() : "BLOCK");
             r.addProperty("filterMode", rule.getFilterMode() != null ? rule.getFilterMode().name() : "CONTAINS_PHRASE");
+            // Block flag for frontend - true if flagAction is BLOCK
+            r.addProperty("block", rule.getFlagAction() == AutomodRule.FlagAction.BLOCK);
 
             // Blacklisted words/phrases
             com.google.gson.JsonArray blacklist = new com.google.gson.JsonArray();
@@ -1546,7 +1605,34 @@ public class HybridPanelServer {
                 ap.addProperty("timeWindow", rule.getAutoPunishment().getTimeWindow());
                 ap.addProperty("reason", rule.getAutoPunishment().getReason() != null ? rule.getAutoPunishment().getReason() : "");
                 r.add("autoPunishment", ap);
+
+                // Frontend action format for compatibility
+                JsonObject action = new JsonObject();
+                action.addProperty("kind", rule.getAutoPunishment().isEnabled() ?
+                        rule.getAutoPunishment().getType().name().toLowerCase() : "none");
+                action.addProperty("extra", rule.getAutoPunishment().getReason() != null ?
+                        rule.getAutoPunishment().getReason() : "");
+                // Format duration: -1 = permanent, 0 = instant, else format as string
+                long durationMs = rule.getAutoPunishment().getDuration();
+                String durationStr = durationMs == -1 ? "perm" : durationMs == 0 ? "" : DurationParser.format(durationMs);
+                action.addProperty("duration", durationStr);
+                r.add("action", action);
+            } else {
+                // Default action object for rules without auto punishment
+                JsonObject action = new JsonObject();
+                action.addProperty("kind", "none");
+                action.addProperty("extra", "");
+                action.addProperty("duration", "");
+                r.add("action", action);
             }
+
+            // Threshold for frontend compatibility
+            JsonObject threshold = new JsonObject();
+            threshold.addProperty("hits", rule.getAutoPunishment() != null ?
+                    rule.getAutoPunishment().getTriggerCount() : 3);
+            threshold.addProperty("windowMins", rule.getAutoPunishment() != null ?
+                    (rule.getAutoPunishment().getTimeWindow() / 60) : 5);
+            r.add("threshold", threshold);
 
             rules.add(r);
         }

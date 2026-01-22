@@ -529,22 +529,32 @@
     // Render rules - different layout for built-in vs custom rules
     const rulesHtml = paginatedRules.map(r => {
       const thr = r.threshold || { hits: 1, windowMins: 10 };
-      const isBuiltIn = r.builtIn || r.locked || ['spam_prevention', 'caps_filter', 'link_filter'].includes(r.id);
+      const isBuiltIn = r.builtIn || r.locked || ['spam_prevention', 'caps_filter', 'link_filter'].includes(r.id) || r.id.startsWith('ac_');
 
       // Determine rule icon based on type/conditions
       const ruleType = getRuleType(r);
       const icons = {
         SPAM: 'fa-solid fa-message',
+        SPAM_PROTECTION: 'fa-solid fa-message',
         CAPS: 'fa-solid fa-font',
+        CAPS_FILTER: 'fa-solid fa-font',
         WORD_FILTER: 'fa-solid fa-filter',
+        LINK_FILTER: 'fa-solid fa-link',
+        AFK_KICK: 'fa-solid fa-clock',
+        ANTICHEAT: 'fa-solid fa-shield-halved',
         link: 'fa-solid fa-link',
         custom: 'fa-solid fa-robot'
       };
       const ruleIcon = icons[ruleType] || icons.custom;
       const typeColors = {
         SPAM: 'var(--warn)',
+        SPAM_PROTECTION: 'var(--warn)',
         CAPS: 'var(--accent-light)',
+        CAPS_FILTER: 'var(--accent-light)',
         WORD_FILTER: 'var(--bad)',
+        LINK_FILTER: 'var(--primary-light)',
+        AFK_KICK: 'var(--muted)',
+        ANTICHEAT: 'var(--purple)',
         link: 'var(--primary-light)',
         custom: 'var(--text-secondary)'
       };
@@ -637,6 +647,29 @@
             <input class="input" type="number" min="1" max="120" value="${afkTimeout}"
               oninput="setRuleSetting('${r.id}', 'afkTimeoutMinutes', this.value)" style="width:70px"/>
             <span class="badge gray">minutes of inactivity</span>
+          </div>
+        </div>
+      `;
+    } else if (r.id.startsWith('ac_') || ruleType === 'ANTICHEAT') {
+      const acThreshold = r.anticheatAlertThreshold || 5;
+      const acWindow = r.anticheatTimeWindowSeconds || 60;
+      const acName = r.anticheatName || '';
+      const checkName = r.checkName || '';
+      configSection = `
+        <div class="card" style="margin:10px 0 0 0;background:var(--bg-secondary);padding:12px">
+          <div class="hintline" style="margin:0 0 10px 0"><b>Anticheat Check Settings</b></div>
+          <div style="display:flex;gap:8px;margin-bottom:10px;flex-wrap:wrap">
+            <span class="badge purple"><i class="fa-solid fa-shield-halved"></i> ${escapeHtml(acName)}</span>
+            <span class="badge blue"><i class="fa-solid fa-crosshairs"></i> ${escapeHtml(checkName)}</span>
+          </div>
+          <div class="block" style="gap:8px;flex-wrap:wrap">
+            <span class="badge gray">Trigger after</span>
+            <input class="input" type="number" min="1" max="100" value="${acThreshold}"
+              oninput="setRuleSetting('${r.id}', 'anticheatAlertThreshold', this.value)" style="width:70px"/>
+            <span class="badge gray">alerts in</span>
+            <input class="input" type="number" min="10" max="600" value="${acWindow}"
+              oninput="setRuleSetting('${r.id}', 'anticheatTimeWindowSeconds', this.value)" style="width:80px"/>
+            <span class="badge gray">seconds</span>
           </div>
         </div>
       `;
@@ -800,16 +833,19 @@
   function getRuleType(rule) {
     // Use explicit type from rule if available
     if (rule.type) return rule.type.toUpperCase();
+    // Check if it's an anticheat rule by ID prefix
+    if (rule.id && rule.id.startsWith('ac_')) return 'ANTICHEAT';
     // Infer from id for built-in rules
-    if (rule.id === 'spam_prevention') return 'SPAM';
-    if (rule.id === 'caps_filter') return 'CAPS';
-    if (rule.id === 'link_filter') return 'WORD_FILTER';
+    if (rule.id === 'spam_protection' || rule.id === 'spam_prevention') return 'SPAM_PROTECTION';
+    if (rule.id === 'caps_filter') return 'CAPS_FILTER';
+    if (rule.id === 'link_filter') return 'LINK_FILTER';
+    if (rule.id === 'afk_kick') return 'AFK_KICK';
     // Infer from conditions
     const conditions = rule.conditions || [];
     if (conditions.some(c => c.kind === 'contains' || c.kind === 'regex')) return 'WORD_FILTER';
-    if (conditions.some(c => c.kind === 'caps')) return 'CAPS';
-    if (conditions.some(c => c.kind === 'repeat')) return 'SPAM';
-    if (conditions.some(c => c.kind === 'link')) return 'WORD_FILTER';
+    if (conditions.some(c => c.kind === 'caps')) return 'CAPS_FILTER';
+    if (conditions.some(c => c.kind === 'repeat')) return 'SPAM_PROTECTION';
+    if (conditions.some(c => c.kind === 'link')) return 'LINK_FILTER';
     return 'WORD_FILTER';
   }
 

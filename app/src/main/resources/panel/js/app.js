@@ -1341,21 +1341,33 @@
   window.setRuleAction = function(ruleId, kind) {
     const r = state.rules.find(r => r.id === ruleId);
     if (r) {
+      if (!r.action) r.action = {};
       r.action.kind = kind;
       if (kind === 'none') { r.action.extra = ''; r.action.duration = ''; }
       ui.markUnsaved('rules', true);
+      autoSaveRule(r);
       ui.renderRules();
     }
   };
 
   window.setRuleActionExtra = function(ruleId, extra) {
     const r = state.rules.find(r => r.id === ruleId);
-    if (r) { r.action.extra = extra; ui.markUnsaved('rules', true); }
+    if (r) {
+      if (!r.action) r.action = {};
+      r.action.extra = extra;
+      ui.markUnsaved('rules', true);
+      autoSaveRule(r);
+    }
   };
 
   window.setRuleActionDuration = function(ruleId, duration) {
     const r = state.rules.find(r => r.id === ruleId);
-    if (r) { r.action.duration = duration; ui.markUnsaved('rules', true); }
+    if (r) {
+      if (!r.action) r.action = {};
+      r.action.duration = duration;
+      ui.markUnsaved('rules', true);
+      autoSaveRule(r);
+    }
   };
 
   window.setRuleName = function(ruleId, name) {
@@ -1365,7 +1377,12 @@
 
   window.toggleRuleBlock = function(ruleId) {
     const r = state.rules.find(r => r.id === ruleId);
-    if (r) { r.block = !r.block; ui.markUnsaved('rules', true); ui.renderRules(); }
+    if (r) {
+      r.block = !r.block;
+      ui.markUnsaved('rules', true);
+      autoSaveRule(r);
+      ui.renderRules();
+    }
   };
 
   window.setRuleThreshold = function(ruleId, field, v) {
@@ -1383,7 +1400,7 @@
     if (!r) return;
 
     // Parse numeric values
-    if (['spamMessageCount', 'spamTimeWindowSeconds', 'capsMaxPercentage', 'capsMinLength', 'afkTimeoutMinutes'].includes(setting)) {
+    if (['spamMessageCount', 'spamTimeWindowSeconds', 'capsMaxPercentage', 'capsMinLength', 'afkTimeoutMinutes', 'anticheatAlertThreshold', 'anticheatTimeWindowSeconds'].includes(setting)) {
       r[setting] = Math.max(1, parseInt(value || '1', 10));
     } else if (['spamDetectSimilar', 'afkKickEnabled'].includes(setting)) {
       r[setting] = value === true || value === 'true';
@@ -1402,8 +1419,8 @@
     // Mark as unsaved for visual feedback
     ui.markUnsaved('rules', true);
 
-    // Auto-save built-in rules immediately
-    if (rule.builtIn || ['spam_protection', 'caps_filter', 'link_filter', 'afk_kick'].includes(rule.id)) {
+    // Auto-save built-in rules and anticheat rules immediately
+    if (rule.builtIn || ['spam_protection', 'caps_filter', 'link_filter', 'afk_kick'].includes(rule.id) || rule.id.startsWith('ac_')) {
       MX.ws.send('UPDATE_AUTOMOD_RULE', {
         ruleId: rule.id,
         rule: rule
