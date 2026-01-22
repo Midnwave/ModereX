@@ -2412,6 +2412,9 @@ public class HybridPanelServer {
         if (data.has("chatAlerts")) settings.chatAlerts = data.get("chatAlerts").getAsBoolean();
         if (data.has("soundEnabled")) settings.soundEnabled = data.get("soundEnabled").getAsBoolean();
         if (data.has("watchlistToasts")) settings.watchlistToasts = data.get("watchlistToasts").getAsBoolean();
+        if (data.has("themeColor")) settings.themeColor = data.get("themeColor").getAsString();
+        if (data.has("backgroundPattern")) settings.backgroundPattern = data.get("backgroundPattern").getAsString();
+        if (data.has("watchlistAlerts")) settings.watchlistAlerts = data.get("watchlistAlerts").getAsBoolean();
         if (data.has("deviceTrustEnabled")) {
             boolean newValue = data.get("deviceTrustEnabled").getAsBoolean();
             // If disabling device trust, clear all trusted devices for this user
@@ -3852,6 +3855,11 @@ public class HybridPanelServer {
         // Display preferences
         boolean compactMode = false;
         String theme = "dark"; // dark, light, system
+        String themeColor = "#2d7aed"; // Custom theme color (hex)
+        String backgroundPattern = "aurora"; // Background pattern name
+
+        // Notification preferences
+        boolean watchlistAlerts = true; // Show watchlist alerts at bottom of panel
 
         // Security settings
         boolean deviceTrustEnabled = true; // Allow trusted devices to auto-login
@@ -3880,6 +3888,9 @@ public class HybridPanelServer {
 
             json.addProperty("compactMode", compactMode);
             json.addProperty("theme", theme);
+            json.addProperty("themeColor", themeColor);
+            json.addProperty("backgroundPattern", backgroundPattern);
+            json.addProperty("watchlistAlerts", watchlistAlerts);
             json.addProperty("deviceTrustEnabled", deviceTrustEnabled);
             return json;
         }
@@ -3907,6 +3918,9 @@ public class HybridPanelServer {
 
             if (json.has("compactMode")) compactMode = json.get("compactMode").getAsBoolean();
             if (json.has("theme")) theme = json.get("theme").getAsString();
+            if (json.has("themeColor")) themeColor = json.get("themeColor").getAsString();
+            if (json.has("backgroundPattern")) backgroundPattern = json.get("backgroundPattern").getAsString();
+            if (json.has("watchlistAlerts")) watchlistAlerts = json.get("watchlistAlerts").getAsBoolean();
             if (json.has("deviceTrustEnabled")) deviceTrustEnabled = json.get("deviceTrustEnabled").getAsBoolean();
         }
     }

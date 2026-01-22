@@ -1691,6 +1691,9 @@ public class WebPanelServer extends WebSocketServer {
         boolean automodAlerts = true;
         boolean anticheatAlerts = true;
         boolean compactMode = false;
+        String themeColor = "#2d7aed";
+        String backgroundPattern = "aurora";
+        boolean watchlistAlerts = true;
 
         JsonObject toJson() {
             JsonObject json = new JsonObject();
@@ -1702,6 +1705,9 @@ public class WebPanelServer extends WebSocketServer {
             json.addProperty("automodAlerts", automodAlerts);
             json.addProperty("anticheatAlerts", anticheatAlerts);
             json.addProperty("compactMode", compactMode);
+            json.addProperty("themeColor", themeColor);
+            json.addProperty("backgroundPattern", backgroundPattern);
+            json.addProperty("watchlistAlerts", watchlistAlerts);
             return json;
         }
     }
