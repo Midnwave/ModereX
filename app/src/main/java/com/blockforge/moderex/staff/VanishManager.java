@@ -2,6 +2,7 @@ package com.blockforge.moderex.staff;
 
 import com.blockforge.moderex.ModereX;
 import com.blockforge.moderex.config.lang.MessageKey;
+import com.blockforge.moderex.webpanel.debug.WebPanelDebugger;
 import com.blockforge.moderex.staff.hooks.VanishPluginHookManager;
 import com.blockforge.moderex.util.TextUtil;
 import com.blockforge.moderex.vanish.packet.PacketVanishInjector;
@@ -138,6 +139,12 @@ public class VanishManager {
         }
 
         plugin.logDebug(player.getName() + " vanished (level: " + level + ")");
+
+        // Web panel debug
+        WebPanelDebugger debugger = plugin.getWebPanelDebugger();
+        if (debugger != null) {
+            debugger.vanishEnabled(player.getName(), level);
+        }
     }
 
     public void unvanish(Player player) {
@@ -197,6 +204,12 @@ public class VanishManager {
         }
 
         plugin.logDebug(player.getName() + " unvanished");
+
+        // Web panel debug
+        WebPanelDebugger debugger = plugin.getWebPanelDebugger();
+        if (debugger != null) {
+            debugger.vanishDisabled(player.getName());
+        }
     }
 
     public boolean isVanished(Player player) {
