@@ -952,6 +952,10 @@
           ${levelOptions(settings.commandAlerts, 'commandAlerts')}
         </div>
         <div class="setting-row">
+          <span>Private Message Alerts</span>
+          ${levelOptions(settings.privateMessageAlerts || 'OFF', 'privateMessageAlerts')}
+        </div>
+        <div class="setting-row">
           ${toggleHtml('showBlacklistedCommands', 'Show Blacklisted Commands')}
         </div>
       </div>

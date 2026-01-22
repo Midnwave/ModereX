@@ -1653,6 +1653,31 @@ public class WebPanelServer extends WebSocketServer {
         broadcastToAuthenticated(GSON.toJson(json));
     }
 
+    public void broadcastCommand(String playerName, UUID playerUuid, String command) {
+        JsonObject json = new JsonObject();
+        json.addProperty("type", "COMMAND");
+        JsonObject data = new JsonObject();
+        data.addProperty("playerName", playerName);
+        data.addProperty("playerUuid", playerUuid.toString());
+        data.addProperty("command", command);
+        data.addProperty("timestamp", System.currentTimeMillis());
+        json.add("data", data);
+        broadcastToAuthenticated(GSON.toJson(json));
+    }
+
+    public void broadcastPrivateMessage(String senderName, UUID senderUuid, String targetName, String message) {
+        JsonObject json = new JsonObject();
+        json.addProperty("type", "PRIVATE_MESSAGE");
+        JsonObject data = new JsonObject();
+        data.addProperty("senderName", senderName);
+        data.addProperty("senderUuid", senderUuid.toString());
+        data.addProperty("targetName", targetName);
+        data.addProperty("message", message);
+        data.addProperty("timestamp", System.currentTimeMillis());
+        json.add("data", data);
+        broadcastToAuthenticated(GSON.toJson(json));
+    }
+
     private void broadcastToAuthenticated(String message) {
         for (WebSocket client : authenticatedClients) {
             if (client.isOpen()) {

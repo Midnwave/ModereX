@@ -3613,6 +3613,27 @@
       toast('warn', 'Automod', `${data.playerName} triggered ${data.rule}`);
     });
 
+    ws.on('PRIVATE_MESSAGE', (data) => {
+      if (!isLiveMode) return;
+      const settings = loadMySettings();
+      const player = state.players.find(p => p.uuid === data.senderUuid);
+      const isWatchlisted = player && (state.watchlist?.has(player.id) || state.watchlist?.has(player.uuid));
+
+      // Check PM alert level setting
+      const pmLevel = settings.privateMessageAlerts || 'OFF';
+      if (pmLevel === 'OFF') return;
+      if (pmLevel === 'WATCHLIST_ONLY' && !isWatchlisted) return;
+
+      // Log to activity feed
+      const prefix = isWatchlisted ? '[WL] ' : '';
+      logEvent('INFO', 'chat', `PM | ${prefix}${data.senderName} → ${data.targetName}`, data.message, { playerId: player?.id, kind: 'pm', type: 'CHAT' });
+
+      // Show toast for watchlisted players
+      if (isWatchlisted) {
+        toast('warn', 'Private Message', `${data.senderName} → ${data.targetName}: ${data.message.substring(0, 50)}...`);
+      }
+    });
+
     ws.on('ANTICHEAT_ALERT', (data) => {
       if (!isLiveMode) return;
       const player = state.players.find(p => p.name === data.playerName || p.uuid === data.playerUuid);
