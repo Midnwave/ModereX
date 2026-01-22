@@ -42,11 +42,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Moved from per-staff setting to global config
   - Vanilla join/leave message suppression option
 
+- **Per-Check Anticheat Alert Settings**: Customize alert notifications per anticheat check
+  - Shift+click on anticheat rules in Automod GUI opens alert settings
+  - Configure alert level (Everyone, Watchlist Only, Off)
+  - Set threshold count and time window for batching alerts
+  - Quick presets for High/Medium/Low priority configurations
+  - Settings sync between in-game GUI and web panel
+
 - **Startup Banner**: Added copyright and developer info to console startup
   - Shows version, copyright, and Discord links
   - BlockForge Studios and ADF Industries credits
 
 ### Changed
+- **Unified Anticheat Settings Tab**: Reorganized Staff Settings anticheat tab
+  - Quick access to personal alert preferences and automod rules from same view
+  - Added minimum VL threshold setting
+  - Per-anticheat toggles with shift+click to adjust min VL
+  - Quick enable/disable all buttons
+  - Helpful "How It Works" information section
+
 - **Punishment Broadcasts**: Updated to include ModereX prefix and case IDs
   - New format: `[ModereX] <staff> muted <player> for <duration> | Case: <case_id>`
   - Reason shown on second line
@@ -71,6 +85,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **Web Panel Sync**: Staff settings properly sync between game and web panel
   - Removed obsolete joinLeaveMessages setting from frontend
+
+- **Template Sync**: Punishment templates now sync in real-time between game and web panel
+  - In-game template changes (create, update, delete) broadcast to web panel
+  - Web panel template changes reflect in-game immediately
 
 ### Removed
 - Per-staff join/leave message setting (replaced by global config)

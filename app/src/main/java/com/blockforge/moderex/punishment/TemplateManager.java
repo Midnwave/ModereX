@@ -107,6 +107,15 @@ public class TemplateManager {
     }
 
     public void saveTemplate(PunishmentTemplate template) {
+        saveTemplate(template, true);
+    }
+
+    /**
+     * Save template to database.
+     * @param template the template to save
+     * @param broadcast whether to broadcast changes to web panel clients
+     */
+    public void saveTemplate(PunishmentTemplate template, boolean broadcast) {
         try {
             plugin.getDatabaseManager().update(
                     """
@@ -137,6 +146,11 @@ public class TemplateManager {
             );
 
             templates.put(template.getId(), template);
+
+            // Broadcast to web panel clients
+            if (broadcast) {
+                broadcastTemplateChanges();
+            }
         } catch (SQLException e) {
             plugin.logError("Failed to save template " + template.getName(), e);
         }
@@ -149,10 +163,23 @@ public class TemplateManager {
                     id
             );
             templates.remove(id);
+
+            // Broadcast deletion to web panel clients
+            broadcastTemplateChanges();
+
             return true;
         } catch (SQLException e) {
             plugin.logError("Failed to delete template " + id, e);
             return false;
+        }
+    }
+
+    /**
+     * Broadcast template changes to web panel clients.
+     */
+    private void broadcastTemplateChanges() {
+        if (plugin.getWebPanelServer() != null) {
+            plugin.getWebPanelServer().broadcastTemplates();
         }
     }
 
