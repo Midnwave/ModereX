@@ -256,6 +256,12 @@ commands:
     usage: /<command> <player> [page]
     permission: moderex.cmdhistory
 
+  seen:
+    description: View when a player was last seen and player info
+    usage: /<command> <player>
+    permission: moderex.command.seen
+    aliases: [playerinfo, lastseen]
+
   disguise:
     description: Disguise as another player
     usage: /<command> [name] [rank] | gui | remove
@@ -364,6 +370,7 @@ permissions:
       moderex.cmdblacklist: true
       moderex.cmdunblacklist: true
       moderex.cmdhistory: true
+      moderex.command.seen: true
       moderex.disguise: true
       moderex.command.watchlist: true
       moderex.rules: true
@@ -679,6 +686,14 @@ permissions:
 
   moderex.cmdhistory:
     description: View command history
+    default: op
+
+  moderex.command.seen:
+    description: View when a player was last seen
+    default: op
+
+  moderex.command.seen.ip:
+    description: View IP address in /seen command
     default: op
 
   moderex.command.watchlist:

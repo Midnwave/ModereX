@@ -105,6 +105,7 @@ public class CommandManager {
         registerPaperCommand(commandMap, "cmdblacklist", new CmdBlacklistCommand(plugin), "Blacklist command", List.of());
         registerPaperCommand(commandMap, "cmdunblacklist", new CmdUnblacklistCommand(plugin), "Remove command blacklist", List.of());
         registerPaperCommand(commandMap, "cmdhistory", new CmdHistoryCommand(plugin), "View command history", List.of());
+        registerPaperCommand(commandMap, "seen", new SeenCommand(plugin), "View player last seen info", List.of("playerinfo", "lastseen"));
         registerPaperCommand(commandMap, "disguise", new DisguiseCommand(plugin), "Disguise as another player", List.of("d"));
         registerPaperCommand(commandMap, "undisguise", new UndisguiseCommand(plugin), "Remove disguise", List.of("ud"));
         registerPaperCommand(commandMap, "disguisename", new DisguiseNameCommand(plugin), "Change disguise name", List.of("dname"));
@@ -190,6 +191,7 @@ public class CommandManager {
         registerSpigotCommand("cmdblacklist", new CmdBlacklistCommand(plugin));
         registerSpigotCommand("cmdunblacklist", new CmdUnblacklistCommand(plugin));
         registerSpigotCommand("cmdhistory", new CmdHistoryCommand(plugin));
+        registerSpigotCommand("seen", new SeenCommand(plugin));
         registerSpigotCommand("disguise", new DisguiseCommand(plugin));
         registerSpigotCommand("undisguise", new UndisguiseCommand(plugin));
         registerSpigotCommand("disguisename", new DisguiseNameCommand(plugin));
