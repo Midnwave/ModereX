@@ -24,6 +24,7 @@ import com.blockforge.moderex.util.UpdateChecker;
 import com.blockforge.moderex.util.VersionUtil;
 import com.blockforge.moderex.watchlist.WatchlistManager;
 import com.blockforge.moderex.webpanel.HybridPanelServer;
+import com.blockforge.moderex.webpanel.debug.WebPanelDebugger;
 import com.blockforge.moderex.webpanel.netty.NettyInjector;
 import com.blockforge.moderex.webpanel.netty.SamePortPanelHandler;
 import com.blockforge.moderex.webpanel.netty.ServerVersionUtil;
@@ -69,6 +70,7 @@ public final class ModereX extends JavaPlugin {
     private com.blockforge.moderex.rules.RulesManager rulesManager;
     private com.blockforge.moderex.automod.AfkManager afkManager;
     private DebugWebhook debugWebhook;
+    private WebPanelDebugger webPanelDebugger;
 
     // Lockdown state
     private boolean globalLockdown = false;
@@ -233,6 +235,12 @@ public final class ModereX extends JavaPlugin {
             } else {
                 startDedicatedPanelServer();
             }
+
+            // Initialize web panel debugger after panel server is created
+            if (hybridPanelServer != null) {
+                logStartup("Initializing web panel debugger...");
+                this.webPanelDebugger = new WebPanelDebugger(this);
+            }
         }
 
         // Register commands
@@ -257,6 +265,11 @@ public final class ModereX extends JavaPlugin {
     @Override
     public void onDisable() {
         logStartup("Disabling ModereX...");
+
+        // Stop web panel debugger
+        if (webPanelDebugger != null) {
+            webPanelDebugger.shutdown();
+        }
 
         // Stop web panel server
         if (hybridPanelServer != null) {
@@ -345,6 +358,10 @@ public final class ModereX extends JavaPlugin {
         }
 
         // Stop existing web panel services
+        if (webPanelDebugger != null) {
+            webPanelDebugger.shutdown();
+            webPanelDebugger = null;
+        }
         if (hybridPanelServer != null) {
             hybridPanelServer.stop();
             hybridPanelServer = null;
@@ -374,6 +391,11 @@ public final class ModereX extends JavaPlugin {
                 }
             } else {
                 startDedicatedPanelServer();
+            }
+
+            // Reinitialize web panel debugger
+            if (hybridPanelServer != null) {
+                this.webPanelDebugger = new WebPanelDebugger(this);
             }
         }
 
@@ -536,6 +558,10 @@ public final class ModereX extends JavaPlugin {
 
     public HybridPanelServer getWebPanelServer() {
         return hybridPanelServer;
+    }
+
+    public WebPanelDebugger getWebPanelDebugger() {
+        return webPanelDebugger;
     }
 
     public HookManager getHookManager() {

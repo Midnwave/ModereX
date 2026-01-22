@@ -8,6 +8,9 @@ import com.blockforge.moderex.util.DurationParser;
 import com.blockforge.moderex.util.TextUtil;
 import com.blockforge.moderex.hooks.anticheat.AnticheatChecks;
 import com.blockforge.moderex.web.WebAuthManager;
+import com.blockforge.moderex.webpanel.debug.DebugCategory;
+import com.blockforge.moderex.webpanel.debug.ErrorCode;
+import com.blockforge.moderex.webpanel.debug.WebPanelDebugger;
 import com.blockforge.moderex.webpanel.netty.WebSocketFrameHandler;
 import com.google.gson.Gson;
 import com.google.gson.JsonArray;
@@ -99,8 +102,12 @@ public class HybridPanelServer {
             plugin.getLogger().info("Web panel server started on port " + port);
             plugin.getLogger().info("Access the panel at: http://localhost:" + port + "/");
 
+            // Debug: Server started
+            debugSuccess(DebugCategory.CONNECTION, "Web panel server started", "Port: " + port);
+
         } catch (IOException e) {
             plugin.logError("Failed to start web panel server on port " + port, e);
+            debugError(ErrorCode.SERVER_BIND_FAILED, "Port: " + port + ", Error: " + e.getMessage());
         }
     }
 
@@ -437,6 +444,7 @@ public class HybridPanelServer {
         connections.add(conn);
 
         plugin.logDebug("WebSocket connected from: " + socket.getRemoteSocketAddress());
+        debugInfo(DebugCategory.CONNECTION, "WebSocket connection opened", "From: " + socket.getRemoteSocketAddress());
 
         // Start reading WebSocket frames
         String disconnectReason = "Clean close";
@@ -485,6 +493,8 @@ public class HybridPanelServer {
                     plugin.logDebug("[WebPanel] Disconnected: " + session.playerName +
                             " | Duration: " + durationStr);
                 }
+                debugInfo(DebugCategory.CONNECTION, "Session disconnected",
+                        "Player: " + session.playerName + ", Duration: " + durationStr + ", Reason: " + disconnectReason);
             } else {
                 if (plugin.getConfigManager().getSettings().isDebugMode()) {
                     plugin.getLogger().info("[WebPanel] Disconnected: Unauthenticated connection" +
@@ -493,6 +503,8 @@ public class HybridPanelServer {
                 } else {
                     plugin.logDebug("[WebPanel] Disconnected: Unauthenticated connection");
                 }
+                debugInfo(DebugCategory.CONNECTION, "Unauthenticated connection closed",
+                        "Reason: " + disconnectReason);
             }
             conn.close();
         }
@@ -1020,6 +1032,10 @@ public class HybridPanelServer {
 
         conn.send(GSON.toJson(response));
         plugin.getLogger().info("Web panel authenticated: " + name + " (" + method + ")");
+
+        // Debug: Authentication successful
+        debugSuccess(DebugCategory.AUTH, "Authentication successful",
+                "Player: " + name + ", Method: " + method + ", Device trusted: " + deviceTrusted);
     }
 
     private void sendSessionExpired(WebSocketConnection conn) {
@@ -1371,9 +1387,12 @@ public class HybridPanelServer {
             conn.send(GSON.toJson(response));
 
             plugin.logDebug("[WebPanel] Automod rule updated: " + rule.getName() + " by " + session.playerName);
+            debugSuccess(DebugCategory.AUTOMOD, "Automod rule updated",
+                    "Rule: " + rule.getName() + ", By: " + session.playerName);
         } catch (Exception e) {
             sendError(conn, "UPDATE_ERROR", "Failed to update rule: " + e.getMessage());
             plugin.logError("Failed to update automod rule from web panel", e);
+            debugError(ErrorCode.AUTOMOD_RULE_UPDATE_FAILED, "Error: " + e.getMessage());
         }
     }
 
@@ -1415,9 +1434,12 @@ public class HybridPanelServer {
             conn.send(GSON.toJson(response));
 
             plugin.logDebug("[WebPanel] Automod rule created: " + name + " by " + session.playerName);
+            debugSuccess(DebugCategory.AUTOMOD, "Automod rule created",
+                    "Rule: " + name + ", By: " + session.playerName);
         } catch (Exception e) {
             sendError(conn, "CREATE_ERROR", "Failed to create rule: " + e.getMessage());
             plugin.logError("Failed to create automod rule from web panel", e);
+            debugError(ErrorCode.AUTOMOD_RULE_CREATE_FAILED, "Error: " + e.getMessage());
         }
     }
 
@@ -1447,9 +1469,12 @@ public class HybridPanelServer {
             conn.send(GSON.toJson(response));
 
             plugin.logDebug("[WebPanel] Automod rule deleted: " + rule.getName() + " by " + session.playerName);
+            debugSuccess(DebugCategory.AUTOMOD, "Automod rule deleted",
+                    "Rule: " + rule.getName() + ", By: " + session.playerName);
         } catch (Exception e) {
             sendError(conn, "DELETE_ERROR", "Failed to delete rule: " + e.getMessage());
             plugin.logError("Failed to delete automod rule from web panel", e);
+            debugError(ErrorCode.AUTOMOD_RULE_DELETE_FAILED, "Error: " + e.getMessage());
         }
     }
 
@@ -2818,6 +2843,26 @@ public class HybridPanelServer {
         data.addProperty("message", message);
         response.add("data", data);
         conn.send(GSON.toJson(response));
+
+        // Debug: Error sent
+        ErrorCode errorCode = mapErrorCodeToEnum(code);
+        if (errorCode != null) {
+            debugError(errorCode, message);
+        } else {
+            debugWarning(DebugCategory.REQUEST, "Error response sent", "Code: " + code + ", Message: " + message);
+        }
+    }
+
+    private ErrorCode mapErrorCodeToEnum(String code) {
+        return switch (code) {
+            case "NOT_AUTHENTICATED" -> ErrorCode.AUTH_NOT_AUTHENTICATED;
+            case "INVALID_UUID" -> ErrorCode.REQUEST_INVALID_UUID;
+            case "MISSING_FIELD" -> ErrorCode.REQUEST_MISSING_FIELD;
+            case "PLAYER_NOT_FOUND" -> ErrorCode.REQUEST_PLAYER_NOT_FOUND;
+            case "RULE_NOT_FOUND" -> ErrorCode.AUTOMOD_RULE_NOT_FOUND;
+            case "DATABASE_ERROR" -> ErrorCode.DATABASE_QUERY_FAILED;
+            default -> null;
+        };
     }
 
     private void sendAuthFailed(WebSocketConnection conn, String code, String message) {
@@ -2828,6 +2873,26 @@ public class HybridPanelServer {
         data.addProperty("message", message);
         response.add("data", data);
         conn.send(GSON.toJson(response));
+
+        // Debug: Authentication failed
+        ErrorCode errorCode = mapAuthCodeToErrorCode(code);
+        if (errorCode != null) {
+            debugError(errorCode, "IP: " + getClientIp(conn));
+        } else {
+            debugWarning(DebugCategory.AUTH, "Authentication failed", "Code: " + code + ", Message: " + message);
+        }
+    }
+
+    private ErrorCode mapAuthCodeToErrorCode(String code) {
+        return switch (code) {
+            case "INVALID_CODE" -> ErrorCode.AUTH_INVALID_CODE;
+            case "INVALID_TOKEN" -> ErrorCode.AUTH_INVALID_TOKEN;
+            case "TOKEN_REQUIRED" -> ErrorCode.AUTH_TOKEN_REQUIRED;
+            case "RATE_LIMITED" -> ErrorCode.AUTH_RATE_LIMITED;
+            case "SESSION_EXPIRED" -> ErrorCode.AUTH_SESSION_EXPIRED;
+            case "AUTH_UNAVAILABLE" -> ErrorCode.AUTH_UNAVAILABLE;
+            default -> null;
+        };
     }
 
     private void sendSuccess(WebSocketConnection conn, String message) {
@@ -2866,6 +2931,11 @@ public class HybridPanelServer {
         json.addProperty("type", "PUNISHMENT_CREATED");
         json.add("data", punishmentToJson(punishment));
         broadcast(GSON.toJson(json));
+
+        // Debug: Punishment broadcast
+        debugSuccess(DebugCategory.PUNISHMENT, "Punishment broadcast",
+                "Type: " + punishment.getType() + ", Target: " + punishment.getPlayerName() +
+                ", Staff: " + punishment.getStaffName());
     }
 
     public void broadcastPlayerJoin(Player player) {
@@ -2876,6 +2946,9 @@ public class HybridPanelServer {
         data.addProperty("name", player.getName());
         json.add("data", data);
         broadcast(GSON.toJson(json));
+
+        // Debug: Player join broadcast
+        debugInfo(DebugCategory.PLAYER, "Player join broadcast", "Player: " + player.getName());
     }
 
     public void broadcastPlayerQuit(Player player) {
@@ -2886,6 +2959,9 @@ public class HybridPanelServer {
         data.addProperty("name", player.getName());
         json.add("data", data);
         broadcast(GSON.toJson(json));
+
+        // Debug: Player quit broadcast
+        debugInfo(DebugCategory.PLAYER, "Player quit broadcast", "Player: " + player.getName());
     }
 
     public void broadcastWatchlistAlert(String type, String playerName, String details) {
@@ -2898,6 +2974,9 @@ public class HybridPanelServer {
         data.addProperty("timestamp", System.currentTimeMillis());
         json.add("data", data);
         broadcast(GSON.toJson(json));
+
+        // Debug: Watchlist alert broadcast
+        debugWarning(DebugCategory.WATCHLIST, "Watchlist alert: " + type, "Player: " + playerName + ", Details: " + details);
     }
 
     public void broadcastWatchlistUpdate() {
@@ -2978,6 +3057,65 @@ public class HybridPanelServer {
         data.addProperty("timestamp", System.currentTimeMillis());
         json.add("data", data);
         broadcast(GSON.toJson(json));
+    }
+
+    /**
+     * Disconnect a player's web panel session.
+     * Used when token is revoked for security.
+     *
+     * @param playerUuid The player's UUID
+     * @param code The disconnect code
+     * @param message The disconnect message
+     */
+    public void disconnectPlayer(UUID playerUuid, String code, String message) {
+        // Find and disconnect all connections for this player
+        for (WebSocketConnection conn : new ArrayList<>(connections)) {
+            WebPanelSession session = sessions.get(conn);
+            if (session != null && session.playerUuid.equals(playerUuid)) {
+                // Send disconnect message
+                JsonObject response = new JsonObject();
+                response.addProperty("type", "FORCED_DISCONNECT");
+                JsonObject data = new JsonObject();
+                data.addProperty("code", code);
+                data.addProperty("message", message);
+                response.add("data", data);
+                conn.send(GSON.toJson(response));
+
+                // Close connection
+                connections.remove(conn);
+                sessions.remove(conn);
+                conn.close();
+
+                plugin.logDebug("[WebPanel] Force disconnected session for " + session.playerName + " (" + code + ")");
+                debugWarning(DebugCategory.AUTH, "Session force disconnected",
+                        "Player: " + session.playerName + ", Reason: " + code);
+            }
+        }
+
+        // Also check same-port connections
+        for (Map.Entry<String, WebPanelSession> entry : new ArrayList<>(samePortSessions.entrySet())) {
+            if (entry.getValue().playerUuid.equals(playerUuid)) {
+                String connId = entry.getKey();
+                WebSocketFrameHandler handler = samePortConnections.get(connId);
+
+                if (handler != null) {
+                    // Send disconnect message
+                    JsonObject response = new JsonObject();
+                    response.addProperty("type", "FORCED_DISCONNECT");
+                    JsonObject data = new JsonObject();
+                    data.addProperty("code", code);
+                    data.addProperty("message", message);
+                    response.add("data", data);
+                    handler.send(GSON.toJson(response));
+                    handler.close();
+                }
+
+                samePortSessions.remove(connId);
+                samePortConnections.remove(connId);
+
+                plugin.logDebug("[WebPanel] Force disconnected same-port session for " + entry.getValue().playerName);
+            }
+        }
     }
 
     private void broadcast(String message) {
@@ -3337,6 +3475,40 @@ public class HybridPanelServer {
                 Files.copy(in, targetPath);
             }
         } catch (IOException ignored) {}
+    }
+
+    // ==================== Debug Helper Methods ====================
+
+    private WebPanelDebugger getDebugger() {
+        return plugin.getWebPanelDebugger();
+    }
+
+    private void debugSuccess(DebugCategory category, String title, String detail) {
+        WebPanelDebugger debugger = getDebugger();
+        if (debugger != null) {
+            debugger.success(category, title, detail);
+        }
+    }
+
+    private void debugError(ErrorCode errorCode, String additionalDetail) {
+        WebPanelDebugger debugger = getDebugger();
+        if (debugger != null) {
+            debugger.error(errorCode, additionalDetail);
+        }
+    }
+
+    private void debugWarning(DebugCategory category, String title, String detail) {
+        WebPanelDebugger debugger = getDebugger();
+        if (debugger != null) {
+            debugger.warning(category, title, detail);
+        }
+    }
+
+    private void debugInfo(DebugCategory category, String title, String detail) {
+        WebPanelDebugger debugger = getDebugger();
+        if (debugger != null) {
+            debugger.info(category, title, detail);
+        }
     }
 
     // ==================== Inner Classes ====================
