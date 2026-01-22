@@ -334,6 +334,70 @@
 
   window.MX.debugLog = window.debugLog;
 
+  // ===== SYSTEM MESSAGES =====
+  // System messages are ALWAYS shown (plugin status, updates, etc.) - 10 second display
+  window.systemLog = function(message, type = 'info') {
+    const container = document.getElementById('debug-log-container') || createDebugContainer();
+    const entry = document.createElement('div');
+    entry.className = `debug-entry debug-${type} system-entry`;
+    entry.innerHTML = `
+      <span class="debug-time">${new Date().toLocaleTimeString()}</span>
+      <span class="debug-cat system-cat">[SYSTEM]</span>
+      <span class="debug-msg">${escapeHtml(message)}</span>
+    `;
+    container.appendChild(entry);
+
+    // System messages stay for 10 seconds
+    setTimeout(() => {
+      entry.classList.add('fade-out');
+      setTimeout(() => entry.remove(), 300);
+    }, 10000);
+
+    // Keep only last 20 entries
+    while (container.children.length > 20) {
+      container.removeChild(container.firstChild);
+    }
+
+    console.log(`[SYSTEM] ${message}`);
+  };
+
+  window.MX.systemLog = window.systemLog;
+
+  // ===== WATCHLIST ALERTS =====
+  // Watchlist alerts - shown when watchlistAlerts setting is enabled
+  window.watchlistLog = function(playerName, message, type = 'warn') {
+    // Check if watchlist alerts are enabled in user settings
+    if (!state.userSettings?.watchlistAlerts) return;
+
+    const container = document.getElementById('debug-log-container') || createDebugContainer();
+    const entry = document.createElement('div');
+    entry.className = `debug-entry debug-${type} watchlist-entry`;
+    entry.innerHTML = `
+      <span class="debug-time">${new Date().toLocaleTimeString()}</span>
+      <span class="debug-cat watchlist-cat">[WATCHLIST]</span>
+      <span class="debug-msg"><b>${escapeHtml(playerName)}</b> ${escapeHtml(message)}</span>
+    `;
+    container.appendChild(entry);
+
+    // Watchlist alerts stay for 8 seconds
+    setTimeout(() => {
+      entry.classList.add('fade-out');
+      setTimeout(() => entry.remove(), 300);
+    }, 8000);
+
+    // Keep only last 20 entries
+    while (container.children.length > 20) {
+      container.removeChild(container.firstChild);
+    }
+
+    // Play watchlist alert sound
+    window.MX?.sounds?.alert();
+
+    console.log(`[WATCHLIST] ${playerName}: ${message}`);
+  };
+
+  window.MX.watchlistLog = window.watchlistLog;
+
   // ===== STAFF CHAT =====
   const staffChatMessages = [];
 
@@ -979,7 +1043,7 @@
             <i class="fa-solid fa-magnifying-glass"></i>
             <input type="text" id="cmdSearch" placeholder="Search commands...">
           </div>
-          <div class="card" style="margin-top:14px" id="cmdList"></div>
+          <div class="card" style="margin-top:14px;max-height:400px;overflow-y:auto" id="cmdList"></div>
         </div>
         <div class="modal-foot">
           <span class="badge gray"><i class="fa-solid fa-circle-info"></i> ${escapeHtml(p.name)}</span>
@@ -1040,7 +1104,7 @@
               <input type="date" class="input" id="chatTo" style="max-width:160px">
             </div>
           </div>
-          <div class="card" style="margin-top:14px" id="chatList"></div>
+          <div class="card" style="margin-top:14px;max-height:400px;overflow-y:auto" id="chatList"></div>
         </div>
         <div class="modal-foot">
           <span class="badge gray"><i class="fa-solid fa-circle-info"></i> ${escapeHtml(p.name)}</span>
@@ -1104,7 +1168,7 @@
               <input type="date" class="input" id="autoTo" style="max-width:160px">
             </div>
           </div>
-          <div class="card" style="margin-top:14px" id="autoList"></div>
+          <div class="card" style="margin-top:14px;max-height:400px;overflow-y:auto" id="autoList"></div>
         </div>
         <div class="modal-foot">
           <span class="badge gray"><i class="fa-solid fa-circle-info"></i> ${escapeHtml(p.name)}</span>
@@ -2680,15 +2744,23 @@
     { id: 'integrations', name: 'Integrations', icon: 'fa-plug', keywords: ['luckperms', 'plugins', 'hooks'] }
   ];
 
-  // Settings that can be searched
+  // Settings that can be searched (with element IDs for auto-scroll)
   const searchableSettings = [
-    { name: 'Sound Effects', page: 'mysettings', keywords: ['audio', 'notification', 'mute'] },
-    { name: 'Auto Sign-in', page: 'mysettings', keywords: ['device', 'trust', 'remember'] },
-    { name: 'Watchlist Alerts', page: 'mysettings', keywords: ['monitor', 'notify'] },
-    { name: 'Anticheat Alerts', page: 'mysettings', keywords: ['hack', 'cheat'] },
-    { name: 'Chat Lock', page: 'actions', keywords: ['disable', 'mute all'] },
-    { name: 'Slowmode', page: 'actions', keywords: ['rate limit', 'spam'] },
-    { name: 'Kick All', page: 'actions', keywords: ['clear', 'server'] }
+    { name: 'Sound Effects', page: 'mysettings', keywords: ['audio', 'notification', 'mute', 'volume'], elementId: 'soundsEnabled' },
+    { name: 'Volume Control', page: 'mysettings', keywords: ['audio', 'volume', 'slider'], elementId: 'volumeSlider' },
+    { name: 'Auto Sign-in', page: 'mysettings', keywords: ['device', 'trust', 'remember', 'login'], elementId: 'deviceTrustEnabled' },
+    { name: 'Debug Mode', page: 'mysettings', keywords: ['developer', 'debug', 'logging', 'console'], elementId: 'debugModeEnabled' },
+    { name: 'Theme Color', page: 'mysettings', keywords: ['color', 'appearance', 'theme', 'blue', 'red', 'green'], elementId: 'themePresets' },
+    { name: 'Background Pattern', page: 'mysettings', keywords: ['pattern', 'background', 'aurora', 'stars', 'waves'], elementId: 'patternGrid' },
+    { name: 'Automod Alerts', page: 'mysettings', keywords: ['automod', 'filter', 'notify'], elementId: 'alertAutomod' },
+    { name: 'Command Alerts', page: 'mysettings', keywords: ['command', 'notify'], elementId: 'alertCommands' },
+    { name: 'Punishment Alerts', page: 'mysettings', keywords: ['ban', 'mute', 'kick', 'warn'], elementId: 'alertPunishments' },
+    { name: 'Join/Leave Alerts', page: 'mysettings', keywords: ['join', 'leave', 'connect'], elementId: 'alertJoins' },
+    { name: 'Watchlist Alerts', page: 'mysettings', keywords: ['watchlist', 'monitor', 'notify'], elementId: 'acModeWatchlist' },
+    { name: 'Anticheat Alert Mode', page: 'mysettings', keywords: ['anticheat', 'hack', 'cheat', 'mode'], elementId: 'acModeAll' },
+    { name: 'Chat Lock', page: 'actions', keywords: ['disable', 'mute all', 'lock chat'] },
+    { name: 'Slowmode', page: 'actions', keywords: ['rate limit', 'spam', 'slow'] },
+    { name: 'Kick All', page: 'actions', keywords: ['clear', 'server', 'disconnect'] }
   ];
 
   function performLiveSearch(query) {
@@ -2775,6 +2847,42 @@
         }));
       if (settingMatches.length > 0) {
         results.push({ category: 'Settings', items: settingMatches });
+      }
+
+      // Search automod rules (limit 4)
+      const automodMatches = (state.automodRules || [])
+        .filter(r => r.name?.toLowerCase().includes(q) || r.id?.toLowerCase().includes(q))
+        .slice(0, 4)
+        .map(r => ({
+          type: 'automod',
+          id: r.id,
+          title: r.name || r.id,
+          subtitle: r.enabled ? 'Enabled' : 'Disabled',
+          icon: 'fa-robot',
+          data: r
+        }));
+      if (automodMatches.length > 0) {
+        results.push({ category: 'Automod Rules', items: automodMatches });
+      }
+
+      // Search anticheat checks (limit 4)
+      const anticheatChecks = [];
+      (state.anticheat?.anticheats || []).forEach(ac => {
+        (ac.checks || []).forEach(check => {
+          if (check.name?.toLowerCase().includes(q) || check.displayName?.toLowerCase().includes(q)) {
+            anticheatChecks.push({
+              type: 'anticheat_check',
+              id: `${ac.name}:${check.name}`,
+              title: check.displayName || check.name,
+              subtitle: `${ac.name} - ${check.category || 'Check'}`,
+              icon: 'fa-shield-halved',
+              data: { anticheat: ac.name, check }
+            });
+          }
+        });
+      });
+      if (anticheatChecks.length > 0) {
+        results.push({ category: 'Anticheat Checks', items: anticheatChecks.slice(0, 4) });
       }
 
       // Flatten results for keyboard navigation
@@ -2893,14 +3001,61 @@
         break;
       case 'template':
         go('templates');
-        toast('info', 'Template', result.title);
+        setTimeout(() => {
+          // Try to scroll to the template
+          const templateEl = document.querySelector(`[data-template-id="${result.id}"]`);
+          if (templateEl) {
+            templateEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            templateEl.classList.add('highlight-flash');
+            setTimeout(() => templateEl.classList.remove('highlight-flash'), 2000);
+          }
+        }, 150);
         break;
       case 'page':
         go(result.id);
         break;
       case 'setting':
         go(result.data.page);
-        toast('info', 'Setting', result.title);
+        setTimeout(() => {
+          // Try to scroll to the setting element
+          const elementId = result.data.elementId;
+          if (elementId) {
+            const el = document.getElementById(elementId);
+            if (el) {
+              el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+              el.classList.add('highlight-flash');
+              setTimeout(() => el.classList.remove('highlight-flash'), 2000);
+            }
+          }
+        }, 150);
+        break;
+      case 'automod':
+        go('automod');
+        setTimeout(() => {
+          // Try to scroll to the rule
+          const ruleEl = document.querySelector(`[data-rule-id="${result.id}"]`);
+          if (ruleEl) {
+            ruleEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            ruleEl.classList.add('highlight-flash');
+            setTimeout(() => ruleEl.classList.remove('highlight-flash'), 2000);
+          }
+        }, 150);
+        break;
+      case 'anticheat_check':
+        go('anticheat');
+        setTimeout(() => {
+          // Try to scroll to the check
+          const checkName = result.data?.check?.name;
+          const acName = result.data?.anticheat;
+          if (checkName && acName) {
+            const checkEl = document.querySelector(`[data-check="${checkName}"][data-ac="${acName}"]`);
+            if (checkEl) {
+              checkEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+              checkEl.classList.add('highlight-flash');
+              setTimeout(() => checkEl.classList.remove('highlight-flash'), 2000);
+            }
+          }
+        }, 150);
         break;
     }
 
@@ -3808,6 +3963,10 @@
     const infoBox = document.getElementById('debugModeInfo');
     if (infoBox) infoBox.style.display = newValue ? 'flex' : 'none';
 
+    // Show/hide version badge
+    const versionBadge = document.getElementById('versionBadge');
+    if (versionBadge) versionBadge.style.display = newValue ? 'flex' : 'none';
+
     // Update state
     state.userSettings.debugMode = newValue;
 
@@ -3821,6 +3980,36 @@
     if (newValue) {
       debugLog('SYSTEM', 'Debug mode enabled - you will now see sync and error notifications', 'success');
     }
+  }
+
+  function toggleWatchlistAlerts() {
+    // Initialize userSettings if needed
+    if (!state.userSettings) state.userSettings = {};
+
+    const currentValue = state.userSettings.watchlistAlerts ?? true;
+    const newValue = !currentValue;
+
+    // Update UI
+    const btn = document.getElementById('watchlistAlertsEnabled');
+    if (btn) btn.classList.toggle('on', newValue);
+
+    // Update state
+    state.userSettings.watchlistAlerts = newValue;
+
+    // Save to localStorage
+    saveState();
+
+    // Sync to server
+    const ws = window.MX?.ws;
+    if (ws && ws.isConnected()) {
+      ws.send('UPDATE_USER_SETTINGS', { watchlistAlerts: newValue });
+    }
+
+    // Play click sound
+    window.MX.sounds?.click();
+
+    // Show system message confirming the change
+    systemLog(`Watchlist alerts ${newValue ? 'enabled' : 'disabled'}`, newValue ? 'success' : 'info');
   }
 
   function updateSettingsUI() {
@@ -3844,6 +4033,35 @@
       // Show/hide info box
       const infoBox = document.getElementById('debugModeInfo');
       if (infoBox) infoBox.style.display = debugEnabled ? 'flex' : 'none';
+      // Show/hide version badge
+      const versionBadge = document.getElementById('versionBadge');
+      if (versionBadge) {
+        versionBadge.style.display = debugEnabled ? 'flex' : 'none';
+        // Set version text (DEV-YYYY-DD-MM_build)
+        const versionText = document.getElementById('versionText');
+        if (versionText) {
+          const now = new Date();
+          const year = now.getFullYear();
+          const day = String(now.getDate()).padStart(2, '0');
+          const month = String(now.getMonth() + 1).padStart(2, '0');
+          // Build number stored in localStorage, resets each day
+          const dateKey = `${year}-${month}-${day}`;
+          const storedDate = localStorage.getItem('mx_build_date');
+          let buildNum = parseInt(localStorage.getItem('mx_build_num') || '1', 10);
+          if (storedDate !== dateKey) {
+            buildNum = 1;
+            localStorage.setItem('mx_build_date', dateKey);
+            localStorage.setItem('mx_build_num', '1');
+          }
+          versionText.textContent = `DEV-${year}-${day}-${month}_${buildNum}`;
+        }
+      }
+    }
+
+    // Update watchlist alerts toggle button state
+    const watchlistBtn = document.getElementById('watchlistAlertsEnabled');
+    if (watchlistBtn) {
+      watchlistBtn.classList.toggle('on', state.userSettings?.watchlistAlerts ?? true);
     }
 
     // Update volume if the slider exists
@@ -3865,6 +4083,344 @@
     if (hint) hint.textContent = value + '%';
   }
 
+  // ===== THEME CUSTOMIZATION =====
+
+  /**
+   * Convert hex color to HSL values
+   */
+  function hexToHSL(hex) {
+    let r = parseInt(hex.slice(1, 3), 16) / 255;
+    let g = parseInt(hex.slice(3, 5), 16) / 255;
+    let b = parseInt(hex.slice(5, 7), 16) / 255;
+
+    const max = Math.max(r, g, b), min = Math.min(r, g, b);
+    let h, s, l = (max + min) / 2;
+
+    if (max === min) {
+      h = s = 0;
+    } else {
+      const d = max - min;
+      s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
+      switch (max) {
+        case r: h = ((g - b) / d + (g < b ? 6 : 0)) / 6; break;
+        case g: h = ((b - r) / d + 2) / 6; break;
+        case b: h = ((r - g) / d + 4) / 6; break;
+      }
+    }
+    return { h: h * 360, s: s * 100, l: l * 100 };
+  }
+
+  /**
+   * Convert HSL to hex color
+   */
+  function hslToHex(h, s, l) {
+    s /= 100;
+    l /= 100;
+    const a = s * Math.min(l, 1 - l);
+    const f = n => {
+      const k = (n + h / 30) % 12;
+      const color = l - a * Math.max(Math.min(k - 3, 9 - k, 1), -1);
+      return Math.round(255 * color).toString(16).padStart(2, '0');
+    };
+    return `#${f(0)}${f(8)}${f(4)}`;
+  }
+
+  /**
+   * Set the theme color and apply it to the entire panel
+   */
+  function setThemeColor(color) {
+    const root = document.documentElement;
+    const hsl = hexToHSL(color);
+
+    // Generate color variants
+    const colorLight = hslToHex(hsl.h, Math.min(hsl.s + 15, 100), Math.min(hsl.l + 15, 85));
+    const colorDark = hslToHex(hsl.h, hsl.s, Math.max(hsl.l - 15, 15));
+
+    // Extract RGB for glow
+    const r = parseInt(color.slice(1, 3), 16);
+    const g = parseInt(color.slice(3, 5), 16);
+    const b = parseInt(color.slice(5, 7), 16);
+    const colorGlow = `rgba(${r}, ${g}, ${b}, 0.35)`;
+
+    // Apply CSS variables
+    root.style.setProperty('--primary', color);
+    root.style.setProperty('--primary-light', colorLight);
+    root.style.setProperty('--primary-dark', colorDark);
+    root.style.setProperty('--primary-glow', colorGlow);
+    root.style.setProperty('--line-glow', `rgba(${r}, ${g}, ${b}, 0.22)`);
+
+    // Check if it's a light color - add text shadows for readability
+    const isLight = hsl.l > 60;
+    document.body.classList.toggle('light-theme-text', isLight);
+
+    // Update preset buttons
+    document.querySelectorAll('.theme-preset').forEach(btn => {
+      btn.classList.toggle('active', btn.dataset.color === color);
+    });
+
+    // Update custom color picker
+    const picker = document.getElementById('customColorPicker');
+    if (picker) picker.value = color;
+
+    // Save to state
+    if (!state.userSettings) state.userSettings = {};
+    state.userSettings.themeColor = color;
+    saveState();
+
+    // Sync to server
+    const ws = window.MX?.ws;
+    if (ws && ws.isConnected()) {
+      ws.send('UPDATE_USER_SETTINGS', { themeColor: color });
+    }
+
+    // Update background pattern colors if applicable
+    applyBackgroundPattern(state.userSettings.backgroundPattern || 'aurora');
+
+    window.MX.sounds?.click();
+  }
+
+  /**
+   * Set the background pattern
+   */
+  function setBackgroundPattern(pattern) {
+    // Update button states
+    document.querySelectorAll('.pattern-btn').forEach(btn => {
+      btn.classList.toggle('active', btn.dataset.pattern === pattern);
+    });
+
+    // Apply the pattern
+    applyBackgroundPattern(pattern);
+
+    // Save to state
+    if (!state.userSettings) state.userSettings = {};
+    state.userSettings.backgroundPattern = pattern;
+    saveState();
+
+    // Sync to server
+    const ws = window.MX?.ws;
+    if (ws && ws.isConnected()) {
+      ws.send('UPDATE_USER_SETTINGS', { backgroundPattern: pattern });
+    }
+
+    window.MX.sounds?.click();
+  }
+
+  /**
+   * Apply background pattern to the body
+   */
+  function applyBackgroundPattern(pattern) {
+    const body = document.body;
+    const color = state.userSettings?.themeColor || '#2d7aed';
+    const r = parseInt(color.slice(1, 3), 16);
+    const g = parseInt(color.slice(3, 5), 16);
+    const b = parseInt(color.slice(5, 7), 16);
+    const accent = '#7c5cff';
+    const ar = 124, ag = 92, ab = 255;
+
+    let bg;
+    switch (pattern) {
+      case 'aurora':
+      default:
+        bg = `
+          radial-gradient(ellipse 1400px 900px at 10% 15%, rgba(${r}, ${g}, ${b}, 0.18), transparent 55%),
+          radial-gradient(ellipse 1200px 800px at 90% 80%, rgba(${ar}, ${ag}, ${ab}, 0.12), transparent 50%),
+          radial-gradient(ellipse 800px 600px at 50% 100%, rgba(16, 185, 129, 0.08), transparent 50%),
+          linear-gradient(180deg, var(--bg0), var(--bg1))
+        `;
+        break;
+      case 'waves':
+        bg = `
+          repeating-linear-gradient(
+            -45deg,
+            transparent,
+            transparent 8px,
+            rgba(${r}, ${g}, ${b}, 0.08) 8px,
+            rgba(${r}, ${g}, ${b}, 0.08) 16px
+          ),
+          repeating-linear-gradient(
+            45deg,
+            transparent,
+            transparent 8px,
+            rgba(${ar}, ${ag}, ${ab}, 0.05) 8px,
+            rgba(${ar}, ${ag}, ${ab}, 0.05) 16px
+          ),
+          linear-gradient(180deg, var(--bg0), var(--bg1))
+        `;
+        break;
+      case 'stars':
+        bg = `
+          radial-gradient(1.5px 1.5px at 10% 20%, rgba(255,255,255,0.8), transparent),
+          radial-gradient(1px 1px at 30% 60%, rgba(255,255,255,0.6), transparent),
+          radial-gradient(1.5px 1.5px at 50% 30%, rgba(255,255,255,0.7), transparent),
+          radial-gradient(1px 1px at 70% 70%, rgba(255,255,255,0.5), transparent),
+          radial-gradient(2px 2px at 90% 40%, rgba(${r}, ${g}, ${b}, 0.8), transparent),
+          radial-gradient(1px 1px at 15% 85%, rgba(255,255,255,0.6), transparent),
+          radial-gradient(2px 2px at 25% 15%, rgba(${ar}, ${ag}, ${ab}, 0.7), transparent),
+          radial-gradient(1px 1px at 85% 85%, rgba(255,255,255,0.5), transparent),
+          radial-gradient(1.5px 1.5px at 45% 45%, rgba(255,255,255,0.6), transparent),
+          radial-gradient(1px 1px at 65% 15%, rgba(255,255,255,0.4), transparent),
+          radial-gradient(ellipse 800px 600px at 50% 100%, rgba(${r}, ${g}, ${b}, 0.05), transparent 50%),
+          linear-gradient(180deg, var(--bg0), var(--bg1))
+        `;
+        break;
+      case 'grid':
+        bg = `
+          linear-gradient(rgba(${r}, ${g}, ${b}, 0.06) 1px, transparent 1px),
+          linear-gradient(90deg, rgba(${r}, ${g}, ${b}, 0.06) 1px, transparent 1px),
+          radial-gradient(ellipse 800px 600px at 50% 0%, rgba(${r}, ${g}, ${b}, 0.1), transparent 60%),
+          linear-gradient(180deg, var(--bg0), var(--bg1))
+        `;
+        body.style.backgroundSize = '40px 40px, 40px 40px, 100% 100%, 100% 100%';
+        break;
+      case 'circuits':
+        bg = `
+          linear-gradient(90deg, transparent 49.5%, rgba(${r}, ${g}, ${b}, 0.08) 49.5%, rgba(${r}, ${g}, ${b}, 0.08) 50.5%, transparent 50.5%),
+          linear-gradient(transparent 49.5%, rgba(${r}, ${g}, ${b}, 0.08) 49.5%, rgba(${r}, ${g}, ${b}, 0.08) 50.5%, transparent 50.5%),
+          radial-gradient(circle at 25% 25%, rgba(${r}, ${g}, ${b}, 0.2) 2px, transparent 2px),
+          radial-gradient(circle at 75% 75%, rgba(${ar}, ${ag}, ${ab}, 0.15) 2px, transparent 2px),
+          radial-gradient(ellipse 600px 400px at 20% 80%, rgba(${r}, ${g}, ${b}, 0.08), transparent 50%),
+          linear-gradient(180deg, var(--bg0), var(--bg1))
+        `;
+        body.style.backgroundSize = '60px 60px, 60px 60px, 60px 60px, 60px 60px, 100% 100%, 100% 100%';
+        break;
+      case 'hexagons':
+        bg = `
+          radial-gradient(circle at 0% 50%, rgba(${r}, ${g}, ${b}, 0.1) 2px, transparent 2px),
+          radial-gradient(circle at 100% 50%, rgba(${r}, ${g}, ${b}, 0.1) 2px, transparent 2px),
+          radial-gradient(circle at 50% 0%, rgba(${ar}, ${ag}, ${ab}, 0.08) 2px, transparent 2px),
+          radial-gradient(circle at 50% 100%, rgba(${ar}, ${ag}, ${ab}, 0.08) 2px, transparent 2px),
+          radial-gradient(ellipse 600px 400px at 80% 20%, rgba(${r}, ${g}, ${b}, 0.1), transparent 50%),
+          linear-gradient(180deg, var(--bg0), var(--bg1))
+        `;
+        body.style.backgroundSize = '50px 50px, 50px 50px, 50px 50px, 50px 50px, 100% 100%, 100% 100%';
+        break;
+      case 'particles':
+        bg = `
+          radial-gradient(circle at 15% 25%, rgba(${r}, ${g}, ${b}, 0.5) 2px, transparent 2px),
+          radial-gradient(circle at 45% 65%, rgba(${ar}, ${ag}, ${ab}, 0.4) 2px, transparent 2px),
+          radial-gradient(circle at 75% 35%, rgba(16, 185, 129, 0.4) 2px, transparent 2px),
+          radial-gradient(circle at 85% 85%, rgba(${r}, ${g}, ${b}, 0.3) 3px, transparent 3px),
+          radial-gradient(circle at 25% 75%, rgba(${ar}, ${ag}, ${ab}, 0.3) 3px, transparent 3px),
+          radial-gradient(circle at 55% 15%, rgba(${r}, ${g}, ${b}, 0.2) 2px, transparent 2px),
+          radial-gradient(circle at 35% 45%, rgba(16, 185, 129, 0.25) 2px, transparent 2px),
+          radial-gradient(circle at 65% 90%, rgba(${ar}, ${ag}, ${ab}, 0.2) 2px, transparent 2px),
+          linear-gradient(180deg, var(--bg0), var(--bg1))
+        `;
+        break;
+      case 'nebula':
+        bg = `
+          radial-gradient(ellipse 600px 500px at 30% 40%, rgba(${ar}, ${ag}, ${ab}, 0.25), transparent 50%),
+          radial-gradient(ellipse 500px 400px at 70% 60%, rgba(236, 72, 153, 0.18), transparent 50%),
+          radial-gradient(ellipse 700px 500px at 50% 50%, rgba(${r}, ${g}, ${b}, 0.12), transparent 60%),
+          radial-gradient(ellipse 300px 200px at 20% 80%, rgba(16, 185, 129, 0.1), transparent 50%),
+          linear-gradient(180deg, var(--bg0), var(--bg1))
+        `;
+        break;
+      case 'matrix':
+        bg = `
+          repeating-linear-gradient(
+            180deg,
+            transparent,
+            transparent 3px,
+            rgba(16, 185, 129, 0.04) 3px,
+            rgba(16, 185, 129, 0.04) 6px
+          ),
+          linear-gradient(180deg, rgba(16, 185, 129, 0.15) 0%, transparent 70%),
+          radial-gradient(ellipse 600px 400px at 50% 0%, rgba(16, 185, 129, 0.1), transparent 60%),
+          linear-gradient(180deg, var(--bg0), var(--bg1))
+        `;
+        break;
+      case 'rain':
+        bg = `
+          repeating-linear-gradient(
+            180deg,
+            transparent,
+            transparent 20px,
+            rgba(${r}, ${g}, ${b}, 0.08) 20px,
+            rgba(${r}, ${g}, ${b}, 0.08) 22px
+          ),
+          repeating-linear-gradient(
+            180deg,
+            transparent 10px,
+            transparent 30px,
+            rgba(${r}, ${g}, ${b}, 0.05) 30px,
+            rgba(${r}, ${g}, ${b}, 0.05) 32px
+          ),
+          radial-gradient(ellipse 800px 400px at 50% 100%, rgba(${r}, ${g}, ${b}, 0.1), transparent 60%),
+          linear-gradient(180deg, var(--bg0), var(--bg1))
+        `;
+        body.style.backgroundSize = '4px 100%, 9px 100%, 100% 100%, 100% 100%';
+        break;
+      case 'geometric':
+        bg = `
+          linear-gradient(135deg, transparent 46%, rgba(${r}, ${g}, ${b}, 0.06) 46%, rgba(${r}, ${g}, ${b}, 0.06) 54%, transparent 54%),
+          linear-gradient(-135deg, transparent 46%, rgba(${ar}, ${ag}, ${ab}, 0.04) 46%, rgba(${ar}, ${ag}, ${ab}, 0.04) 54%, transparent 54%),
+          radial-gradient(ellipse 600px 400px at 50% 50%, rgba(${r}, ${g}, ${b}, 0.08), transparent 60%),
+          linear-gradient(180deg, var(--bg0), var(--bg1))
+        `;
+        body.style.backgroundSize = '60px 60px, 60px 60px, 100% 100%, 100% 100%';
+        break;
+      case 'gradient':
+        bg = `
+          linear-gradient(135deg, var(--bg0) 0%, rgba(${r}, ${g}, ${b}, 0.08) 50%, var(--bg0) 100%)
+        `;
+        break;
+      case 'minimal':
+        bg = `linear-gradient(180deg, var(--bg0), var(--bg1))`;
+        break;
+    }
+
+    body.style.background = bg;
+
+    // Reset background-size for patterns that don't need custom sizes
+    if (!['grid', 'circuits', 'hexagons', 'rain', 'geometric'].includes(pattern)) {
+      body.style.backgroundSize = '';
+    }
+  }
+
+  /**
+   * Apply theme settings from saved state on page load
+   */
+  function applyThemeFromState() {
+    const color = state.userSettings?.themeColor || '#2d7aed';
+    const pattern = state.userSettings?.backgroundPattern || 'aurora';
+
+    // Apply color without triggering save
+    const root = document.documentElement;
+    const hsl = hexToHSL(color);
+    const colorLight = hslToHex(hsl.h, Math.min(hsl.s + 15, 100), Math.min(hsl.l + 15, 85));
+    const colorDark = hslToHex(hsl.h, hsl.s, Math.max(hsl.l - 15, 15));
+    const r = parseInt(color.slice(1, 3), 16);
+    const g = parseInt(color.slice(3, 5), 16);
+    const b = parseInt(color.slice(5, 7), 16);
+
+    root.style.setProperty('--primary', color);
+    root.style.setProperty('--primary-light', colorLight);
+    root.style.setProperty('--primary-dark', colorDark);
+    root.style.setProperty('--primary-glow', `rgba(${r}, ${g}, ${b}, 0.35)`);
+    root.style.setProperty('--line-glow', `rgba(${r}, ${g}, ${b}, 0.22)`);
+
+    const isLight = hsl.l > 60;
+    document.body.classList.toggle('light-theme-text', isLight);
+
+    // Update preset buttons
+    document.querySelectorAll('.theme-preset').forEach(btn => {
+      btn.classList.toggle('active', btn.dataset.color === color);
+    });
+
+    // Update pattern buttons
+    document.querySelectorAll('.pattern-btn').forEach(btn => {
+      btn.classList.toggle('active', btn.dataset.pattern === pattern);
+    });
+
+    // Update custom color picker
+    const picker = document.getElementById('customColorPicker');
+    if (picker) picker.value = color;
+
+    // Apply background pattern
+    applyBackgroundPattern(pattern);
+  }
+
   // Expose new functions globally
   window.attemptReconnect = attemptReconnect;
   window.toggleSidebar = toggleSidebar;
@@ -3877,7 +4433,11 @@
   window.togglePanelSounds = togglePanelSounds;
   window.toggleDeviceTrust = toggleDeviceTrust;
   window.toggleDebugMode = toggleDebugMode;
+  window.toggleWatchlistAlerts = toggleWatchlistAlerts;
   window.setVolume = setVolume;
+  window.setThemeColor = setThemeColor;
+  window.setBackgroundPattern = setBackgroundPattern;
+  window.applyThemeFromState = applyThemeFromState;
   window.showDisconnect = showDisconnect;
   window.hideDisconnect = hideDisconnect;
 
@@ -3895,6 +4455,7 @@
     ui.refreshUnsavedUI();
     go('dashboard');
     applyMySettingsUI();
+    applyThemeFromState();
     setInterval(saveState, 4000);
     window.addEventListener('beforeunload', saveState);
   });

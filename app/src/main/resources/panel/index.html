@@ -201,6 +201,7 @@
       <!-- Topbar -->
       <header class="topbar">
         <button class="sidebarToggle" id="sidebarToggle" onclick="toggleSidebar()"><i class="fa-solid fa-bars"></i></button>
+        <span class="version-badge" id="versionBadge" style="display:none"><i class="fa-solid fa-code-branch"></i> <span id="versionText">DEV</span></span>
         <div class="gsearch-container">
           <div class="gsearch">
             <i class="fa-solid fa-magnifying-glass"></i>
@@ -1039,6 +1040,109 @@
               </div>
             </div>
 
+            <!-- Appearance & Theme -->
+            <div class="card">
+              <h3><i class="fa-solid fa-palette" style="color:var(--primary-light)"></i> Appearance</h3>
+              <p>Customize the panel's colors and background pattern to your preference.</p>
+
+              <!-- Theme Color -->
+              <div class="settings-section" style="margin-top:18px">
+                <div class="settings-row-text" style="margin-bottom:12px">
+                  <div class="settings-row-title"><i class="fa-solid fa-droplet" style="color:var(--primary);margin-right:8px"></i>Theme Color</div>
+                  <div class="settings-row-sub">Choose a preset or pick a custom color</div>
+                </div>
+                <div class="theme-presets" id="themePresets">
+                  <button class="theme-preset active" data-color="#2d7aed" onclick="setThemeColor('#2d7aed')" title="Blue (Default)">
+                    <span class="preset-swatch" style="background:#2d7aed"></span>
+                  </button>
+                  <button class="theme-preset" data-color="#ef4444" onclick="setThemeColor('#ef4444')" title="Red">
+                    <span class="preset-swatch" style="background:#ef4444"></span>
+                  </button>
+                  <button class="theme-preset" data-color="#f97316" onclick="setThemeColor('#f97316')" title="Orange">
+                    <span class="preset-swatch" style="background:#f97316"></span>
+                  </button>
+                  <button class="theme-preset" data-color="#22c55e" onclick="setThemeColor('#22c55e')" title="Green">
+                    <span class="preset-swatch" style="background:#22c55e"></span>
+                  </button>
+                  <button class="theme-preset" data-color="#a855f7" onclick="setThemeColor('#a855f7')" title="Purple">
+                    <span class="preset-swatch" style="background:#a855f7"></span>
+                  </button>
+                  <button class="theme-preset" data-color="#eab308" onclick="setThemeColor('#eab308')" title="Gold">
+                    <span class="preset-swatch" style="background:#eab308"></span>
+                  </button>
+                  <button class="theme-preset" data-color="#ec4899" onclick="setThemeColor('#ec4899')" title="Magenta">
+                    <span class="preset-swatch" style="background:#ec4899"></span>
+                  </button>
+                  <label class="theme-preset custom" title="Custom Color">
+                    <input type="color" id="customColorPicker" value="#2d7aed" onchange="setThemeColor(this.value)">
+                    <span class="preset-swatch custom-swatch"><i class="fa-solid fa-eyedropper"></i></span>
+                  </label>
+                </div>
+              </div>
+
+              <!-- Background Pattern -->
+              <div class="settings-section" style="margin-top:24px">
+                <div class="settings-row-text" style="margin-bottom:12px">
+                  <div class="settings-row-title"><i class="fa-solid fa-image" style="color:var(--accent);margin-right:8px"></i>Background Pattern</div>
+                  <div class="settings-row-sub">Select a background style for the panel</div>
+                </div>
+                <div class="pattern-grid" id="patternGrid">
+                  <button class="pattern-btn active" data-pattern="aurora" onclick="setBackgroundPattern('aurora')" title="Aurora (Default)">
+                    <div class="pattern-preview aurora"></div>
+                    <span>Aurora</span>
+                  </button>
+                  <button class="pattern-btn" data-pattern="waves" onclick="setBackgroundPattern('waves')" title="Waves">
+                    <div class="pattern-preview waves"></div>
+                    <span>Waves</span>
+                  </button>
+                  <button class="pattern-btn" data-pattern="stars" onclick="setBackgroundPattern('stars')" title="Stars">
+                    <div class="pattern-preview stars"></div>
+                    <span>Stars</span>
+                  </button>
+                  <button class="pattern-btn" data-pattern="grid" onclick="setBackgroundPattern('grid')" title="Grid">
+                    <div class="pattern-preview grid"></div>
+                    <span>Grid</span>
+                  </button>
+                  <button class="pattern-btn" data-pattern="circuits" onclick="setBackgroundPattern('circuits')" title="Circuits">
+                    <div class="pattern-preview circuits"></div>
+                    <span>Circuits</span>
+                  </button>
+                  <button class="pattern-btn" data-pattern="hexagons" onclick="setBackgroundPattern('hexagons')" title="Hexagons">
+                    <div class="pattern-preview hexagons"></div>
+                    <span>Hexagons</span>
+                  </button>
+                  <button class="pattern-btn" data-pattern="particles" onclick="setBackgroundPattern('particles')" title="Particles">
+                    <div class="pattern-preview particles"></div>
+                    <span>Particles</span>
+                  </button>
+                  <button class="pattern-btn" data-pattern="nebula" onclick="setBackgroundPattern('nebula')" title="Nebula">
+                    <div class="pattern-preview nebula"></div>
+                    <span>Nebula</span>
+                  </button>
+                  <button class="pattern-btn" data-pattern="matrix" onclick="setBackgroundPattern('matrix')" title="Matrix">
+                    <div class="pattern-preview matrix"></div>
+                    <span>Matrix</span>
+                  </button>
+                  <button class="pattern-btn" data-pattern="rain" onclick="setBackgroundPattern('rain')" title="Rain">
+                    <div class="pattern-preview rain"></div>
+                    <span>Rain</span>
+                  </button>
+                  <button class="pattern-btn" data-pattern="geometric" onclick="setBackgroundPattern('geometric')" title="Geometric">
+                    <div class="pattern-preview geometric"></div>
+                    <span>Geometric</span>
+                  </button>
+                  <button class="pattern-btn" data-pattern="gradient" onclick="setBackgroundPattern('gradient')" title="Gradient">
+                    <div class="pattern-preview gradient"></div>
+                    <span>Gradient</span>
+                  </button>
+                  <button class="pattern-btn" data-pattern="minimal" onclick="setBackgroundPattern('minimal')" title="Minimal">
+                    <div class="pattern-preview minimal"></div>
+                    <span>Minimal</span>
+                  </button>
+                </div>
+              </div>
+            </div>
+
             <!-- In-Game Staff Notification Settings -->
             <div class="card">
               <h3><i class="fa-solid fa-server" style="color:var(--accent)"></i> In-Game Notification Settings</h3>
@@ -1061,6 +1165,26 @@
                   </div>
                 </div>
                 <button class="toggle" id="deviceTrustEnabled" onclick="toggleDeviceTrust()"><span class="toggle-thumb"></span></button>
+              </div>
+            </div>
+
+            <!-- Panel Notifications -->
+            <div class="card">
+              <h3><i class="fa-solid fa-bell-concierge" style="color:var(--accent-light)"></i> Panel Notifications</h3>
+              <p>Configure on-screen notification alerts that appear at the bottom of the panel.</p>
+              <div class="settings-row" style="margin-top:14px">
+                <div class="settings-row-left">
+                  <div class="settings-row-icon yellow"><i class="fa-solid fa-eye"></i></div>
+                  <div class="settings-row-text">
+                    <div class="settings-row-title">Watchlist Alerts</div>
+                    <div class="settings-row-sub">Show on-screen alerts when watchlisted players trigger events</div>
+                  </div>
+                </div>
+                <button class="toggle on" id="watchlistAlertsEnabled" onclick="toggleWatchlistAlerts()"><span class="toggle-thumb"></span></button>
+              </div>
+              <div class="info-box" style="margin-top:12px">
+                <i class="fa-solid fa-info-circle" style="color:var(--warn)"></i>
+                <span>System messages (plugin updates, status checks) are always shown regardless of this setting.</span>
               </div>
             </div>
 
@@ -1590,16 +1714,6 @@
           <div class="hintline" style="margin-top:0;display:flex;justify-content:space-between">Reason <span id="punishReasonCount" style="color:var(--text-secondary);font-weight:normal">0/100</span></div>
           <textarea class="input" id="punishReason" placeholder="Enter reason for punishment..." rows="2" maxlength="100" oninput="updateCharCount(this, 'punishReasonCount', 100)"></textarea>
         </div>
-
-        <div style="margin-top:16px">
-          <div class="hintline" style="margin-top:0">Attach Evidence</div>
-          <select class="input" id="punishEvidencePick">
-            <option value="">(none)</option>
-          </select>
-          <div class="card" id="punishEvidencePreview" style="max-height:160px;overflow:auto">
-            <span style="color:var(--muted)">No evidence attached.</span>
-          </div>
-        </div>
       </div>
       <div class="modal-foot">
         <span class="badge gray"><i class="fa-solid fa-circle-info"></i> Review before submitting</span>
@@ -1654,16 +1768,6 @@
         <div style="margin-top:16px">
           <div class="hintline" style="margin-top:0;display:flex;justify-content:space-between">Reason <span id="punishCreateReasonCount" style="color:var(--text-secondary);font-weight:normal">0/100</span></div>
           <textarea class="input" id="punishCreateReason" placeholder="Enter reason for punishment..." rows="2" maxlength="100" oninput="updateCharCount(this, 'punishCreateReasonCount', 100)"></textarea>
-        </div>
-
-        <div style="margin-top:16px">
-          <div class="hintline" style="margin-top:0">Attach Evidence</div>
-          <select class="input" id="punishCreateEvidencePick">
-            <option value="">(none)</option>
-          </select>
-          <div class="card" id="punishCreateEvidencePreview" style="max-height:160px;overflow:auto">
-            <span style="color:var(--muted)">No evidence attached.</span>
-          </div>
         </div>
       </div>
       <div class="modal-foot">
