@@ -5,6 +5,7 @@ import com.blockforge.moderex.config.lang.MessageKey;
 import com.blockforge.moderex.punishment.Punishment;
 import com.blockforge.moderex.punishment.PunishmentType;
 import com.blockforge.moderex.replay.ReplaySnapshot;
+import com.blockforge.moderex.util.TextUtil;
 import org.bukkit.Bukkit;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
@@ -203,14 +204,10 @@ public class CommandListener implements Listener {
             }
 
             // Build and send the alert
-            String prefix = isWatched ? "<yellow>[WL] </yellow>" : "";
-            staff.sendMessage(plugin.getLanguageManager().parse(
-                    "<dark_gray>[<gradient:#a855f7:#ec4899>PM</gradient>]</dark_gray> " +
-                    prefix + "<gray><player></gray> <dark_gray>→</dark_gray> <gray><target></gray>: <white><message></white>",
-                    "player", sender.getName(),
-                    "target", targetName,
-                    "message", message
-            ));
+            String wlPrefix = isWatched ? "<yellow>[WL] </yellow>" : "";
+            String alertMsg = "<dark_gray>[<gradient:#a855f7:#ec4899>PM</gradient>]</dark_gray> " +
+                    wlPrefix + "<gray>" + sender.getName() + "</gray> <dark_gray>→</dark_gray> <gray>" + targetName + "</gray>: <white>" + message + "</white>";
+            staff.sendMessage(TextUtil.parse(alertMsg));
         }
 
         // Also send to web panel if enabled

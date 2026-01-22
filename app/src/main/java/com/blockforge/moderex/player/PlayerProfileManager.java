@@ -146,6 +146,28 @@ public class PlayerProfileManager {
         return knownPlayers.size();
     }
 
+    /**
+     * Get the prefix for a player. Uses LuckPerms if available.
+     * @param player The player to get prefix for
+     * @return The player's prefix or empty string if none
+     */
+    public String getPrefix(Player player) {
+        // Try LuckPerms if available
+        if (plugin.getServer().getPluginManager().isPluginEnabled("LuckPerms")) {
+            try {
+                net.luckperms.api.LuckPerms luckPerms = net.luckperms.api.LuckPermsProvider.get();
+                net.luckperms.api.model.user.User user = luckPerms.getUserManager().getUser(player.getUniqueId());
+                if (user != null) {
+                    String prefix = user.getCachedData().getMetaData().getPrefix();
+                    return prefix != null ? prefix : "";
+                }
+            } catch (Exception e) {
+                // LuckPerms not properly loaded
+            }
+        }
+        return "";
+    }
+
     public List<PlayerProfile> searchPlayers(String query) {
         String lowerQuery = query.toLowerCase();
         List<PlayerProfile> results = new ArrayList<>();

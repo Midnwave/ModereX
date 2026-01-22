@@ -129,7 +129,11 @@ public class AnticheatManager {
         }
     }
 
-    private void handleAlert(AnticheatHook.AnticheatAlert alert) {
+    /**
+     * Handle an anticheat alert. This is called by anticheat hooks when a player triggers an alert.
+     * Can also be called directly by external anticheats via the API.
+     */
+    public void handleAlert(AnticheatHook.AnticheatAlert alert) {
         Player target = alert.getPlayer();
         String anticheat = alert.getAnticheat();
         String checkName = alert.getCheckName();

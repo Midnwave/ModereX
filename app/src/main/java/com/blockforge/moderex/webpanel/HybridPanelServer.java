@@ -3452,6 +3452,19 @@ public class HybridPanelServer {
         broadcast(GSON.toJson(json));
     }
 
+    public void broadcastPrivateMessage(String senderName, UUID senderUuid, String targetName, String message) {
+        JsonObject json = new JsonObject();
+        json.addProperty("type", "PRIVATE_MESSAGE");
+        JsonObject data = new JsonObject();
+        data.addProperty("senderName", senderName);
+        data.addProperty("senderUuid", senderUuid.toString());
+        data.addProperty("targetName", targetName);
+        data.addProperty("message", message);
+        data.addProperty("timestamp", System.currentTimeMillis());
+        json.add("data", data);
+        broadcast(GSON.toJson(json));
+    }
+
     public void broadcastCommand(String playerName, UUID playerUuid, String command) {
         JsonObject json = new JsonObject();
         json.addProperty("type", "COMMAND_EXECUTED");
