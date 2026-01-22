@@ -5,7 +5,10 @@ import com.blockforge.moderex.commands.BaseCommand;
 import com.blockforge.moderex.config.lang.MessageKey;
 import com.blockforge.moderex.util.TimeUtil;
 import net.kyori.adventure.text.Component;
+import net.kyori.adventure.text.event.ClickEvent;
+import net.kyori.adventure.text.event.HoverEvent;
 import net.kyori.adventure.text.format.NamedTextColor;
+import net.kyori.adventure.text.format.TextDecoration;
 import org.bukkit.Bukkit;
 import org.bukkit.OfflinePlayer;
 import org.bukkit.command.CommandSender;
@@ -100,9 +103,8 @@ public class CmdHistoryCommand extends BaseCommand {
                         }
                     }
 
-                    sender.sendMessage(plugin.getLanguageManager().get(MessageKey.CMD_HISTORY_FOOTER,
-                            "page", String.valueOf(finalPage),
-                            "total", String.valueOf(finalTotalPages)));
+                    // Build clickable navigation footer
+                    sender.sendMessage(buildNavigationFooter(displayName, finalPage, finalTotalPages));
                 });
             } catch (SQLException e) {
                 plugin.logError("Failed to fetch command history", e);
@@ -110,6 +112,48 @@ public class CmdHistoryCommand extends BaseCommand {
                         sendMessage(sender, "<red>Failed to fetch command history."));
             }
         });
+    }
+
+    /**
+     * Builds a clickable navigation footer with page navigation buttons.
+     * Similar to WorldGuard's /rg flags command navigation.
+     */
+    private Component buildNavigationFooter(String playerName, int currentPage, int totalPages) {
+        Component footer = Component.text("« ", NamedTextColor.DARK_GRAY);
+
+        // Previous page button
+        if (currentPage > 1) {
+            footer = footer.append(
+                    Component.text("[◀ Prev]", NamedTextColor.GOLD)
+                            .decorate(TextDecoration.BOLD)
+                            .clickEvent(ClickEvent.runCommand("/mx commandhistory " + playerName + " " + (currentPage - 1)))
+                            .hoverEvent(HoverEvent.showText(Component.text("Go to page " + (currentPage - 1), NamedTextColor.YELLOW)))
+            );
+        } else {
+            footer = footer.append(Component.text("[◀ Prev]", NamedTextColor.DARK_GRAY));
+        }
+
+        // Page indicator
+        footer = footer.append(Component.text(" — ", NamedTextColor.DARK_GRAY))
+                .append(Component.text("Page ", NamedTextColor.GRAY))
+                .append(Component.text(currentPage, NamedTextColor.GOLD))
+                .append(Component.text("/", NamedTextColor.GRAY))
+                .append(Component.text(totalPages, NamedTextColor.GOLD))
+                .append(Component.text(" — ", NamedTextColor.DARK_GRAY));
+
+        // Next page button
+        if (currentPage < totalPages) {
+            footer = footer.append(
+                    Component.text("[Next ▶]", NamedTextColor.GOLD)
+                            .decorate(TextDecoration.BOLD)
+                            .clickEvent(ClickEvent.runCommand("/mx commandhistory " + playerName + " " + (currentPage + 1)))
+                            .hoverEvent(HoverEvent.showText(Component.text("Go to page " + (currentPage + 1), NamedTextColor.YELLOW)))
+            );
+        } else {
+            footer = footer.append(Component.text("[Next ▶]", NamedTextColor.DARK_GRAY));
+        }
+
+        return footer.append(Component.text(" »", NamedTextColor.DARK_GRAY));
     }
 
     @Override
