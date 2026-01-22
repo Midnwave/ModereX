@@ -1493,20 +1493,50 @@ public class HybridPanelServer {
             r.addProperty("builtIn", rule.isBuiltIn());
             r.addProperty("priority", rule.getPriority());
             r.addProperty("exactMatch", rule.isExactMatch());
+            r.addProperty("description", rule.getDescription() != null ? rule.getDescription() : "");
 
+            // Spam protection settings
+            r.addProperty("spamMessageCount", rule.getSpamMessageCount());
+            r.addProperty("spamTimeWindowSeconds", rule.getSpamTimeWindowSeconds());
+            r.addProperty("spamDetectSimilar", rule.isSpamDetectSimilar());
+            r.addProperty("spamSimilarityThreshold", rule.getSpamSimilarityThreshold());
+
+            // Caps filter settings
+            r.addProperty("capsMaxPercentage", rule.getCapsMaxPercentage());
+            r.addProperty("capsMinLength", rule.getCapsMinLength());
+
+            // AFK settings
+            r.addProperty("afkTimeoutMinutes", rule.getAfkTimeoutMinutes());
+            r.addProperty("afkKickEnabled", rule.isAfkKickEnabled());
+
+            // Anticheat settings
+            r.addProperty("anticheatName", rule.getAnticheatName() != null ? rule.getAnticheatName() : "");
+            r.addProperty("checkName", rule.getCheckName() != null ? rule.getCheckName() : "");
+            r.addProperty("anticheatAlertThreshold", rule.getAnticheatAlertThreshold());
+            r.addProperty("anticheatTimeWindowSeconds", rule.getAnticheatTimeWindowSeconds());
+
+            // Flag action and filter mode
+            r.addProperty("flagAction", rule.getFlagAction() != null ? rule.getFlagAction().name() : "BLOCK");
+            r.addProperty("filterMode", rule.getFilterMode() != null ? rule.getFilterMode().name() : "CONTAINS_PHRASE");
+
+            // Blacklisted words/phrases
             com.google.gson.JsonArray blacklist = new com.google.gson.JsonArray();
             for (String word : rule.getBlacklistedWords()) {
                 blacklist.add(word);
             }
             r.add("blacklistedWords", blacklist);
+            r.add("blacklistedPhrases", blacklist);
 
+            // Exclusion/whitelist words
             com.google.gson.JsonArray whitelist = new com.google.gson.JsonArray();
             for (String word : rule.getExclusionWords()) {
                 whitelist.add(word);
             }
             r.add("exclusionWords", whitelist);
+            r.add("exclusionPhrases", whitelist);
             r.add("whitelist", whitelist);
 
+            // Auto punishment
             if (rule.getAutoPunishment() != null) {
                 JsonObject ap = new JsonObject();
                 ap.addProperty("enabled", rule.getAutoPunishment().isEnabled());
@@ -1514,6 +1544,7 @@ public class HybridPanelServer {
                 ap.addProperty("duration", rule.getAutoPunishment().getDuration());
                 ap.addProperty("triggerCount", rule.getAutoPunishment().getTriggerCount());
                 ap.addProperty("timeWindow", rule.getAutoPunishment().getTimeWindow());
+                ap.addProperty("reason", rule.getAutoPunishment().getReason() != null ? rule.getAutoPunishment().getReason() : "");
                 r.add("autoPunishment", ap);
             }
 
