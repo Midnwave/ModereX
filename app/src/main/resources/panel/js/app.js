@@ -1985,8 +1985,6 @@
     const ws = window.MX?.ws;
     if (ws && ws.isConnected()) {
       ws.requestAnticheatAlerts();
-      ws.requestStaffAlertPrefs();
-      ws.requestAlertPresets();
       toast('info', 'Refreshing', 'Loading anticheat data...');
     } else {
       toast('warn', 'Not Connected', 'Cannot refresh - not connected to server.');
@@ -1998,8 +1996,6 @@
     if (ws && ws.isConnected()) {
       ws.applyAlertPreset(presetId);
       toast('ok', 'Applied', `Preset "${presetId}" applied to all checks.`);
-      // Refresh prefs after applying
-      setTimeout(() => ws.requestStaffAlertPrefs(), 500);
     } else {
       toast('warn', 'Not Connected', 'Cannot apply preset - not connected to server.');
     }
@@ -3014,8 +3010,6 @@
       ws.requestChatStatus();
       ws.requestServerSettings();
       ws.requestAnticheatAlerts();
-      ws.requestStaffAlertPrefs();
-      ws.requestAlertPresets();
       // Also request integration info for Settings page
       ws.send('GET_ANTICHEAT_INFO');
 
