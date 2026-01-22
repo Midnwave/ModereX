@@ -62,6 +62,9 @@ public class AnticheatManager {
                     hook.setAlertHandler(this::handleAlert);
                     plugin.getLogger().info("[AnticheatManager] Successfully hooked into " + hook.getDisplayName());
 
+                    // Pre-register all known checks for alert manager (so they show in GUI immediately)
+                    alertManager.preRegisterChecks(hook.getName());
+
                     // Register automod rules for each check from this anticheat
                     plugin.getAutomodManager().registerAnticheatRules(hook.getName(), hook.getVersion());
                 }
@@ -117,6 +120,9 @@ public class AnticheatManager {
             enabledAnticheats.add(hook.getName());
             hook.setAlertHandler(this::handleAlert);
             plugin.getLogger().info("[AnticheatManager] Late-registered " + hook.getDisplayName());
+
+            // Pre-register all known checks for alert manager (so they show in GUI immediately)
+            alertManager.preRegisterChecks(hook.getName());
 
             // Register automod rules for each check from this anticheat
             plugin.getAutomodManager().registerAnticheatRules(hook.getName(), hook.getVersion());

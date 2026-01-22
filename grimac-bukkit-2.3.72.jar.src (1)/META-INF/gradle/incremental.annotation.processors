@@ -1,0 +1,2 @@
+org.incendo.cloud.annotations.processing.CommandContainerProcessor,aggregating
+org.incendo.cloud.annotations.processing.CommandMethodProcessor,isolating
