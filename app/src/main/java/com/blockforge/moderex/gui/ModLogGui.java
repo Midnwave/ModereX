@@ -281,10 +281,10 @@ public class ModLogGui extends PaginatedGui<Punishment> {
         lore.add("");
         lore.add("<gray>Player: <white>" + punishment.getPlayerName());
 
-        // Wrap reason after 30 chars
+        // Wrap reason after 40 chars
         String reason = punishment.getReason();
         if (reason != null && !reason.isEmpty()) {
-            List<String> wrappedReason = TextUtil.wordWrap(reason, 30);
+            List<String> wrappedReason = TextUtil.wordWrap(reason, 40);
             lore.add("<gray>Reason: <white>" + wrappedReason.get(0));
             for (int i = 1; i < wrappedReason.size(); i++) {
                 lore.add("  <white>" + wrappedReason.get(i));

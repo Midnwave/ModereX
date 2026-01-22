@@ -163,7 +163,7 @@ public class AnalyticsGui extends BaseGui {
                 getTypeColor(punishment.getType()) + punishment.getPlayerName(),
                 "<gray>Type: " + getTypeColor(punishment.getType()) + punishment.getType().getDisplayName(),
                 "<gray>Staff: <white>" + punishment.getStaffName(),
-                "<gray>Reason: <white>" + truncate(punishment.getReason(), 30),
+                "<gray>Reason: <white>" + truncate(punishment.getReason(), 40),
                 "<gray>When: <white>" + timeAgo
         );
     }
