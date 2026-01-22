@@ -3383,6 +3383,15 @@
           caseId: data.caseId
         }
       );
+
+      // Also show in debug log panel with proper formatting
+      if (window.debugLog) {
+        const category = data.category || data.logType || 'SYSTEM';
+        const severity = data.severity || 'INFO';
+        const debugType = severity === 'ERROR' ? 'error' : severity === 'WARN' ? 'warn' : severity === 'SUCCESS' ? 'success' : 'info';
+        const message = data.detail || data.title || 'Unknown event';
+        window.debugLog(category.toUpperCase(), message, debugType);
+      }
     });
 
     ws.on('AUTOMOD_TRIGGER', (data) => {
