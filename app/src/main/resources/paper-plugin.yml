@@ -2,7 +2,13 @@ name: ModereX
 version: '${version}'
 main: com.blockforge.moderex.ModereX
 api-version: '1.21'
-description: Advanced moderation plugin with GUI support, automod, and web panel integration
+description: |
+  Advanced moderation plugin with GUI support, automod, and web panel integration.
+
+  Copyright (c) 2024-2026 BlockForge Studios. All rights reserved.
+  The ModereX Web Panel and all associated assets are proprietary software.
+  Redistribution, modification, or commercial use of the web panel component
+  is strictly prohibited without explicit written permission from BlockForge Studios.
 authors:
   - BlockForge Studios
   - ADF Industries
