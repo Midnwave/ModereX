@@ -935,13 +935,7 @@
       </select>
     `;
 
-    const joinLeaveOptions = (current) => `
-      <select class="input small" onchange="updateStaffSetting('joinLeaveMessages', this.value)">
-        <option value="ALL" ${current === 'ALL' ? 'selected' : ''}>All Players</option>
-        <option value="STAFF_ONLY" ${current === 'STAFF_ONLY' ? 'selected' : ''}>Staff Only</option>
-        <option value="OFF" ${current === 'OFF' ? 'selected' : ''}>Off</option>
-      </select>
-    `;
+    // joinLeaveOptions removed - now a global config setting
 
     const toggleHtml = (key, label) => `
       <div class="check-toggle ${settings[key] ? 'on' : ''}" onclick="updateStaffSetting('${key}', ${!settings[key]})">
@@ -1000,13 +994,7 @@
         </div>
       </div>
 
-      <div class="setting-group">
-        <h4><i class="fa-solid fa-door-open"></i> Join/Leave Messages</h4>
-        <div class="setting-row">
-          <span>Visibility</span>
-          ${joinLeaveOptions(settings.joinLeaveMessages)}
-        </div>
-      </div>
+      <!-- Join/Leave Messages removed - now a global config setting -->
 
       <div class="setting-group">
         <h4><i class="fa-solid fa-comments"></i> Staff Chat</h4>

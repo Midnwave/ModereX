@@ -107,23 +107,21 @@ public class StaffSettingsGui extends BaseGui {
         // Center content area: slots 20-24, 29-33, 38-42
 
         // Row 1 - Core notifications
-        setItem(20, createJoinLeaveLevelButton("Join/Leave",
-                settings.getJoinLeaveMessages(), Material.OAK_DOOR), () -> {
-            settings.setJoinLeaveMessages(settings.getJoinLeaveMessages().next());
-            refresh();
-        });
+        // Note: Join/Leave visibility is now a global config setting (config.yml: join-leave.visibility)
 
-        setItem(21, createToggle("Mod Actions",
-                settings.isModerationActionsEnabled(),
-                "See staff moderation actions",
-                Material.IRON_AXE), () -> {
-            settings.setModerationActionsEnabled(!settings.isModerationActionsEnabled());
-            refresh();
-        });
-
-        setItem(22, createAlertLevelButton("Punishments",
-                settings.getPunishmentAlerts(), Material.BARRIER), () -> {
+        setItem(20, createAlertLevelButton("Staff Actions",
+                settings.getPunishmentAlerts(), Material.IRON_AXE), () -> {
+            // Merged Mod Actions and Punishments into one setting
             settings.setPunishmentAlerts(settings.getPunishmentAlerts().next());
+            settings.setModerationActionsEnabled(settings.getPunishmentAlerts() != AlertLevel.OFF);
+            refresh();
+        });
+
+        setItem(21, createToggle("Punishment Broadcasts",
+                settings.isModerationActionsEnabled(),
+                "See punishment broadcasts with case IDs",
+                Material.BARRIER), () -> {
+            settings.setModerationActionsEnabled(!settings.isModerationActionsEnabled());
             refresh();
         });
 

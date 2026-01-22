@@ -105,7 +105,7 @@
       watchlistJoinAlerts: true,
       watchlistQuitAlerts: true,
       watchlistActivityAlerts: true,
-      joinLeaveMessages: 'ALL',
+      // joinLeaveMessages removed - now a global config setting
       staffChatEnabled: true,
       staffChatSound: true,
       banAlertsLevel: 'EVERYONE',

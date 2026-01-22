@@ -413,6 +413,8 @@ public final class ModereX extends JavaPlugin {
         // ANSI color codes for console
         String DARK_BLUE = "\u001B[34m";
         String LIGHT_BLUE = "\u001B[36m";
+        String GRAY = "\u001B[90m";
+        String WHITE = "\u001B[97m";
         String RESET = "\u001B[0m";
 
         // Slanted ASCII art for "ModereX"
@@ -425,6 +427,13 @@ public final class ModereX extends JavaPlugin {
             DARK_BLUE + "/_/  /_/\\____/\\__,_/\\___/_/   \\___/" + LIGHT_BLUE + "/_/|_|  ",
             "",
             RESET + "           Advanced Moderation for Minecraft",
+            "",
+            GRAY + "   (c) 2024-2026 BlockForge Studios & ADF Industries",
+            GRAY + "   Version: " + WHITE + getDescription().getVersion(),
+            "",
+            GRAY + "   Discord:",
+            GRAY + "   - BlockForge: " + LIGHT_BLUE + "https://discord.gg/jQGMhKA5m6",
+            GRAY + "   - ADF Industries: " + LIGHT_BLUE + "https://discord.gg/qWpcRmDW2P",
             ""
         };
 
