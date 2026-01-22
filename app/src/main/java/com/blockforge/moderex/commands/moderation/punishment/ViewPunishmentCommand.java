@@ -128,8 +128,12 @@ public class ViewPunishmentCommand extends BaseCommand {
     @Override
     protected List<String> tabComplete(CommandSender sender, String[] args) {
         if (args.length == 1) {
-            // Suggest a placeholder format
-            return filterCompletions(List.of("MX-"), args[0]);
+            // Get recent punishment case IDs for suggestions
+            List<String> caseIds = plugin.getPunishmentManager().getRecentCaseIds(50);
+            if (caseIds.isEmpty()) {
+                return filterCompletions(List.of("MX-"), args[0]);
+            }
+            return filterCompletions(caseIds, args[0]);
         }
         return Collections.emptyList();
     }

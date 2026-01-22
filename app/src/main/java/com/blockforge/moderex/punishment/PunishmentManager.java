@@ -486,6 +486,36 @@ public class PunishmentManager {
         });
     }
 
+    /**
+     * Get recent punishment case IDs for tab completion.
+     * This is a synchronous call to be used in tab completion.
+     */
+    public List<String> getRecentCaseIds(int limit) {
+        try {
+            return plugin.getDatabaseManager().query("""
+                    SELECT case_id FROM moderex_punishments
+                    WHERE case_id IS NOT NULL
+                    ORDER BY created_at DESC
+                    LIMIT ?
+                    """,
+                    rs -> {
+                        List<String> caseIds = new ArrayList<>();
+                        while (rs.next()) {
+                            String caseId = rs.getString("case_id");
+                            if (caseId != null) {
+                                caseIds.add(caseId);
+                            }
+                        }
+                        return caseIds;
+                    },
+                    limit
+            );
+        } catch (SQLException e) {
+            plugin.logError("Failed to get recent case IDs", e);
+            return Collections.emptyList();
+        }
+    }
+
     public void expirePunishment(Punishment punishment) {
         try {
             plugin.getDatabaseManager().update("""
