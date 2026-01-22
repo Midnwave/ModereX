@@ -43,6 +43,48 @@ public class AnticheatAlertManager {
         loadCheckRules();
     }
 
+    /**
+     * Pre-register all known checks for an anticheat on plugin load.
+     * This ensures rules appear in GUI/web panel before any alerts are triggered.
+     */
+    public void preRegisterChecks(String anticheat) {
+        List<AnticheatChecks.CheckInfo> checks = AnticheatChecks.getChecks(anticheat);
+        if (checks.isEmpty()) {
+            plugin.logDebug("[AnticheatAlertManager] No known checks for: " + anticheat);
+            return;
+        }
+
+        plugin.getLogger().info("[AnticheatAlertManager] Pre-registering " + checks.size() + " checks for " + anticheat);
+        int registered = 0;
+
+        for (AnticheatChecks.CheckInfo check : checks) {
+            String key = anticheat.toLowerCase() + ":" + check.getName().toLowerCase();
+
+            // Skip if rule already exists
+            if (checkRules.containsKey(key)) {
+                continue;
+            }
+
+            // Create default rule for this check
+            AnticheatCheckRule rule = new AnticheatCheckRule();
+            rule.setAnticheat(anticheat);
+            rule.setCheckName(check.getName());
+            rule.setEnabled(true);
+            rule.setMinVL(0);
+            rule.setThresholdCount(0);
+            rule.setThresholdDuration(0);
+
+            // Save to database and cache
+            saveRule(rule);
+            checkRules.put(key, rule);
+            registered++;
+        }
+
+        if (registered > 0) {
+            plugin.getLogger().info("[AnticheatAlertManager] Registered " + registered + " new check rules for " + anticheat);
+        }
+    }
+
     private void loadConfig() {
         ConfigurationSection ac = plugin.getConfig().getConfigurationSection("anticheat.alerts");
         if (ac != null) {
