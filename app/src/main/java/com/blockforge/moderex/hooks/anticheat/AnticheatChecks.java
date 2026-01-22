@@ -599,4 +599,40 @@ public class AnticheatChecks {
     public static boolean isSupported(String anticheat) {
         return ANTICHEAT_CHECKS.containsKey(anticheat.toLowerCase());
     }
+
+    /**
+     * Register an external anticheat's checks.
+     * Used by the external anticheat API to register checks from third-party plugins.
+     *
+     * @param anticheat the anticheat name
+     * @param check the check to register
+     */
+    public static void registerExternalCheck(String anticheat, CheckInfo check) {
+        String key = anticheat.toLowerCase();
+        ANTICHEAT_CHECKS.computeIfAbsent(key, k -> new ArrayList<>()).add(check);
+    }
+
+    /**
+     * Register multiple external checks at once.
+     *
+     * @param anticheat the anticheat name
+     * @param checks the checks to register
+     */
+    public static void registerExternalChecks(String anticheat, List<CheckInfo> checks) {
+        String key = anticheat.toLowerCase();
+        ANTICHEAT_CHECKS.computeIfAbsent(key, k -> new ArrayList<>()).addAll(checks);
+    }
+
+    /**
+     * Unregister all checks for an external anticheat.
+     *
+     * @param anticheat the anticheat name
+     */
+    public static void unregisterExternalChecks(String anticheat) {
+        String key = anticheat.toLowerCase();
+        // Only remove if it's an external (dynamically added) anticheat
+        if (!getSupportedAnticheats().contains(key)) {
+            ANTICHEAT_CHECKS.remove(key);
+        }
+    }
 }
