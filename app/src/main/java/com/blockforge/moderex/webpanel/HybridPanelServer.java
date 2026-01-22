@@ -1422,7 +1422,9 @@ public class HybridPanelServer {
             if (ruleData.has("threshold") && ruleData.get("threshold").isJsonObject()) {
                 JsonObject thrObj = ruleData.getAsJsonObject("threshold");
                 if (rule.getAutoPunishment() == null) {
-                    rule.setAutoPunishment(new AutomodRule.AutoPunishment());
+                    AutomodRule.AutoPunishment newAp = new AutomodRule.AutoPunishment();
+                    newAp.setType(com.blockforge.moderex.punishment.PunishmentType.WARN); // Default type
+                    rule.setAutoPunishment(newAp);
                 }
                 if (thrObj.has("hits")) {
                     rule.getAutoPunishment().setTriggerCount(thrObj.get("hits").getAsInt());
@@ -1599,7 +1601,9 @@ public class HybridPanelServer {
             if (rule.getAutoPunishment() != null) {
                 JsonObject ap = new JsonObject();
                 ap.addProperty("enabled", rule.getAutoPunishment().isEnabled());
-                ap.addProperty("type", rule.getAutoPunishment().getType().name());
+                String punishType = rule.getAutoPunishment().getType() != null ?
+                        rule.getAutoPunishment().getType().name() : "WARN";
+                ap.addProperty("type", punishType);
                 ap.addProperty("duration", rule.getAutoPunishment().getDuration());
                 ap.addProperty("triggerCount", rule.getAutoPunishment().getTriggerCount());
                 ap.addProperty("timeWindow", rule.getAutoPunishment().getTimeWindow());
@@ -1608,7 +1612,7 @@ public class HybridPanelServer {
 
                 // Frontend action format for compatibility
                 JsonObject action = new JsonObject();
-                action.addProperty("kind", rule.getAutoPunishment().isEnabled() ?
+                action.addProperty("kind", rule.getAutoPunishment().isEnabled() && rule.getAutoPunishment().getType() != null ?
                         rule.getAutoPunishment().getType().name().toLowerCase() : "none");
                 action.addProperty("extra", rule.getAutoPunishment().getReason() != null ?
                         rule.getAutoPunishment().getReason() : "");
