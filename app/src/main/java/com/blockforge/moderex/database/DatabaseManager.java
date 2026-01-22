@@ -288,6 +288,21 @@ public class DatabaseManager {
                     )
                     """);
 
+            // Developer checklist table
+            stmt.execute("""
+                    CREATE TABLE IF NOT EXISTS moderex_dev_checklist (
+                        id INTEGER PRIMARY KEY %s,
+                        item_id VARCHAR(64) UNIQUE NOT NULL,
+                        category VARCHAR(64) NOT NULL,
+                        title VARCHAR(128) NOT NULL,
+                        description TEXT,
+                        checked BOOLEAN DEFAULT FALSE,
+                        checked_by VARCHAR(36),
+                        checked_at BIGINT,
+                        created_at BIGINT NOT NULL
+                    )
+                    """.formatted(isMySQL ? "AUTO_INCREMENT" : "AUTOINCREMENT"));
+
             // Create indexes for performance
             createIndexes(stmt);
         }

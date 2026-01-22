@@ -1102,6 +1102,10 @@ public class HybridPanelServer {
             case "UPDATE_MUTE_SETTINGS" -> updateMuteSettings(conn, data, session);
             case "UPDATE_WARN_SETTINGS" -> updateWarnSettings(conn, data, session);
             case "UPDATE_ANTICHEAT_SETTINGS" -> updateAnticheatSettings(conn, data, session);
+            case "GET_DEV_CHECKLIST" -> sendDevChecklist(conn);
+            case "TOGGLE_CHECKLIST_ITEM" -> toggleChecklistItem(conn, data, session);
+            case "ADD_CHECKLIST_ITEM" -> addChecklistItem(conn, data, session);
+            case "DELETE_CHECKLIST_ITEM" -> deleteChecklistItem(conn, data, session);
             default -> sendError(conn, "UNKNOWN_TYPE", "Unknown message type: " + type);
         }
     }
@@ -4261,6 +4265,157 @@ public class HybridPanelServer {
         error.addProperty("code", code);
         error.addProperty("message", message);
         return GSON.toJson(error);
+    }
+
+    // ==================== Developer Checklist ====================
+
+    private void sendDevChecklist(WebSocketConnection conn) {
+        JsonObject response = new JsonObject();
+        response.addProperty("type", "DEV_CHECKLIST");
+        JsonArray items = new JsonArray();
+
+        try {
+            plugin.getDatabaseManager().query(
+                "SELECT * FROM moderex_dev_checklist ORDER BY category, created_at",
+                rs -> {
+                    while (rs.next()) {
+                        JsonObject item = new JsonObject();
+                        item.addProperty("id", rs.getString("item_id"));
+                        item.addProperty("category", rs.getString("category"));
+                        item.addProperty("title", rs.getString("title"));
+                        item.addProperty("description", rs.getString("description"));
+                        item.addProperty("checked", rs.getBoolean("checked"));
+                        item.addProperty("checkedBy", rs.getString("checked_by"));
+                        item.addProperty("checkedAt", rs.getLong("checked_at"));
+                        items.add(item);
+                    }
+                    return null;
+                }
+            );
+
+            // If no items, add default checklist items
+            if (items.isEmpty()) {
+                addDefaultChecklistItems();
+                sendDevChecklist(conn); // Recursively call to send the newly added items
+                return;
+            }
+        } catch (java.sql.SQLException e) {
+            plugin.logError("Failed to fetch dev checklist", e);
+        }
+
+        response.add("data", items);
+        conn.send(GSON.toJson(response));
+    }
+
+    private void addDefaultChecklistItems() {
+        String[][] defaults = {
+            {"Punishments", "mute-command", "Mute Command", "Test /mute creates mute and blocks chat"},
+            {"Punishments", "ban-command", "Ban Command", "Test /ban creates ban and blocks join"},
+            {"Punishments", "warn-command", "Warn Command", "Test /warn creates warning notification"},
+            {"Punishments", "kick-command", "Kick Command", "Test /kick removes player with message"},
+            {"Punishments", "ipban-command", "IP Ban Command", "Test /ipban blocks all accounts on IP"},
+            {"Punishments", "unmute-unban", "Unmute/Unban", "Test punishment removal commands"},
+            {"Staff Settings", "settings-gui", "Staff Settings GUI", "Test /mx settings opens and saves correctly"},
+            {"Staff Settings", "alert-prefs", "Alert Preferences", "Test per-check alert configuration"},
+            {"Staff Settings", "settings-sync", "Settings Sync", "Verify settings sync to web panel"},
+            {"Automod", "spam-filter", "Spam Prevention", "Test rapid message blocking"},
+            {"Automod", "caps-filter", "Caps Filter", "Test excessive CAPS conversion"},
+            {"Automod", "word-filter", "Word Filter", "Test blacklisted word blocking"},
+            {"Automod", "anticheat-rules", "Anticheat Rules", "Test auto-punishment at threshold"},
+            {"Web Panel", "connection", "Panel Connection", "Test /mx connect code authentication"},
+            {"Web Panel", "realtime", "Real-time Updates", "Verify punishments appear instantly"},
+            {"Web Panel", "settings-sync", "Web Settings Sync", "Test bidirectional settings sync"},
+            {"Database", "sqlite-verify", "SQLite Tables", "Verify all tables exist and have data"},
+            {"Database", "mysql-verify", "MySQL Support", "Test MySQL connection if configured"},
+            {"Performance", "gui-responsive", "GUI Responsiveness", "Test GUIs with 1000+ records"},
+            {"Performance", "memory-leaks", "Memory Leaks", "Check for leaks after extended use"}
+        };
+
+        long now = System.currentTimeMillis();
+        for (String[] item : defaults) {
+            try {
+                plugin.getDatabaseManager().update(
+                    "INSERT OR IGNORE INTO moderex_dev_checklist (item_id, category, title, description, created_at) VALUES (?, ?, ?, ?, ?)",
+                    item[1], item[0], item[2], item[3], now
+                );
+            } catch (java.sql.SQLException e) {
+                plugin.logDebug("Failed to add default checklist item: " + item[1]);
+            }
+        }
+    }
+
+    private void toggleChecklistItem(WebSocketConnection conn, JsonObject data, WebPanelSession session) {
+        String itemId = data.has("itemId") ? data.get("itemId").getAsString() : null;
+        boolean checked = data.has("checked") && data.get("checked").getAsBoolean();
+
+        if (itemId == null) {
+            sendError(conn, "MISSING_PARAMETER", "Missing itemId");
+            return;
+        }
+
+        try {
+            plugin.getDatabaseManager().update(
+                "UPDATE moderex_dev_checklist SET checked = ?, checked_by = ?, checked_at = ? WHERE item_id = ?",
+                checked,
+                checked ? session.playerUuid.toString() : null,
+                checked ? System.currentTimeMillis() : null,
+                itemId
+            );
+
+            // Send updated checklist
+            sendDevChecklist(conn);
+            plugin.logDebug("[Checklist] " + session.playerName + " " + (checked ? "checked" : "unchecked") + " item: " + itemId);
+        } catch (java.sql.SQLException e) {
+            plugin.logError("Failed to toggle checklist item", e);
+            sendError(conn, "DATABASE_ERROR", "Failed to update checklist item");
+        }
+    }
+
+    private void addChecklistItem(WebSocketConnection conn, JsonObject data, WebPanelSession session) {
+        String category = data.has("category") ? data.get("category").getAsString() : "Custom";
+        String title = data.has("title") ? data.get("title").getAsString() : null;
+        String description = data.has("description") ? data.get("description").getAsString() : "";
+
+        if (title == null || title.trim().isEmpty()) {
+            sendError(conn, "MISSING_PARAMETER", "Missing title");
+            return;
+        }
+
+        String itemId = "custom-" + System.currentTimeMillis();
+        try {
+            plugin.getDatabaseManager().update(
+                "INSERT INTO moderex_dev_checklist (item_id, category, title, description, created_at) VALUES (?, ?, ?, ?, ?)",
+                itemId, category, title.trim(), description.trim(), System.currentTimeMillis()
+            );
+
+            sendDevChecklist(conn);
+            plugin.logDebug("[Checklist] " + session.playerName + " added item: " + title);
+        } catch (java.sql.SQLException e) {
+            plugin.logError("Failed to add checklist item", e);
+            sendError(conn, "DATABASE_ERROR", "Failed to add checklist item");
+        }
+    }
+
+    private void deleteChecklistItem(WebSocketConnection conn, JsonObject data, WebPanelSession session) {
+        String itemId = data.has("itemId") ? data.get("itemId").getAsString() : null;
+
+        if (itemId == null) {
+            sendError(conn, "MISSING_PARAMETER", "Missing itemId");
+            return;
+        }
+
+        try {
+            plugin.getDatabaseManager().update(
+                "DELETE FROM moderex_dev_checklist WHERE item_id = ?",
+                itemId
+            );
+
+            sendDevChecklist(conn);
+            plugin.logDebug("[Checklist] " + session.playerName + " deleted item: " + itemId);
+        } catch (java.sql.SQLException e) {
+            plugin.logError("Failed to delete checklist item", e);
+            sendError(conn, "DATABASE_ERROR", "Failed to delete checklist item");
+        }
     }
 
     /**

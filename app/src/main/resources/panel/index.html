@@ -1198,6 +1198,22 @@
                 <span>Debug notifications will appear at the bottom of the screen showing database syncs, WebSocket messages, and errors.</span>
               </div>
             </div>
+
+            <!-- Developer Checklist -->
+            <div class="card">
+              <div style="display:flex;justify-content:space-between;align-items:center">
+                <h3><i class="fa-solid fa-list-check" style="color:var(--good)"></i> Testing Checklist</h3>
+                <button class="btn small" onclick="addChecklistItem()"><i class="fa-solid fa-plus"></i> Add Item</button>
+              </div>
+              <p>Track testing progress. Items sync to database.</p>
+              <div id="checklistContainer" style="margin-top:14px">
+                <div class="loading-text">Loading checklist...</div>
+              </div>
+              <div style="margin-top:12px;display:flex;gap:8px">
+                <button class="btn small secondary" onclick="resetChecklist()"><i class="fa-solid fa-rotate-left"></i> Reset All</button>
+                <span id="checklistProgress" style="margin-left:auto;color:var(--text-secondary);font-size:13px"></span>
+              </div>
+            </div>
           </div>
         </section>
 

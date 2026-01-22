@@ -212,6 +212,7 @@
     if (page === 'templates') ui.renderTemplates();
     if (page === 'messages') ui.renderMessages();
     if (page === 'settings') ui.renderChatToggles();
+    if (page === 'my-settings' && window.loadDevChecklist) window.loadDevChecklist();
     if (page === 'status' && window.initServerStatus) window.initServerStatus();
     if (page === 'replay' && window.initReplayViewer) window.initReplayViewer();
   };
@@ -3725,6 +3726,12 @@
       ui.renderDashboard();
       ui.renderChatToggles();
     });
+
+    // Developer Checklist
+    ws.on('DEV_CHECKLIST', (items) => {
+      state.devChecklist = items || [];
+      renderDevChecklist();
+    });
   }
 
   // Override functions to use WebSocket in live mode
@@ -4496,6 +4503,129 @@
     applyBackgroundPattern(pattern);
   }
 
+  // ===== DEVELOPER CHECKLIST =====
+  state.devChecklist = state.devChecklist || [];
+
+  function renderDevChecklist() {
+    const container = document.getElementById('checklistContainer');
+    if (!container) return;
+
+    const items = state.devChecklist || [];
+    if (items.length === 0) {
+      container.innerHTML = '<div class="loading-text">No checklist items. Click "Add Item" to create one.</div>';
+      updateChecklistProgress();
+      return;
+    }
+
+    // Group by category
+    const categories = {};
+    items.forEach(item => {
+      const cat = item.category || 'Uncategorized';
+      if (!categories[cat]) categories[cat] = [];
+      categories[cat].push(item);
+    });
+
+    let html = '';
+    for (const [category, catItems] of Object.entries(categories)) {
+      const checkedCount = catItems.filter(i => i.checked).length;
+      const catProgress = catItems.length > 0 ? Math.round((checkedCount / catItems.length) * 100) : 0;
+
+      html += `<div class="checklist-category" style="margin-bottom:16px">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+          <span style="font-weight:600;color:var(--text-primary)">${escapeHtml(category)}</span>
+          <span style="font-size:12px;color:var(--text-secondary)">${checkedCount}/${catItems.length} (${catProgress}%)</span>
+        </div>`;
+
+      for (const item of catItems) {
+        const checkedClass = item.checked ? 'checked' : '';
+        html += `<div class="checklist-item ${checkedClass}" style="display:flex;align-items:flex-start;gap:10px;padding:8px 12px;background:rgba(0,0,0,.2);border-radius:6px;margin-bottom:6px;cursor:pointer" onclick="toggleChecklistItem('${item.id}', ${!item.checked})">
+          <div style="width:20px;height:20px;border:2px solid var(--border);border-radius:4px;display:flex;align-items:center;justify-content:center;flex-shrink:0;${item.checked ? 'background:var(--good);border-color:var(--good)' : ''}">
+            ${item.checked ? '<i class="fa-solid fa-check" style="color:#fff;font-size:11px"></i>' : ''}
+          </div>
+          <div style="flex:1">
+            <div style="color:var(--text-primary);${item.checked ? 'text-decoration:line-through;opacity:0.7' : ''}">${escapeHtml(item.title)}</div>
+            ${item.description ? `<div style="font-size:12px;color:var(--text-secondary);margin-top:2px">${escapeHtml(item.description)}</div>` : ''}
+          </div>
+          ${item.id.startsWith('custom-') ? `<button class="btn tiny danger" onclick="event.stopPropagation();deleteChecklistItem('${item.id}')" title="Delete"><i class="fa-solid fa-trash"></i></button>` : ''}
+        </div>`;
+      }
+      html += '</div>';
+    }
+
+    container.innerHTML = html;
+    updateChecklistProgress();
+  }
+
+  function updateChecklistProgress() {
+    const el = document.getElementById('checklistProgress');
+    if (!el) return;
+    const items = state.devChecklist || [];
+    const checked = items.filter(i => i.checked).length;
+    const total = items.length;
+    const pct = total > 0 ? Math.round((checked / total) * 100) : 0;
+    el.textContent = `${checked}/${total} complete (${pct}%)`;
+  }
+
+  function toggleChecklistItem(itemId, checked) {
+    const ws = window.MX?.ws;
+    if (ws?.isConnected()) {
+      ws.send('TOGGLE_CHECKLIST_ITEM', { itemId, checked });
+    } else {
+      toast('error', 'Error', 'Not connected to server');
+    }
+  }
+
+  function addChecklistItem() {
+    const title = prompt('Enter checklist item title:');
+    if (!title || !title.trim()) return;
+
+    const category = prompt('Enter category (or leave blank for "Custom"):', 'Custom') || 'Custom';
+    const description = prompt('Enter description (optional):') || '';
+
+    const ws = window.MX?.ws;
+    if (ws?.isConnected()) {
+      ws.send('ADD_CHECKLIST_ITEM', { title: title.trim(), category: category.trim(), description: description.trim() });
+      toast('info', 'Adding', 'Creating checklist item...');
+    } else {
+      toast('error', 'Error', 'Not connected to server');
+    }
+  }
+
+  function deleteChecklistItem(itemId) {
+    if (!confirm('Delete this checklist item?')) return;
+
+    const ws = window.MX?.ws;
+    if (ws?.isConnected()) {
+      ws.send('DELETE_CHECKLIST_ITEM', { itemId });
+    } else {
+      toast('error', 'Error', 'Not connected to server');
+    }
+  }
+
+  function resetChecklist() {
+    if (!confirm('Reset all checklist items to unchecked?')) return;
+
+    const ws = window.MX?.ws;
+    if (ws?.isConnected()) {
+      // Uncheck all items
+      for (const item of state.devChecklist || []) {
+        if (item.checked) {
+          ws.send('TOGGLE_CHECKLIST_ITEM', { itemId: item.id, checked: false });
+        }
+      }
+      toast('info', 'Resetting', 'Clearing all checkmarks...');
+    } else {
+      toast('error', 'Error', 'Not connected to server');
+    }
+  }
+
+  function loadDevChecklist() {
+    const ws = window.MX?.ws;
+    if (ws?.isConnected()) {
+      ws.send('GET_DEV_CHECKLIST');
+    }
+  }
+
   // Expose new functions globally
   window.attemptReconnect = attemptReconnect;
   window.toggleSidebar = toggleSidebar;
@@ -4515,6 +4645,11 @@
   window.applyThemeFromState = applyThemeFromState;
   window.showDisconnect = showDisconnect;
   window.hideDisconnect = hideDisconnect;
+  window.toggleChecklistItem = toggleChecklistItem;
+  window.addChecklistItem = addChecklistItem;
+  window.deleteChecklistItem = deleteChecklistItem;
+  window.resetChecklist = resetChecklist;
+  window.loadDevChecklist = loadDevChecklist;
 
   // ===== INITIALIZATION =====
   document.addEventListener('DOMContentLoaded', () => {
