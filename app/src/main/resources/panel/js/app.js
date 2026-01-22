@@ -2001,7 +2001,13 @@
   window.refreshAnticheatData = function() {
     const ws = window.MX?.ws;
     if (ws && ws.isConnected()) {
+      // Request anticheat alerts (detected checks)
       ws.requestAnticheatAlerts();
+      // Request saved staff alert preferences from database
+      ws.requestStaffAlertPrefs();
+      // Request alert presets
+      ws.requestAlertPresets();
+      window.debugLog('ANTICHEAT', 'Refreshing anticheat data (alerts, prefs, presets)...', 'info');
       toast('info', 'Refreshing', 'Loading anticheat data...');
     } else {
       toast('warn', 'Not Connected', 'Cannot refresh - not connected to server.');
@@ -2032,6 +2038,7 @@
     const currentPref = state.anticheat.alertPrefs[prefKey] || { thresholdCount: 1, timeWindowSeconds: 60 };
 
     if (ws && ws.isConnected()) {
+      window.debugLog('ANTICHEAT', `Updating ${anticheat}:${checkName} level -> ${alertLevel}`, 'info');
       ws.updateStaffAlertPref(anticheat, checkName, alertLevel, currentPref.thresholdCount, currentPref.timeWindowSeconds);
       // Update local state optimistically
       state.anticheat.alertPrefs[prefKey] = {
@@ -2041,6 +2048,7 @@
       ui.renderAnticheat();
     } else {
       toast('warn', 'Not Connected', 'Cannot update - not connected to server.');
+      window.debugLog('ANTICHEAT', 'Cannot update - not connected', 'error');
     }
   };
 
@@ -2048,23 +2056,27 @@
     const ws = window.MX?.ws;
     const prefKey = `${anticheat.toLowerCase()}.${checkName}`;
     const currentPref = state.anticheat.alertPrefs[prefKey] || { alertLevel: 'EVERYONE' };
+    const newThreshold = parseInt(thresholdCount, 10) || 1;
+    const newWindow = parseInt(timeWindowSeconds, 10) || 60;
 
     if (ws && ws.isConnected()) {
+      window.debugLog('ANTICHEAT', `Updating ${anticheat}:${checkName} threshold -> ${newThreshold} in ${newWindow}s`, 'info');
       ws.updateStaffAlertPref(
         anticheat,
         checkName,
         currentPref.alertLevel,
-        parseInt(thresholdCount, 10) || 1,
-        parseInt(timeWindowSeconds, 10) || 60
+        newThreshold,
+        newWindow
       );
       // Update local state optimistically
       state.anticheat.alertPrefs[prefKey] = {
         ...currentPref,
-        thresholdCount: parseInt(thresholdCount, 10) || 1,
-        timeWindowSeconds: parseInt(timeWindowSeconds, 10) || 60
+        thresholdCount: newThreshold,
+        timeWindowSeconds: newWindow
       };
     } else {
       toast('warn', 'Not Connected', 'Cannot update - not connected to server.');
+      window.debugLog('ANTICHEAT', 'Cannot update - not connected', 'error');
     }
   };
 
@@ -3237,6 +3249,18 @@
       if (!isLiveMode) return;
       state.anticheat.presets = data.presets || [];
       ui.renderAnticheat();
+    });
+
+    // Handle alert pref update confirmation
+    ws.on('STAFF_ALERT_PREF_UPDATED', (data) => {
+      if (!isLiveMode) return;
+      const prefKey = `${data.anticheat?.toLowerCase()}.${data.checkName}`;
+      state.anticheat.alertPrefs[prefKey] = {
+        alertLevel: data.alertLevel,
+        thresholdCount: data.thresholdCount,
+        timeWindowSeconds: data.timeWindowSeconds
+      };
+      window.debugLog('ANTICHEAT', `Saved: ${data.anticheat}:${data.checkName} (${data.alertLevel}, ${data.thresholdCount}/${data.timeWindowSeconds}s)`, 'success');
     });
 
     // Real-time broadcasts
