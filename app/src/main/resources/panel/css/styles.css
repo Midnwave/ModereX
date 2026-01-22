@@ -5565,172 +5565,148 @@ html {
 /* ===== DEBUG LOG CONTAINER ===== */
 .debug-log-container {
   position: fixed;
-  bottom: 20px;
+  bottom: 16px;
   left: 50%;
   transform: translateX(-50%);
   z-index: 9500;
   display: flex;
   flex-direction: column;
-  gap: 6px;
-  max-width: 900px;
-  width: 95%;
+  max-width: 1200px;
+  width: 96%;
   pointer-events: none;
+  background: rgba(8, 10, 16, 0.92);
+  backdrop-filter: blur(20px);
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(0, 0, 0, 0.3);
+  overflow: hidden;
+  max-height: 280px;
+}
+
+.debug-log-container:empty {
+  display: none;
 }
 
 .debug-entry {
   display: flex;
   align-items: center;
   gap: 12px;
-  padding: 12px 18px;
-  border-radius: var(--radius-md);
-  background: rgba(15, 20, 30, 0.95);
-  backdrop-filter: blur(16px);
-  border: 2px solid var(--border);
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4), 0 0 40px rgba(0, 0, 0, 0.2);
-  font-size: 13px;
+  padding: 8px 16px;
+  font-size: 12px;
   font-family: 'JetBrains Mono', 'Fira Code', monospace;
   pointer-events: auto;
-  overflow: hidden;
-  animation: debugRevealUp 0.35s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  border: none;
+  background: transparent;
+  animation: debugSlideIn 0.25s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+  transform-origin: bottom;
 }
 
 .debug-entry.fade-out {
-  animation: debugRevealDown 0.3s cubic-bezier(0.5, 0, 0.75, 0) forwards;
+  animation: debugSlideOut 0.2s ease-out forwards;
 }
 
-/* Slide up reveal - like a curtain rising */
-@keyframes debugRevealUp {
+/* Slide in from bottom - pushes others up */
+@keyframes debugSlideIn {
   0% {
-    clip-path: inset(100% 0 0 0);
-    transform: translateY(8px);
+    opacity: 0;
+    max-height: 0;
+    padding-top: 0;
+    padding-bottom: 0;
   }
   100% {
-    clip-path: inset(0 0 0 0);
-    transform: translateY(0);
+    opacity: 1;
+    max-height: 50px;
+    padding-top: 8px;
+    padding-bottom: 8px;
   }
 }
 
-/* Slide down hide - like a curtain falling */
-@keyframes debugRevealDown {
+/* Slide out - collapses and fades */
+@keyframes debugSlideOut {
   0% {
-    clip-path: inset(0 0 0 0);
-    transform: translateY(0);
+    opacity: 1;
+    max-height: 50px;
+    padding-top: 8px;
+    padding-bottom: 8px;
   }
   100% {
-    clip-path: inset(100% 0 0 0);
-    transform: translateY(8px);
+    opacity: 0;
+    max-height: 0;
+    padding-top: 0;
+    padding-bottom: 0;
   }
 }
 
+/* Debug entry elements */
 .debug-entry .debug-icon {
-  width: 24px;
-  height: 24px;
-  border-radius: 4px;
-  display: grid;
-  place-items: center;
-  flex-shrink: 0;
+  display: none;
+}
+
+.debug-entry .debug-time {
+  color: rgba(255, 255, 255, 0.35);
   font-size: 11px;
-}
-
-/* Debug entry type styling - info */
-.debug-entry.debug-info {
-  border-color: rgba(45, 122, 237, 0.5);
-  border-left: 4px solid var(--primary);
-}
-
-.debug-entry.info .debug-icon,
-.debug-entry.debug-info .debug-icon {
-  background: rgba(45, 122, 237, 0.2);
-  color: var(--primary-light);
-}
-
-/* Debug entry type styling - success */
-.debug-entry.debug-success {
-  border-color: rgba(16, 185, 129, 0.5);
-  border-left: 4px solid var(--ok);
-  background: rgba(16, 185, 129, 0.08);
-}
-
-.debug-entry.success .debug-icon,
-.debug-entry.debug-success .debug-icon {
-  background: rgba(16, 185, 129, 0.2);
-  color: var(--ok);
-}
-
-/* Debug entry type styling - warn */
-.debug-entry.debug-warn {
-  border-color: rgba(245, 158, 11, 0.5);
-  border-left: 4px solid var(--warn);
-  background: rgba(245, 158, 11, 0.08);
-}
-
-.debug-entry.warn .debug-icon,
-.debug-entry.debug-warn .debug-icon {
-  background: rgba(245, 158, 11, 0.2);
-  color: var(--warn);
-}
-
-/* Debug entry type styling - error */
-.debug-entry.debug-error {
-  border-color: rgba(239, 68, 68, 0.5);
-  border-left: 4px solid var(--bad);
-  background: rgba(239, 68, 68, 0.12);
-  box-shadow: 0 4px 20px rgba(239, 68, 68, 0.15), 0 0 40px rgba(0, 0, 0, 0.2);
-}
-
-.debug-entry.error .debug-icon,
-.debug-entry.debug-error .debug-icon {
-  background: rgba(239, 68, 68, 0.2);
-  color: var(--bad);
+  flex-shrink: 0;
+  font-weight: 500;
+  min-width: 70px;
 }
 
 .debug-entry .debug-category,
 .debug-entry .debug-cat {
-  background: rgba(255, 255, 255, 0.12);
-  padding: 4px 10px;
+  background: rgba(255, 255, 255, 0.08);
+  padding: 2px 8px;
   border-radius: 4px;
-  font-size: 11px;
-  font-weight: 700;
+  font-size: 10px;
+  font-weight: 600;
   text-transform: uppercase;
-  letter-spacing: 0.5px;
-  color: var(--text);
+  letter-spacing: 0.3px;
+  color: rgba(255, 255, 255, 0.6);
   flex-shrink: 0;
 }
 
 .debug-entry .debug-message,
 .debug-entry .debug-msg {
   flex: 1;
-  color: var(--text);
-  font-weight: 500;
+  color: rgba(255, 255, 255, 0.85);
+  font-weight: 400;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 
-.debug-entry .debug-time {
-  color: var(--muted);
-  font-size: 11px;
-  flex-shrink: 0;
-  font-weight: 500;
-}
-
 /* Type-specific message colors */
-.debug-entry.debug-error .debug-msg,
-.debug-entry.debug-error .debug-message {
-  color: var(--bad);
-  font-weight: 600;
-}
-
-.debug-entry.debug-warn .debug-msg,
-.debug-entry.debug-warn .debug-message {
-  color: var(--warn);
-  font-weight: 600;
+.debug-entry.debug-info .debug-msg,
+.debug-entry.debug-info .debug-message {
+  color: rgba(180, 200, 255, 0.9);
 }
 
 .debug-entry.debug-success .debug-msg,
 .debug-entry.debug-success .debug-message {
-  color: var(--ok);
-  font-weight: 600;
+  color: #4ade80;
+}
+
+.debug-entry.debug-success .debug-cat {
+  background: rgba(74, 222, 128, 0.15);
+  color: #4ade80;
+}
+
+.debug-entry.debug-warn .debug-msg,
+.debug-entry.debug-warn .debug-message {
+  color: #fbbf24;
+}
+
+.debug-entry.debug-warn .debug-cat {
+  background: rgba(251, 191, 36, 0.15);
+  color: #fbbf24;
+}
+
+.debug-entry.debug-error .debug-msg,
+.debug-entry.debug-error .debug-message {
+  color: #f87171;
+}
+
+.debug-entry.debug-error .debug-cat {
+  background: rgba(248, 113, 113, 0.15);
+  color: #f87171;
 }
 
 /* Hide debug container on print */
@@ -5741,18 +5717,27 @@ html {
 }
 
 /* Mobile adjustments for debug log */
-@media (max-width: 600px) {
+@media (max-width: 768px) {
   .debug-log-container {
-    bottom: 10px;
-    width: 95%;
+    bottom: 8px;
+    width: 98%;
+    max-height: 200px;
+    border-radius: 8px;
   }
 
   .debug-entry {
-    padding: 8px 10px;
+    padding: 6px 12px;
     font-size: 11px;
+    gap: 8px;
   }
 
-  .debug-entry .debug-category {
-    display: none;
+  .debug-entry .debug-time {
+    min-width: 60px;
+    font-size: 10px;
+  }
+
+  .debug-entry .debug-cat {
+    font-size: 9px;
+    padding: 2px 6px;
   }
 }
