@@ -50,6 +50,15 @@ public class Settings {
     private boolean staffChatSoundEnabled = true;
     private String staffChatSound = "ENTITY_ITEM_PICKUP";
 
+    // Join/Leave message settings
+    private String joinLeaveVisibility = "ALL"; // ALL, MODERATORS_ONLY, OFF
+    private boolean joinLeaveSuppressVanilla = true;
+    private String joinLeaveJoinFormat = "<gray><player_prefix><yellow><player></yellow> joined the server";
+    private String joinLeaveLeaveFormat = "<gray><player_prefix><yellow><player></yellow> left the server";
+
+    // Private messages visibility (staff setting)
+    private String privateMessagesVisibility = "ENABLED"; // ENABLED, WATCHLIST_ONLY, OFF
+
     // Chat settings
     private int defaultSlowmodeSeconds = 0;
     private boolean chatEnabled = true;
@@ -843,5 +852,47 @@ public class Settings {
 
     public void setLinkFilterEnabled(boolean linkFilterEnabled) {
         this.linkFilterEnabled = linkFilterEnabled;
+    }
+
+    // Join/Leave message getters and setters
+    public String getJoinLeaveVisibility() {
+        return joinLeaveVisibility;
+    }
+
+    public void setJoinLeaveVisibility(String joinLeaveVisibility) {
+        this.joinLeaveVisibility = joinLeaveVisibility;
+    }
+
+    public boolean isJoinLeaveSuppressVanilla() {
+        return joinLeaveSuppressVanilla;
+    }
+
+    public void setJoinLeaveSuppressVanilla(boolean joinLeaveSuppressVanilla) {
+        this.joinLeaveSuppressVanilla = joinLeaveSuppressVanilla;
+    }
+
+    public String getJoinLeaveJoinFormat() {
+        return joinLeaveJoinFormat;
+    }
+
+    public void setJoinLeaveJoinFormat(String joinLeaveJoinFormat) {
+        this.joinLeaveJoinFormat = joinLeaveJoinFormat;
+    }
+
+    public String getJoinLeaveLeaveFormat() {
+        return joinLeaveLeaveFormat;
+    }
+
+    public void setJoinLeaveLeaveFormat(String joinLeaveLeaveFormat) {
+        this.joinLeaveLeaveFormat = joinLeaveLeaveFormat;
+    }
+
+    // Private messages visibility getters and setters
+    public String getPrivateMessagesVisibility() {
+        return privateMessagesVisibility;
+    }
+
+    public void setPrivateMessagesVisibility(String privateMessagesVisibility) {
+        this.privateMessagesVisibility = privateMessagesVisibility;
     }
 }

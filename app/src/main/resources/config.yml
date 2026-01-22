@@ -203,6 +203,27 @@ staff:
   chat-sound: ENTITY_ITEM_PICKUP
 
 # ============================================
+# JOIN/LEAVE MESSAGES
+# ============================================
+join-leave:
+  # Who can see join/leave messages
+  # Options: ALL, MODERATORS_ONLY, OFF
+  # Note: Web panel always receives events, watchlist alerts still work
+  visibility: ALL
+
+  # Remove default Minecraft join/leave messages
+  # When true, vanilla "Player joined/left the game" is suppressed
+  suppress-vanilla: true
+
+  # Custom join message format (uses MiniMessage)
+  # Placeholders: <player>, <player_prefix>
+  join-format: "<gray><player_prefix><yellow><player></yellow> joined the server"
+
+  # Custom leave message format (uses MiniMessage)
+  # Placeholders: <player>, <player_prefix>
+  leave-format: "<gray><player_prefix><yellow><player></yellow> left the server"
+
+# ============================================
 # CHAT SETTINGS
 # ============================================
 chat:

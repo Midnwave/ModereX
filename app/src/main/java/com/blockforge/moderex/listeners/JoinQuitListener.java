@@ -3,7 +3,9 @@ package com.blockforge.moderex.listeners;
 import com.blockforge.moderex.ModereX;
 import com.blockforge.moderex.punishment.Punishment;
 import com.blockforge.moderex.punishment.PunishmentType;
+import com.blockforge.moderex.util.TextUtil;
 import net.kyori.adventure.text.Component;
+import org.bukkit.Bukkit;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
@@ -91,13 +93,29 @@ public class JoinQuitListener implements Listener {
         plugin.getVanishManager().onPlayerJoin(player);
         plugin.getDisguiseManager().onPlayerJoin(player);
 
-        if (plugin.getConfigManager().getSettings().isVanishHideRealJoinLeave() &&
-                plugin.getVanishManager().isVanished(player)) {
+        // Handle join message visibility
+        var settings = plugin.getConfigManager().getSettings();
+        boolean isVanished = plugin.getVanishManager().isVanished(player);
+        boolean isWatched = plugin.getWatchlistManager().isWatched(uuid);
+
+        // Always suppress vanilla join message if configured
+        if (settings.isJoinLeaveSuppressVanilla() ||
+            (settings.isVanishHideRealJoinLeave() && isVanished)) {
             event.joinMessage(Component.empty());
         }
 
-        // Watchlist notification
-        if (plugin.getWatchlistManager().isWatched(uuid)) {
+        // Send custom ModereX join message based on visibility (but not for vanished players)
+        if (!isVanished) {
+            String visibility = settings.getJoinLeaveVisibility();
+
+            // If player is on watchlist, only show watchlist notification (not regular join)
+            if (!isWatched || !"ALL".equalsIgnoreCase(visibility)) {
+                sendJoinMessage(player, visibility);
+            }
+        }
+
+        // Watchlist notification - always send regardless of visibility setting
+        if (isWatched) {
             plugin.getWatchlistManager().onPlayerJoin(player);
         }
 
@@ -114,9 +132,37 @@ public class JoinQuitListener implements Listener {
         // Update player profile cache
         plugin.getPlayerProfileManager().handlePlayerJoin(player);
 
-        // Notify web panel of player join
+        // Notify web panel of player join - always regardless of visibility
         if (plugin.getWebPanelServer() != null) {
             plugin.getWebPanelServer().broadcastPlayerJoin(player);
+        }
+    }
+
+    private void sendJoinMessage(Player player, String visibility) {
+        if ("OFF".equalsIgnoreCase(visibility)) {
+            return; // No join message
+        }
+
+        var settings = plugin.getConfigManager().getSettings();
+        String format = settings.getJoinLeaveJoinFormat();
+        String prefix = plugin.getPlayerProfileManager().getPrefix(player);
+
+        Component message = TextUtil.parse(format
+                .replace("<player>", player.getName())
+                .replace("<player_prefix>", prefix != null ? prefix : ""));
+
+        if ("MODERATORS_ONLY".equalsIgnoreCase(visibility)) {
+            // Only send to staff
+            for (Player staff : Bukkit.getOnlinePlayers()) {
+                if (staff.hasPermission("moderex.notify.joinleave")) {
+                    staff.sendMessage(message);
+                }
+            }
+        } else {
+            // Send to all players (ALL)
+            for (Player online : Bukkit.getOnlinePlayers()) {
+                online.sendMessage(message);
+            }
         }
     }
 
@@ -125,9 +171,24 @@ public class JoinQuitListener implements Listener {
         Player player = event.getPlayer();
         UUID uuid = player.getUniqueId();
 
-        if (plugin.getConfigManager().getSettings().isVanishHideRealJoinLeave() &&
-                plugin.getVanishManager().isVanished(player)) {
+        var settings = plugin.getConfigManager().getSettings();
+        boolean isVanished = plugin.getVanishManager().isVanished(player);
+        boolean isWatched = plugin.getWatchlistManager().isWatched(uuid);
+
+        // Always suppress vanilla quit message if configured
+        if (settings.isJoinLeaveSuppressVanilla() ||
+            (settings.isVanishHideRealJoinLeave() && isVanished)) {
             event.quitMessage(Component.empty());
+        }
+
+        // Send custom ModereX leave message based on visibility (but not for vanished players)
+        if (!isVanished) {
+            String visibility = settings.getJoinLeaveVisibility();
+
+            // If player is on watchlist, only show watchlist notification (not regular leave)
+            if (!isWatched || !"ALL".equalsIgnoreCase(visibility)) {
+                sendLeaveMessage(player, visibility);
+            }
         }
 
         // Clear caches
@@ -137,14 +198,42 @@ public class JoinQuitListener implements Listener {
         plugin.getVanishManager().onPlayerQuit(player);
         plugin.getDisguiseManager().onPlayerQuit(player);
 
-        // Watchlist notification
-        if (plugin.getWatchlistManager().isWatched(uuid)) {
+        // Watchlist notification - always send regardless of visibility setting
+        if (isWatched) {
             plugin.getWatchlistManager().onPlayerQuit(player);
         }
 
-        // Notify web panel of player quit
+        // Notify web panel of player quit - always regardless of visibility
         if (plugin.getWebPanelServer() != null) {
             plugin.getWebPanelServer().broadcastPlayerQuit(player);
+        }
+    }
+
+    private void sendLeaveMessage(Player player, String visibility) {
+        if ("OFF".equalsIgnoreCase(visibility)) {
+            return; // No leave message
+        }
+
+        var settings = plugin.getConfigManager().getSettings();
+        String format = settings.getJoinLeaveLeaveFormat();
+        String prefix = plugin.getPlayerProfileManager().getPrefix(player);
+
+        Component message = TextUtil.parse(format
+                .replace("<player>", player.getName())
+                .replace("<player_prefix>", prefix != null ? prefix : ""));
+
+        if ("MODERATORS_ONLY".equalsIgnoreCase(visibility)) {
+            // Only send to staff
+            for (Player staff : Bukkit.getOnlinePlayers()) {
+                if (staff.hasPermission("moderex.notify.joinleave")) {
+                    staff.sendMessage(message);
+                }
+            }
+        } else {
+            // Send to all players (ALL)
+            for (Player online : Bukkit.getOnlinePlayers()) {
+                online.sendMessage(message);
+            }
         }
     }
 
