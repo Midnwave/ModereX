@@ -206,6 +206,12 @@ public class ConfigManager {
         // Anticheat alerts (added in v2)
         settings.setAnticheatAlertsEnabled(config.getBoolean("anticheat.alerts.enabled", true));
 
+        // Join/Leave messages (added in v10)
+        settings.setJoinLeaveVisibility(config.getString("join-leave.visibility", "ALL"));
+        settings.setJoinLeaveSuppressVanilla(config.getBoolean("join-leave.suppress-vanilla", true));
+        settings.setJoinLeaveJoinFormat(config.getString("join-leave.join-format", "<gray><player_prefix><yellow><player></yellow> joined the server"));
+        settings.setJoinLeaveLeaveFormat(config.getString("join-leave.leave-format", "<gray><player_prefix><yellow><player></yellow> left the server"));
+
         settings.setConfigVersion(getCurrentConfigVersion());
     }
 
