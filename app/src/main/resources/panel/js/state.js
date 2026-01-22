@@ -96,6 +96,7 @@
     // Staff notification settings (synced with in-game)
     staffSettings: {
       commandAlerts: 'WATCHLIST_ONLY',
+      privateMessageAlerts: 'OFF',
       showBlacklistedCommands: true,
       anticheatAlertsLevel: 'EVERYONE',
       anticheatMinVL: 10,

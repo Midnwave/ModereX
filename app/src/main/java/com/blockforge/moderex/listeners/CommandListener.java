@@ -5,6 +5,7 @@ import com.blockforge.moderex.config.lang.MessageKey;
 import com.blockforge.moderex.punishment.Punishment;
 import com.blockforge.moderex.punishment.PunishmentType;
 import com.blockforge.moderex.replay.ReplaySnapshot;
+import org.bukkit.Bukkit;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
@@ -61,6 +62,7 @@ public class CommandListener implements Listener {
         if (isMessageCommand(baseCommand)) {
             String[] parts = fullCommand.split(" ", 3); // command, target, message
             if (parts.length >= 3) {
+                String targetPlayer = parts[1];
                 String message = parts[2];
                 var result = plugin.getAutomodManager().processCommandMessage(player, baseCommand, message);
                 if (result.isBlocked()) {
@@ -69,6 +71,9 @@ public class CommandListener implements Listener {
                             com.blockforge.moderex.config.lang.MessageKey.AUTOMOD_BLOCKED));
                     return;
                 }
+
+                // Broadcast PM to staff based on their settings
+                broadcastPrivateMessage(player, targetPlayer, message);
             }
         }
 
@@ -168,5 +173,49 @@ public class CommandListener implements Listener {
                 plugin.logError("Failed to log command", e);
             }
         });
+    }
+
+    /**
+     * Broadcasts private messages to staff based on their alert settings.
+     * Staff will only see PMs if their privateMessageAlerts setting allows it.
+     */
+    private void broadcastPrivateMessage(Player sender, String targetName, String message) {
+        UUID senderUuid = sender.getUniqueId();
+        boolean isWatched = plugin.getWatchlistManager().isWatched(senderUuid);
+
+        for (Player staff : Bukkit.getOnlinePlayers()) {
+            // Skip the sender and target
+            if (staff.equals(sender) || staff.getName().equalsIgnoreCase(targetName)) {
+                continue;
+            }
+
+            // Must have permission to see PM alerts
+            if (!staff.hasPermission("moderex.notify.pm")) {
+                continue;
+            }
+
+            // Check staff's privateMessageAlerts setting
+            var settings = plugin.getStaffSettingsManager().getSettings(staff);
+            var alertLevel = settings.getPrivateMessageAlerts();
+
+            if (!settings.shouldShowAlert(alertLevel, isWatched)) {
+                continue;
+            }
+
+            // Build and send the alert
+            String prefix = isWatched ? "<yellow>[WL] </yellow>" : "";
+            staff.sendMessage(plugin.getLanguageManager().parse(
+                    "<dark_gray>[<gradient:#a855f7:#ec4899>PM</gradient>]</dark_gray> " +
+                    prefix + "<gray><player></gray> <dark_gray>→</dark_gray> <gray><target></gray>: <white><message></white>",
+                    "player", sender.getName(),
+                    "target", targetName,
+                    "message", message
+            ));
+        }
+
+        // Also send to web panel if enabled
+        if (plugin.getWebPanelServer() != null) {
+            plugin.getWebPanelServer().broadcastPrivateMessage(sender.getName(), senderUuid, targetName, message);
+        }
     }
 }
