@@ -428,11 +428,11 @@ public final class ModereX extends JavaPlugin {
             "",
             RESET + "           Advanced Moderation for Minecraft",
             "",
-            GRAY + "   (c) 2024-2026 BlockForge Studios & ADF Industries",
+            GRAY + "   © 2026 BlockForge Studios & ADF Industries",
             GRAY + "   Version: " + WHITE + getDescription().getVersion(),
             "",
             GRAY + "   Discord:",
-            GRAY + "   - BlockForge: " + LIGHT_BLUE + "https://discord.gg/jQGMhKA5m6",
+            GRAY + "   - BlockForge Studios: " + LIGHT_BLUE + "https://discord.gg/jQGMhKA5m6",
             GRAY + "   - ADF Industries: " + LIGHT_BLUE + "https://discord.gg/qWpcRmDW2P",
             ""
         };
