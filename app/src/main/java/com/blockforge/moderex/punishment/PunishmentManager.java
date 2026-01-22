@@ -425,6 +425,33 @@ public class PunishmentManager {
         });
     }
 
+    /**
+     * Get all punishments issued BY a specific staff member.
+     */
+    public CompletableFuture<List<Punishment>> getPunishmentsByStaff(UUID staffUuid) {
+        return CompletableFuture.supplyAsync(() -> {
+            try {
+                return plugin.getDatabaseManager().query("""
+                        SELECT * FROM moderex_punishments
+                        WHERE staff_uuid = ?
+                        ORDER BY created_at DESC
+                        """,
+                        rs -> {
+                            List<Punishment> punishments = new ArrayList<>();
+                            while (rs.next()) {
+                                punishments.add(mapPunishment(rs));
+                            }
+                            return punishments;
+                        },
+                        staffUuid.toString()
+                );
+            } catch (SQLException e) {
+                plugin.logError("Failed to get punishments by staff", e);
+                return Collections.emptyList();
+            }
+        });
+    }
+
     public CompletableFuture<Punishment> getPunishmentByCaseId(String caseId) {
         return CompletableFuture.supplyAsync(() -> {
             try {
