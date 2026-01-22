@@ -140,7 +140,30 @@ public class WebAuthManager {
     }
 
     public boolean revokePermanentToken(UUID playerUuid) {
-        return removeExistingPermanentToken(playerUuid);
+        boolean removed = removeExistingPermanentToken(playerUuid);
+
+        // Disconnect any active sessions for this player
+        if (removed) {
+            disconnectPlayerSessions(playerUuid);
+        }
+
+        return removed;
+    }
+
+    /**
+     * Disconnect all active web panel sessions for a player.
+     * Called when token is revoked for security.
+     */
+    public void disconnectPlayerSessions(UUID playerUuid) {
+        // Remove from active sessions
+        activeSessions.entrySet().removeIf(entry -> entry.getValue().playerUuid.equals(playerUuid));
+
+        // Disconnect from web panel server
+        if (plugin.getWebPanelServer() != null) {
+            plugin.getWebPanelServer().disconnectPlayer(playerUuid, "TOKEN_REVOKED", "Your access token has been revoked.");
+        }
+
+        plugin.logDebug("[WebAuth] Disconnected all sessions for player: " + playerUuid);
     }
 
     private boolean removeExistingPermanentToken(UUID playerUuid) {
