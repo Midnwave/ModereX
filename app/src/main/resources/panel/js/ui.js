@@ -430,44 +430,6 @@
     const typeFilter = dom.ruleTypeFilter?.value || 'all';
     const statusFilter = dom.ruleStatusFilter?.value || 'all';
 
-    // Anticheat rule (shown if enabled and matches filters)
-    const showAnticheat = state.settings.anticheatReplace && state.anticheat?.enabled &&
-      (typeFilter === 'all' || typeFilter === 'ANTICHEAT') &&
-      (statusFilter === 'all' || (statusFilter === 'enabled' && state.anticheatRule?.enabled) || (statusFilter === 'disabled' && !state.anticheatRule?.enabled)) &&
-      (!searchQ || 'anticheat alert threshold'.includes(searchQ));
-
-    // Get detected anticheat names for badge display
-    const detectedAnticheats = (state.anticheat?.anticheats || []).map(ac => ac.name).filter(Boolean);
-    const anticheatBadges = detectedAnticheats.length > 0
-      ? detectedAnticheats.map(name => `<span class="badge purple"><i class="fa-solid fa-shield-halved"></i> ${escapeHtml(name)}</span>`).join(' ')
-      : '<span class="badge gray"><i class="fa-solid fa-shield-halved"></i> None Detected</span>';
-
-    const anticheatRule = showAnticheat ? `
-      <div class="card" style="margin:0">
-        <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:10px">
-          <div>
-            <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
-              <i class="fa-solid fa-shield-halved" style="font-size:18px;color:var(--purple)"></i>
-              <b style="font-size:14px">Anticheat Alert Threshold</b>
-              ${anticheatBadges}
-            </div>
-            <div class="hintline">Auto punish when an alert exceeds the threshold window.</div>
-          </div>
-          <button class="toggle ${state.anticheatRule?.enabled ? 'on' : ''}" onclick="toggleAnticheatRule()"><span class="toggle-thumb"></span></button>
-        </div>
-        <div class="block" style="margin-top:12px">
-          <span class="badge gray">Threshold:</span>
-          <input class="input" style="width:80px" type="number" min="1" value="${state.anticheatRule?.threshold || 6}" oninput="setAnticheatRule('threshold', this.value)">
-          <span class="badge gray">alert in</span>
-          <input class="input" style="width:70px" type="number" min="1" value="${state.anticheatRule?.windowMins || 2}" oninput="setAnticheatRule('windowMins', this.value)">
-          <span class="badge gray">minutes</span>
-          <select class="input" style="width:120px;margin-left:8px" onchange="setAnticheatRule('action', this.value)">
-            ${['none','warn','mute','ban'].map(opt => `<option value="${opt}" ${state.anticheatRule?.action === opt ? 'selected' : ''}>${opt}</option>`).join('')}
-          </select>
-        </div>
-      </div>
-    ` : '';
-
     // Filter rules
     let filteredRules = state.rules.filter(r => {
       // Search filter
@@ -489,27 +451,31 @@
       return true;
     });
 
-    // Sort: built-in rules first, then by name
+    // Sort: built-in rules first, then custom rules, then anticheat rules at the end
     filteredRules.sort((a, b) => {
-      if (a.builtIn && !b.builtIn) return -1;
-      if (!a.builtIn && b.builtIn) return 1;
+      const aIsAnticheat = a.id?.startsWith('ac_') || a.type === 'ANTICHEAT';
+      const bIsAnticheat = b.id?.startsWith('ac_') || b.type === 'ANTICHEAT';
+      const aIsBuiltIn = a.builtIn && !aIsAnticheat;
+      const bIsBuiltIn = b.builtIn && !bIsAnticheat;
+
+      // Built-in first
+      if (aIsBuiltIn && !bIsBuiltIn) return -1;
+      if (!aIsBuiltIn && bIsBuiltIn) return 1;
+      // Anticheat last
+      if (aIsAnticheat && !bIsAnticheat) return 1;
+      if (!aIsAnticheat && bIsAnticheat) return -1;
+      // Alphabetical within groups
       return (a.name || '').localeCompare(b.name || '');
     });
 
     // Pagination
     const pageSize = state.rulesPageSize || 10;
-    const totalItems = filteredRules.length + (showAnticheat ? 1 : 0);
+    const totalItems = filteredRules.length;
     const totalPages = Math.max(1, Math.ceil(totalItems / pageSize));
     state.rulesPage = Math.max(1, Math.min(totalPages, state.rulesPage || 1));
 
-    let ruleStart, ruleEnd;
-    if (state.rulesPage === 1) {
-      ruleStart = 0;
-      ruleEnd = showAnticheat ? pageSize - 1 : pageSize;
-    } else {
-      ruleStart = (state.rulesPage - 1) * pageSize - (showAnticheat ? 1 : 0);
-      ruleEnd = ruleStart + pageSize;
-    }
+    const ruleStart = (state.rulesPage - 1) * pageSize;
+    const ruleEnd = ruleStart + pageSize;
     const paginatedRules = filteredRules.slice(ruleStart, ruleEnd);
 
     // Update pagination UI
@@ -569,10 +535,8 @@
       return renderCustomRuleCard(r, thr, ruleIcon, iconColor);
     }).join('');
 
-    // Combine anticheat rule (on first page) with regular rules
-    const showAnticheatOnPage = showAnticheat && state.rulesPage === 1;
-    dom.rulesList.innerHTML = (showAnticheatOnPage ? anticheatRule : '') +
-      (rulesHtml || (totalItems === 0 ? `<div class="hintline">No rules match your search. Click "Add Rule" to create one.</div>` : ''));
+    // Render rules list
+    dom.rulesList.innerHTML = rulesHtml || (totalItems === 0 ? `<div class="hintline">No rules match your search. Click "Add Rule" to create one.</div>` : '');
   }
 
   // Render a built-in rule card (spam, caps, links, afk) - simplified, no condition editing
@@ -585,7 +549,7 @@
     const capsMinLength = r.capsMinLength || 10;
     const afkTimeout = r.afkTimeoutMinutes || 15;
     const afkKickEnabled = r.afkKickEnabled || false;
-    const description = r.description || r.notes || getBuiltInDescription(r.id);
+    const description = r.description || r.notes || getBuiltInDescription(r.id, r);
 
     // Rule-specific configuration section
     let configSection = '';
@@ -709,7 +673,7 @@
               <i class="${ruleIcon}" style="font-size:18px;color:${iconColor}"></i>
               <b style="font-size:14px">${escapeHtml(r.name)}</b>
               ${r.enabled ? `<span class="badge green"><i class="fa-solid fa-check"></i> Active</span>` : `<span class="badge gray"><i class="fa-solid fa-pause"></i> Inactive</span>`}
-              <span class="badge blue"><i class="fa-solid fa-lock"></i> Built-in</span>
+              ${ruleType === 'ANTICHEAT' ? `<span class="badge purple"><i class="fa-solid fa-shield-halved"></i> Anticheat</span>` : `<span class="badge blue"><i class="fa-solid fa-lock"></i> Built-in</span>`}
             </div>
             <div class="hintline">${escapeHtml(description)}</div>
           </div>
@@ -722,13 +686,19 @@
   }
 
   // Get description for built-in rules
-  function getBuiltInDescription(ruleId) {
+  function getBuiltInDescription(ruleId, rule) {
     const descriptions = {
       'spam_protection': 'Blocks rapid or repetitive messages automatically.',
       'caps_filter': 'Converts excessive caps to lowercase.',
       'link_filter': 'Blocks URLs and IP addresses in chat.',
       'afk_kick': 'Kicks players after a period of inactivity.'
     };
+    // Anticheat rules have dynamic descriptions
+    if (ruleId.startsWith('ac_') && rule) {
+      const acName = rule.anticheatName || 'Anticheat';
+      const checkName = rule.checkName || 'Unknown';
+      return `Triggers when ${acName} flags a player for ${checkName}.`;
+    }
     return descriptions[ruleId] || 'Built-in automod filter.';
   }
 
