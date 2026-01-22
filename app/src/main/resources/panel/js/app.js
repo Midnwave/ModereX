@@ -2770,7 +2770,7 @@
     { name: 'Automod Alerts', page: 'mysettings', keywords: ['automod', 'filter', 'notify'], elementId: 'alertAutomod' },
     { name: 'Command Alerts', page: 'mysettings', keywords: ['command', 'notify'], elementId: 'alertCommands' },
     { name: 'Punishment Alerts', page: 'mysettings', keywords: ['ban', 'mute', 'kick', 'warn'], elementId: 'alertPunishments' },
-    { name: 'Join/Leave Alerts', page: 'mysettings', keywords: ['join', 'leave', 'connect'], elementId: 'alertJoins' },
+    // Join/Leave alerts removed - now a global config setting
     { name: 'Watchlist Alerts', page: 'mysettings', keywords: ['watchlist', 'monitor', 'notify'], elementId: 'acModeWatchlist' },
     { name: 'Anticheat Alert Mode', page: 'mysettings', keywords: ['anticheat', 'hack', 'cheat', 'mode'], elementId: 'acModeAll' },
     { name: 'Chat Lock', page: 'actions', keywords: ['disable', 'mute all', 'lock chat'] },
@@ -3365,7 +3365,7 @@
       state.staffSettings.watchlistJoinAlerts = data.watchlistJoinAlerts ?? true;
       state.staffSettings.watchlistQuitAlerts = data.watchlistQuitAlerts ?? true;
       state.staffSettings.watchlistActivityAlerts = data.watchlistActivityAlerts ?? true;
-      state.staffSettings.joinLeaveMessages = data.joinLeaveMessages ?? 'ALL';
+      // joinLeaveMessages removed - now a global config setting
       state.staffSettings.staffChatEnabled = data.staffChatEnabled ?? true;
       state.staffSettings.staffChatSound = data.staffChatSound ?? true;
       state.staffSettings.banAlertsLevel = data.banAlertsLevel ?? 'EVERYONE';
