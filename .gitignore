@@ -56,3 +56,10 @@ replay_pid*.log
 # Decompiled jars
 *_Decompiler.com/
 *_Decompiler.com.zip
+grimac-bukkit-*.jar.src*
+GrimAPI
+
+# Claude Code files
+CLAUDE.md
+COMMIT_LOG.txt
+FEATURES_CHANGELOG.txt
