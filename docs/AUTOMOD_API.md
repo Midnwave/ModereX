@@ -117,9 +117,9 @@ api.setLinkFilterEnabled(true);
 
 ---
 
-## Word Filter Rules
+## Creating Custom Rules
 
-### Create Rules
+### Simple Rule Creation
 
 ```java
 // Create a simple word filter rule
@@ -129,11 +129,90 @@ String ruleId = api.createWordFilterRule("Swear Filter");
 List<String> phrases = Arrays.asList("badword1", "badword2", "spam phrase");
 String ruleId = api.createWordFilterRule("Custom Filter", phrases, false);
 
-// Parameters:
-// - name: Rule name
-// - phrases: List of phrases to filter
-// - exactMatch: true = match whole message, false = match anywhere
+// Create a nickname filter rule
+String nicknameRuleId = api.createNicknameRule("Bad Nicknames");
+
+// Create nickname rule with phrases
+String nicknameRuleId = api.createNicknameRule("Staff Impersonation",
+    Arrays.asList("admin", "owner", "mod", "staff"));
 ```
+
+### Rule Builder (Recommended)
+
+The `RuleBuilder` provides full control over rule configuration:
+
+```java
+// Create a comprehensive word filter rule
+String ruleId = api.createRule("Advertising Filter")
+    .type(AutomodAPI.RuleType.WORD_FILTER)
+    .description("Blocks server advertisements and self-promotion")
+    .phrases(Arrays.asList("join my server", "discord.gg/", "play."))
+    .exclusions(Arrays.asList("play.minecraft", "official"))
+    .filterMode(AutomodAPI.FilterMode.CONTAINS_PHRASE)
+    .flagAction(AutomodAPI.FlagAction.BLOCK)
+    .enabled(true)
+    .applyToNicknames(false)
+    .autoPunishment(new AutomodAPI.PunishmentConfig(
+        AutomodAPI.AutoPunishmentType.MUTE,
+        1800000,  // 30 minutes
+        2,        // After 2 violations
+        600000    // Within 10 minutes
+    ))
+    .build();
+
+// Create a nickname-only filter
+String nicknameRuleId = api.createRule("Inappropriate Names")
+    .nicknameOnly(true)
+    .description("Blocks inappropriate nicknames")
+    .phrases(Arrays.asList("inappropriate", "offensive"))
+    .filterMode(AutomodAPI.FilterMode.CONTAINS_PHRASE)
+    .flagAction(AutomodAPI.FlagAction.BLOCK)
+    .build();
+
+// Create a regex-based filter
+String regexRuleId = api.createRule("IP Address Filter")
+    .description("Blocks IP addresses in chat")
+    .addPhrase("\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}")
+    .filterMode(AutomodAPI.FilterMode.REGEX)
+    .flagAction(AutomodAPI.FlagAction.BLOCK)
+    .build();
+```
+
+### RuleBuilder Methods
+
+| Method | Description |
+|--------|-------------|
+| `type(RuleType)` | Set rule type (WORD_FILTER or NICKNAME) |
+| `description(String)` | Set rule description |
+| `phrases(List<String>)` | Set all phrases to filter |
+| `addPhrase(String)` | Add a single phrase |
+| `exclusions(List<String>)` | Set exclusion phrases |
+| `addExclusion(String)` | Add a single exclusion |
+| `filterMode(FilterMode)` | Set how phrases are matched |
+| `flagAction(FlagAction)` | Set action when triggered |
+| `enabled(boolean)` | Enable/disable rule |
+| `exactMatch(boolean)` | Match whole message only |
+| `applyToNicknames(boolean)` | Also apply to nicknames |
+| `nicknameOnly(boolean)` | ONLY apply to nicknames |
+| `autoPunishment(PunishmentConfig)` | Configure auto-punishment |
+| `build()` | Create and save the rule |
+
+### FilterMode Options
+
+| Mode | Description |
+|------|-------------|
+| `CONTAINS_PHRASE` | Match if message contains phrase anywhere |
+| `EXACT_MESSAGE` | Match only if entire message equals phrase |
+| `REGEX` | Use regular expression matching |
+
+### FlagAction Options
+
+| Action | Description |
+|--------|-------------|
+| `BLOCK` | Block the message entirely |
+| `WARN` | Allow but warn the player |
+| `MODIFY` | Modify the message (censor) |
+| `LOG_ONLY` | Log only, no action |
 
 ### Manage Rules
 
@@ -153,6 +232,25 @@ api.setRuleEnabled("123", true);
 
 // Delete a rule (built-in rules cannot be deleted)
 boolean deleted = api.deleteRule("123");
+```
+
+### Update Rule Properties
+
+```java
+// Update rule name (custom rules only)
+api.setRuleName("ruleId", "New Rule Name");
+
+// Update rule description
+api.setRuleDescription("ruleId", "This rule filters spam phrases");
+
+// Change filter mode
+api.setRuleFilterMode("ruleId", AutomodAPI.FilterMode.REGEX);
+
+// Set whether rule applies to nicknames
+api.setRuleApplyToNicknames("ruleId", true);
+
+// Change the action taken when triggered
+api.setRuleFlagAction("ruleId", AutomodAPI.FlagAction.WARN);
 ```
 
 ### Manage Phrases

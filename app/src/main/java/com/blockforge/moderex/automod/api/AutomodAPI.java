@@ -186,7 +186,18 @@ public class AutomodAPI {
         }
     }
 
-    // ==================== WORD FILTER RULES ====================
+    // ==================== RULE CREATION ====================
+
+    /**
+     * Create a new rule builder for flexible rule configuration.
+     * Use this to create custom word filter or nickname rules with full control.
+     *
+     * @param name The rule name
+     * @return A RuleBuilder for configuring the rule
+     */
+    public RuleBuilder createRule(String name) {
+        return new RuleBuilder(plugin, name);
+    }
 
     /**
      * Create a new word filter rule.
@@ -216,6 +227,115 @@ public class AutomodAPI {
         plugin.getAutomodManager().saveRule(rule);
 
         return rule.getId();
+    }
+
+    /**
+     * Create a new nickname filter rule.
+     *
+     * @param name The rule name
+     * @return The created rule's ID, or null if creation failed
+     */
+    public String createNicknameRule(String name) {
+        AutomodRule rule = plugin.getAutomodManager().createRule(name, AutomodRule.RuleType.NICKNAME);
+        return rule != null ? rule.getId() : null;
+    }
+
+    /**
+     * Create a nickname filter rule with specific phrases.
+     *
+     * @param name The rule name
+     * @param phrases List of phrases to filter in nicknames
+     * @return The created rule's ID, or null if creation failed
+     */
+    public String createNicknameRule(String name, List<String> phrases) {
+        AutomodRule rule = plugin.getAutomodManager().createRule(name, AutomodRule.RuleType.NICKNAME);
+        if (rule == null) return null;
+
+        rule.setBlacklistedPhrases(new ArrayList<>(phrases));
+        rule.setNicknameOnly(true);
+        plugin.getAutomodManager().saveRule(rule);
+
+        return rule.getId();
+    }
+
+    /**
+     * Update a rule's name.
+     *
+     * @param ruleId The rule ID
+     * @param newName The new name
+     * @return true if the rule was found and updated
+     */
+    public boolean setRuleName(String ruleId, String newName) {
+        AutomodRule rule = plugin.getAutomodManager().getRule(ruleId);
+        if (rule == null || rule.isBuiltIn()) return false;
+
+        rule.setName(newName);
+        plugin.getAutomodManager().saveRule(rule);
+        return true;
+    }
+
+    /**
+     * Update a rule's description.
+     *
+     * @param ruleId The rule ID
+     * @param description The new description
+     * @return true if the rule was found and updated
+     */
+    public boolean setRuleDescription(String ruleId, String description) {
+        AutomodRule rule = plugin.getAutomodManager().getRule(ruleId);
+        if (rule == null) return false;
+
+        rule.setDescription(description);
+        plugin.getAutomodManager().saveRule(rule);
+        return true;
+    }
+
+    /**
+     * Set the filter mode for a word filter rule.
+     *
+     * @param ruleId The rule ID
+     * @param mode The filter mode (CONTAINS_PHRASE, EXACT_MESSAGE, or REGEX)
+     * @return true if the rule was found and updated
+     */
+    public boolean setRuleFilterMode(String ruleId, FilterMode mode) {
+        AutomodRule rule = plugin.getAutomodManager().getRule(ruleId);
+        if (rule == null) return false;
+
+        rule.setFilterMode(AutomodRule.FilterMode.valueOf(mode.name()));
+        plugin.getAutomodManager().saveRule(rule);
+        return true;
+    }
+
+    /**
+     * Set whether a rule should also apply to nicknames.
+     *
+     * @param ruleId The rule ID
+     * @param applyToNicknames true to apply to nicknames
+     * @return true if the rule was found and updated
+     */
+    public boolean setRuleApplyToNicknames(String ruleId, boolean applyToNicknames) {
+        AutomodRule rule = plugin.getAutomodManager().getRule(ruleId);
+        if (rule == null) return false;
+
+        rule.setApplyToNicknames(applyToNicknames);
+        plugin.getAutomodManager().saveRule(rule);
+        return true;
+    }
+
+    /**
+     * Set the action taken when a rule is triggered.
+     *
+     * @param ruleId The rule ID
+     * @param action The flag action
+     * @return true if the rule was found and updated
+     */
+    public boolean setRuleFlagAction(String ruleId, FlagAction action) {
+        AutomodRule rule = plugin.getAutomodManager().getRule(ruleId);
+        if (rule == null) return false;
+
+        rule.setFlagAction(AutomodRule.FlagAction.valueOf(action.name()));
+        plugin.getAutomodManager().saveRule(rule);
+        return true;
     }
 
     /**
@@ -605,6 +725,32 @@ public class AutomodAPI {
     }
 
     /**
+     * Filter mode for word filters.
+     */
+    public enum FilterMode {
+        /** Match if the message contains the phrase anywhere */
+        CONTAINS_PHRASE,
+        /** Match only if the entire message matches exactly */
+        EXACT_MESSAGE,
+        /** Use regex pattern matching */
+        REGEX
+    }
+
+    /**
+     * Action to take when a rule is triggered.
+     */
+    public enum FlagAction {
+        /** Block the message entirely */
+        BLOCK,
+        /** Allow but warn the player */
+        WARN,
+        /** Modify the message (e.g., censor words) */
+        MODIFY,
+        /** Log only, don't take action */
+        LOG_ONLY
+    }
+
+    /**
      * Auto-punishment type enum.
      */
     public enum AutoPunishmentType {
@@ -628,4 +774,171 @@ public class AutomodAPI {
         List<String> exclusions,
         boolean exactMatch
     ) {}
+
+    // ==================== RULE BUILDER ====================
+
+    /**
+     * Builder for creating custom automod rules with full configuration.
+     * Example usage:
+     * <pre>
+     * String ruleId = api.createRule("Bad Words Filter")
+     *     .type(RuleType.WORD_FILTER)
+     *     .description("Filters inappropriate language")
+     *     .phrases(Arrays.asList("badword1", "badword2"))
+     *     .filterMode(FilterMode.CONTAINS_PHRASE)
+     *     .flagAction(FlagAction.BLOCK)
+     *     .enabled(true)
+     *     .autoPunishment(new PunishmentConfig(AutoPunishmentType.WARN, 0, 3, 300000))
+     *     .build();
+     * </pre>
+     */
+    public static class RuleBuilder {
+        private final ModereX plugin;
+        private final String name;
+        private RuleType type = RuleType.WORD_FILTER;
+        private String description;
+        private List<String> phrases = new ArrayList<>();
+        private List<String> exclusions = new ArrayList<>();
+        private FilterMode filterMode = FilterMode.CONTAINS_PHRASE;
+        private FlagAction flagAction = FlagAction.BLOCK;
+        private boolean enabled = true;
+        private boolean exactMatch = false;
+        private boolean applyToNicknames = false;
+        private boolean nicknameOnly = false;
+        private PunishmentConfig punishment;
+
+        public RuleBuilder(ModereX plugin, String name) {
+            this.plugin = plugin;
+            this.name = name;
+        }
+
+        /**
+         * Set the rule type. Defaults to WORD_FILTER.
+         * Only WORD_FILTER and NICKNAME are allowed for custom rules.
+         */
+        public RuleBuilder type(RuleType type) {
+            if (type != RuleType.WORD_FILTER && type != RuleType.NICKNAME) {
+                throw new IllegalArgumentException("Custom rules can only be WORD_FILTER or NICKNAME type");
+            }
+            this.type = type;
+            return this;
+        }
+
+        /** Set the rule description. */
+        public RuleBuilder description(String description) {
+            this.description = description;
+            return this;
+        }
+
+        /** Set the phrases to filter. */
+        public RuleBuilder phrases(List<String> phrases) {
+            this.phrases = new ArrayList<>(phrases);
+            return this;
+        }
+
+        /** Add a single phrase to filter. */
+        public RuleBuilder addPhrase(String phrase) {
+            this.phrases.add(phrase);
+            return this;
+        }
+
+        /** Set exclusion phrases (words that bypass the filter). */
+        public RuleBuilder exclusions(List<String> exclusions) {
+            this.exclusions = new ArrayList<>(exclusions);
+            return this;
+        }
+
+        /** Add a single exclusion phrase. */
+        public RuleBuilder addExclusion(String exclusion) {
+            this.exclusions.add(exclusion);
+            return this;
+        }
+
+        /** Set the filter mode. Defaults to CONTAINS_PHRASE. */
+        public RuleBuilder filterMode(FilterMode mode) {
+            this.filterMode = mode;
+            this.exactMatch = (mode == FilterMode.EXACT_MESSAGE);
+            return this;
+        }
+
+        /** Set the action to take when triggered. Defaults to BLOCK. */
+        public RuleBuilder flagAction(FlagAction action) {
+            this.flagAction = action;
+            return this;
+        }
+
+        /** Set whether the rule is enabled. Defaults to true. */
+        public RuleBuilder enabled(boolean enabled) {
+            this.enabled = enabled;
+            return this;
+        }
+
+        /** Set whether to use exact message matching. */
+        public RuleBuilder exactMatch(boolean exactMatch) {
+            this.exactMatch = exactMatch;
+            return this;
+        }
+
+        /** Set whether the rule also applies to nicknames. */
+        public RuleBuilder applyToNicknames(boolean apply) {
+            this.applyToNicknames = apply;
+            return this;
+        }
+
+        /** Set whether the rule ONLY applies to nicknames. */
+        public RuleBuilder nicknameOnly(boolean only) {
+            this.nicknameOnly = only;
+            if (only) this.type = RuleType.NICKNAME;
+            return this;
+        }
+
+        /** Configure auto-punishment for this rule. */
+        public RuleBuilder autoPunishment(PunishmentConfig config) {
+            this.punishment = config;
+            return this;
+        }
+
+        /**
+         * Build and save the rule.
+         * @return The rule ID, or null if creation failed
+         */
+        public String build() {
+            AutomodRule.RuleType internalType = AutomodRule.RuleType.valueOf(type.name());
+            AutomodRule rule = plugin.getAutomodManager().createRule(name, internalType);
+            if (rule == null) return null;
+
+            // Apply configuration
+            if (description != null) rule.setDescription(description);
+            rule.setBlacklistedPhrases(phrases);
+            rule.setExclusionPhrases(exclusions);
+            rule.setFilterMode(AutomodRule.FilterMode.valueOf(filterMode.name()));
+            rule.setFlagAction(AutomodRule.FlagAction.valueOf(flagAction.name()));
+            rule.setEnabled(enabled);
+            rule.setExactMatch(exactMatch);
+            rule.setApplyToNicknames(applyToNicknames);
+            rule.setNicknameOnly(nicknameOnly);
+
+            // Apply punishment if configured
+            if (punishment != null) {
+                AutomodRule.AutoPunishment autoPunishment = new AutomodRule.AutoPunishment();
+                autoPunishment.setEnabled(true);
+                autoPunishment.setType(switch (punishment.type()) {
+                    case WARN -> PunishmentType.WARN;
+                    case MUTE -> PunishmentType.MUTE;
+                    case KICK -> PunishmentType.KICK;
+                    case BAN -> PunishmentType.BAN;
+                });
+                autoPunishment.setDuration(punishment.durationMs());
+                autoPunishment.setTriggerCount(punishment.triggerCount());
+                autoPunishment.setTimeWindow(punishment.timeWindowMs());
+                if (punishment.reason() != null) {
+                    autoPunishment.setReason(punishment.reason());
+                }
+                rule.setAutoPunishment(autoPunishment);
+            }
+
+            plugin.getAutomodManager().saveRule(rule);
+            return rule.getId();
+        }
+    }
 }
