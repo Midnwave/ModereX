@@ -2,6 +2,7 @@ package com.blockforge.moderex.disguise;
 
 import com.blockforge.moderex.ModereX;
 import com.blockforge.moderex.disguise.packet.PacketDisguiseInjector;
+import com.blockforge.moderex.webpanel.debug.WebPanelDebugger;
 import net.kyori.adventure.text.Component;
 import org.bukkit.Bukkit;
 import org.bukkit.entity.Player;
@@ -65,6 +66,12 @@ public class DisguiseManager {
         }
 
         plugin.logDebug("[Disguise] " + player.getName() + " disguised as " + profile.getDisplayName());
+
+        // Web panel debug
+        WebPanelDebugger debugger = plugin.getWebPanelDebugger();
+        if (debugger != null) {
+            debugger.disguiseActivated(player.getName(), profile.getDisplayName());
+        }
     }
 
     /**
@@ -95,6 +102,12 @@ public class DisguiseManager {
         player.sendMessage(Component.text("§aDisguise removed. You are now §f" + player.getName()));
 
         plugin.logDebug("[Disguise] " + player.getName() + " undisguised");
+
+        // Web panel debug
+        WebPanelDebugger debugger = plugin.getWebPanelDebugger();
+        if (debugger != null) {
+            debugger.disguiseDeactivated(player.getName());
+        }
     }
 
     /**

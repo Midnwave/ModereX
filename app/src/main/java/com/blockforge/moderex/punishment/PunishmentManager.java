@@ -2,6 +2,7 @@ package com.blockforge.moderex.punishment;
 
 import com.blockforge.moderex.ModereX;
 import com.blockforge.moderex.config.lang.MessageKey;
+import com.blockforge.moderex.webpanel.debug.WebPanelDebugger;
 import com.blockforge.moderex.util.DurationParser;
 import com.blockforge.moderex.util.TextUtil;
 import com.blockforge.moderex.util.TimeUtil;
@@ -161,6 +162,12 @@ public class PunishmentManager {
 
                 // Notify watchlist
                 plugin.getWatchlistManager().onPunishment(punishment);
+
+                // Web panel debug
+                WebPanelDebugger debugger = plugin.getWebPanelDebugger();
+                if (debugger != null) {
+                    debugger.punishmentCreated(type.name(), playerName, staffName, punishment.getCaseId());
+                }
 
             } catch (SQLException e) {
                 plugin.logError("Failed to save punishment", e);

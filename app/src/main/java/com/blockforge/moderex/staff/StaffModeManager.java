@@ -1,6 +1,7 @@
 package com.blockforge.moderex.staff;
 
 import com.blockforge.moderex.ModereX;
+import com.blockforge.moderex.webpanel.debug.WebPanelDebugger;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
 import org.bukkit.Bukkit;
@@ -59,6 +60,12 @@ public class StaffModeManager {
 
         player.sendMessage(Component.text("Staff mode enabled.").color(NamedTextColor.GREEN));
         plugin.logDebug("[StaffMode] " + player.getName() + " enabled staff mode");
+
+        // Web panel debug
+        WebPanelDebugger debugger = plugin.getWebPanelDebugger();
+        if (debugger != null) {
+            debugger.staffModeEnabled(player.getName());
+        }
     }
 
     /**
@@ -81,6 +88,12 @@ public class StaffModeManager {
 
         player.sendMessage(Component.text("Staff mode disabled.").color(NamedTextColor.GREEN));
         plugin.logDebug("[StaffMode] " + player.getName() + " disabled staff mode");
+
+        // Web panel debug
+        WebPanelDebugger debugger = plugin.getWebPanelDebugger();
+        if (debugger != null) {
+            debugger.staffModeDisabled(player.getName());
+        }
     }
 
     /**
