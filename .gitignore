@@ -59,7 +59,8 @@ replay_pid*.log
 grimac-bukkit-*.jar.src*
 GrimAPI
 
-# Claude Code files
-CLAUDE.md
+# Local development files
+*.md.local
 COMMIT_LOG.txt
 FEATURES_CHANGELOG.txt
+.ai/
