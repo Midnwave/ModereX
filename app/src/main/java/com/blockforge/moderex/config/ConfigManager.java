@@ -174,7 +174,8 @@ public class ConfigManager {
         // GitHub auto-update
         settings.setGithubAutoUpdateEnabled(config.getBoolean("github-update.enabled", true));
         settings.setGithubAutoDownload(config.getBoolean("github-update.auto-download", true));
-        settings.setGithubRepo(config.getString("github-update.repo", "crenshawcodes/ModereX"));
+        settings.setGithubRepo(config.getString("github-update.repo", "Midnwave/ModereX"));
+        settings.setGithubToken(config.getString("github-update.token", ""));
 
         // Anticheat
         settings.setAnticheatAutoDetect(config.getBoolean("anticheat.auto-detect", true));

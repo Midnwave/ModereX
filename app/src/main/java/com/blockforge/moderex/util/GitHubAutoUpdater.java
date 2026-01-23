@@ -2,6 +2,8 @@ package com.blockforge.moderex.util;
 
 import com.blockforge.moderex.ModereX;
 import com.blockforge.moderex.config.lang.MessageKey;
+import com.google.gson.JsonObject;
+import com.google.gson.JsonParser;
 import org.bukkit.Bukkit;
 import org.bukkit.entity.Player;
 
@@ -11,16 +13,20 @@ import java.net.URL;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
+import java.util.Base64;
 import java.util.concurrent.CompletableFuture;
 
 /**
  * Automatic plugin updater that checks GitHub releases folder and downloads new versions.
- * Downloads from: https://raw.githubusercontent.com/{owner}/{repo}/main/releases/ModereX-latest.jar
- * Checks build info: https://raw.githubusercontent.com/{owner}/{repo}/main/releases/build-info.txt
+ * Supports both public repos (raw URL) and private repos (API with token).
  */
 public class GitHubAutoUpdater {
 
+    // For public repos
     private static final String RAW_URL = "https://raw.githubusercontent.com/%s/%s/main/releases/";
+    // For private repos (requires token)
+    private static final String API_URL = "https://api.github.com/repos/%s/%s/contents/releases/";
+
     private static final String BUILD_INFO_FILE = "build-info.txt";
     private static final String JAR_FILE = "ModereX-latest.jar";
     private static final String USER_AGENT = "ModereX-AutoUpdater";
@@ -28,7 +34,9 @@ public class GitHubAutoUpdater {
     private final ModereX plugin;
     private final String owner;
     private final String repo;
+    private final String token;
     private final Path lastUpdateFile;
+    private final boolean isPrivate;
 
     private String latestVersion;
     private String latestBuildDate;
@@ -47,13 +55,20 @@ public class GitHubAutoUpdater {
             this.owner = parts[0];
             this.repo = parts[1];
         } else {
-            // Default
             this.owner = "Midnwave";
             this.repo = "ModereX";
         }
 
-        // Set download URL
-        this.downloadUrl = String.format(RAW_URL, owner, repo) + JAR_FILE;
+        // Get token (empty string if not set)
+        this.token = plugin.getConfigManager().getSettings().getGithubToken();
+        this.isPrivate = token != null && !token.isEmpty();
+
+        // Set download URL based on whether repo is private
+        if (isPrivate) {
+            this.downloadUrl = String.format(API_URL, owner, repo) + JAR_FILE;
+        } else {
+            this.downloadUrl = String.format(RAW_URL, owner, repo) + JAR_FILE;
+        }
     }
 
     /**
@@ -75,26 +90,15 @@ public class GitHubAutoUpdater {
      */
     public boolean check() {
         try {
-            String buildInfoUrl = String.format(RAW_URL, owner, repo) + BUILD_INFO_FILE;
-            URL url = new URL(buildInfoUrl);
-            HttpURLConnection connection = (HttpURLConnection) url.openConnection();
-            connection.setRequestMethod("GET");
-            connection.setRequestProperty("User-Agent", USER_AGENT);
-            connection.setConnectTimeout(10000);
-            connection.setReadTimeout(10000);
-
-            int responseCode = connection.getResponseCode();
-            if (responseCode != 200) {
-                plugin.logDebug("GitHub build-info.txt returned " + responseCode);
+            String buildInfoContent = fetchBuildInfo();
+            if (buildInfoContent == null) {
                 return false;
             }
 
-            // Read build info
-            BufferedReader reader = new BufferedReader(new InputStreamReader(connection.getInputStream()));
+            // Parse build info
             String buildDate = null;
             String version = null;
-            String line;
-            while ((line = reader.readLine()) != null) {
+            for (String line : buildInfoContent.split("\n")) {
                 line = line.trim();
                 if (line.matches("\\d{4}-\\d{2}-\\d{2}T.*")) {
                     buildDate = line;
@@ -102,7 +106,6 @@ public class GitHubAutoUpdater {
                     version = line.substring("Version:".length()).trim();
                 }
             }
-            reader.close();
 
             if (buildDate == null) {
                 plugin.logDebug("No build date found in build-info.txt");
@@ -119,7 +122,6 @@ public class GitHubAutoUpdater {
                 updateAvailable = true;
                 plugin.getLogger().info("GitHub build found: " + latestVersion + " (first check)");
             } else {
-                // Simple string comparison works for ISO dates
                 updateAvailable = buildDate.compareTo(lastKnownDate) > 0;
 
                 if (updateAvailable) {
@@ -131,7 +133,6 @@ public class GitHubAutoUpdater {
             }
 
             if (updateAvailable) {
-                // Auto-download if enabled
                 if (plugin.getConfigManager().getSettings().isGithubAutoDownload()) {
                     downloadUpdate();
                 }
@@ -142,6 +143,58 @@ public class GitHubAutoUpdater {
         } catch (Exception e) {
             plugin.logDebug("GitHub update check failed: " + e.getMessage());
             return false;
+        }
+    }
+
+    /**
+     * Fetch build-info.txt content from GitHub.
+     */
+    private String fetchBuildInfo() {
+        try {
+            String url;
+            if (isPrivate) {
+                url = String.format(API_URL, owner, repo) + BUILD_INFO_FILE;
+            } else {
+                url = String.format(RAW_URL, owner, repo) + BUILD_INFO_FILE;
+            }
+
+            HttpURLConnection connection = createConnection(url);
+            int responseCode = connection.getResponseCode();
+
+            if (responseCode != 200) {
+                plugin.logDebug("GitHub build-info.txt returned " + responseCode);
+                return null;
+            }
+
+            if (isPrivate) {
+                // API returns JSON with base64-encoded content
+                BufferedReader reader = new BufferedReader(new InputStreamReader(connection.getInputStream()));
+                StringBuilder response = new StringBuilder();
+                String line;
+                while ((line = reader.readLine()) != null) {
+                    response.append(line);
+                }
+                reader.close();
+
+                JsonObject json = JsonParser.parseString(response.toString()).getAsJsonObject();
+                String content = json.get("content").getAsString();
+                // Remove newlines from base64 and decode
+                content = content.replace("\n", "").replace("\r", "");
+                return new String(Base64.getDecoder().decode(content));
+            } else {
+                // Raw URL returns plain text
+                BufferedReader reader = new BufferedReader(new InputStreamReader(connection.getInputStream()));
+                StringBuilder content = new StringBuilder();
+                String line;
+                while ((line = reader.readLine()) != null) {
+                    content.append(line).append("\n");
+                }
+                reader.close();
+                return content.toString();
+            }
+        } catch (Exception e) {
+            plugin.logDebug("Failed to fetch build info: " + e.getMessage());
+            return null;
         }
     }
 
@@ -163,26 +216,16 @@ public class GitHubAutoUpdater {
      */
     public String forceUpdate() {
         try {
-            // Fetch build info
-            String buildInfoUrl = String.format(RAW_URL, owner, repo) + BUILD_INFO_FILE;
-            URL url = new URL(buildInfoUrl);
-            HttpURLConnection connection = (HttpURLConnection) url.openConnection();
-            connection.setRequestMethod("GET");
-            connection.setRequestProperty("User-Agent", USER_AGENT);
-            connection.setConnectTimeout(10000);
-            connection.setReadTimeout(10000);
-
-            int responseCode = connection.getResponseCode();
-            if (responseCode != 200) {
-                return "GitHub returned HTTP " + responseCode + " - no build found in releases folder.";
+            String buildInfoContent = fetchBuildInfo();
+            if (buildInfoContent == null) {
+                return "GitHub returned error - no build found in releases folder." +
+                       (isPrivate ? " Check that your token is valid." : "");
             }
 
-            // Read build info
-            BufferedReader reader = new BufferedReader(new InputStreamReader(connection.getInputStream()));
+            // Parse build info
             String buildDate = null;
             String version = null;
-            String line;
-            while ((line = reader.readLine()) != null) {
+            for (String line : buildInfoContent.split("\n")) {
                 line = line.trim();
                 if (line.matches("\\d{4}-\\d{2}-\\d{2}T.*")) {
                     buildDate = line;
@@ -190,7 +233,6 @@ public class GitHubAutoUpdater {
                     version = line.substring("Version:".length()).trim();
                 }
             }
-            reader.close();
 
             if (buildDate == null) {
                 return "No build info found in releases folder.";
@@ -199,7 +241,6 @@ public class GitHubAutoUpdater {
             latestBuildDate = buildDate;
             latestVersion = version != null ? version : "unknown";
 
-            // Download the update
             if (downloadUpdate()) {
                 return "Update downloaded successfully! Version: " + latestVersion +
                        "\nRestart the server to apply the update.";
@@ -218,60 +259,67 @@ public class GitHubAutoUpdater {
         try {
             plugin.getLogger().info("Downloading update from GitHub...");
 
-            // Create update folder if it doesn't exist
             File updateFolder = new File(plugin.getDataFolder().getParentFile(), "update");
             if (!updateFolder.exists()) {
                 updateFolder.mkdirs();
             }
 
-            // Download from releases folder
-            URL url = new URL(downloadUrl);
-            HttpURLConnection connection = (HttpURLConnection) url.openConnection();
-            connection.setRequestMethod("GET");
-            connection.setRequestProperty("User-Agent", USER_AGENT);
-            connection.setConnectTimeout(30000);
-            connection.setReadTimeout(60000);
-            connection.setInstanceFollowRedirects(true);
-
-            int responseCode = connection.getResponseCode();
-            if (responseCode != 200) {
-                plugin.getLogger().warning("Download failed with HTTP " + responseCode);
-                return false;
-            }
-
-            long contentLength = connection.getContentLengthLong();
-            plugin.getLogger().info("Downloading " + formatSize(contentLength) + "...");
-
-            // Download to temp file
             Path tempFile = Files.createTempFile("moderex-update-", ".jar");
-            try (InputStream in = connection.getInputStream();
-                 OutputStream out = Files.newOutputStream(tempFile)) {
 
-                byte[] buffer = new byte[8192];
-                int bytesRead;
-                long totalRead = 0;
-                int lastPercent = 0;
+            if (isPrivate) {
+                // Use API for private repos
+                HttpURLConnection connection = createConnection(downloadUrl);
+                int responseCode = connection.getResponseCode();
 
-                while ((bytesRead = in.read(buffer)) != -1) {
-                    out.write(buffer, 0, bytesRead);
-                    totalRead += bytesRead;
+                if (responseCode != 200) {
+                    plugin.getLogger().warning("Download failed with HTTP " + responseCode);
+                    return false;
+                }
 
-                    if (contentLength > 0) {
-                        int percent = (int) ((totalRead * 100) / contentLength);
-                        if (percent >= lastPercent + 10) {
-                            plugin.logDebug("Download progress: " + percent + "%");
-                            lastPercent = percent;
-                        }
+                // API returns JSON with base64-encoded content
+                BufferedReader reader = new BufferedReader(new InputStreamReader(connection.getInputStream()));
+                StringBuilder response = new StringBuilder();
+                String line;
+                while ((line = reader.readLine()) != null) {
+                    response.append(line);
+                }
+                reader.close();
+
+                JsonObject json = JsonParser.parseString(response.toString()).getAsJsonObject();
+                String content = json.get("content").getAsString();
+                content = content.replace("\n", "").replace("\r", "");
+                byte[] jarBytes = Base64.getDecoder().decode(content);
+
+                plugin.getLogger().info("Downloading " + formatSize(jarBytes.length) + "...");
+                Files.write(tempFile, jarBytes);
+            } else {
+                // Use raw URL for public repos
+                HttpURLConnection connection = createConnection(downloadUrl);
+                int responseCode = connection.getResponseCode();
+
+                if (responseCode != 200) {
+                    plugin.getLogger().warning("Download failed with HTTP " + responseCode);
+                    return false;
+                }
+
+                long contentLength = connection.getContentLengthLong();
+                plugin.getLogger().info("Downloading " + formatSize(contentLength) + "...");
+
+                try (InputStream in = connection.getInputStream();
+                     OutputStream out = Files.newOutputStream(tempFile)) {
+                    byte[] buffer = new byte[8192];
+                    int bytesRead;
+                    while ((bytesRead = in.read(buffer)) != -1) {
+                        out.write(buffer, 0, bytesRead);
                     }
                 }
             }
 
-            // Move to update folder with version name
+            // Move to update folder
             String jarName = "ModereX-" + (latestVersion != null ? latestVersion : "latest") + ".jar";
             Path targetPath = updateFolder.toPath().resolve(jarName);
             Files.move(tempFile, targetPath, StandardCopyOption.REPLACE_EXISTING);
 
-            // Save the build date so we know we have this version
             if (latestBuildDate != null) {
                 saveLastUpdateDate(latestBuildDate);
             }
@@ -287,6 +335,27 @@ public class GitHubAutoUpdater {
             e.printStackTrace();
             return false;
         }
+    }
+
+    /**
+     * Create HTTP connection with proper headers.
+     */
+    private HttpURLConnection createConnection(String urlString) throws IOException {
+        URL url = new URL(urlString);
+        HttpURLConnection connection = (HttpURLConnection) url.openConnection();
+        connection.setRequestMethod("GET");
+        connection.setRequestProperty("User-Agent", USER_AGENT);
+        connection.setConnectTimeout(30000);
+        connection.setReadTimeout(60000);
+        connection.setInstanceFollowRedirects(true);
+
+        // Add authorization header for private repos
+        if (isPrivate && token != null && !token.isEmpty()) {
+            connection.setRequestProperty("Authorization", "Bearer " + token);
+            connection.setRequestProperty("Accept", "application/vnd.github.v3+json");
+        }
+
+        return connection;
     }
 
     private String loadLastUpdateDate() {
@@ -353,8 +422,7 @@ public class GitHubAutoUpdater {
     }
 
     public void schedulePeriodicCheck() {
-        // 24 hours in ticks
-        long interval = 20L * 60 * 60 * 24;
+        long interval = 20L * 60 * 60 * 24; // 24 hours
 
         Bukkit.getScheduler().runTaskTimerAsynchronously(plugin, () -> {
             try {
