@@ -13,7 +13,7 @@ general:
   invalid-duration: "<red>Invalid duration format. Use: 1mo, 3d, 1h, 30m, 15s, or permanent"
   invalid-arguments: "<red>Invalid arguments. Usage: <white><usage>"
   reload-success: "<green>Configuration reloaded successfully!"
-  plugin-info: "<gray>ModereX v<version> by BlockForge"
+  plugin-info: "<gray>ModereX v<version> by BlockForge Studios & ADF Industries LLC."
 
 # ============================================
 # MUTE
