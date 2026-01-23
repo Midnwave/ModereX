@@ -141,6 +141,16 @@ public final class ModereX extends JavaPlugin {
         automodManager.load();
         this.automodAPI = new AutomodAPI(this);
 
+        // Register anticheat automod rules (now that AutomodManager is ready)
+        if (hookManager != null && hookManager.getAnticheatManager() != null) {
+            for (String acName : hookManager.getAnticheatManager().getEnabledAnticheats()) {
+                var hook = hookManager.getAnticheatManager().getHook(acName);
+                if (hook != null) {
+                    automodManager.registerAnticheatRules(hook.getName(), hook.getVersion());
+                }
+            }
+        }
+
         logStartup("Initializing AFK manager...");
         this.afkManager = new com.blockforge.moderex.automod.AfkManager(this);
         getServer().getPluginManager().registerEvents(afkManager, this);
@@ -253,9 +263,15 @@ public final class ModereX extends JavaPlugin {
         this.listenerManager = new ListenerManager(this);
         listenerManager.registerAll();
 
-        // Check for updates
+        // Check for updates (Modrinth)
         if (configManager.getSettings().isUpdateCheckerEnabled()) {
             new UpdateChecker(this).checkAsync();
+        }
+
+        // Check for GitHub updates and auto-download
+        if (configManager.getSettings().isGithubAutoUpdateEnabled()) {
+            logStartup("Checking GitHub for updates...");
+            new com.blockforge.moderex.util.GitHubAutoUpdater(this).checkAsync();
         }
 
         long endTime = System.currentTimeMillis();
