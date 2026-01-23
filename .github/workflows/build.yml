@@ -1,17 +1,17 @@
-name: Build
+name: Build and Release
 
 on:
   push:
     branches: [ main ]
-  pull_request:
-    branches: [ main ]
+  workflow_dispatch:  # Allow manual trigger
 
 jobs:
   build:
     runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/checkout@v4
+    - name: Checkout code
+      uses: actions/checkout@v4
 
     - name: Set up JDK 21
       uses: actions/setup-java@v4
@@ -23,11 +23,45 @@ jobs:
     - name: Grant execute permission for gradlew
       run: chmod +x gradlew
 
-    - name: Clean and Build
+    - name: Build with Gradle
       run: ./gradlew clean build --no-daemon
+
+    - name: Get version from build.gradle
+      id: version
+      run: |
+        VERSION=$(grep "^version = " app/build.gradle | sed "s/version = '\(.*\)'/\1/")
+        echo "version=$VERSION" >> $GITHUB_OUTPUT
+        echo "Building version: $VERSION"
 
     - name: Upload artifact
       uses: actions/upload-artifact@v4
       with:
         name: ModereX
         path: app/build/libs/ModereX-*.jar
+
+    - name: Delete existing latest release
+      uses: dev-drprasad/delete-tag-and-release@v1.1
+      with:
+        tag_name: latest
+        github_token: ${{ secrets.GITHUB_TOKEN }}
+        delete_release: true
+      continue-on-error: true
+
+    - name: Create Release
+      uses: softprops/action-gh-release@v2
+      with:
+        tag_name: latest
+        name: "Latest Build - v${{ steps.version.outputs.version }}"
+        body: |
+          Automated build from commit ${{ github.sha }}
+
+          **Version:** ${{ steps.version.outputs.version }}
+          **Commit:** `${{ github.event.head_commit.message }}`
+
+          This release is automatically updated on every push to main.
+          Servers with ModereX will auto-detect and download this build.
+        files: app/build/libs/ModereX-${{ steps.version.outputs.version }}.jar
+        prerelease: false
+        make_latest: true
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
