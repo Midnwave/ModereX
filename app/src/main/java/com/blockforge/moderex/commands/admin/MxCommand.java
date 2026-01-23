@@ -85,6 +85,7 @@ public class MxCommand extends BaseCommand {
 
             case "staffchat", "sc" -> handleStaffChat(sender, subArgs);
             case "vanish", "v" -> handleVanish(sender);
+            case "update", "checkupdate" -> handleUpdate(sender);
 
             default -> sendMessage(sender, "<red>Unknown subcommand: " + subcommand + ". Use /mx help for a list.");
         }
@@ -98,6 +99,30 @@ public class MxCommand extends BaseCommand {
 
         plugin.reload();
         sendMessage(sender, MessageKey.RELOAD_SUCCESS);
+    }
+
+    private void handleUpdate(CommandSender sender) {
+        if (!sender.hasPermission("moderex.command.admin")) {
+            sendMessage(sender, MessageKey.NO_PERMISSION);
+            return;
+        }
+
+        sendMessage(sender, "<yellow>Checking GitHub for updates...");
+
+        var updater = new com.blockforge.moderex.util.GitHubAutoUpdater(plugin);
+        updater.forceUpdateAsync().thenAccept(result -> {
+            plugin.getServer().getScheduler().runTask(plugin, () -> {
+                for (String line : result.split("\n")) {
+                    if (line.contains("successfully")) {
+                        sendMessage(sender, "<green>" + line);
+                    } else if (line.contains("failed") || line.contains("error")) {
+                        sendMessage(sender, "<red>" + line);
+                    } else {
+                        sendMessage(sender, "<gray>" + line);
+                    }
+                }
+            });
+        });
     }
 
     private void handleTestReplay(CommandSender sender) {
