@@ -212,7 +212,7 @@
     if (page === 'templates') ui.renderTemplates();
     if (page === 'messages') ui.renderMessages();
     if (page === 'settings') ui.renderChatToggles();
-    if (page === 'my-settings' && window.loadDevChecklist) window.loadDevChecklist();
+    if (page === 'mysettings' && window.loadDevChecklist) window.loadDevChecklist();
     if (page === 'status' && window.initServerStatus) window.initServerStatus();
     if (page === 'replay' && window.initReplayViewer) window.initReplayViewer();
   };
@@ -3212,6 +3212,7 @@
       ws.requestAnticheatAlerts();
       // Also request integration info for Settings page
       ws.send('GET_ANTICHEAT_INFO');
+      ws.send('GET_GEYSER_STATUS');
 
       ui.renderAll();
       hideDisconnect();
@@ -3727,9 +3728,22 @@
       ui.renderChatToggles();
     });
 
+    // Integration status (Geyser, Floodgate, Citizens)
+    ws.on('GEYSER_STATUS', (data) => {
+      if (!isLiveMode) return;
+      state.integrations = state.integrations || {};
+      state.integrations.geyserDetected = data.geyserAvailable;
+      state.integrations.floodgateDetected = data.floodgateAvailable;
+      state.integrations.citizensDetected = data.citizensAvailable;
+      state.integrations.geyserVersion = data.geyserVersion;
+      state.integrations.floodgateVersion = data.floodgateVersion;
+      state.integrations.citizensVersion = data.citizensVersion;
+      ui.renderIntegrations();
+    });
+
     // Developer Checklist
-    ws.on('DEV_CHECKLIST', (items) => {
-      state.devChecklist = items || [];
+    ws.on('DEV_CHECKLIST', (data) => {
+      state.devChecklist = data || [];
       renderDevChecklist();
     });
   }
@@ -4080,23 +4094,10 @@
       const versionBadge = document.getElementById('versionBadge');
       if (versionBadge) {
         versionBadge.style.display = debugEnabled ? 'flex' : 'none';
-        // Set version text (DEV-YYYY-DD-MM_build)
+        // Set version text
         const versionText = document.getElementById('versionText');
         if (versionText) {
-          const now = new Date();
-          const year = now.getFullYear();
-          const day = String(now.getDate()).padStart(2, '0');
-          const month = String(now.getMonth() + 1).padStart(2, '0');
-          // Build number stored in localStorage, resets each day
-          const dateKey = `${year}-${month}-${day}`;
-          const storedDate = localStorage.getItem('mx_build_date');
-          let buildNum = parseInt(localStorage.getItem('mx_build_num') || '1', 10);
-          if (storedDate !== dateKey) {
-            buildNum = 1;
-            localStorage.setItem('mx_build_date', dateKey);
-            localStorage.setItem('mx_build_num', '1');
-          }
-          versionText.textContent = `DEV-${year}-${day}-${month}_${buildNum}`;
+          versionText.textContent = 'DEV-2026-01-23_2';
         }
       }
     }
@@ -4575,36 +4576,100 @@
     }
   }
 
-  function addChecklistItem() {
-    const title = prompt('Enter checklist item title:');
-    if (!title || !title.trim()) return;
+  // Checklist modal state
+  let pendingDeleteItemId = null;
 
-    const category = prompt('Enter category (or leave blank for "Custom"):', 'Custom') || 'Custom';
-    const description = prompt('Enter description (optional):') || '';
+  function addChecklistItem() {
+    // Open the modal instead of using prompt()
+    const overlay = document.getElementById('checklistAddOverlay');
+    if (overlay) {
+      // Clear previous values
+      const titleEl = document.getElementById('checklistItemTitle');
+      const categoryEl = document.getElementById('checklistItemCategory');
+      const descEl = document.getElementById('checklistItemDesc');
+      if (titleEl) titleEl.value = '';
+      if (categoryEl) categoryEl.value = 'Custom';
+      if (descEl) descEl.value = '';
+      overlay.classList.add('show');
+      // Focus on title input
+      setTimeout(() => titleEl?.focus(), 100);
+    }
+  }
+
+  function closeChecklistModal() {
+    const overlay = document.getElementById('checklistAddOverlay');
+    if (overlay) overlay.classList.remove('show');
+  }
+
+  function submitChecklistItem() {
+    const titleEl = document.getElementById('checklistItemTitle');
+    const categoryEl = document.getElementById('checklistItemCategory');
+    const descEl = document.getElementById('checklistItemDesc');
+
+    const title = titleEl?.value?.trim();
+    const category = categoryEl?.value?.trim() || 'Custom';
+    const description = descEl?.value?.trim() || '';
+
+    if (!title) {
+      toast('error', 'Error', 'Title is required');
+      titleEl?.focus();
+      return;
+    }
 
     const ws = window.MX?.ws;
     if (ws?.isConnected()) {
-      ws.send('ADD_CHECKLIST_ITEM', { title: title.trim(), category: category.trim(), description: description.trim() });
+      ws.send('ADD_CHECKLIST_ITEM', { title, category, description });
       toast('info', 'Adding', 'Creating checklist item...');
+      closeChecklistModal();
     } else {
       toast('error', 'Error', 'Not connected to server');
     }
   }
 
   function deleteChecklistItem(itemId) {
-    if (!confirm('Delete this checklist item?')) return;
+    // Find the item to show its name in the confirmation modal
+    const item = (state.devChecklist || []).find(i => i.id === itemId);
+    pendingDeleteItemId = itemId;
+
+    const overlay = document.getElementById('checklistDeleteOverlay');
+    const nameEl = document.getElementById('checklistDeleteItemName');
+    if (nameEl && item) {
+      nameEl.textContent = item.title || 'Unknown item';
+    }
+    if (overlay) overlay.classList.add('show');
+  }
+
+  function closeChecklistDeleteModal() {
+    const overlay = document.getElementById('checklistDeleteOverlay');
+    if (overlay) overlay.classList.remove('show');
+    pendingDeleteItemId = null;
+  }
+
+  function confirmDeleteChecklistItem() {
+    if (!pendingDeleteItemId) return;
 
     const ws = window.MX?.ws;
     if (ws?.isConnected()) {
-      ws.send('DELETE_CHECKLIST_ITEM', { itemId });
+      ws.send('DELETE_CHECKLIST_ITEM', { itemId: pendingDeleteItemId });
+      toast('info', 'Deleting', 'Removing checklist item...');
     } else {
       toast('error', 'Error', 'Not connected to server');
     }
+    closeChecklistDeleteModal();
   }
 
   function resetChecklist() {
-    if (!confirm('Reset all checklist items to unchecked?')) return;
+    // Open the reset confirmation modal
+    const overlay = document.getElementById('checklistResetOverlay');
+    if (overlay) overlay.classList.add('show');
+  }
 
+  function closeChecklistResetModal() {
+    const overlay = document.getElementById('checklistResetOverlay');
+    if (overlay) overlay.classList.remove('show');
+  }
+
+  function confirmResetChecklist() {
     const ws = window.MX?.ws;
     if (ws?.isConnected()) {
       // Uncheck all items
@@ -4617,6 +4682,7 @@
     } else {
       toast('error', 'Error', 'Not connected to server');
     }
+    closeChecklistResetModal();
   }
 
   function loadDevChecklist() {
@@ -4647,8 +4713,14 @@
   window.hideDisconnect = hideDisconnect;
   window.toggleChecklistItem = toggleChecklistItem;
   window.addChecklistItem = addChecklistItem;
+  window.closeChecklistModal = closeChecklistModal;
+  window.submitChecklistItem = submitChecklistItem;
   window.deleteChecklistItem = deleteChecklistItem;
+  window.closeChecklistDeleteModal = closeChecklistDeleteModal;
+  window.confirmDeleteChecklistItem = confirmDeleteChecklistItem;
   window.resetChecklist = resetChecklist;
+  window.closeChecklistResetModal = closeChecklistResetModal;
+  window.confirmResetChecklist = confirmResetChecklist;
   window.loadDevChecklist = loadDevChecklist;
 
   // ===== INITIALIZATION =====
