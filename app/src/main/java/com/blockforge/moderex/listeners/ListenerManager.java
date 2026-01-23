@@ -22,6 +22,7 @@ public class ListenerManager {
         registerListener(new DisguiseListener(plugin));
         registerListener(new PlayerInteractionListener(plugin));
         registerListener(new ReplayListener(plugin));
+        registerListener(new ReplayActionListener(plugin));
 
         plugin.getLogger().info("Registered all event listeners.");
     }

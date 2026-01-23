@@ -33,7 +33,27 @@ public class ReplaySnapshot {
         CHAT,
         COMMAND,
         DAMAGE_RECEIVED,
-        DAMAGE_DEALT
+        DAMAGE_DEALT,
+        // Enhanced action types for detailed logging
+        SWING_ARM,
+        SNEAK_START,
+        SNEAK_END,
+        SPRINT_START,
+        SPRINT_END,
+        JUMP,
+        INVENTORY_OPEN,
+        INVENTORY_CLOSE,
+        ITEM_PICKUP,
+        ITEM_USE,
+        BOW_SHOOT,
+        CONSUME_ITEM,
+        FISH_CAST,
+        FISH_REEL,
+        SHIELD_BLOCK,
+        DEATH,
+        RESPAWN,
+        TELEPORT,
+        PORTAL_ENTER
     }
 
     private ReplaySnapshot(Builder builder) {
