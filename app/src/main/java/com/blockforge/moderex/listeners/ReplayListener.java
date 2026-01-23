@@ -36,7 +36,7 @@ public class ReplayListener implements Listener {
         // Cancel the event to prevent block placement/breaking
         event.setCancelled(true);
 
-        // Handle hotbar clicks
+        // Handle hotbar clicks - only if player is actually holding a control item
         if (event.getAction() == Action.RIGHT_CLICK_AIR ||
             event.getAction() == Action.RIGHT_CLICK_BLOCK ||
             event.getAction() == Action.LEFT_CLICK_AIR ||
@@ -44,8 +44,12 @@ public class ReplayListener implements Listener {
 
             ReplayPlayback playback = plugin.getReplayManager().getPlayback(player.getUniqueId());
             if (playback != null) {
-                int slot = player.getInventory().getHeldItemSlot();
-                playback.handleHotbarClick(slot);
+                // Check if player is holding a valid control item
+                org.bukkit.inventory.ItemStack heldItem = player.getInventory().getItemInMainHand();
+                if (heldItem != null && heldItem.getType() != org.bukkit.Material.AIR && heldItem.hasItemMeta()) {
+                    int slot = player.getInventory().getHeldItemSlot();
+                    playback.handleHotbarClick(slot);
+                }
             }
         }
     }
