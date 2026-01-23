@@ -551,15 +551,35 @@
   window.submitPunishCreate = function() {
     const pid = state.punishCreatePlayerId;
     if (!pid) { toast('warn', 'No Target', 'Select a player first.'); return; }
+    const p = state.players.find(x => x.id === pid);
     const type = dom().punishCreateType.value || 'WARN';
     const reason = dom().punishCreateReason.value.trim() || 'No reason';
     const duration = dom().punishCreateDuration.value.trim() || (type === 'BAN' ? 'perm' : type === 'MUTE' ? '7d' : '');
     const evId = dom().punishCreateEvidencePick.value || null;
-    executePunishment({ playerId: pid, type, reason, duration, evidenceId: evId });
-    ui.renderPunishments();
-    ui.renderPlayers();
+
+    const ws = window.MX.ws;
+    const isLive = ws && ws.isConnected();
+
+    if (isLive && p) {
+      // Send via WebSocket - the PUNISHMENT_CREATED handler will update UI
+      ws.createPunishment({
+        playerUuid: p.uuid || pid,
+        playerName: p.name,
+        type: type,
+        reason: reason,
+        duration: duration,
+        evidenceId: evId
+      });
+      toast('info', 'Sending', `Creating ${type.toLowerCase()} for ${p.name}...`);
+    } else {
+      // Demo mode - update local state
+      executePunishment({ playerId: pid, type, reason, duration, evidenceId: evId });
+      ui.renderPunishments();
+      ui.renderPlayers();
+      toast('ok', 'Executed', `${type} applied to ${p?.name || 'player'}.`);
+    }
+
     closePunishCreateModal();
-    toast('ok', 'Executed', `${type} applied to ${state.players.find(p => p.id === pid)?.name || 'player'}.`);
   };
 
   window.closePunishModal = function(e) {
@@ -603,12 +623,29 @@
     const duration = dom().punishDuration.value.trim() || (type === 'BAN' ? 'perm' : type === 'MUTE' ? '7d' : '');
     const evId = dom().punishEvidencePick.value || null;
 
-    executePunishment({ playerId: p.id, type, reason, duration, evidenceId: evId });
+    const ws = window.MX.ws;
+    const isLive = ws && ws.isConnected();
 
-    ui.renderPunishments();
-    ui.renderPlayers();
+    if (isLive) {
+      // Send via WebSocket - the PUNISHMENT_CREATED handler will update UI
+      ws.createPunishment({
+        playerUuid: p.uuid || p.id,
+        playerName: p.name,
+        type: type,
+        reason: reason,
+        duration: duration,
+        evidenceId: evId
+      });
+      toast('info', 'Sending', `Creating ${type.toLowerCase()} for ${p.name}...`);
+    } else {
+      // Demo mode - update local state
+      executePunishment({ playerId: p.id, type, reason, duration, evidenceId: evId });
+      ui.renderPunishments();
+      ui.renderPlayers();
+      toast('ok', 'Executed', `${type} applied to ${p.name}.`);
+    }
+
     closePunishModal();
-    toast('ok', 'Executed', `${type} applied to ${p.name}.`);
   };
 
   // ===== PUNISHMENT DETAILS =====
@@ -1115,6 +1152,26 @@
   window.toggleRuleBlock = function(ruleId) {
     const r = state.rules.find(r => r.id === ruleId);
     if (r) { r.block = !r.block; ui.markUnsaved('rules', true); ui.renderRules(); }
+  };
+
+  window.toggleRuleRecordReplay = function(ruleId) {
+    const r = state.rules.find(r => r.id === ruleId);
+    if (r) {
+      r.recordReplay = !r.recordReplay;
+      if (r.recordReplay && !r.replayDurationSeconds) {
+        r.replayDurationSeconds = 60; // Default 60 seconds
+      }
+      ui.markUnsaved('rules', true);
+      ui.renderRules();
+    }
+  };
+
+  window.setRuleReplayDuration = function(ruleId, seconds) {
+    const r = state.rules.find(r => r.id === ruleId);
+    if (r) {
+      r.replayDurationSeconds = Math.max(10, Math.min(300, parseInt(seconds || '60', 10)));
+      ui.markUnsaved('rules', true);
+    }
   };
 
   window.setRuleThreshold = function(ruleId, field, v) {
@@ -1956,7 +2013,26 @@ Guide users to the right tab, explain what controls do, and suggest next steps.
     dom().globalSearch?.addEventListener('keydown', (e) => {
       if (e.key === 'Enter') {
         const q = e.target.value.trim().toLowerCase();
-        if (q) { const p = state.players.find(x => x.name.toLowerCase().includes(q)); if (p) { go('players'); openDrawer(p.id); } }
+        if (!q) return;
+
+        // Search players by name
+        const p = state.players.find(x => x.name.toLowerCase().includes(q));
+        if (p) { go('players'); openDrawer(p.id); return; }
+
+        // Search punishments by case ID (full or partial)
+        const pun = state.punishments.find(x =>
+          x.id?.toLowerCase().includes(q) ||
+          x.id?.slice(-8).toLowerCase() === q
+        );
+        if (pun) { go('punishments'); viewPunishmentDetails(pun.id); return; }
+
+        // Search punishments by reason
+        const punByReason = state.punishments.find(x =>
+          x.reason?.toLowerCase().includes(q)
+        );
+        if (punByReason) { go('punishments'); viewPunishmentDetails(punByReason.id); return; }
+
+        toast('warn', 'Not Found', 'No matching player or case found.');
       }
     });
 
@@ -2101,8 +2177,16 @@ Guide users to the right tab, explain what controls do, and suggest next steps.
       state.punishments.unshift(pun);
       state.activity.unshift({ t: now(), actor: data.staffName, action: `${data.type} issued`, target: data.playerName });
       ui.renderPunishments();
+      ui.renderPlayers();
       ui.renderDashboard();
-      toast('info', 'Punishment', `${data.playerName} was ${data.type.toLowerCase()}ed by ${data.staffName}`);
+
+      // Show success if created by current user, info if by another staff
+      const isSelf = data.staffName === state.currentUser?.name;
+      if (isSelf) {
+        toast('ok', 'Executed', `${data.type} applied to ${data.playerName}`);
+      } else {
+        toast('info', 'Punishment', `${data.playerName} was ${data.type.toLowerCase()}ed by ${data.staffName}`);
+      }
     });
 
     ws.on('PUNISHMENT_REVOKED', (data) => {
@@ -2236,9 +2320,20 @@ Guide users to the right tab, explain what controls do, and suggest next steps.
       const dot = dom().statusDot;
       const text = dom().statusText;
       const chip = dom().serverChip;
+      const pluginVer = document.getElementById('pluginVersion');
       if (dot) dot.className = 'dot ' + (data.online ? 'ok' : 'error');
       if (text) text.textContent = data.online ? 'Online' : 'Offline';
       if (chip) chip.innerHTML = `<i class="fa-solid fa-server"></i> ${data.version || '1.21'}`;
+      if (pluginVer && data.pluginVersion) {
+        pluginVer.textContent = `Plugin: v${data.pluginVersion}`;
+      }
+    });
+
+    // System messages (always shown regardless of debug mode)
+    ws.on('SYSTEM_MESSAGE', (data) => {
+      const typeMap = { INFO: 'info', WARN: 'warn', ERROR: 'bad', SUCCESS: 'ok' };
+      toast(typeMap[data.messageType] || 'info', data.title || 'System', data.message);
+      logEvent(data.messageType || 'INFO', 'system', data.title || 'System', data.message, { kind: 'system' });
     });
 
     ws.on('CHAT_STATUS', (data) => {
@@ -2273,6 +2368,250 @@ Guide users to the right tab, explain what controls do, and suggest next steps.
       }
     };
   }
+
+  // ===== EVIDENCE MANAGEMENT =====
+  let selectedEvidenceFile = null;
+  let currentEvidenceId = null;
+
+  window.openEvidenceUpload = function() {
+    selectedEvidenceFile = null;
+    document.getElementById('evidenceFileInput').value = '';
+    document.getElementById('evidencePreview').style.display = 'none';
+    document.getElementById('evidenceDropzone').style.display = 'block';
+    document.getElementById('evidencePlayer').value = '';
+    document.getElementById('evidenceDescription').value = '';
+    document.getElementById('evidenceTags').value = '';
+    document.getElementById('evidenceUploadBtn').disabled = true;
+    document.getElementById('evidenceUploadOverlay').classList.add('active');
+  };
+
+  window.closeEvidenceUpload = function() {
+    document.getElementById('evidenceUploadOverlay').classList.remove('active');
+    selectedEvidenceFile = null;
+  };
+
+  window.handleEvidenceFile = function(input) {
+    const file = input.files[0];
+    if (!file) return;
+
+    // Validate extension
+    const ext = file.name.split('.').pop().toLowerCase();
+    const allowed = ['mp4', 'mkv', 'png', 'jpg', 'jpeg'];
+    if (!allowed.includes(ext)) {
+      toast('bad', 'Invalid Type', 'Only MP4, MKV, PNG, JPG files are allowed.');
+      return;
+    }
+
+    // Validate size (300MB max)
+    const maxSize = 300 * 1024 * 1024;
+    if (file.size > maxSize) {
+      toast('bad', 'Too Large', 'Maximum file size is 300MB.');
+      return;
+    }
+
+    selectedEvidenceFile = file;
+
+    // Show preview
+    document.getElementById('evidenceDropzone').style.display = 'none';
+    document.getElementById('evidencePreview').style.display = 'block';
+    document.getElementById('evidencePreviewName').textContent = file.name;
+    document.getElementById('evidencePreviewSize').textContent = formatFileSize(file.size);
+
+    const icon = document.getElementById('evidencePreviewIcon');
+    if (['mp4', 'mkv'].includes(ext)) {
+      icon.className = 'fa-solid fa-file-video';
+      icon.style.color = 'var(--primary-light)';
+    } else {
+      icon.className = 'fa-solid fa-file-image';
+      icon.style.color = 'var(--ok)';
+    }
+
+    document.getElementById('evidenceUploadBtn').disabled = false;
+  };
+
+  window.clearEvidenceFile = function() {
+    selectedEvidenceFile = null;
+    document.getElementById('evidenceFileInput').value = '';
+    document.getElementById('evidencePreview').style.display = 'none';
+    document.getElementById('evidenceDropzone').style.display = 'block';
+    document.getElementById('evidenceUploadBtn').disabled = true;
+  };
+
+  window.uploadEvidence = function() {
+    if (!selectedEvidenceFile) return;
+
+    const ws = window.MX.ws;
+    if (!ws || !ws.isConnected()) {
+      toast('bad', 'Not Connected', 'Connect to server to upload evidence.');
+      return;
+    }
+
+    // For now, create a local demo entry since file upload requires backend support
+    const evidence = {
+      id: 'EV-' + Math.random().toString(36).substr(2, 8).toUpperCase(),
+      fileName: selectedEvidenceFile.name,
+      fileSize: selectedEvidenceFile.size,
+      formattedSize: formatFileSize(selectedEvidenceFile.size),
+      fileType: selectedEvidenceFile.name.split('.').pop().toLowerCase(),
+      isVideo: ['mp4', 'mkv'].includes(selectedEvidenceFile.name.split('.').pop().toLowerCase()),
+      isImage: ['png', 'jpg', 'jpeg'].includes(selectedEvidenceFile.name.split('.').pop().toLowerCase()),
+      playerName: document.getElementById('evidencePlayer').value || null,
+      description: document.getElementById('evidenceDescription').value || null,
+      tags: document.getElementById('evidenceTags').value.split(',').map(t => t.trim()).filter(t => t),
+      uploaderName: state.self?.name || 'Console',
+      createdAt: Date.now(),
+      source: 'UPLOAD'
+    };
+
+    if (!state.evidence) state.evidence = [];
+    state.evidence.push(evidence);
+
+    toast('ok', 'Uploaded', `Evidence ${evidence.id} uploaded successfully.`);
+    closeEvidenceUpload();
+    renderEvidence();
+  };
+
+  window.filterEvidence = function() {
+    renderEvidence();
+  };
+
+  function renderEvidence() {
+    const grid = document.getElementById('evidenceGrid');
+    const empty = document.getElementById('evidenceEmpty');
+    const storage = document.getElementById('evidenceStorage');
+
+    const evidence = state.evidence || [];
+    const search = (document.getElementById('evidenceSearch')?.value || '').toLowerCase();
+    const typeFilter = document.getElementById('evidenceTypeFilter')?.value || '';
+    const sortBy = document.getElementById('evidenceSortBy')?.value || 'newest';
+
+    // Filter
+    let filtered = evidence.filter(e => {
+      if (search && !e.fileName.toLowerCase().includes(search) &&
+          !e.id.toLowerCase().includes(search) &&
+          !(e.playerName || '').toLowerCase().includes(search)) {
+        return false;
+      }
+      if (typeFilter === 'video' && !e.isVideo) return false;
+      if (typeFilter === 'image' && !e.isImage) return false;
+      return true;
+    });
+
+    // Sort
+    filtered.sort((a, b) => {
+      switch (sortBy) {
+        case 'oldest': return a.createdAt - b.createdAt;
+        case 'largest': return b.fileSize - a.fileSize;
+        case 'smallest': return a.fileSize - b.fileSize;
+        default: return b.createdAt - a.createdAt;
+      }
+    });
+
+    // Update storage stats
+    const totalSize = evidence.reduce((sum, e) => sum + (e.fileSize || 0), 0);
+    storage.textContent = `${evidence.length} files \u2022 ${formatFileSize(totalSize)}`;
+
+    if (filtered.length === 0) {
+      grid.style.display = 'none';
+      empty.style.display = 'block';
+      return;
+    }
+
+    grid.style.display = 'grid';
+    empty.style.display = 'none';
+
+    grid.innerHTML = filtered.map(e => `
+      <div class="evidence-card" onclick="viewEvidence('${e.id}')">
+        <div class="evidence-thumb">
+          ${e.isVideo ? `
+            <i class="fa-solid fa-film"></i>
+            <div class="video-overlay"><i class="fa-solid fa-play"></i></div>
+          ` : `<i class="fa-solid fa-image"></i>`}
+        </div>
+        <div class="evidence-info">
+          <h4>${escapeHtml(e.fileName)}</h4>
+          <div class="evidence-meta">
+            <span><i class="fa-solid fa-${e.isVideo ? 'video' : 'image'}"></i> ${e.fileType.toUpperCase()}</span>
+            <span>${e.formattedSize}</span>
+          </div>
+          ${e.tags && e.tags.length > 0 ? `
+            <div class="evidence-tags">
+              ${e.tags.slice(0, 3).map(t => `<span class="evidence-tag">${escapeHtml(t)}</span>`).join('')}
+              ${e.tags.length > 3 ? `<span class="evidence-tag">+${e.tags.length - 3}</span>` : ''}
+            </div>
+          ` : ''}
+        </div>
+      </div>
+    `).join('');
+  }
+
+  window.viewEvidence = function(id) {
+    const evidence = (state.evidence || []).find(e => e.id === id);
+    if (!evidence) return;
+
+    currentEvidenceId = id;
+
+    document.getElementById('evidenceViewerTitle').textContent = evidence.fileName;
+    document.getElementById('evidenceViewerId').textContent = evidence.id;
+    document.getElementById('evidenceViewerUploader').textContent = evidence.uploaderName || '-';
+    document.getElementById('evidenceViewerPlayer').textContent = evidence.playerName || 'Not specified';
+    document.getElementById('evidenceViewerDate').textContent = new Date(evidence.createdAt).toLocaleString();
+    document.getElementById('evidenceViewerSize').textContent = evidence.formattedSize;
+    document.getElementById('evidenceViewerDesc').textContent = evidence.description || 'No description provided.';
+
+    const tagsDiv = document.getElementById('evidenceViewerTags');
+    if (evidence.tags && evidence.tags.length > 0) {
+      tagsDiv.innerHTML = evidence.tags.map(t => `<span class="badge gray">${escapeHtml(t)}</span>`).join(' ');
+    } else {
+      tagsDiv.innerHTML = '';
+    }
+
+    const content = document.getElementById('evidenceViewerContent');
+    if (evidence.isVideo) {
+      content.innerHTML = `<div style="padding:40px;text-align:center"><i class="fa-solid fa-film" style="font-size:64px;color:var(--muted)"></i><p style="margin-top:16px;color:var(--muted)">Video preview unavailable in demo mode</p></div>`;
+    } else {
+      content.innerHTML = `<div style="padding:40px;text-align:center"><i class="fa-solid fa-image" style="font-size:64px;color:var(--muted)"></i><p style="margin-top:16px;color:var(--muted)">Image preview unavailable in demo mode</p></div>`;
+    }
+
+    document.getElementById('evidenceViewerOverlay').classList.add('active');
+  };
+
+  window.closeEvidenceViewer = function() {
+    document.getElementById('evidenceViewerOverlay').classList.remove('active');
+    currentEvidenceId = null;
+  };
+
+  window.deleteEvidence = function() {
+    if (!currentEvidenceId) return;
+
+    const idx = (state.evidence || []).findIndex(e => e.id === currentEvidenceId);
+    if (idx >= 0) {
+      state.evidence.splice(idx, 1);
+      toast('ok', 'Deleted', `Evidence ${currentEvidenceId} deleted.`);
+      closeEvidenceViewer();
+      renderEvidence();
+    }
+  };
+
+  window.linkEvidenceToPunishment = function() {
+    toast('info', 'Coming Soon', 'Linking evidence to cases will be available in a future update.');
+  };
+
+  function formatFileSize(bytes) {
+    if (bytes < 1024) return bytes + ' B';
+    if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+    if (bytes < 1024 * 1024 * 1024) return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
+    return (bytes / (1024 * 1024 * 1024)).toFixed(2) + ' GB';
+  }
+
+  // Add evidence render to page navigation
+  const originalGo = window.go;
+  window.go = function(page) {
+    originalGo(page);
+    if (page === 'evidence') {
+      renderEvidence();
+    }
+  };
 
   // ===== INITIALIZATION =====
   document.addEventListener('DOMContentLoaded', () => {

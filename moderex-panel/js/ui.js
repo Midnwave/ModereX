@@ -236,7 +236,12 @@
       if (!filters[pun.type]) return false;
       if (q) {
         const pl = state.players.find(p => p.id === pun.playerId);
-        return `${pl?.name || ''} ${pun.reason || ''} ${pun.staff || ''} ${pun.id}`.toLowerCase().includes(q);
+        const caseIdShort = (pun.id || '').slice(-8).toLowerCase();
+        const caseIdFull = (pun.id || '').toLowerCase();
+        // Search: player name, reason, staff, case ID (full and short form)
+        const matchesCaseId = caseIdFull.includes(q) || caseIdShort === q || caseIdShort.includes(q);
+        const matchesOther = `${pl?.name || ''} ${pun.reason || ''} ${pun.staff || ''}`.toLowerCase().includes(q);
+        return matchesCaseId || matchesOther;
       }
       return true;
     }).sort((a, b) => b.createdAt - a.createdAt).slice(0, 100).map(pun => {
@@ -254,7 +259,7 @@
       return `
         <tr class="${watching ? 'watchlist-row' : ''}" data-player-id="${pun.playerId}" style="cursor:pointer">
           <td onclick="openDrawer('${pun.playerId}','${pun.id}')"><div class="pwrap"><div class="phead"><img src="${avatarUrl(pl || { name: name })}" alt="" onerror="this.onerror=null;this.src='${avatarFallback}'"></div><div><b style="font-size:13px">${escapeHtml(pl?.name || 'Unknown')}</b></div></div></td>
-          <td>${escapeHtml(pun.id.slice(-8))}</td>
+          <td onclick="event.stopPropagation(); viewPunishmentDetails('${pun.id}')" style="cursor:pointer;color:var(--primary-light);font-family:var(--font-mono);font-size:12px" title="Click to view details">${escapeHtml(pun.id.slice(-8))}</td>
           <td>${typeBadge}</td>
           <td>${escapeHtml(pun.reason || 'No reason')}</td>
           <td>${escapeHtml(fmtLong(pun.createdAt))}</td>
@@ -390,6 +395,19 @@
               <b style="font-size:12px">Block Message</b>
               <button class="toggle ${r.block ? 'on' : ''}" onclick="toggleRuleBlock('${r.id}')"><span class="toggle-thumb"></span></button>
               <div class="hintline" style="margin-top:0">Prevents the message from sending.</div>
+            </div>
+          </div>
+          <div style="margin-top:12px" class="grid cols-2">
+            <div class="block">
+              <b style="font-size:12px"><i class="fa-solid fa-video" style="color:var(--primary-light)"></i> Record Replay</b>
+              <button class="toggle ${r.recordReplay ? 'on' : ''}" onclick="toggleRuleRecordReplay('${r.id}')"><span class="toggle-thumb"></span></button>
+              <div class="hintline" style="margin-top:0">Capture player activity when rule triggers.</div>
+            </div>
+            <div class="block" style="${r.recordReplay ? '' : 'opacity:0.5;pointer-events:none'}">
+              <b style="font-size:12px">Duration</b>
+              <input class="input" type="number" min="10" max="300" value="${r.replayDurationSeconds || 60}" style="width:80px" oninput="setRuleReplayDuration('${r.id}', this.value)">
+              <span class="badge gray">seconds</span>
+              <div class="hintline" style="margin-top:0">Recording length (10-300s).</div>
             </div>
           </div>
           <div class="hintline" style="margin-top:6px">Auto punish applies when the rule triggers.</div>
