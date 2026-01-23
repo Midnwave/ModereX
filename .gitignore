@@ -35,7 +35,8 @@ bin/
 
 # Allow release JARs in releases folder
 !releases/
-releases/*.jar
+!releases/*.jar
+!releases/*.txt
 
 # Database
 *.db
