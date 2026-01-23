@@ -44,6 +44,9 @@ public class ReplayPlayback {
     private final Map<UUID, UUID> npcIds = new HashMap<>();
     private BukkitTask playbackTask;
 
+    // Action log tracking - track last shown action index per player
+    private final Map<UUID, Integer> lastActionIndex = new HashMap<>();
+
     // Hotbar control slots
     private static final int SLOT_REWIND_10 = 0;
     private static final int SLOT_REWIND_5 = 1;
@@ -186,12 +189,36 @@ public class ReplayPlayback {
         newTime = Math.max(session.getStartTime(), Math.min(session.getEndTime(), newTime));
         currentPlaybackTime = newTime;
 
+        // Reset action log indexes when skipping (to re-display or skip actions appropriately)
+        recalculateActionIndexes();
+
         // Update all NPCs to new positions
         updateNpcs();
 
         String direction = seconds > 0 ? "forward" : "back";
         viewer.sendMessage(TextUtil.parse("<gray>Skipped " + direction + " <white>" +
                 Math.abs(seconds) + "s<gray>."));
+    }
+
+    /**
+     * Recalculate action log indexes after a time skip.
+     * Finds the correct position in each player's action log based on current playback time.
+     */
+    private void recalculateActionIndexes() {
+        for (UUID playerUuid : session.getRecordedPlayerUuids()) {
+            List<ReplaySnapshot> snapshots = session.getSnapshots(playerUuid);
+            int newIndex = 0;
+
+            // Find the first snapshot after current time (actions before this should be skipped)
+            for (int i = 0; i < snapshots.size(); i++) {
+                if (snapshots.get(i).getTimestamp() > currentPlaybackTime) {
+                    break;
+                }
+                newIndex = i + 1;
+            }
+
+            lastActionIndex.put(playerUuid, newIndex);
+        }
     }
 
     public void cycleSpeed() {
@@ -243,6 +270,9 @@ public class ReplayPlayback {
 
         // Update NPCs
         updateNpcs();
+
+        // Show action logs
+        displayActionLogs();
 
         // Update action bar with time info
         updateActionBar();
@@ -296,6 +326,90 @@ public class ReplayPlayback {
         }
 
         return closest;
+    }
+
+    /**
+     * Display action logs to the viewer as they occur in the replay timeline.
+     * Shows player actions like commands, chat, inventory, swinging, etc.
+     */
+    private void displayActionLogs() {
+        for (UUID playerUuid : session.getRecordedPlayerUuids()) {
+            List<ReplaySnapshot> snapshots = session.getSnapshots(playerUuid);
+            String playerName = session.getPlayerName(playerUuid);
+
+            int lastIdx = lastActionIndex.getOrDefault(playerUuid, 0);
+
+            // Find actions that occurred between last check and now
+            for (int i = lastIdx; i < snapshots.size(); i++) {
+                ReplaySnapshot snap = snapshots.get(i);
+
+                // Skip if we haven't reached this point yet
+                if (snap.getTimestamp() > currentPlaybackTime) {
+                    break;
+                }
+
+                // Display action if it has one
+                if (snap.getAction() != ReplaySnapshot.ActionType.NONE) {
+                    displayAction(playerName, snap);
+                }
+
+                // Update last index
+                lastActionIndex.put(playerUuid, i + 1);
+            }
+        }
+    }
+
+    /**
+     * Format and display an action to the viewer.
+     */
+    private void displayAction(String playerName, ReplaySnapshot snapshot) {
+        ReplaySnapshot.ActionType action = snapshot.getAction();
+        String data = snapshot.getActionData();
+
+        // Format time offset
+        long offsetMs = snapshot.getTimestamp() - session.getStartTime();
+        String timeStr = formatDuration(offsetMs);
+
+        // Build message based on action type
+        String actionText = switch (action) {
+            case COMMAND -> "<gray>[" + timeStr + "] <yellow>" + playerName + " <gray>ran command: <white>" + data;
+            case CHAT -> "<gray>[" + timeStr + "] <aqua>" + playerName + " <gray>said: <white>" + data;
+            case ATTACK -> "<gray>[" + timeStr + "] <red>" + playerName + " <gray>" + (data != null ? data : "attacked");
+            case DAMAGE_RECEIVED -> "<gray>[" + timeStr + "] <gold>" + playerName + " <gray>" + (data != null ? data : "took damage");
+            case DAMAGE_DEALT -> "<gray>[" + timeStr + "] <red>" + playerName + " <gray>dealt damage" + (data != null ? ": " + data : "");
+            case SWING_ARM -> null; // Too spammy, skip display
+            case SNEAK_START -> "<gray>[" + timeStr + "] <white>" + playerName + " <gray>started sneaking";
+            case SNEAK_END -> "<gray>[" + timeStr + "] <white>" + playerName + " <gray>stopped sneaking";
+            case SPRINT_START -> "<gray>[" + timeStr + "] <white>" + playerName + " <gray>started sprinting";
+            case SPRINT_END -> "<gray>[" + timeStr + "] <white>" + playerName + " <gray>stopped sprinting";
+            case INVENTORY_OPEN -> "<gray>[" + timeStr + "] <light_purple>" + playerName + " <gray>opened: <white>" + (data != null ? data : "inventory");
+            case INVENTORY_CLOSE -> "<gray>[" + timeStr + "] <light_purple>" + playerName + " <gray>closed inventory";
+            case ITEM_PICKUP -> "<gray>[" + timeStr + "] <green>" + playerName + " <gray>picked up: <white>" + data;
+            case DROP_ITEM -> "<gray>[" + timeStr + "] <yellow>" + playerName + " <gray>dropped: <white>" + data;
+            case ITEM_USE -> "<gray>[" + timeStr + "] <aqua>" + playerName + " <gray>used: <white>" + data;
+            case CONSUME_ITEM -> "<gray>[" + timeStr + "] <green>" + playerName + " <gray>consumed: <white>" + data;
+            case BOW_SHOOT -> "<gray>[" + timeStr + "] <red>" + playerName + " <gray>shot: <white>" + (data != null ? data : "bow");
+            case DEATH -> "<gray>[" + timeStr + "] <dark_red>" + playerName + " <gray>died" + (data != null ? ": " + data : "");
+            case RESPAWN -> "<gray>[" + timeStr + "] <green>" + playerName + " <gray>respawned at " + data;
+            case TELEPORT -> "<gray>[" + timeStr + "] <light_purple>" + playerName + " <gray>teleported" + (data != null ? " (" + data + ")" : "");
+            case PORTAL_ENTER -> "<gray>[" + timeStr + "] <dark_purple>" + playerName + " <gray>entered portal: " + data;
+            case PLACE_BLOCK -> "<gray>[" + timeStr + "] <green>" + playerName + " <gray>placed: <white>" + data;
+            case BREAK_BLOCK -> "<gray>[" + timeStr + "] <yellow>" + playerName + " <gray>broke: <white>" + data;
+            case FISH_CAST -> "<gray>[" + timeStr + "] <aqua>" + playerName + " <gray>cast fishing rod";
+            case FISH_REEL -> "<gray>[" + timeStr + "] <aqua>" + playerName + " <gray>" + (data != null ? data : "reeled in");
+            default -> null;
+        };
+
+        if (actionText != null) {
+            viewer.sendMessage(TextUtil.parse(actionText));
+        }
+    }
+
+    private String formatDuration(long ms) {
+        long seconds = ms / 1000;
+        long minutes = seconds / 60;
+        seconds = seconds % 60;
+        return String.format("%d:%02d", minutes, seconds);
     }
 
     private void backupViewerState() {
