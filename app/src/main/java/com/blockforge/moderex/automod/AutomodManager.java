@@ -4,6 +4,8 @@ import com.blockforge.moderex.ModereX;
 import com.blockforge.moderex.config.lang.MessageKey;
 import com.blockforge.moderex.hooks.anticheat.AnticheatChecks;
 import com.blockforge.moderex.punishment.PunishmentType;
+import com.blockforge.moderex.replay.ReplaySession;
+import com.blockforge.moderex.replay.ReplaySnapshot;
 import net.kyori.adventure.text.Component;
 import org.bukkit.entity.Player;
 
@@ -480,6 +482,68 @@ public class AutomodManager {
                     player.getName(), player.getUniqueId(), ruleName, message
             );
         }
+
+        // Trigger replay recording if enabled for this rule
+        AutomodRule rule = findRuleByName(ruleName);
+        if (rule != null) {
+            triggerReplayRecording(player, rule);
+        }
+    }
+
+    /**
+     * Find a rule by its display name.
+     */
+    private AutomodRule findRuleByName(String ruleName) {
+        for (AutomodRule rule : rules.values()) {
+            if (rule.getName().equals(ruleName)) {
+                return rule;
+            }
+        }
+        return null;
+    }
+
+    /**
+     * Trigger replay recording if the rule has it enabled.
+     */
+    private void triggerReplayRecording(Player player, AutomodRule rule) {
+        if (!rule.isRecordReplay()) {
+            return;
+        }
+
+        // Check if replay manager exists and is enabled
+        if (plugin.getReplayManager() == null) {
+            plugin.logDebug("[Automod] Replay recording requested but ReplayManager is not available");
+            return;
+        }
+
+        // Start recording
+        plugin.logDebug("[Automod] Starting replay recording for " + player.getName() +
+                " (rule: " + rule.getName() + ", duration: " + rule.getReplayDurationSeconds() + "s)");
+
+        plugin.getServer().getScheduler().runTask(plugin, () -> {
+            try {
+                // Start recording with automod trigger reason
+                var session = plugin.getReplayManager().startRecording(
+                        player,
+                        ReplaySession.RecordingReason.AUTOMOD_TRIGGER
+                );
+
+                if (session != null) {
+                    // Capture the triggering rule info as an action
+                    session.captureAction(player, ReplaySnapshot.ActionType.NONE,
+                            "Automod triggered: " + rule.getName());
+
+                    // Schedule stop after configured duration
+                    int durationTicks = rule.getReplayDurationSeconds() * 20; // 20 ticks per second
+                    plugin.getServer().getScheduler().runTaskLater(plugin, () -> {
+                        plugin.getReplayManager().stopRecording(player.getUniqueId());
+                        plugin.logDebug("[Automod] Stopped replay recording for " + player.getName());
+                    }, durationTicks);
+                }
+            } catch (Exception e) {
+                plugin.logError("Failed to start automod replay recording for " + player.getName(), e);
+            }
+        });
     }
 
     /**
