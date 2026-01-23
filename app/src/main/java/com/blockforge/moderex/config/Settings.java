@@ -42,7 +42,7 @@ public class Settings {
     // GitHub auto-update settings
     private boolean githubAutoUpdateEnabled = true;
     private boolean githubAutoDownload = true;
-    private String githubRepo = "crenshawcodes/ModereX"; // owner/repo format
+    private String githubRepo = "Midnwave/ModereX"; // owner/repo format
 
     // Anticheat settings
     private boolean anticheatAutoDetect = true;
