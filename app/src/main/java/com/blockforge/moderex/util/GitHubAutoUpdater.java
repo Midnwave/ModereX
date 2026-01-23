@@ -312,6 +312,27 @@ public class GitHubAutoUpdater {
         return String.format("%.1f MB", bytes / (1024.0 * 1024.0));
     }
 
+    /**
+     * Schedule periodic update checks (every 24 hours).
+     * Call this after the initial check to keep checking while server runs.
+     */
+    public void schedulePeriodicCheck() {
+        // 24 hours in ticks (20 ticks/second * 60 * 60 * 24)
+        long interval = 20L * 60 * 60 * 24;
+
+        Bukkit.getScheduler().runTaskTimerAsynchronously(plugin, () -> {
+            try {
+                // Only check if we haven't already downloaded an update
+                if (!updateDownloaded) {
+                    check();
+                }
+            } catch (Exception ignored) {
+            }
+        }, interval, interval);
+
+        plugin.logDebug("GitHub auto-update periodic check scheduled (every 24 hours)");
+    }
+
     // Getters
     public String getLatestVersion() {
         return latestVersion;
