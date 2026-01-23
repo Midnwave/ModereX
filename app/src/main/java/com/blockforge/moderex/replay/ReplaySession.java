@@ -23,6 +23,7 @@ public class ReplaySession {
     private final Map<UUID, Queue<ReplaySnapshot>> snapshots;
     private boolean recording;
     private boolean saved;
+    private String customName; // Optional custom name for the recording
 
     public enum RecordingReason {
         ANTICHEAT_ALERT,
@@ -73,6 +74,40 @@ public class ReplaySession {
     public RecordingReason getReason() { return reason; }
     public boolean isRecording() { return recording; }
     public boolean isSaved() { return saved; }
+
+    /**
+     * Get the custom name for this recording.
+     * @return The custom name, or null if not set
+     */
+    public String getCustomName() { return customName; }
+
+    /**
+     * Set a custom name for this recording.
+     * @param customName The custom name to use
+     */
+    public void setCustomName(String customName) { this.customName = customName; }
+
+    /**
+     * Get the display name for this recording.
+     * Returns the custom name if set, otherwise generates one from date and player name.
+     * Format: YYYY-MM-DD_HHMMSS_PlayerName
+     */
+    public String getDisplayName() {
+        if (customName != null && !customName.isBlank()) {
+            return customName;
+        }
+        // Auto-generate name: 2026-01-22_153045_PlayerName
+        Calendar cal = Calendar.getInstance();
+        cal.setTimeInMillis(startTime);
+        return String.format("%04d-%02d-%02d_%02d%02d%02d_%s",
+                cal.get(Calendar.YEAR),
+                cal.get(Calendar.MONTH) + 1,
+                cal.get(Calendar.DAY_OF_MONTH),
+                cal.get(Calendar.HOUR_OF_DAY),
+                cal.get(Calendar.MINUTE),
+                cal.get(Calendar.SECOND),
+                primaryPlayerName);
+    }
 
     public Set<UUID> getRecordedPlayerUuids() {
         return Collections.unmodifiableSet(recordedPlayers.keySet());
@@ -185,6 +220,9 @@ public class ReplaySession {
         meta.setProperty("worldName", worldName);
         meta.setProperty("reason", reason.name());
         meta.setProperty("playerCount", String.valueOf(recordedPlayers.size()));
+        if (customName != null && !customName.isBlank()) {
+            meta.setProperty("customName", customName);
+        }
 
         int i = 0;
         for (Map.Entry<UUID, String> entry : recordedPlayers.entrySet()) {
