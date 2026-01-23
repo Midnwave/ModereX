@@ -3,7 +3,7 @@ version: '${version}'
 main: com.blockforge.moderex.ModereX
 api-version: '1.21'
 description: |
-  Advanced moderation plugin with GUI support, automod, and web panel integration.
+  Advanced, premium moderation for Minecraft.
 
   Copyright (c) 2024-2026 BlockForge Studios. All rights reserved.
   The ModereX Web Panel and all associated assets are proprietary software.
