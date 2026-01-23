@@ -338,6 +338,68 @@ public class AutomodAPI {
         return true;
     }
 
+    // ==================== REPLAY RECORDING ====================
+
+    /**
+     * Set whether a rule should trigger replay recording when activated.
+     * When enabled, the plugin will automatically start recording player
+     * activity when the rule is triggered.
+     *
+     * @param ruleId The rule ID
+     * @param enabled true to enable replay recording
+     * @return true if the rule was found and updated
+     */
+    public boolean setRuleRecordReplay(String ruleId, boolean enabled) {
+        AutomodRule rule = plugin.getAutomodManager().getRule(ruleId);
+        if (rule == null) return false;
+
+        rule.setRecordReplay(enabled);
+        plugin.getAutomodManager().saveRule(rule);
+        return true;
+    }
+
+    /**
+     * Set the duration for replay recording when a rule triggers.
+     *
+     * @param ruleId The rule ID
+     * @param seconds Duration in seconds (10-300)
+     * @return true if the rule was found and updated
+     */
+    public boolean setRuleReplayDuration(String ruleId, int seconds) {
+        AutomodRule rule = plugin.getAutomodManager().getRule(ruleId);
+        if (rule == null) return false;
+
+        rule.setReplayDurationSeconds(seconds);
+        plugin.getAutomodManager().saveRule(rule);
+        return true;
+    }
+
+    /**
+     * Get the replay recording configuration for a rule.
+     *
+     * @param ruleId The rule ID
+     * @return ReplayConfig or null if rule not found
+     */
+    public ReplayConfig getRuleReplayConfig(String ruleId) {
+        AutomodRule rule = plugin.getAutomodManager().getRule(ruleId);
+        if (rule == null) return null;
+
+        return new ReplayConfig(rule.isRecordReplay(), rule.getReplayDurationSeconds());
+    }
+
+    /**
+     * Replay recording configuration record.
+     *
+     * @param enabled Whether replay recording is enabled
+     * @param durationSeconds Recording duration in seconds (10-300)
+     */
+    public record ReplayConfig(boolean enabled, int durationSeconds) {
+        public ReplayConfig {
+            if (durationSeconds < 10) durationSeconds = 10;
+            if (durationSeconds > 300) durationSeconds = 300;
+        }
+    }
+
     /**
      * Get a rule by its ID.
      *
@@ -705,7 +767,9 @@ public class AutomodAPI {
             rule.isBuiltIn(),
             rule.getBlacklistedPhrases(),
             rule.getExclusionPhrases(),
-            rule.isExactMatch()
+            rule.isExactMatch(),
+            rule.isRecordReplay(),
+            rule.getReplayDurationSeconds()
         );
     }
 
@@ -762,6 +826,18 @@ public class AutomodAPI {
 
     /**
      * Rule information record.
+     *
+     * @param id The rule ID
+     * @param name The rule name
+     * @param description The rule description
+     * @param type The rule type
+     * @param enabled Whether the rule is enabled
+     * @param builtIn Whether this is a built-in rule
+     * @param phrases Blacklisted phrases
+     * @param exclusions Exclusion phrases
+     * @param exactMatch Whether to use exact matching
+     * @param recordReplay Whether to record replays when triggered
+     * @param replayDurationSeconds Replay recording duration
      */
     public record RuleInfo(
         String id,
@@ -772,7 +848,9 @@ public class AutomodAPI {
         boolean builtIn,
         List<String> phrases,
         List<String> exclusions,
-        boolean exactMatch
+        boolean exactMatch,
+        boolean recordReplay,
+        int replayDurationSeconds
     ) {}
 
     // ==================== RULE BUILDER ====================
@@ -805,6 +883,8 @@ public class AutomodAPI {
         private boolean exactMatch = false;
         private boolean applyToNicknames = false;
         private boolean nicknameOnly = false;
+        private boolean recordReplay = false;
+        private int replayDurationSeconds = 60;
         private PunishmentConfig punishment;
 
         public RuleBuilder(ModereX plugin, String name) {
@@ -892,6 +972,26 @@ public class AutomodAPI {
             return this;
         }
 
+        /**
+         * Enable replay recording when this rule is triggered.
+         * When enabled, the plugin will automatically record player activity.
+         */
+        public RuleBuilder recordReplay(boolean enabled) {
+            this.recordReplay = enabled;
+            return this;
+        }
+
+        /**
+         * Set the replay recording duration in seconds.
+         * Only applicable if recordReplay is enabled.
+         *
+         * @param seconds Duration in seconds (10-300)
+         */
+        public RuleBuilder replayDuration(int seconds) {
+            this.replayDurationSeconds = Math.max(10, Math.min(300, seconds));
+            return this;
+        }
+
         /** Configure auto-punishment for this rule. */
         public RuleBuilder autoPunishment(PunishmentConfig config) {
             this.punishment = config;
@@ -917,6 +1017,10 @@ public class AutomodAPI {
             rule.setExactMatch(exactMatch);
             rule.setApplyToNicknames(applyToNicknames);
             rule.setNicknameOnly(nicknameOnly);
+
+            // Apply replay recording settings
+            rule.setRecordReplay(recordReplay);
+            rule.setReplayDurationSeconds(replayDurationSeconds);
 
             // Apply punishment if configured
             if (punishment != null) {

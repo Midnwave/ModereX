@@ -51,6 +51,10 @@ public class AutomodRule {
     private int afkTimeoutMinutes = 15;         // Minutes before kick
     private boolean afkKickEnabled = false;
 
+    // === Replay Recording Settings ===
+    private boolean recordReplay = false;       // Whether to record a replay when rule triggers
+    private int replayDurationSeconds = 60;     // Duration to record (10-300 seconds)
+
     // === Auto Punishment Settings ===
     private AutoPunishment autoPunishment;
     private String punishmentTemplateId;        // Use preset template
@@ -260,6 +264,10 @@ public class AutomodRule {
         json.addProperty("afkTimeoutMinutes", afkTimeoutMinutes);
         json.addProperty("afkKickEnabled", afkKickEnabled);
 
+        // Replay recording settings
+        json.addProperty("recordReplay", recordReplay);
+        json.addProperty("replayDurationSeconds", replayDurationSeconds);
+
         // Flag action
         json.addProperty("flagAction", flagAction != null ? flagAction.name() : null);
         json.addProperty("flagMessage", flagMessage);
@@ -329,6 +337,10 @@ public class AutomodRule {
             // AFK settings
             if (json.has("afkTimeoutMinutes")) afkTimeoutMinutes = json.get("afkTimeoutMinutes").getAsInt();
             if (json.has("afkKickEnabled")) afkKickEnabled = json.get("afkKickEnabled").getAsBoolean();
+
+            // Replay recording settings
+            if (json.has("recordReplay")) recordReplay = json.get("recordReplay").getAsBoolean();
+            if (json.has("replayDurationSeconds")) replayDurationSeconds = json.get("replayDurationSeconds").getAsInt();
 
             // Flag action
             if (json.has("flagAction") && !json.get("flagAction").isJsonNull()) {
@@ -450,6 +462,13 @@ public class AutomodRule {
 
     public boolean isAfkKickEnabled() { return afkKickEnabled; }
     public void setAfkKickEnabled(boolean enabled) { this.afkKickEnabled = enabled; }
+
+    // Replay recording settings
+    public boolean isRecordReplay() { return recordReplay; }
+    public void setRecordReplay(boolean recordReplay) { this.recordReplay = recordReplay; }
+
+    public int getReplayDurationSeconds() { return replayDurationSeconds; }
+    public void setReplayDurationSeconds(int seconds) { this.replayDurationSeconds = Math.max(10, Math.min(300, seconds)); }
 
     // Punishment settings
     public AutoPunishment getAutoPunishment() { return autoPunishment; }
