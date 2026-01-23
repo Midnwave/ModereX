@@ -37,6 +37,23 @@
   /* Special Effects */
   --watchlist-glow: 0 0 20px rgba(245, 158, 11, 0.45), 0 0 40px rgba(245, 158, 11, 0.20);
   --line-glow: rgba(90, 156, 255, 0.22);
+
+  /* Primary glow variants */
+  --primary-glow-5: rgba(45, 122, 237, 0.05);
+  --primary-glow-8: rgba(45, 122, 237, 0.08);
+  --primary-glow-10: rgba(45, 122, 237, 0.10);
+  --primary-glow-12: rgba(45, 122, 237, 0.12);
+  --primary-glow-15: rgba(45, 122, 237, 0.15);
+  --primary-glow-18: rgba(45, 122, 237, 0.18);
+  --primary-glow-20: rgba(45, 122, 237, 0.20);
+  --primary-glow-22: rgba(45, 122, 237, 0.22);
+  --primary-glow-25: rgba(45, 122, 237, 0.25);
+  --primary-glow-30: rgba(45, 122, 237, 0.30);
+  --primary-glow-45: rgba(45, 122, 237, 0.45);
+  --primary-glow-50: rgba(45, 122, 237, 0.50);
+  --primary-border-25: rgba(45, 122, 237, 0.25);
+  --primary-border-35: rgba(45, 122, 237, 0.35);
+  --primary-border-45: rgba(45, 122, 237, 0.45);
   
   /* Shadows */
   --shadow-sm: 0 4px 12px rgba(0, 0, 0, 0.25);
@@ -76,10 +93,10 @@ html, body {
 body {
   font-family: var(--font);
   color: var(--text);
-  background: 
-    radial-gradient(ellipse 1400px 900px at 10% 15%, rgba(45, 122, 237, 0.18), transparent 55%),
+  background:
+    radial-gradient(ellipse 1400px 900px at 10% 15%, var(--primary-glow-18), transparent 55%),
     radial-gradient(ellipse 1200px 800px at 90% 80%, rgba(124, 92, 255, 0.12), transparent 50%),
-    radial-gradient(ellipse 800px 600px at 50% 100%, rgba(16, 185, 129, 0.08), transparent 50%),
+    radial-gradient(ellipse 800px 600px at 50% 100%, var(--ok-glow), transparent 50%),
     linear-gradient(180deg, var(--bg0), var(--bg1));
   overflow: hidden;
   -webkit-font-smoothing: antialiased;
@@ -115,14 +132,16 @@ body {
   opacity: 0.95;
 }
 
+/* Background patterns temporarily disabled */
 .bg-aurora {
+  display: none;
   position: fixed;
   inset: -10%;
   z-index: -3;
   background:
-    radial-gradient(60% 45% at 20% 10%, rgba(45, 122, 237, 0.28), transparent 60%),
+    radial-gradient(60% 45% at 20% 10%, var(--primary-glow), transparent 60%),
     radial-gradient(55% 45% at 80% 20%, rgba(124, 92, 255, 0.22), transparent 58%),
-    radial-gradient(65% 55% at 50% 85%, rgba(16, 185, 129, 0.18), transparent 60%);
+    radial-gradient(65% 55% at 50% 85%, var(--ok-glow), transparent 60%);
   filter: blur(10px);
   opacity: 0.98;
   animation: auroraShift 12s ease-in-out infinite;
@@ -130,13 +149,14 @@ body {
 }
 
 .bg-lines {
+  display: none;
   position: fixed;
   inset: 0;
   z-index: -2;
   background-image:
     radial-gradient(rgba(255, 255, 255, 0.35) 1px, transparent 1px),
-    radial-gradient(rgba(90, 156, 255, 0.22) 1px, transparent 1px),
-    repeating-linear-gradient(120deg, rgba(90, 156, 255, 0.08), rgba(90, 156, 255, 0.08) 1px, transparent 1px, transparent 160px),
+    radial-gradient(var(--line-glow) 1px, transparent 1px),
+    repeating-linear-gradient(120deg, var(--line-glow), var(--line-glow) 1px, transparent 1px, transparent 160px),
     repeating-linear-gradient(60deg, rgba(255, 255, 255, 0.05), rgba(255, 255, 255, 0.05) 1px, transparent 1px, transparent 200px);
   background-size: 180px 180px, 320px 320px, 280px 280px, 360px 360px;
   opacity: 0.52;
@@ -145,6 +165,7 @@ body {
 }
 
 .bg-noise {
+  display: none;
   position: fixed;
   inset: 0;
   z-index: -1;
@@ -196,7 +217,7 @@ body {
   content: '';
   position: absolute;
   inset: 0;
-  background: linear-gradient(180deg, rgba(45, 122, 237, 0.12), transparent 40%);
+  background: linear-gradient(180deg, var(--primary-glow), transparent 40%);
   opacity: 0.6;
   pointer-events: none;
 }
@@ -375,6 +396,23 @@ body {
 .status-card:hover {
   border-color: var(--border-light);
   background: rgba(0, 0, 0, 0.35);
+}
+
+.sb-version {
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid var(--border);
+  font-size: 10px;
+  color: var(--muted);
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.sb-version span {
+  display: block;
+}
 }
 
 .status-left {
@@ -2607,4 +2645,180 @@ textarea.input {
 
 @keyframes spin {
   to { transform: rotate(360deg); }
+}
+
+/* ============================================
+   Evidence Page Styles
+   ============================================ */
+
+.evidence-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: 16px;
+}
+
+.evidence-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  overflow: hidden;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.evidence-card:hover {
+  border-color: var(--primary);
+  transform: translateY(-2px);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3);
+}
+
+.evidence-thumb {
+  width: 100%;
+  height: 140px;
+  background: var(--bg1);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  overflow: hidden;
+}
+
+.evidence-thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.evidence-thumb i {
+  font-size: 36px;
+  color: var(--muted);
+}
+
+.evidence-thumb .video-overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.4);
+  opacity: 0;
+  transition: opacity 0.2s ease;
+}
+
+.evidence-card:hover .video-overlay {
+  opacity: 1;
+}
+
+.video-overlay i {
+  font-size: 48px;
+  color: white;
+}
+
+.evidence-info {
+  padding: 12px;
+}
+
+.evidence-info h4 {
+  font-size: 13px;
+  font-weight: 600;
+  margin: 0 0 4px 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.evidence-info .evidence-meta {
+  font-size: 11px;
+  color: var(--muted);
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.evidence-info .evidence-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 8px;
+}
+
+.evidence-info .evidence-tag {
+  font-size: 10px;
+  padding: 2px 6px;
+  background: var(--primary-glow-15);
+  color: var(--primary-light);
+  border-radius: 4px;
+}
+
+/* Evidence Upload Modal */
+.evidence-dropzone {
+  border: 2px dashed var(--border-light);
+  border-radius: 12px;
+  padding: 40px 20px;
+  text-align: center;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  background: var(--bg1);
+}
+
+.evidence-dropzone:hover,
+.evidence-dropzone.dragover {
+  border-color: var(--primary);
+  background: var(--primary-glow-8);
+}
+
+.evidence-file-preview {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+
+.evidence-file-preview i {
+  font-size: 24px;
+  color: var(--primary-light);
+}
+
+.evidence-file-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.evidence-file-info b {
+  display: block;
+  font-size: 13px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.evidence-file-info small {
+  color: var(--muted);
+}
+
+/* Evidence Viewer */
+#evidenceViewerContent video,
+#evidenceViewerContent img {
+  max-width: 100%;
+  max-height: 500px;
+  display: block;
+  margin: 0 auto;
+}
+
+.empty-state {
+  text-align: center;
+  padding: 60px 20px;
+}
+
+.empty-state h3 {
+  margin: 16px 0 8px 0;
+  color: var(--text);
+}
+
+.empty-state p {
+  color: var(--muted);
+  margin-bottom: 20px;
 }
