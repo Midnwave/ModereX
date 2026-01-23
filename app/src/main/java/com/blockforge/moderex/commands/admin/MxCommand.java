@@ -218,8 +218,10 @@ public class MxCommand extends BaseCommand {
                             sendMessage(sender, "<red>Replay not found: " + sessionId);
                             return;
                         }
-                        plugin.getReplayManager().startPlayback(player, session);
-                        sendMessage(sender, "<green>Starting playback...");
+                        var playback = plugin.getReplayManager().startPlayback(player, session);
+                        if (playback != null) {
+                            sendMessage(sender, "<green>Starting playback...");
+                        }
                     });
                 });
             }
