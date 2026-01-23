@@ -3597,9 +3597,11 @@ public class HybridPanelServer {
 
         boolean geyserAvailable = hookManager != null && hookManager.isGeyserAvailable();
         boolean floodgateAvailable = hookManager != null && hookManager.isFloodgateAvailable();
+        boolean citizensAvailable = hookManager != null && hookManager.hasCitizens();
 
         data.addProperty("geyserAvailable", geyserAvailable);
         data.addProperty("floodgateAvailable", floodgateAvailable);
+        data.addProperty("citizensAvailable", citizensAvailable);
 
         if (geyserAvailable) {
             data.addProperty("geyserVersion", hookManager.getGeyserVersion());
@@ -3607,6 +3609,10 @@ public class HybridPanelServer {
 
         if (floodgateAvailable) {
             data.addProperty("floodgateVersion", hookManager.getFloodgateVersion());
+        }
+
+        if (citizensAvailable) {
+            data.addProperty("citizensVersion", hookManager.getCitizensVersion());
         }
 
         response.add("data", data);
