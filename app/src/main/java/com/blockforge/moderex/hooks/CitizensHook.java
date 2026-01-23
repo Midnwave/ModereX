@@ -20,6 +20,7 @@ public class CitizensHook {
     private final ModereX plugin;
     private boolean available = false;
     private String version = "N/A";
+    private ClassLoader citizensClassLoader;
 
     // Track NPCs created for replays
     private final Map<UUID, Object> replayNpcs = new HashMap<>();
@@ -33,6 +34,16 @@ public class CitizensHook {
      * @return true if Citizens is available and hooked successfully
      */
     public boolean initialize() {
+        return checkAndInitialize();
+    }
+
+    /**
+     * Check and initialize Citizens hook.
+     * Can be called multiple times - will initialize lazily if Citizens becomes available.
+     */
+    private boolean checkAndInitialize() {
+        if (available) return true;
+
         Plugin citizensPlugin = Bukkit.getPluginManager().getPlugin("Citizens");
         if (citizensPlugin == null || !citizensPlugin.isEnabled()) {
             plugin.logDebug("[Citizens] Citizens plugin not found or not enabled");
@@ -40,18 +51,45 @@ public class CitizensHook {
         }
 
         version = citizensPlugin.getDescription().getVersion();
+        plugin.logDebug("[Citizens] Found Citizens " + version + ", verifying API access...");
 
-        // Verify Citizens API is accessible
+        // Verify Citizens API is accessible using Citizens' classloader
         try {
-            Class.forName("net.citizensnpcs.api.CitizensAPI");
-            Class.forName("net.citizensnpcs.api.npc.NPC");
+            citizensClassLoader = citizensPlugin.getClass().getClassLoader();
+
+            // Verify core API classes exist (stable across all Citizens versions)
+            Class.forName("net.citizensnpcs.api.CitizensAPI", true, citizensClassLoader);
+            Class.forName("net.citizensnpcs.api.npc.NPC", true, citizensClassLoader);
+            Class.forName("net.citizensnpcs.api.npc.NPCRegistry", true, citizensClassLoader);
+
+            // Test that we can actually access the registry (validates API is functional)
+            Class<?> apiClass = getCitizensClass("net.citizensnpcs.api.CitizensAPI");
+            Object registry = apiClass.getMethod("getNPCRegistry").invoke(null);
+            if (registry == null) {
+                plugin.logDebug("[Citizens] NPCRegistry is null - Citizens may not be fully initialized");
+                return false;
+            }
+
             available = true;
-            plugin.getLogger().info("[Citizens] Hooked into Citizens " + version + " for replay NPCs");
+            plugin.logDebug("[Citizens] API v" + version + " accessible and functional");
             return true;
         } catch (ClassNotFoundException e) {
             plugin.logDebug("[Citizens] Citizens API classes not found: " + e.getMessage());
             return false;
+        } catch (Exception e) {
+            plugin.logDebug("[Citizens] Failed to access Citizens API: " + e.getMessage());
+            return false;
         }
+    }
+
+    /**
+     * Ensure Citizens is available, attempting lazy initialization if needed.
+     */
+    public boolean ensureAvailable() {
+        if (!available) {
+            return checkAndInitialize();
+        }
+        return true;
     }
 
     /**
@@ -77,48 +115,144 @@ public class CitizensHook {
      * @param location The spawn location
      * @return A unique identifier for the created NPC, or null if creation failed
      */
-    public UUID createReplayNpc(String name, UUID skinUuid, Location location) {
-        if (!available) return null;
+    /**
+     * Helper to load Citizens classes using the correct classloader.
+     */
+    private Class<?> getCitizensClass(String name) throws ClassNotFoundException {
+        return Class.forName(name, true, citizensClassLoader);
+    }
+
+    public UUID createReplayNpc(String name, UUID playerUuid, Location location) {
+        if (!available || citizensClassLoader == null) return null;
 
         try {
-            // Get CitizensAPI
-            Class<?> citizensApiClass = Class.forName("net.citizensnpcs.api.CitizensAPI");
+            // Get CitizensAPI and registry
+            Class<?> citizensApiClass = getCitizensClass("net.citizensnpcs.api.CitizensAPI");
             Object npcRegistry = citizensApiClass.getMethod("getNPCRegistry").invoke(null);
+            Class<?> npcRegistryClass = getCitizensClass("net.citizensnpcs.api.npc.NPCRegistry");
+            Class<?> npcClass = getCitizensClass("net.citizensnpcs.api.npc.NPC");
 
-            // Create NPC
-            Class<?> npcRegistryClass = Class.forName("net.citizensnpcs.api.npc.NPCRegistry");
-            Object npc = npcRegistryClass.getMethod("createNPC", EntityType.class, String.class)
-                    .invoke(npcRegistry, EntityType.PLAYER, name);
+            // Create NPC - try different method signatures for version compatibility
+            Object npc = null;
+            try {
+                // Standard method: createNPC(EntityType, String)
+                npc = npcRegistryClass.getMethod("createNPC", EntityType.class, String.class)
+                        .invoke(npcRegistry, EntityType.PLAYER, name);
+            } catch (NoSuchMethodException e) {
+                // Fallback: try createNPC(EntityType, String, Location) which spawns immediately
+                plugin.logDebug("[Citizens] Trying alternative createNPC method...");
+                npc = npcRegistryClass.getMethod("createNPC", EntityType.class, String.class, Location.class)
+                        .invoke(npcRegistry, EntityType.PLAYER, name, location);
+            }
 
-            // Get NPC interface methods
-            Class<?> npcClass = Class.forName("net.citizensnpcs.api.npc.NPC");
+            if (npc == null) {
+                plugin.logDebug("[Citizens] Failed to create NPC - registry returned null");
+                return null;
+            }
 
-            // Set NPC as protected (won't be removed by Citizens cleanup)
-            npcClass.getMethod("setProtected", boolean.class).invoke(npc, true);
+            // Set NPC as protected (uses default method in newer versions)
+            try {
+                npcClass.getMethod("setProtected", boolean.class).invoke(npc, true);
+            } catch (NoSuchMethodException e) {
+                // Fallback: try accessing data() directly for older versions
+                plugin.logDebug("[Citizens] setProtected not found, trying data() approach");
+                try {
+                    Object data = npcClass.getMethod("data").invoke(npc);
+                    data.getClass().getMethod("setPersistent", String.class, Object.class)
+                            .invoke(data, "protected", true);
+                } catch (Exception e2) {
+                    plugin.logDebug("[Citizens] Could not set NPC protected: " + e2.getMessage());
+                }
+            }
 
-            // Spawn the NPC
-            npcClass.getMethod("spawn", Location.class).invoke(npc, location);
+            // Spawn the NPC if not already spawned
+            boolean isSpawned = (Boolean) npcClass.getMethod("isSpawned").invoke(npc);
+            if (!isSpawned) {
+                npcClass.getMethod("spawn", Location.class).invoke(npc, location);
+            }
 
             // Get the NPC's unique ID
             UUID npcId = (UUID) npcClass.getMethod("getUniqueId").invoke(npc);
 
-            // Try to set the skin
-            try {
-                Object skinTrait = npcClass.getMethod("getOrAddTrait", Class.class)
-                        .invoke(npc, Class.forName("net.citizensnpcs.trait.SkinTrait"));
-                Class<?> skinTraitClass = Class.forName("net.citizensnpcs.trait.SkinTrait");
-                skinTraitClass.getMethod("setSkinPersistent", String.class).invoke(skinTrait, skinUuid.toString());
-            } catch (Exception e) {
-                plugin.logDebug("[Citizens] Could not set NPC skin: " + e.getMessage());
-            }
+            // Try to set the skin - pass player name and UUID
+            trySetSkin(npc, npcClass, name, playerUuid);
 
             // Store reference
             replayNpcs.put(npcId, npc);
+            plugin.logDebug("[Citizens] Created replay NPC: " + name + " (UUID: " + npcId + ")");
 
             return npcId;
         } catch (Exception e) {
             plugin.logError("Failed to create Citizens NPC", e);
             return null;
+        }
+    }
+
+    /**
+     * Check if a player UUID belongs to a Bedrock player (Geyser/Floodgate).
+     * Bedrock UUIDs start with 00000000-0000-0000.
+     */
+    private boolean isBedrockPlayer(UUID uuid) {
+        // Check via HookManager first
+        var hookManager = plugin.getHookManager();
+        if (hookManager != null) {
+            // Try Floodgate first (more accurate)
+            if (hookManager.hasFloodgate()) {
+                var floodgate = hookManager.getFloodgateHook();
+                if (floodgate != null && floodgate.isFloodgatePlayer(uuid)) {
+                    return true;
+                }
+            }
+            // Try Geyser
+            if (hookManager.hasGeyser()) {
+                var geyser = hookManager.getGeyserHook();
+                if (geyser != null && geyser.isBedrockPlayer(uuid)) {
+                    return true;
+                }
+            }
+        }
+        // Fallback: check UUID pattern (Floodgate UUIDs start with 00000000-0000-0000)
+        return uuid.toString().startsWith("00000000-0000-0000");
+    }
+
+    /**
+     * Try to set the NPC's skin using various methods for version compatibility.
+     * Uses player name for skin lookup (required by Citizens).
+     * Skips skin setting for Bedrock players as they don't have Mojang skins.
+     */
+    private void trySetSkin(Object npc, Class<?> npcClass, String playerName, UUID playerUuid) {
+        // Check if this is a Bedrock player - skip skin for them
+        if (isBedrockPlayer(playerUuid)) {
+            plugin.logDebug("[Citizens] Skipping skin for Bedrock player: " + playerName);
+            return;
+        }
+
+        // For Java players, use their name to look up skin from Mojang
+        // Method 1: SkinTrait (most common)
+        try {
+            Object skinTrait = npcClass.getMethod("getOrAddTrait", Class.class)
+                    .invoke(npc, getCitizensClass("net.citizensnpcs.trait.SkinTrait"));
+            Class<?> skinTraitClass = getCitizensClass("net.citizensnpcs.trait.SkinTrait");
+
+            // Try setSkinName first (uses player name to fetch from Mojang)
+            try {
+                skinTraitClass.getMethod("setSkinName", String.class).invoke(skinTrait, playerName);
+                plugin.logDebug("[Citizens] Set skin for NPC using player name: " + playerName);
+                return;
+            } catch (NoSuchMethodException e) {
+                // Try setSkinPersistent (newer versions, also accepts player name)
+                try {
+                    skinTraitClass.getMethod("setSkinPersistent", String.class).invoke(skinTrait, playerName);
+                    plugin.logDebug("[Citizens] Set skin for NPC using setSkinPersistent: " + playerName);
+                    return;
+                } catch (NoSuchMethodException e2) {
+                    plugin.logDebug("[Citizens] No compatible skin method found");
+                }
+            }
+        } catch (ClassNotFoundException e) {
+            plugin.logDebug("[Citizens] SkinTrait not found - skin feature unavailable");
+        } catch (Exception e) {
+            plugin.logDebug("[Citizens] Could not set NPC skin: " + e.getMessage());
         }
     }
 
@@ -129,13 +263,13 @@ public class CitizensHook {
      * @param location The new location
      */
     public void updateNpcLocation(UUID npcId, Location location) {
-        if (!available) return;
+        if (!available || citizensClassLoader == null) return;
 
         Object npc = replayNpcs.get(npcId);
         if (npc == null) return;
 
         try {
-            Class<?> npcClass = Class.forName("net.citizensnpcs.api.npc.NPC");
+            Class<?> npcClass = getCitizensClass("net.citizensnpcs.api.npc.NPC");
             Object entity = npcClass.getMethod("getEntity").invoke(npc);
 
             if (entity != null) {
@@ -155,13 +289,13 @@ public class CitizensHook {
      * @param sneaking Whether the NPC should sneak
      */
     public void setNpcSneaking(UUID npcId, boolean sneaking) {
-        if (!available) return;
+        if (!available || citizensClassLoader == null) return;
 
         Object npc = replayNpcs.get(npcId);
         if (npc == null) return;
 
         try {
-            Class<?> npcClass = Class.forName("net.citizensnpcs.api.npc.NPC");
+            Class<?> npcClass = getCitizensClass("net.citizensnpcs.api.npc.NPC");
             Object entity = npcClass.getMethod("getEntity").invoke(npc);
 
             if (entity != null && entity instanceof org.bukkit.entity.Player playerNpc) {
@@ -179,13 +313,13 @@ public class CitizensHook {
      * @param item The item to hold (main hand)
      */
     public void setNpcHeldItem(UUID npcId, org.bukkit.inventory.ItemStack item) {
-        if (!available) return;
+        if (!available || citizensClassLoader == null) return;
 
         Object npc = replayNpcs.get(npcId);
         if (npc == null) return;
 
         try {
-            Class<?> npcClass = Class.forName("net.citizensnpcs.api.npc.NPC");
+            Class<?> npcClass = getCitizensClass("net.citizensnpcs.api.npc.NPC");
             Object entity = npcClass.getMethod("getEntity").invoke(npc);
 
             if (entity != null && entity instanceof org.bukkit.entity.LivingEntity living) {
@@ -206,13 +340,13 @@ public class CitizensHook {
      * @param armor The armor to wear (boots, leggings, chestplate, helmet)
      */
     public void setNpcArmor(UUID npcId, org.bukkit.inventory.ItemStack[] armor) {
-        if (!available || armor == null) return;
+        if (!available || citizensClassLoader == null || armor == null) return;
 
         Object npc = replayNpcs.get(npcId);
         if (npc == null) return;
 
         try {
-            Class<?> npcClass = Class.forName("net.citizensnpcs.api.npc.NPC");
+            Class<?> npcClass = getCitizensClass("net.citizensnpcs.api.npc.NPC");
             Object entity = npcClass.getMethod("getEntity").invoke(npc);
 
             if (entity != null && entity instanceof org.bukkit.entity.LivingEntity living) {
@@ -233,13 +367,13 @@ public class CitizensHook {
      * @return true if the NPC exists and is spawned
      */
     public boolean isNpcSpawned(UUID npcId) {
-        if (!available) return false;
+        if (!available || citizensClassLoader == null) return false;
 
         Object npc = replayNpcs.get(npcId);
         if (npc == null) return false;
 
         try {
-            Class<?> npcClass = Class.forName("net.citizensnpcs.api.npc.NPC");
+            Class<?> npcClass = getCitizensClass("net.citizensnpcs.api.npc.NPC");
             return (Boolean) npcClass.getMethod("isSpawned").invoke(npc);
         } catch (Exception e) {
             return false;
@@ -252,13 +386,13 @@ public class CitizensHook {
      * @param npcId The NPC's unique ID
      */
     public void removeNpc(UUID npcId) {
-        if (!available) return;
+        if (!available || citizensClassLoader == null) return;
 
         Object npc = replayNpcs.remove(npcId);
         if (npc == null) return;
 
         try {
-            Class<?> npcClass = Class.forName("net.citizensnpcs.api.npc.NPC");
+            Class<?> npcClass = getCitizensClass("net.citizensnpcs.api.npc.NPC");
             npcClass.getMethod("destroy").invoke(npc);
         } catch (Exception e) {
             plugin.logDebug("[Citizens] Failed to remove NPC: " + e.getMessage());

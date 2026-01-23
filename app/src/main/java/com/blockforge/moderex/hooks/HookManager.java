@@ -84,14 +84,19 @@ public class HookManager {
         }
 
         // Hook into Citizens (NPC plugin for replay playback)
+        // Citizens may not be fully loaded at this point - lazy init will try again when needed
         if (isPluginEnabled("Citizens")) {
             try {
                 citizensHook = new CitizensHook(plugin);
-                if (!citizensHook.initialize()) {
+                if (citizensHook.initialize()) {
+                    plugin.getLogger().info("Hooked into Citizens " + citizensHook.getVersion() + " for replay NPCs.");
+                } else {
+                    // Don't warn - lazy initialization will try again when replay is used
+                    plugin.logDebug("[Citizens] Citizens detected but API not yet accessible - will retry on demand");
                     citizensHook = null;
                 }
             } catch (Exception e) {
-                plugin.logDebug("Failed to hook into Citizens: " + e.getMessage());
+                plugin.logDebug("[Citizens] Exception during hook: " + e.getMessage());
                 citizensHook = null;
             }
         }
@@ -228,15 +233,50 @@ public class HookManager {
     }
 
     public CitizensHook getCitizensHook() {
+        // Try lazy initialization if not already hooked
+        if (citizensHook == null) {
+            tryLazyInitCitizens();
+        }
         return citizensHook;
     }
 
     public boolean hasCitizens() {
+        // Try lazy initialization if not already hooked
+        if (citizensHook == null) {
+            tryLazyInitCitizens();
+        }
         return citizensHook != null && citizensHook.isAvailable();
     }
 
     public boolean isCitizensAvailable() {
-        return citizensHook != null && citizensHook.isAvailable();
+        return hasCitizens();
+    }
+
+    private void tryLazyInitCitizens() {
+        plugin.logDebug("[Citizens] Lazy init called, checking if Citizens is enabled...");
+        if (Bukkit.getPluginManager().isPluginEnabled("Citizens")) {
+            plugin.logDebug("[Citizens] Citizens plugin is enabled, attempting hook...");
+            try {
+                citizensHook = new CitizensHook(plugin);
+                if (citizensHook.ensureAvailable()) {
+                    plugin.getLogger().info("Hooked into Citizens " + citizensHook.getVersion() + " for replay NPCs.");
+                } else {
+                    plugin.logDebug("[Citizens] ensureAvailable() returned false");
+                    citizensHook = null;
+                }
+            } catch (Exception e) {
+                plugin.logDebug("[Citizens] Lazy init exception: " + e.getMessage());
+                e.printStackTrace();
+                citizensHook = null;
+            }
+        } else {
+            plugin.logDebug("[Citizens] Citizens plugin not found or not enabled");
+            // List all plugins for debugging
+            plugin.logDebug("[Citizens] Available plugins: " + String.join(", ",
+                java.util.Arrays.stream(Bukkit.getPluginManager().getPlugins())
+                    .map(p -> p.getName() + (p.isEnabled() ? "(enabled)" : "(disabled)"))
+                    .toArray(String[]::new)));
+        }
     }
 
     public String getCitizensVersion() {
