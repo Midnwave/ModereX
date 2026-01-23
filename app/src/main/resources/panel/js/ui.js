@@ -883,6 +883,22 @@
       }
     }
 
+    // Citizens status
+    const citizensStatus = document.getElementById('citizensStatus');
+    const citizensDetails = document.getElementById('citizensDetails');
+    if (citizensStatus) {
+      const citizensAvail = state.integrations?.citizensDetected;
+      citizensStatus.textContent = citizensAvail ? 'Detected' : 'Not detected';
+      citizensStatus.className = 'badge ' + (citizensAvail ? 'good' : 'gray');
+      if (citizensDetails) {
+        if (citizensAvail && state.integrations?.citizensVersion) {
+          citizensDetails.textContent = 'v' + state.integrations.citizensVersion + ' - Used for replay playback';
+        } else {
+          citizensDetails.textContent = 'Install Citizens for NPC-based replay playback';
+        }
+      }
+    }
+
     // Anticheat display - show all known anticheats but highlight detected/hooked ones
     if (dom.anticheatList) {
       const hookedAcs = state.integrations?.hookedAnticheats || [];
