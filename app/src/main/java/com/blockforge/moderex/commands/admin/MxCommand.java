@@ -380,15 +380,66 @@ public class MxCommand extends BaseCommand {
 
         String token = plugin.getWebAuthManager().generatePermanentToken(player.getUniqueId());
 
-        openTokenBook(player, token);
+        // Check if player is a Bedrock player (Geyser/Floodgate) - they can't use copy to clipboard
+        boolean isBedrockPlayer = isBedrockPlayer(player);
 
-        sendMessage(sender, "");
-        sendMessage(sender, "<gradient:#a855f7:#ec4899>━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━</gradient>");
-        sendMessage(sender, "<green>Your token has been generated!");
-        sendMessage(sender, "<gray>A secure book has been opened with your token.");
-        sendMessage(sender, "<yellow>Click the token in the book to copy it.");
-        sendMessage(sender, "<gradient:#a855f7:#ec4899>━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━</gradient>");
-        sendMessage(sender, "");
+        if (isBedrockPlayer) {
+            // Send token directly in chat for Bedrock players
+            sendMessage(sender, "");
+            sendMessage(sender, "<gradient:#a855f7:#ec4899>━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━</gradient>");
+            sendMessage(sender, "<red><bold>SECURE TOKEN - DO NOT SHARE!</bold></red>");
+            sendMessage(sender, "");
+            sendMessage(sender, "<gray>Your token (copy manually):");
+            sendMessage(sender, "<white>" + token);
+            sendMessage(sender, "");
+            sendMessage(sender, "<yellow>Store this token safely - you won't see it again!");
+            sendMessage(sender, "<gray>Use <white>/mx revoketoken<gray> to invalidate it.");
+            sendMessage(sender, "<gradient:#a855f7:#ec4899>━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━</gradient>");
+            sendMessage(sender, "");
+        } else {
+            // Java players get the book with click-to-copy
+            openTokenBook(player, token);
+
+            sendMessage(sender, "");
+            sendMessage(sender, "<gradient:#a855f7:#ec4899>━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━</gradient>");
+            sendMessage(sender, "<green>Your token has been generated!");
+            sendMessage(sender, "<gray>A secure book has been opened with your token.");
+            sendMessage(sender, "<yellow>Click the token in the book to copy it.");
+            sendMessage(sender, "<gradient:#a855f7:#ec4899>━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━</gradient>");
+            sendMessage(sender, "");
+        }
+    }
+
+    /**
+     * Check if a player is connecting via Bedrock (Geyser/Floodgate).
+     * These players can't use the copy-to-clipboard functionality.
+     */
+    private boolean isBedrockPlayer(Player player) {
+        var hookManager = plugin.getHookManager();
+        if (hookManager == null) {
+            return false;
+        }
+
+        UUID uuid = player.getUniqueId();
+
+        // Check Floodgate first (more common)
+        if (hookManager.hasFloodgate()) {
+            var floodgate = hookManager.getFloodgateHook();
+            if (floodgate != null && floodgate.isFloodgatePlayer(uuid)) {
+                return true;
+            }
+        }
+
+        // Check Geyser
+        if (hookManager.hasGeyser()) {
+            var geyser = hookManager.getGeyserHook();
+            if (geyser != null && geyser.isBedrockPlayer(uuid)) {
+                return true;
+            }
+        }
+
+        // Fallback: check UUID pattern (Floodgate UUIDs start with 00000000-0000-0000)
+        return uuid.toString().startsWith("00000000-0000-0000");
     }
 
     private void openTokenBook(Player player, String token) {
