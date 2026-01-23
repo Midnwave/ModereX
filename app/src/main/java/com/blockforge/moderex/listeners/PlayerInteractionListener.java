@@ -59,24 +59,27 @@ public class PlayerInteractionListener implements Listener {
 
     @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
     public void onEntityDamageByEntity(EntityDamageByEntityEvent event) {
+        if (plugin.getReplayManager() == null) return;
+
         // Record when player deals damage
         if (event.getDamager() instanceof Player attacker) {
-            if (plugin.getReplayManager() != null) {
-                String data = "Dealt " + String.format("%.1f", event.getFinalDamage()) +
-                        " dmg to " + event.getEntity().getType().name();
-                plugin.getReplayManager().recordAction(attacker, ReplaySnapshot.ActionType.DAMAGE_DEALT, data);
+            String data = "Dealt " + String.format("%.1f", event.getFinalDamage()) +
+                    " dmg to " + event.getEntity().getType().name();
+            plugin.getReplayManager().recordAction(attacker, ReplaySnapshot.ActionType.DAMAGE_DEALT, data);
+
+            // If PvP combat, trigger combat recording to include both players
+            if (event.getEntity() instanceof Player victim) {
+                plugin.getReplayManager().onCombat(attacker, victim, event.getFinalDamage());
             }
         }
 
         // Record when player receives damage
         if (event.getEntity() instanceof Player victim) {
-            if (plugin.getReplayManager() != null) {
-                String attackerName = event.getDamager() instanceof Player ?
-                        ((Player) event.getDamager()).getName() : event.getDamager().getType().name();
-                String data = "Received " + String.format("%.1f", event.getFinalDamage()) +
-                        " dmg from " + attackerName;
-                plugin.getReplayManager().recordAction(victim, ReplaySnapshot.ActionType.DAMAGE_RECEIVED, data);
-            }
+            String attackerName = event.getDamager() instanceof Player ?
+                    ((Player) event.getDamager()).getName() : event.getDamager().getType().name();
+            String data = "Received " + String.format("%.1f", event.getFinalDamage()) +
+                    " dmg from " + attackerName;
+            plugin.getReplayManager().recordAction(victim, ReplaySnapshot.ActionType.DAMAGE_RECEIVED, data);
         }
     }
 
