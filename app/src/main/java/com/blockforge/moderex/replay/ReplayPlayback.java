@@ -257,6 +257,12 @@ public class ReplayPlayback {
             UUID playerUuid = entry.getKey();
             UUID npcId = entry.getValue();
 
+            // Check if NPC is still valid
+            if (!citizens.isNpcSpawned(npcId)) {
+                plugin.logDebug("[Replay] NPC " + npcId + " is no longer spawned");
+                continue;
+            }
+
             List<ReplaySnapshot> snapshots = session.getSnapshots(playerUuid);
             ReplaySnapshot targetSnapshot = findClosestSnapshot(snapshots, currentPlaybackTime);
 
@@ -267,6 +273,7 @@ public class ReplayPlayback {
                     citizens.updateNpcLocation(npcId, loc);
                     citizens.setNpcSneaking(npcId, targetSnapshot.isSneaking());
                     citizens.setNpcHeldItem(npcId, targetSnapshot.getMainHand());
+                    citizens.setNpcArmor(npcId, targetSnapshot.getArmor());
                 }
             }
         }

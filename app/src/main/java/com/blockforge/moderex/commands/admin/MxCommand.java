@@ -1327,10 +1327,24 @@ public class MxCommand extends BaseCommand {
             if (sub.equals("ban") || sub.equals("mute") || sub.equals("warn") || sub.equals("ipban")) {
                 return filterCompletions(Arrays.asList("1h", "1d", "7d", "30d", "permanent"), args[2]);
             }
-            if (sub.equals("replay") || sub.equals("replays")) {
+            if (sub.equals("replay") || sub.equals("replays") || sub.equals("rec") || sub.equals("recording")) {
                 String action = args[1].toLowerCase();
                 if (action.equals("start") || action.equals("stop") || action.equals("search")) {
                     return filterCompletions(getOnlinePlayerNames(sender), args[2]);
+                }
+                if (action.equals("play") || action.equals("playback") || action.equals("delete")) {
+                    // Get saved replay session IDs for tab completion
+                    List<String> sessionIds = new java.util.ArrayList<>();
+                    try {
+                        var replays = plugin.getReplayManager().getSavedReplays().get(2, java.util.concurrent.TimeUnit.SECONDS);
+                        for (var replay : replays) {
+                            sessionIds.add(replay.sessionId());
+                        }
+                    } catch (Exception e) {
+                        // Timeout or error, show recent ones from file names
+                        plugin.logDebug("Tab completion for replays timed out");
+                    }
+                    return filterCompletions(sessionIds, args[2]);
                 }
             }
         }

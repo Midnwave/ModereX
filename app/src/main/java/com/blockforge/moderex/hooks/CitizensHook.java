@@ -200,6 +200,53 @@ public class CitizensHook {
     }
 
     /**
+     * Set the NPC's armor.
+     *
+     * @param npcId The NPC's unique ID
+     * @param armor The armor to wear (boots, leggings, chestplate, helmet)
+     */
+    public void setNpcArmor(UUID npcId, org.bukkit.inventory.ItemStack[] armor) {
+        if (!available || armor == null) return;
+
+        Object npc = replayNpcs.get(npcId);
+        if (npc == null) return;
+
+        try {
+            Class<?> npcClass = Class.forName("net.citizensnpcs.api.npc.NPC");
+            Object entity = npcClass.getMethod("getEntity").invoke(npc);
+
+            if (entity != null && entity instanceof org.bukkit.entity.LivingEntity living) {
+                var equipment = living.getEquipment();
+                if (equipment != null) {
+                    equipment.setArmorContents(armor);
+                }
+            }
+        } catch (Exception e) {
+            plugin.logDebug("[Citizens] Failed to set NPC armor: " + e.getMessage());
+        }
+    }
+
+    /**
+     * Check if an NPC exists and is spawned.
+     *
+     * @param npcId The NPC's unique ID
+     * @return true if the NPC exists and is spawned
+     */
+    public boolean isNpcSpawned(UUID npcId) {
+        if (!available) return false;
+
+        Object npc = replayNpcs.get(npcId);
+        if (npc == null) return false;
+
+        try {
+            Class<?> npcClass = Class.forName("net.citizensnpcs.api.npc.NPC");
+            return (Boolean) npcClass.getMethod("isSpawned").invoke(npc);
+        } catch (Exception e) {
+            return false;
+        }
+    }
+
+    /**
      * Remove and despawn an NPC.
      *
      * @param npcId The NPC's unique ID
