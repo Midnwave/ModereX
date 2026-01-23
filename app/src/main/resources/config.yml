@@ -138,7 +138,7 @@ github-update:
   # Automatically download new versions (saves to plugins/update folder)
   auto-download: true
   # GitHub repository (owner/repo format)
-  repo: 'crenshawcodes/ModereX'
+  repo: 'Midnwave/ModereX'
 
 # ============================================
 # ANTICHEAT INTEGRATION
