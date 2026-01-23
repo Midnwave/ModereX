@@ -2,9 +2,6 @@ package com.blockforge.moderex.util;
 
 import com.blockforge.moderex.ModereX;
 import com.blockforge.moderex.config.lang.MessageKey;
-import com.google.gson.JsonArray;
-import com.google.gson.JsonObject;
-import com.google.gson.JsonParser;
 import org.bukkit.Bukkit;
 import org.bukkit.entity.Player;
 
@@ -14,17 +11,18 @@ import java.net.URL;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
-import java.time.Instant;
 import java.util.concurrent.CompletableFuture;
 
 /**
- * Automatic plugin updater that checks GitHub releases and downloads new versions.
- * Tracks by asset upload date so rebuilds of the same version are detected.
- * On server restart, the new JAR will be loaded automatically.
+ * Automatic plugin updater that checks GitHub releases folder and downloads new versions.
+ * Downloads from: https://raw.githubusercontent.com/{owner}/{repo}/main/releases/ModereX-latest.jar
+ * Checks build info: https://raw.githubusercontent.com/{owner}/{repo}/main/releases/build-info.txt
  */
 public class GitHubAutoUpdater {
 
-    private static final String GITHUB_API = "https://api.github.com/repos/%s/%s/releases/latest";
+    private static final String RAW_URL = "https://raw.githubusercontent.com/%s/%s/main/releases/";
+    private static final String BUILD_INFO_FILE = "build-info.txt";
+    private static final String JAR_FILE = "ModereX-latest.jar";
     private static final String USER_AGENT = "ModereX-AutoUpdater";
 
     private final ModereX plugin;
@@ -33,7 +31,7 @@ public class GitHubAutoUpdater {
     private final Path lastUpdateFile;
 
     private String latestVersion;
-    private String latestAssetDate;
+    private String latestBuildDate;
     private String downloadUrl;
     private boolean updateAvailable;
     private boolean updateDownloaded;
@@ -50,9 +48,12 @@ public class GitHubAutoUpdater {
             this.repo = parts[1];
         } else {
             // Default
-            this.owner = "crenshawcodes";
+            this.owner = "Midnwave";
             this.repo = "ModereX";
         }
+
+        // Set download URL
+        this.downloadUrl = String.format(RAW_URL, owner, repo) + JAR_FILE;
     }
 
     /**
@@ -70,82 +71,62 @@ public class GitHubAutoUpdater {
     }
 
     /**
-     * Check GitHub releases for a newer version or newer build.
+     * Check GitHub releases folder for a newer build.
      */
     public boolean check() {
         try {
-            String apiUrl = String.format(GITHUB_API, owner, repo);
-            URL url = new URL(apiUrl);
+            String buildInfoUrl = String.format(RAW_URL, owner, repo) + BUILD_INFO_FILE;
+            URL url = new URL(buildInfoUrl);
             HttpURLConnection connection = (HttpURLConnection) url.openConnection();
             connection.setRequestMethod("GET");
             connection.setRequestProperty("User-Agent", USER_AGENT);
-            connection.setRequestProperty("Accept", "application/vnd.github.v3+json");
             connection.setConnectTimeout(10000);
             connection.setReadTimeout(10000);
 
             int responseCode = connection.getResponseCode();
             if (responseCode != 200) {
-                plugin.logDebug("GitHub API returned " + responseCode);
+                plugin.logDebug("GitHub build-info.txt returned " + responseCode);
                 return false;
             }
 
+            // Read build info
             BufferedReader reader = new BufferedReader(new InputStreamReader(connection.getInputStream()));
-            StringBuilder response = new StringBuilder();
+            String buildDate = null;
+            String version = null;
             String line;
             while ((line = reader.readLine()) != null) {
-                response.append(line);
+                line = line.trim();
+                if (line.matches("\\d{4}-\\d{2}-\\d{2}T.*")) {
+                    buildDate = line;
+                } else if (line.startsWith("Version:")) {
+                    version = line.substring("Version:".length()).trim();
+                }
             }
             reader.close();
 
-            JsonObject release = JsonParser.parseString(response.toString()).getAsJsonObject();
-            String tagName = release.get("tag_name").getAsString();
-            latestVersion = tagName.startsWith("v") ? tagName.substring(1) : tagName;
-
-            // Find the JAR asset and get its upload date
-            JsonArray assets = release.getAsJsonArray("assets");
-            String assetUpdatedAt = null;
-
-            for (int i = 0; i < assets.size(); i++) {
-                JsonObject asset = assets.get(i).getAsJsonObject();
-                String name = asset.get("name").getAsString();
-                if (name.endsWith(".jar") && name.toLowerCase().contains("moderex")) {
-                    downloadUrl = asset.get("browser_download_url").getAsString();
-                    assetUpdatedAt = asset.get("updated_at").getAsString();
-                    break;
-                }
-            }
-
-            if (downloadUrl == null || assetUpdatedAt == null) {
-                plugin.logDebug("No JAR asset found in GitHub release");
+            if (buildDate == null) {
+                plugin.logDebug("No build date found in build-info.txt");
                 return false;
             }
 
-            latestAssetDate = assetUpdatedAt;
+            latestBuildDate = buildDate;
+            latestVersion = version != null ? version : "unknown";
 
-            // Check if this is a newer build by comparing asset dates
+            // Check if this is a newer build by comparing dates
             String lastKnownDate = loadLastUpdateDate();
 
-            // Update is available if:
-            // 1. We've never downloaded before (lastKnownDate is null)
-            // 2. The asset date is newer than our last download
             if (lastKnownDate == null) {
                 updateAvailable = true;
-                plugin.getLogger().info("GitHub release found: " + latestVersion + " (first check)");
+                plugin.getLogger().info("GitHub build found: " + latestVersion + " (first check)");
             } else {
-                try {
-                    Instant lastInstant = Instant.parse(lastKnownDate);
-                    Instant assetInstant = Instant.parse(assetUpdatedAt);
-                    updateAvailable = assetInstant.isAfter(lastInstant);
+                // Simple string comparison works for ISO dates
+                updateAvailable = buildDate.compareTo(lastKnownDate) > 0;
 
-                    if (updateAvailable) {
-                        plugin.getLogger().info("New build available on GitHub: " + latestVersion +
-                                " (uploaded: " + assetUpdatedAt + ")");
-                    } else {
-                        plugin.logDebug("Running latest build from GitHub.");
-                    }
-                } catch (Exception e) {
-                    // If date parsing fails, fall back to assuming update available
-                    updateAvailable = true;
+                if (updateAvailable) {
+                    plugin.getLogger().info("New build available on GitHub: " + latestVersion +
+                            " (built: " + buildDate + ")");
+                } else {
+                    plugin.logDebug("Running latest build from GitHub.");
                 }
             }
 
@@ -166,7 +147,6 @@ public class GitHubAutoUpdater {
 
     /**
      * Force check and download update (for manual command).
-     * Returns a message about what happened.
      */
     public CompletableFuture<String> forceUpdateAsync() {
         return CompletableFuture.supplyAsync(() -> {
@@ -183,49 +163,41 @@ public class GitHubAutoUpdater {
      */
     public String forceUpdate() {
         try {
-            String apiUrl = String.format(GITHUB_API, owner, repo);
-            URL url = new URL(apiUrl);
+            // Fetch build info
+            String buildInfoUrl = String.format(RAW_URL, owner, repo) + BUILD_INFO_FILE;
+            URL url = new URL(buildInfoUrl);
             HttpURLConnection connection = (HttpURLConnection) url.openConnection();
             connection.setRequestMethod("GET");
             connection.setRequestProperty("User-Agent", USER_AGENT);
-            connection.setRequestProperty("Accept", "application/vnd.github.v3+json");
             connection.setConnectTimeout(10000);
             connection.setReadTimeout(10000);
 
             int responseCode = connection.getResponseCode();
             if (responseCode != 200) {
-                return "GitHub API returned HTTP " + responseCode;
+                return "GitHub returned HTTP " + responseCode + " - no build found in releases folder.";
             }
 
+            // Read build info
             BufferedReader reader = new BufferedReader(new InputStreamReader(connection.getInputStream()));
-            StringBuilder response = new StringBuilder();
+            String buildDate = null;
+            String version = null;
             String line;
             while ((line = reader.readLine()) != null) {
-                response.append(line);
+                line = line.trim();
+                if (line.matches("\\d{4}-\\d{2}-\\d{2}T.*")) {
+                    buildDate = line;
+                } else if (line.startsWith("Version:")) {
+                    version = line.substring("Version:".length()).trim();
+                }
             }
             reader.close();
 
-            JsonObject release = JsonParser.parseString(response.toString()).getAsJsonObject();
-            String tagName = release.get("tag_name").getAsString();
-            latestVersion = tagName.startsWith("v") ? tagName.substring(1) : tagName;
-
-            // Find the JAR asset
-            JsonArray assets = release.getAsJsonArray("assets");
-            downloadUrl = null;
-
-            for (int i = 0; i < assets.size(); i++) {
-                JsonObject asset = assets.get(i).getAsJsonObject();
-                String name = asset.get("name").getAsString();
-                if (name.endsWith(".jar") && name.toLowerCase().contains("moderex")) {
-                    downloadUrl = asset.get("browser_download_url").getAsString();
-                    latestAssetDate = asset.get("updated_at").getAsString();
-                    break;
-                }
+            if (buildDate == null) {
+                return "No build info found in releases folder.";
             }
 
-            if (downloadUrl == null) {
-                return "No JAR asset found in the latest GitHub release.";
-            }
+            latestBuildDate = buildDate;
+            latestVersion = version != null ? version : "unknown";
 
             // Download the update
             if (downloadUpdate()) {
@@ -240,28 +212,9 @@ public class GitHubAutoUpdater {
     }
 
     /**
-     * Download the update JAR to the update folder.
-     */
-    public CompletableFuture<Boolean> downloadUpdateAsync() {
-        return CompletableFuture.supplyAsync(() -> {
-            try {
-                return downloadUpdate();
-            } catch (Exception e) {
-                plugin.logDebug("Update download failed: " + e.getMessage());
-                return false;
-            }
-        });
-    }
-
-    /**
      * Download the update JAR file.
      */
     public boolean downloadUpdate() {
-        if (downloadUrl == null) {
-            plugin.getLogger().warning("No download URL available for update.");
-            return false;
-        }
-
         try {
             plugin.getLogger().info("Downloading update from GitHub...");
 
@@ -271,15 +224,13 @@ public class GitHubAutoUpdater {
                 updateFolder.mkdirs();
             }
 
-            // Download to temp file first
+            // Download from releases folder
             URL url = new URL(downloadUrl);
             HttpURLConnection connection = (HttpURLConnection) url.openConnection();
             connection.setRequestMethod("GET");
             connection.setRequestProperty("User-Agent", USER_AGENT);
             connection.setConnectTimeout(30000);
             connection.setReadTimeout(60000);
-
-            // Follow redirects for GitHub
             connection.setInstanceFollowRedirects(true);
 
             int responseCode = connection.getResponseCode();
@@ -315,21 +266,21 @@ public class GitHubAutoUpdater {
                 }
             }
 
-            // Move to update folder
-            String jarName = "ModereX-" + latestVersion + ".jar";
+            // Move to update folder with version name
+            String jarName = "ModereX-" + (latestVersion != null ? latestVersion : "latest") + ".jar";
             Path targetPath = updateFolder.toPath().resolve(jarName);
             Files.move(tempFile, targetPath, StandardCopyOption.REPLACE_EXISTING);
 
-            // Save the asset date so we know we have this version
-            saveLastUpdateDate(latestAssetDate);
+            // Save the build date so we know we have this version
+            if (latestBuildDate != null) {
+                saveLastUpdateDate(latestBuildDate);
+            }
 
             updateDownloaded = true;
             plugin.getLogger().info("Update downloaded successfully: " + jarName);
             plugin.getLogger().info("The update will be applied on server restart.");
 
-            // Notify online staff
             notifyDownloadComplete();
-
             return true;
         } catch (Exception e) {
             plugin.getLogger().warning("Failed to download update: " + e.getMessage());
@@ -338,9 +289,6 @@ public class GitHubAutoUpdater {
         }
     }
 
-    /**
-     * Load the last update date from file.
-     */
     private String loadLastUpdateDate() {
         try {
             if (Files.exists(lastUpdateFile)) {
@@ -352,9 +300,6 @@ public class GitHubAutoUpdater {
         return null;
     }
 
-    /**
-     * Save the last update date to file.
-     */
     private void saveLastUpdateDate(String date) {
         try {
             Files.createDirectories(lastUpdateFile.getParent());
@@ -364,79 +309,42 @@ public class GitHubAutoUpdater {
         }
     }
 
-    /**
-     * Compare version strings.
-     */
-    private boolean isNewerVersion(String newVersion, String currentVersion) {
-        try {
-            String[] newParts = newVersion.replaceAll("[^0-9.]", "").split("\\.");
-            String[] currentParts = currentVersion.replaceAll("[^0-9.]", "").split("\\.");
-
-            int length = Math.max(newParts.length, currentParts.length);
-            for (int i = 0; i < length; i++) {
-                int newPart = i < newParts.length && !newParts[i].isEmpty() ? Integer.parseInt(newParts[i]) : 0;
-                int currentPart = i < currentParts.length && !currentParts[i].isEmpty() ? Integer.parseInt(currentParts[i]) : 0;
-
-                if (newPart > currentPart) {
-                    return true;
-                } else if (newPart < currentPart) {
-                    return false;
-                }
-            }
-            return false;
-        } catch (NumberFormatException e) {
-            return false;
-        }
-    }
-
-    /**
-     * Notify staff about available update.
-     */
     private void notifyStaff() {
         Bukkit.getScheduler().runTask(plugin, () -> {
             for (Player player : Bukkit.getOnlinePlayers()) {
                 if (player.hasPermission("moderex.admin")) {
                     player.sendMessage(plugin.getLanguageManager().getPrefixed(MessageKey.GITHUB_UPDATE_AVAILABLE,
-                            "version", latestVersion,
+                            "version", latestVersion != null ? latestVersion : "new build",
                             "current", plugin.getPluginMeta().getVersion()));
                 }
             }
         });
     }
 
-    /**
-     * Notify staff that download is complete.
-     */
     private void notifyDownloadComplete() {
         Bukkit.getScheduler().runTask(plugin, () -> {
             for (Player player : Bukkit.getOnlinePlayers()) {
                 if (player.hasPermission("moderex.admin")) {
                     player.sendMessage(plugin.getLanguageManager().getPrefixed(MessageKey.GITHUB_UPDATE_DOWNLOADED,
-                            "version", latestVersion));
+                            "version", latestVersion != null ? latestVersion : "new build"));
                 }
             }
         });
     }
 
-    /**
-     * Notify a specific player about available updates.
-     */
     public void notifyPlayer(Player player) {
         if (!player.hasPermission("moderex.admin")) return;
 
         if (updateDownloaded) {
             player.sendMessage(plugin.getLanguageManager().getPrefixed(MessageKey.GITHUB_UPDATE_PENDING,
-                    "version", latestVersion));
+                    "version", latestVersion != null ? latestVersion : "new build"));
         } else if (updateAvailable) {
             player.sendMessage(plugin.getLanguageManager().getPrefixed(MessageKey.GITHUB_UPDATE_AVAILABLE,
-                    "version", latestVersion,
+                    "version", latestVersion != null ? latestVersion : "new build",
                     "current", plugin.getPluginMeta().getVersion()));
         }
     }
 
-    /**
-     * Format file size for display.
-     */
     private String formatSize(long bytes) {
         if (bytes < 0) return "unknown size";
         if (bytes < 1024) return bytes + " B";
@@ -444,17 +352,12 @@ public class GitHubAutoUpdater {
         return String.format("%.1f MB", bytes / (1024.0 * 1024.0));
     }
 
-    /**
-     * Schedule periodic update checks (every 24 hours).
-     * Call this after the initial check to keep checking while server runs.
-     */
     public void schedulePeriodicCheck() {
-        // 24 hours in ticks (20 ticks/second * 60 * 60 * 24)
+        // 24 hours in ticks
         long interval = 20L * 60 * 60 * 24;
 
         Bukkit.getScheduler().runTaskTimerAsynchronously(plugin, () -> {
             try {
-                // Only check if we haven't already downloaded an update
                 if (!updateDownloaded) {
                     check();
                 }
@@ -465,7 +368,6 @@ public class GitHubAutoUpdater {
         plugin.logDebug("GitHub auto-update periodic check scheduled (every 24 hours)");
     }
 
-    // Getters
     public String getLatestVersion() {
         return latestVersion;
     }
