@@ -29,11 +29,13 @@ tmpclaude-*
 nul
 
 # Build outputs (keep source, exclude compiled)
-*.jar
-!gradle-wrapper.jar
 app/bin/
 app/build/
 bin/
+
+# Allow release JARs in releases folder
+!releases/
+releases/*.jar
 
 # Database
 *.db
@@ -63,4 +65,12 @@ GrimAPI
 *.md.local
 COMMIT_LOG.txt
 FEATURES_CHANGELOG.txt
+PENDING_COMMITS.md
 .ai/
+CLAUDE.md
+
+# External API sources
+CitizensAPI-master/
+CitizensAPI-master.zip
+*-master/
+*-master.zip

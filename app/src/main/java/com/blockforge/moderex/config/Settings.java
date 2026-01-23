@@ -39,6 +39,11 @@ public class Settings {
     // Update checker
     private boolean updateCheckerEnabled = true;
 
+    // GitHub auto-update settings
+    private boolean githubAutoUpdateEnabled = true;
+    private boolean githubAutoDownload = true;
+    private String githubRepo = "crenshawcodes/ModereX"; // owner/repo format
+
     // Anticheat settings
     private boolean anticheatAutoDetect = true;
     private String anticheatProvider = "auto"; // auto, grim, vulcan, matrix, etc.
@@ -340,6 +345,30 @@ public class Settings {
 
     public void setUpdateCheckerEnabled(boolean updateCheckerEnabled) {
         this.updateCheckerEnabled = updateCheckerEnabled;
+    }
+
+    public boolean isGithubAutoUpdateEnabled() {
+        return githubAutoUpdateEnabled;
+    }
+
+    public void setGithubAutoUpdateEnabled(boolean githubAutoUpdateEnabled) {
+        this.githubAutoUpdateEnabled = githubAutoUpdateEnabled;
+    }
+
+    public boolean isGithubAutoDownload() {
+        return githubAutoDownload;
+    }
+
+    public void setGithubAutoDownload(boolean githubAutoDownload) {
+        this.githubAutoDownload = githubAutoDownload;
+    }
+
+    public String getGithubRepo() {
+        return githubRepo;
+    }
+
+    public void setGithubRepo(String githubRepo) {
+        this.githubRepo = githubRepo;
     }
 
     public boolean isAnticheatAutoDetect() {

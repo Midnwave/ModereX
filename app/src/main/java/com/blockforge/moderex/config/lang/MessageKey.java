@@ -102,6 +102,13 @@ public enum MessageKey {
     UPDATE_AVAILABLE("update.available"),
     UPDATE_CURRENT("update.current"),
 
+    // GitHub Auto-Update
+    GITHUB_UPDATE_AVAILABLE("github.update_available"),
+    GITHUB_UPDATE_DOWNLOADED("github.update_downloaded"),
+    GITHUB_UPDATE_PENDING("github.update_pending"),
+    GITHUB_UPDATE_DOWNLOADING("github.update_downloading"),
+    GITHUB_UPDATE_FAILED("github.update_failed"),
+
     // Commands
     CMD_HISTORY_HEADER("cmdhistory.header"),
     CMD_HISTORY_ENTRY("cmdhistory.entry"),
