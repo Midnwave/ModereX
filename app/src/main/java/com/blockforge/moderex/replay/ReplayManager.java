@@ -216,6 +216,60 @@ public class ReplayManager {
         }
     }
 
+    /**
+     * Track combat between two players.
+     * When player A attacks player B, ensure both players are recorded in A's session.
+     * This allows replays to show the full context of combat encounters.
+     *
+     * @param attacker The player who initiated the attack
+     * @param victim The player who was attacked
+     * @param damage The damage dealt
+     */
+    public void onCombat(Player attacker, Player victim, double damage) {
+        if (!enabled) return;
+
+        // Check if attacker is being recorded
+        ReplaySession attackerSession = activeSessions.get(attacker.getUniqueId());
+        if (attackerSession != null) {
+            // Add victim to the recording if not already included
+            if (!attackerSession.getRecordedPlayerUuids().contains(victim.getUniqueId())) {
+                attackerSession.addPlayer(victim.getUniqueId(), victim.getName());
+                plugin.logDebug("[Replay] Added " + victim.getName() + " to " + attacker.getName() + "'s recording (combat)");
+            }
+            // Record the attack action
+            attackerSession.captureAction(attacker, ReplaySnapshot.ActionType.ATTACK,
+                    "Attacked " + victim.getName() + " for " + String.format("%.1f", damage) + " damage");
+        }
+
+        // Check if victim is being recorded
+        ReplaySession victimSession = activeSessions.get(victim.getUniqueId());
+        if (victimSession != null) {
+            // Add attacker to the recording if not already included
+            if (!victimSession.getRecordedPlayerUuids().contains(attacker.getUniqueId())) {
+                victimSession.addPlayer(attacker.getUniqueId(), attacker.getName());
+                plugin.logDebug("[Replay] Added " + attacker.getName() + " to " + victim.getName() + "'s recording (combat)");
+            }
+            // Record the damage received
+            victimSession.captureAction(victim, ReplaySnapshot.ActionType.DAMAGE_RECEIVED,
+                    "Hit by " + attacker.getName() + " for " + String.format("%.1f", damage) + " damage");
+        }
+    }
+
+    /**
+     * Get all active recording sessions.
+     * Used for GUI display and tab completion.
+     */
+    public Collection<ReplaySession> getActiveSessions() {
+        return Collections.unmodifiableCollection(activeSessions.values());
+    }
+
+    /**
+     * Get the active session for a player.
+     */
+    public ReplaySession getActiveSession(UUID playerUuid) {
+        return activeSessions.get(playerUuid);
+    }
+
     public void setWatchlistAutoRecord(UUID uuid, boolean enabled) {
         if (enabled) {
             watchlistAutoRecord.add(uuid);
@@ -229,15 +283,40 @@ public class ReplayManager {
         return watchlistAutoRecord.contains(uuid);
     }
 
+    /**
+     * Start playback of a replay session.
+     * Requires Citizens plugin to be installed.
+     *
+     * @param viewer The player who will view the replay
+     * @param session The replay session to play
+     * @return The playback instance, or null if Citizens is not available
+     */
     public ReplayPlayback startPlayback(Player viewer, ReplaySession session) {
+        // Check if Citizens is available
+        if (!ReplayPlayback.isAvailable(plugin)) {
+            viewer.sendMessage(net.kyori.adventure.text.Component.text(
+                    "Replay playback requires the Citizens plugin. Download from: https://ci.citizensnpcs.co/")
+                    .color(net.kyori.adventure.text.format.NamedTextColor.RED));
+            return null;
+        }
+
         // Stop any existing playback
         stopPlayback(viewer.getUniqueId());
 
         ReplayPlayback playback = new ReplayPlayback(plugin, viewer, session);
-        activePlaybacks.put(viewer.getUniqueId(), playback);
-        playback.start();
+        if (playback.start()) {
+            activePlaybacks.put(viewer.getUniqueId(), playback);
+            return playback;
+        }
 
-        return playback;
+        return null;
+    }
+
+    /**
+     * Check if replay playback is available (Citizens installed).
+     */
+    public boolean isPlaybackAvailable() {
+        return ReplayPlayback.isAvailable(plugin);
     }
 
     public void stopPlayback(UUID viewerUuid) {

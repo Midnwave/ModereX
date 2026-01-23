@@ -12,6 +12,7 @@ public class HookManager {
     private CoreProtectHook coreProtectHook;
     private GeyserHook geyserHook;
     private FloodgateHook floodgateHook;
+    private CitizensHook citizensHook;
     private AnticheatManager anticheatManager;
     private String detectedAnticheat;
 
@@ -79,6 +80,19 @@ public class HookManager {
             } catch (Exception e) {
                 plugin.logDebug("Failed to hook into Floodgate: " + e.getMessage());
                 floodgateHook = null;
+            }
+        }
+
+        // Hook into Citizens (NPC plugin for replay playback)
+        if (isPluginEnabled("Citizens")) {
+            try {
+                citizensHook = new CitizensHook(plugin);
+                if (!citizensHook.initialize()) {
+                    citizensHook = null;
+                }
+            } catch (Exception e) {
+                plugin.logDebug("Failed to hook into Citizens: " + e.getMessage());
+                citizensHook = null;
             }
         }
 
@@ -213,12 +227,31 @@ public class HookManager {
         return floodgateHook != null ? floodgateHook.getVersion() : "N/A";
     }
 
+    public CitizensHook getCitizensHook() {
+        return citizensHook;
+    }
+
+    public boolean hasCitizens() {
+        return citizensHook != null && citizensHook.isAvailable();
+    }
+
+    public boolean isCitizensAvailable() {
+        return citizensHook != null && citizensHook.isAvailable();
+    }
+
+    public String getCitizensVersion() {
+        return citizensHook != null ? citizensHook.getVersion() : "N/A";
+    }
+
     public void shutdown() {
         if (placeholderAPIHook != null) {
             placeholderAPIHook.unregister();
         }
         if (anticheatManager != null) {
             anticheatManager.shutdown();
+        }
+        if (citizensHook != null) {
+            citizensHook.shutdown();
         }
     }
 }

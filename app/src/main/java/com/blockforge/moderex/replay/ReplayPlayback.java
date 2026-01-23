@@ -1,23 +1,24 @@
 package com.blockforge.moderex.replay;
 
 import com.blockforge.moderex.ModereX;
+import com.blockforge.moderex.hooks.CitizensHook;
 import com.blockforge.moderex.util.TextUtil;
-import net.kyori.adventure.text.Component;
 import net.kyori.adventure.title.Title;
 import org.bukkit.*;
-import org.bukkit.entity.Entity;
 import org.bukkit.entity.Player;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.ItemMeta;
 import org.bukkit.potion.PotionEffect;
 import org.bukkit.potion.PotionEffectType;
 import org.bukkit.scheduler.BukkitTask;
-import org.bukkit.scoreboard.Scoreboard;
-import org.bukkit.scoreboard.Team;
 
 import java.time.Duration;
 import java.util.*;
 
+/**
+ * ReplayPlayback handles playback of recorded replay sessions using Citizens NPCs.
+ * REQUIRES Citizens plugin to be installed - playback is disabled without it.
+ */
 public class ReplayPlayback {
 
     private final ModereX plugin;
@@ -39,10 +40,9 @@ public class ReplayPlayback {
     private boolean wasFlying;
     private Collection<PotionEffect> originalEffects;
 
-    // NPCs and visualization
-    private final Map<UUID, FakePlayer> fakePlayersMap = new HashMap<>();
+    // Citizens NPCs - Player UUID -> Citizens NPC UUID
+    private final Map<UUID, UUID> npcIds = new HashMap<>();
     private BukkitTask playbackTask;
-    private Team hiddenTeam;
 
     // Hotbar control slots
     private static final int SLOT_REWIND_10 = 0;
@@ -61,8 +61,29 @@ public class ReplayPlayback {
         this.session = session;
     }
 
-    public void start() {
-        if (playing) return;
+    /**
+     * Check if replay playback is available (Citizens is installed).
+     */
+    public static boolean isAvailable(ModereX plugin) {
+        return plugin.getHookManager().hasCitizens();
+    }
+
+    /**
+     * Start replay playback.
+     * @return true if playback started successfully, false if Citizens is not available
+     */
+    public boolean start() {
+        if (playing) return true;
+
+        // Require Citizens for NPC playback
+        if (!plugin.getHookManager().hasCitizens()) {
+            viewer.sendMessage(TextUtil.parse("<red>Replay playback requires the Citizens plugin to be installed."));
+            viewer.sendMessage(TextUtil.parse("<gray>Download Citizens from: <aqua>https://ci.citizensnpcs.co/"));
+            return false;
+        }
+
+        CitizensHook citizens = plugin.getHookManager().getCitizensHook();
+        plugin.logDebug("[Replay] Starting playback with Citizens NPCs");
 
         // Backup viewer state
         backupViewerState();
@@ -70,11 +91,33 @@ public class ReplayPlayback {
         // Setup viewer for spectating
         setupViewer();
 
-        // Create fake players for each recorded player
-        for (UUID uuid : session.getRecordedPlayerUuids()) {
-            String name = session.getPlayerName(uuid);
-            FakePlayer fakePlayer = new FakePlayer(uuid, name);
-            fakePlayersMap.put(uuid, fakePlayer);
+        // Create Citizens NPCs for each recorded player
+        for (UUID playerUuid : session.getRecordedPlayerUuids()) {
+            String name = session.getPlayerName(playerUuid);
+            List<ReplaySnapshot> snapshots = session.getSnapshots(playerUuid);
+
+            if (!snapshots.isEmpty()) {
+                ReplaySnapshot first = snapshots.get(0);
+                World world = Bukkit.getWorld(first.getWorldName());
+
+                if (world != null) {
+                    Location spawnLoc = first.toLocation(world);
+                    UUID npcId = citizens.createReplayNpc(name, playerUuid, spawnLoc);
+
+                    if (npcId != null) {
+                        npcIds.put(playerUuid, npcId);
+                        plugin.logDebug("[Replay] Created NPC for " + name + " (ID: " + npcId + ")");
+                    } else {
+                        plugin.logDebug("[Replay] Failed to create NPC for " + name);
+                    }
+                }
+            }
+        }
+
+        if (npcIds.isEmpty()) {
+            viewer.sendMessage(TextUtil.parse("<red>Failed to create replay NPCs. Check console for errors."));
+            restoreViewerState();
+            return false;
         }
 
         // Initialize playback state
@@ -83,37 +126,38 @@ public class ReplayPlayback {
         playbackStartTime = System.currentTimeMillis();
         currentPlaybackTime = session.getStartTime();
 
-        // Start playback task
+        // Start playback task (runs every tick)
         playbackTask = plugin.getServer().getScheduler().runTaskTimer(plugin, this::tick, 1L, 1L);
 
         // Show intro
         showIntro();
 
         plugin.logDebug("Started playback of " + session.getSessionId() + " for " + viewer.getName());
+        return true;
     }
 
+    /**
+     * Stop replay playback and cleanup NPCs.
+     */
     public void stop() {
         if (!playing) return;
 
         playing = false;
 
-        // Stop task
+        // Stop tick task
         if (playbackTask != null) {
             playbackTask.cancel();
             playbackTask = null;
         }
 
-        // Remove fake players
-        for (FakePlayer fakePlayer : fakePlayersMap.values()) {
-            fakePlayer.remove();
+        // Remove all Citizens NPCs
+        if (plugin.getHookManager().hasCitizens()) {
+            CitizensHook citizens = plugin.getHookManager().getCitizensHook();
+            for (UUID npcId : npcIds.values()) {
+                citizens.removeNpc(npcId);
+            }
         }
-        fakePlayersMap.clear();
-
-        // Cleanup team
-        if (hiddenTeam != null) {
-            hiddenTeam.unregister();
-            hiddenTeam = null;
-        }
+        npcIds.clear();
 
         // Restore viewer state
         restoreViewerState();
@@ -142,8 +186,8 @@ public class ReplayPlayback {
         newTime = Math.max(session.getStartTime(), Math.min(session.getEndTime(), newTime));
         currentPlaybackTime = newTime;
 
-        // Update all fake players to new positions
-        updateFakePlayers();
+        // Update all NPCs to new positions
+        updateNpcs();
 
         String direction = seconds > 0 ? "forward" : "back";
         viewer.sendMessage(TextUtil.parse("<gray>Skipped " + direction + " <white>" +
@@ -197,24 +241,33 @@ public class ReplayPlayback {
             }
         }
 
-        // Update fake players
-        updateFakePlayers();
+        // Update NPCs
+        updateNpcs();
 
         // Update action bar with time info
         updateActionBar();
     }
 
-    private void updateFakePlayers() {
-        for (Map.Entry<UUID, FakePlayer> entry : fakePlayersMap.entrySet()) {
-            UUID uuid = entry.getKey();
-            FakePlayer fakePlayer = entry.getValue();
+    private void updateNpcs() {
+        if (!plugin.getHookManager().hasCitizens()) return;
 
-            // Find the snapshot closest to current time
-            List<ReplaySnapshot> snapshots = session.getSnapshots(uuid);
+        CitizensHook citizens = plugin.getHookManager().getCitizensHook();
+
+        for (Map.Entry<UUID, UUID> entry : npcIds.entrySet()) {
+            UUID playerUuid = entry.getKey();
+            UUID npcId = entry.getValue();
+
+            List<ReplaySnapshot> snapshots = session.getSnapshots(playerUuid);
             ReplaySnapshot targetSnapshot = findClosestSnapshot(snapshots, currentPlaybackTime);
 
             if (targetSnapshot != null) {
-                fakePlayer.update(targetSnapshot, viewer.getWorld());
+                World world = Bukkit.getWorld(targetSnapshot.getWorldName());
+                if (world != null) {
+                    Location loc = targetSnapshot.toLocation(world);
+                    citizens.updateNpcLocation(npcId, loc);
+                    citizens.setNpcSneaking(npcId, targetSnapshot.isSneaking());
+                    citizens.setNpcHeldItem(npcId, targetSnapshot.getMainHand());
+                }
             }
         }
     }
@@ -414,148 +467,4 @@ public class ReplayPlayback {
     public long getCurrentPlaybackTime() { return currentPlaybackTime; }
     public float getPlaybackSpeed() { return playbackSpeed; }
     public ReplaySession getSession() { return session; }
-
-    private class FakePlayer {
-        private final UUID originalUuid;
-        private final String name;
-        private org.bukkit.entity.ArmorStand entity;
-        private ItemStack playerHead;
-        private boolean headCreated = false;
-
-        public FakePlayer(UUID originalUuid, String name) {
-            this.originalUuid = originalUuid;
-            this.name = name;
-            createPlayerHead();
-        }
-
-        private void createPlayerHead() {
-            // Create player head with skin
-            playerHead = new ItemStack(Material.PLAYER_HEAD);
-            org.bukkit.inventory.meta.SkullMeta meta = (org.bukkit.inventory.meta.SkullMeta) playerHead.getItemMeta();
-            if (meta != null) {
-                // Try to get the offline player for skin
-                OfflinePlayer offlinePlayer = Bukkit.getOfflinePlayer(originalUuid);
-                meta.setOwningPlayer(offlinePlayer);
-                playerHead.setItemMeta(meta);
-            }
-            headCreated = true;
-        }
-
-        public void update(ReplaySnapshot snapshot, World world) {
-            Location loc = new Location(world, snapshot.getX(), snapshot.getY(), snapshot.getZ(),
-                    snapshot.getYaw(), snapshot.getPitch());
-
-            if (entity == null || !entity.isValid()) {
-                // Create armor stand with player appearance
-                entity = world.spawn(loc, org.bukkit.entity.ArmorStand.class, stand -> {
-                    stand.setCustomName(name);
-                    stand.setCustomNameVisible(true);
-                    stand.setGravity(false);
-                    stand.setVisible(false); // Hide armor stand body
-                    stand.setSmall(false);
-                    stand.setArms(true);
-                    stand.setBasePlate(false);
-                    stand.setMarker(false);
-                    stand.setInvulnerable(true);
-                    stand.setPersistent(false);
-
-                    // Set player head as helmet for skin display
-                    var equipment = stand.getEquipment();
-                    if (headCreated && playerHead != null) {
-                        equipment.setHelmet(playerHead);
-                    }
-
-                    // Set armor from snapshot or use leather armor for visibility
-                    if (snapshot.getArmor() != null && snapshot.getArmor().length >= 4) {
-                        ItemStack[] armor = snapshot.getArmor();
-                        // Don't override helmet (player head)
-                        equipment.setChestplate(armor[2] != null ? armor[2] : createColoredArmor(Material.LEATHER_CHESTPLATE));
-                        equipment.setLeggings(armor[1] != null ? armor[1] : createColoredArmor(Material.LEATHER_LEGGINGS));
-                        equipment.setBoots(armor[0] != null ? armor[0] : createColoredArmor(Material.LEATHER_BOOTS));
-                    } else {
-                        // Default colored leather armor
-                        equipment.setChestplate(createColoredArmor(Material.LEATHER_CHESTPLATE));
-                        equipment.setLeggings(createColoredArmor(Material.LEATHER_LEGGINGS));
-                        equipment.setBoots(createColoredArmor(Material.LEATHER_BOOTS));
-                    }
-
-                    if (snapshot.getMainHand() != null) {
-                        equipment.setItemInMainHand(snapshot.getMainHand());
-                    }
-                });
-            } else {
-                // Update position smoothly
-                entity.teleport(loc);
-
-                // Update held item
-                var equipment = entity.getEquipment();
-                if (snapshot.getMainHand() != null) {
-                    equipment.setItemInMainHand(snapshot.getMainHand());
-                }
-            }
-
-            // Update poses based on state
-            updatePose(snapshot);
-        }
-
-        private void updatePose(ReplaySnapshot snapshot) {
-            if (entity == null) return;
-
-            // Use EulerAngle for pose changes
-            org.bukkit.util.EulerAngle headPose;
-            org.bukkit.util.EulerAngle bodyPose;
-
-            if (snapshot.isSneaking()) {
-                // Sneaking pose - tilt forward
-                headPose = new org.bukkit.util.EulerAngle(Math.toRadians(20), 0, 0);
-                bodyPose = new org.bukkit.util.EulerAngle(Math.toRadians(15), 0, 0);
-                entity.setSmall(false);
-            } else if (snapshot.isSwimming()) {
-                // Swimming pose - horizontal
-                headPose = new org.bukkit.util.EulerAngle(Math.toRadians(80), 0, 0);
-                bodyPose = new org.bukkit.util.EulerAngle(Math.toRadians(80), 0, 0);
-            } else if (snapshot.isGliding()) {
-                // Gliding pose - angled down
-                headPose = new org.bukkit.util.EulerAngle(Math.toRadians(60), 0, 0);
-                bodyPose = new org.bukkit.util.EulerAngle(Math.toRadians(45), 0, 0);
-            } else {
-                // Standing pose
-                headPose = new org.bukkit.util.EulerAngle(0, 0, 0);
-                bodyPose = new org.bukkit.util.EulerAngle(0, 0, 0);
-            }
-
-            entity.setHeadPose(headPose);
-            entity.setBodyPose(bodyPose);
-
-            // Arm animation for sprinting
-            if (snapshot.isSprinting()) {
-                double armSwing = Math.sin(System.currentTimeMillis() * 0.01) * 0.5;
-                entity.setRightArmPose(new org.bukkit.util.EulerAngle(armSwing, 0, 0));
-                entity.setLeftArmPose(new org.bukkit.util.EulerAngle(-armSwing, 0, 0));
-            } else {
-                entity.setRightArmPose(new org.bukkit.util.EulerAngle(0, 0, 0));
-                entity.setLeftArmPose(new org.bukkit.util.EulerAngle(0, 0, 0));
-            }
-        }
-
-        private ItemStack createColoredArmor(Material material) {
-            ItemStack item = new ItemStack(material);
-            if (item.getItemMeta() instanceof org.bukkit.inventory.meta.LeatherArmorMeta meta) {
-                // Generate color based on player UUID for consistency
-                int hash = originalUuid.hashCode();
-                int r = (hash & 0xFF0000) >> 16;
-                int g = (hash & 0x00FF00) >> 8;
-                int b = hash & 0x0000FF;
-                meta.setColor(org.bukkit.Color.fromRGB(r, g, b));
-                item.setItemMeta(meta);
-            }
-            return item;
-        }
-
-        public void remove() {
-            if (entity != null && entity.isValid()) {
-                entity.remove();
-            }
-        }
-    }
 }
