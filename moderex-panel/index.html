@@ -104,6 +104,7 @@
       <div class="logo logo-img"><img src="537154108207028818e303ef9465c1f66717660d_96.png" alt="ModereX logo"></div>
         <div class="brand">
           <b>ModereX</b>
+          <span>Control Panel</span>
         </div>
       </div>
       
@@ -125,6 +126,7 @@
           <div class="sb-item" data-page="automod"><i class="fa-solid fa-robot"></i> Automod Rules</div>
           <div class="sb-item" data-page="anticheat"><i class="fa-solid fa-shield-halved"></i> Anticheat</div>
           <div class="sb-item" data-page="watchlist"><i class="fa-solid fa-eye"></i> Watchlist</div>
+          <div class="sb-item" data-page="evidence"><i class="fa-solid fa-file-video"></i> Evidence</div>
           <div class="sb-item" data-page="livelogs"><i class="fa-solid fa-terminal"></i> Live Logs</div>
         </div>
 
@@ -148,6 +150,10 @@
             <div class="status-pill"><span class="dot" id="statusDot"></span> <span id="statusText">Online</span></div>
           </div>
           <span class="chip ok" id="serverChip"><i class="fa-solid fa-server"></i> 1.21.4</span>
+        </div>
+        <div class="sb-version">
+          <span>Panel v2.0 (2026-01-22)</span>
+          <span id="pluginVersion">Plugin: Loading...</span>
         </div>
       </div>
     </aside>
@@ -438,7 +444,53 @@
             </div>
           </div>
         </section>
-        
+
+        <!-- Evidence Page -->
+        <section class="page" id="page-evidence">
+          <div class="page-head">
+            <div class="page-title">
+              <h1>Evidence</h1>
+              <p>Manage uploaded evidence files (videos, screenshots) for cases.</p>
+            </div>
+            <div style="display:flex;gap:10px;align-items:center">
+              <span class="badge gray" id="evidenceStorage">0 files &bull; 0 MB</span>
+              <button class="btn primary" onclick="openEvidenceUpload()"><i class="fa-solid fa-upload"></i> Upload</button>
+            </div>
+          </div>
+
+          <div class="panel pad">
+            <div class="toolbar" style="margin-top:0">
+              <div class="left">
+                <div class="gsearch" style="width:100%;max-width:400px">
+                  <i class="fa-solid fa-magnifying-glass"></i>
+                  <input type="text" id="evidenceSearch" placeholder="Search evidence..." oninput="filterEvidence()">
+                </div>
+              </div>
+              <div class="right" style="display:flex;gap:8px">
+                <select class="input" id="evidenceTypeFilter" onchange="filterEvidence()" style="width:120px">
+                  <option value="">All Types</option>
+                  <option value="video">Videos</option>
+                  <option value="image">Images</option>
+                </select>
+                <select class="input" id="evidenceSortBy" onchange="filterEvidence()" style="width:140px">
+                  <option value="newest">Newest First</option>
+                  <option value="oldest">Oldest First</option>
+                  <option value="largest">Largest First</option>
+                  <option value="smallest">Smallest First</option>
+                </select>
+              </div>
+            </div>
+
+            <div id="evidenceGrid" class="evidence-grid" style="margin-top:20px"></div>
+            <div id="evidenceEmpty" class="empty-state" style="display:none">
+              <i class="fa-solid fa-folder-open" style="font-size:48px;color:var(--muted)"></i>
+              <h3>No Evidence</h3>
+              <p>Upload screenshots or video recordings to get started.</p>
+              <button class="btn primary" onclick="openEvidenceUpload()"><i class="fa-solid fa-upload"></i> Upload Evidence</button>
+            </div>
+          </div>
+        </section>
+
         <!-- Live Logs Page -->
         <section class="page" id="page-livelogs">
           <div class="page-head">
@@ -1008,7 +1060,93 @@
       </div>
     </div>
   </div>
-  
+
+  <!-- Evidence Upload Modal -->
+  <div class="overlay" id="evidenceUploadOverlay">
+    <div class="modal" style="max-width:540px" onclick="event.stopPropagation()">
+      <div class="modal-top">
+        <div style="display:flex;align-items:center;gap:10px">
+          <i class="fa-solid fa-upload" style="color:var(--primary-light)"></i>
+          <b>Upload Evidence</b>
+        </div>
+        <button class="mini" onclick="closeEvidenceUpload()"><i class="fa-solid fa-xmark"></i></button>
+      </div>
+      <div class="modal-body">
+        <div class="evidence-dropzone" id="evidenceDropzone" onclick="document.getElementById('evidenceFileInput').click()">
+          <input type="file" id="evidenceFileInput" accept=".mp4,.mkv,.png,.jpg,.jpeg" style="display:none" onchange="handleEvidenceFile(this)">
+          <i class="fa-solid fa-cloud-arrow-up" style="font-size:48px;color:var(--primary-light)"></i>
+          <p style="margin:10px 0 5px 0"><b>Drop file here or click to browse</b></p>
+          <small style="color:var(--muted)">MP4, MKV, PNG, JPG &bull; Max 300MB</small>
+        </div>
+        <div id="evidencePreview" style="display:none;margin-top:16px">
+          <div class="evidence-file-preview">
+            <i class="fa-solid fa-file" id="evidencePreviewIcon"></i>
+            <div class="evidence-file-info">
+              <b id="evidencePreviewName">filename.mp4</b>
+              <small id="evidencePreviewSize">12.5 MB</small>
+            </div>
+            <button class="mini" onclick="clearEvidenceFile()"><i class="fa-solid fa-xmark"></i></button>
+          </div>
+        </div>
+        <div style="margin-top:16px">
+          <label class="label">Player (optional)</label>
+          <input type="text" class="input" id="evidencePlayer" placeholder="Enter player name...">
+        </div>
+        <div style="margin-top:12px">
+          <label class="label">Description (optional)</label>
+          <textarea class="input" id="evidenceDescription" rows="2" placeholder="Brief description of the evidence..."></textarea>
+        </div>
+        <div style="margin-top:12px">
+          <label class="label">Tags (optional)</label>
+          <input type="text" class="input" id="evidenceTags" placeholder="cheating, hacking, griefing (comma separated)">
+        </div>
+      </div>
+      <div class="modal-foot">
+        <span class="badge gray"><i class="fa-solid fa-shield"></i> Evidence is stored securely</span>
+        <div style="display:flex;gap:10px">
+          <button class="btn ghost" onclick="closeEvidenceUpload()">Cancel</button>
+          <button class="btn primary" id="evidenceUploadBtn" onclick="uploadEvidence()" disabled><i class="fa-solid fa-upload"></i> Upload</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Evidence Viewer Modal -->
+  <div class="overlay" id="evidenceViewerOverlay">
+    <div class="modal" style="max-width:900px" onclick="event.stopPropagation()">
+      <div class="modal-top">
+        <div style="display:flex;align-items:center;gap:10px">
+          <i class="fa-solid fa-play-circle" style="color:var(--primary-light)"></i>
+          <b id="evidenceViewerTitle">Evidence Viewer</b>
+          <span class="badge gray" id="evidenceViewerId">EV-XXXXXXXX</span>
+        </div>
+        <button class="mini" onclick="closeEvidenceViewer()"><i class="fa-solid fa-xmark"></i></button>
+      </div>
+      <div class="modal-body" style="padding:0">
+        <div id="evidenceViewerContent" style="background:#000;min-height:400px;display:flex;align-items:center;justify-content:center">
+          <!-- Video or image will be rendered here -->
+        </div>
+        <div style="padding:16px">
+          <div style="display:flex;gap:16px;flex-wrap:wrap">
+            <div><small style="color:var(--muted)">Uploaded by</small><br><b id="evidenceViewerUploader">-</b></div>
+            <div><small style="color:var(--muted)">Player</small><br><b id="evidenceViewerPlayer">-</b></div>
+            <div><small style="color:var(--muted)">Date</small><br><b id="evidenceViewerDate">-</b></div>
+            <div><small style="color:var(--muted)">Size</small><br><b id="evidenceViewerSize">-</b></div>
+          </div>
+          <p id="evidenceViewerDesc" style="margin-top:12px;color:var(--muted-dark)"></p>
+          <div id="evidenceViewerTags" style="margin-top:8px"></div>
+        </div>
+      </div>
+      <div class="modal-foot">
+        <div style="display:flex;gap:10px">
+          <button class="btn ghost" onclick="linkEvidenceToPunishment()"><i class="fa-solid fa-link"></i> Link to Case</button>
+          <button class="btn bad" onclick="deleteEvidence()"><i class="fa-solid fa-trash"></i> Delete</button>
+        </div>
+        <button class="btn ghost" onclick="closeEvidenceViewer()">Close</button>
+      </div>
+    </div>
+  </div>
+
   <!-- AI Panel -->
   <button class="fab" id="aiFab" onclick="toggleAi()"><i class="fa-solid fa-robot"></i></button>
   <div class="aiPanel" id="aiPanel">
