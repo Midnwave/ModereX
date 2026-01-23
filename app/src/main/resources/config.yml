@@ -130,6 +130,17 @@ update-checker:
   enabled: true
 
 # ============================================
+# GITHUB AUTO-UPDATE
+# ============================================
+github-update:
+  # Enable automatic update checking from GitHub releases
+  enabled: true
+  # Automatically download new versions (saves to plugins/update folder)
+  auto-download: true
+  # GitHub repository (owner/repo format)
+  repo: 'crenshawcodes/ModereX'
+
+# ============================================
 # ANTICHEAT INTEGRATION
 # ============================================
 anticheat:

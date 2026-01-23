@@ -183,6 +183,16 @@ update:
   current: "<gray>You are running the latest version of ModereX."
 
 # ============================================
+# GITHUB AUTO-UPDATE
+# ============================================
+github:
+  update_available: "<green>GitHub Update Available: <yellow><version></yellow> <gray>(current: <current>)\n<gray>Auto-download is enabled. The update will download automatically."
+  update_downloaded: "<green>Update <yellow><version></yellow> downloaded successfully!\n<gray>Restart the server to apply the update."
+  update_pending: "<yellow>Update <version> is pending. <gray>Restart the server to apply."
+  update_downloading: "<gray>Downloading update <yellow><version></yellow>..."
+  update_failed: "<red>Failed to download update. Check console for details."
+
+# ============================================
 # COMMAND HISTORY
 # ============================================
 cmdhistory:
