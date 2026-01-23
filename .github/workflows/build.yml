@@ -10,6 +10,10 @@ on:
 permissions:
   contents: write
 
+env:
+  # Offset to continue from existing build numbers (68 was last)
+  BUILD_OFFSET: 50
+
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -27,31 +31,36 @@ jobs:
         distribution: 'temurin'
         cache: gradle
 
+    - name: Calculate build number
+      id: buildnum
+      run: |
+        BUILD_NUM=$(( ${{ github.run_number }} + ${{ env.BUILD_OFFSET }} ))
+        echo "number=$BUILD_NUM" >> $GITHUB_OUTPUT
+        echo "Build number: $BUILD_NUM"
+
     - name: Grant execute permission for gradlew
       run: chmod +x gradlew
 
     - name: Build with Gradle
       run: ./gradlew clean build --no-daemon
 
-    - name: Get version from build.gradle
+    - name: Copy JAR to releases folder
       id: version
       run: |
-        VERSION=$(grep "^version = " app/build.gradle | sed "s/version = '\(.*\)'/\1/")
+        VERSION="2.0dev-${{ steps.buildnum.outputs.number }}"
         echo "version=$VERSION" >> $GITHUB_OUTPUT
-        echo "Building version: $VERSION"
-
-    - name: Copy JAR to releases folder
-      run: |
         mkdir -p releases
-        cp app/build/libs/ModereX-${{ steps.version.outputs.version }}.jar releases/ModereX-latest.jar
+        cp app/build/libs/ModereX-2.0.0.jar "releases/ModereX-${VERSION}.jar"
+        cp app/build/libs/ModereX-2.0.0.jar releases/ModereX-latest.jar
         echo "$(date -u +%Y-%m-%dT%H:%M:%SZ)" > releases/build-info.txt
-        echo "Version: ${{ steps.version.outputs.version }}" >> releases/build-info.txt
+        echo "Version: $VERSION" >> releases/build-info.txt
+        echo "Build: ${{ steps.buildnum.outputs.number }}" >> releases/build-info.txt
         echo "Commit: ${{ github.sha }}" >> releases/build-info.txt
 
     - name: Commit and push JAR
       run: |
         git config user.name "github-actions[bot]"
         git config user.email "github-actions[bot]@users.noreply.github.com"
-        git add releases/ModereX-latest.jar releases/build-info.txt
+        git add releases/
         git commit -m "build: Update ModereX-latest.jar (v${{ steps.version.outputs.version }})" || echo "No changes to commit"
         git push
