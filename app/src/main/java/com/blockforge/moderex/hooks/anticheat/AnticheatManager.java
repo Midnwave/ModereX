@@ -65,8 +65,10 @@ public class AnticheatManager {
                     // Pre-register all known checks for alert manager (so they show in GUI immediately)
                     alertManager.preRegisterChecks(hook.getName());
 
-                    // Register automod rules for each check from this anticheat
-                    plugin.getAutomodManager().registerAnticheatRules(hook.getName(), hook.getVersion());
+                    // Register automod rules for each check from this anticheat (if automod is initialized)
+                    if (plugin.getAutomodManager() != null) {
+                        plugin.getAutomodManager().registerAnticheatRules(hook.getName(), hook.getVersion());
+                    }
                 }
             } catch (Exception e) {
                 plugin.getLogger().severe("[AnticheatManager] EXCEPTION hooking " + hook.getName() + ": " + e.getMessage());
@@ -124,8 +126,10 @@ public class AnticheatManager {
             // Pre-register all known checks for alert manager (so they show in GUI immediately)
             alertManager.preRegisterChecks(hook.getName());
 
-            // Register automod rules for each check from this anticheat
-            plugin.getAutomodManager().registerAnticheatRules(hook.getName(), hook.getVersion());
+            // Register automod rules for each check from this anticheat (if automod is initialized)
+            if (plugin.getAutomodManager() != null) {
+                plugin.getAutomodManager().registerAnticheatRules(hook.getName(), hook.getVersion());
+            }
         }
     }
 
