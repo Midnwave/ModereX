@@ -135,6 +135,37 @@ public class Settings {
     private int replayNearbyRadius = 20;
     private int replayMaxDurationSeconds = 300;
     private int replayMaxStored = 1000;
+    private boolean replayBlockLoggingEnabled = true;
+    private boolean replayFakeBlocksEnabled = true;
+    private boolean replayUsePhysicalBlocks = true; // When true, physically place/break blocks instead of fake packets
+    private boolean replaySoundsEnabled = true;
+    private boolean replayAnimationsEnabled = true;
+    private int replayBlockLogMaxPerSession = 10000;
+    private int replayPlayerSafetyRadius = 30; // Radius to scan for players to teleport away from replay area
+
+    // Replay logging types (all enabled by default)
+    private boolean replayLogMovement = true;
+    private boolean replayLogBlocks = true;
+    private boolean replayLogChat = true;
+    private boolean replayLogCommands = true;
+    private boolean replayLogCombat = true;
+    private boolean replayLogInventory = true;
+    private boolean replayLogItems = true; // pickup, drop, use, consume
+    private boolean replayLogEquipment = true; // armor, held items
+    private boolean replayLogEntities = true; // entity interactions
+    private boolean replayLogTeleports = true;
+    private boolean replayLogDeaths = true;
+
+    // Entity tracking
+    private boolean replayEntityTrackingEnabled = true;
+    private int replayEntityTrackingRadius = 30;
+    private boolean replayEntityDropUninvolved = false; // Drop entities not involved in actions (saves space)
+    private int replayEntityLogMaxPerSession = 5000;
+
+    // Storage optimization
+    private boolean replayCompressEquipment = true; // Only store equipment when it changes
+    private boolean replayCompressMovement = true; // Skip duplicate positions
+    private int replaySnapshotInterval = 2; // Ticks between snapshots (lower = more detailed but larger files)
 
     // Server status settings
     private boolean serverStatusEnabled = true;
@@ -142,6 +173,19 @@ public class Settings {
     private double serverStatusTpsThreshold = 18.0;
     private int serverStatusChunkEntityThreshold = 100;
     private int serverStatusChunkTileThreshold = 50;
+
+    // Activity log settings
+    private boolean activityLogEnabled = true;
+    private String activityLogStorageType = "database"; // database, h2, yml, json, text
+    private int activityLogEntriesPerPage = 10;
+    private long activityLogRetentionDays = 30; // Days to keep logs, 0 for unlimited
+    private boolean activityLogChat = true;
+    private boolean activityLogCommands = true;
+    private boolean activityLogSigns = true;
+    private boolean activityLogItems = true;
+    private boolean activityLogAnvils = true;
+    private boolean activityLogSessions = true;
+    private boolean activityLogUsernames = true;
 
     // Config version for migration
     private int configVersion = 2;
@@ -653,6 +697,119 @@ public class Settings {
         this.replayMaxStored = replayMaxStored;
     }
 
+    public boolean isReplayBlockLoggingEnabled() {
+        return replayBlockLoggingEnabled;
+    }
+
+    public void setReplayBlockLoggingEnabled(boolean replayBlockLoggingEnabled) {
+        this.replayBlockLoggingEnabled = replayBlockLoggingEnabled;
+    }
+
+    public boolean isReplayFakeBlocksEnabled() {
+        return replayFakeBlocksEnabled;
+    }
+
+    public void setReplayFakeBlocksEnabled(boolean replayFakeBlocksEnabled) {
+        this.replayFakeBlocksEnabled = replayFakeBlocksEnabled;
+    }
+
+    public boolean isReplayUsePhysicalBlocks() {
+        return replayUsePhysicalBlocks;
+    }
+
+    public void setReplayUsePhysicalBlocks(boolean replayUsePhysicalBlocks) {
+        this.replayUsePhysicalBlocks = replayUsePhysicalBlocks;
+    }
+
+    public int getReplayPlayerSafetyRadius() {
+        return replayPlayerSafetyRadius;
+    }
+
+    public void setReplayPlayerSafetyRadius(int replayPlayerSafetyRadius) {
+        this.replayPlayerSafetyRadius = replayPlayerSafetyRadius;
+    }
+
+    // Logging type getters and setters
+    public boolean isReplayLogMovement() { return replayLogMovement; }
+    public void setReplayLogMovement(boolean v) { this.replayLogMovement = v; }
+
+    public boolean isReplayLogBlocks() { return replayLogBlocks; }
+    public void setReplayLogBlocks(boolean v) { this.replayLogBlocks = v; }
+
+    public boolean isReplayLogChat() { return replayLogChat; }
+    public void setReplayLogChat(boolean v) { this.replayLogChat = v; }
+
+    public boolean isReplayLogCommands() { return replayLogCommands; }
+    public void setReplayLogCommands(boolean v) { this.replayLogCommands = v; }
+
+    public boolean isReplayLogCombat() { return replayLogCombat; }
+    public void setReplayLogCombat(boolean v) { this.replayLogCombat = v; }
+
+    public boolean isReplayLogInventory() { return replayLogInventory; }
+    public void setReplayLogInventory(boolean v) { this.replayLogInventory = v; }
+
+    public boolean isReplayLogItems() { return replayLogItems; }
+    public void setReplayLogItems(boolean v) { this.replayLogItems = v; }
+
+    public boolean isReplayLogEquipment() { return replayLogEquipment; }
+    public void setReplayLogEquipment(boolean v) { this.replayLogEquipment = v; }
+
+    public boolean isReplayLogEntities() { return replayLogEntities; }
+    public void setReplayLogEntities(boolean v) { this.replayLogEntities = v; }
+
+    public boolean isReplayLogTeleports() { return replayLogTeleports; }
+    public void setReplayLogTeleports(boolean v) { this.replayLogTeleports = v; }
+
+    public boolean isReplayLogDeaths() { return replayLogDeaths; }
+    public void setReplayLogDeaths(boolean v) { this.replayLogDeaths = v; }
+
+    // Entity tracking getters and setters
+    public boolean isReplayEntityTrackingEnabled() { return replayEntityTrackingEnabled; }
+    public void setReplayEntityTrackingEnabled(boolean v) { this.replayEntityTrackingEnabled = v; }
+
+    public int getReplayEntityTrackingRadius() { return replayEntityTrackingRadius; }
+    public void setReplayEntityTrackingRadius(int v) { this.replayEntityTrackingRadius = v; }
+
+    public boolean isReplayEntityDropUninvolved() { return replayEntityDropUninvolved; }
+    public void setReplayEntityDropUninvolved(boolean v) { this.replayEntityDropUninvolved = v; }
+
+    public int getReplayEntityLogMaxPerSession() { return replayEntityLogMaxPerSession; }
+    public void setReplayEntityLogMaxPerSession(int v) { this.replayEntityLogMaxPerSession = v; }
+
+    // Storage optimization getters and setters
+    public boolean isReplayCompressEquipment() { return replayCompressEquipment; }
+    public void setReplayCompressEquipment(boolean v) { this.replayCompressEquipment = v; }
+
+    public boolean isReplayCompressMovement() { return replayCompressMovement; }
+    public void setReplayCompressMovement(boolean v) { this.replayCompressMovement = v; }
+
+    public int getReplaySnapshotInterval() { return replaySnapshotInterval; }
+    public void setReplaySnapshotInterval(int v) { this.replaySnapshotInterval = v; }
+
+    public boolean isReplaySoundsEnabled() {
+        return replaySoundsEnabled;
+    }
+
+    public void setReplaySoundsEnabled(boolean replaySoundsEnabled) {
+        this.replaySoundsEnabled = replaySoundsEnabled;
+    }
+
+    public boolean isReplayAnimationsEnabled() {
+        return replayAnimationsEnabled;
+    }
+
+    public void setReplayAnimationsEnabled(boolean replayAnimationsEnabled) {
+        this.replayAnimationsEnabled = replayAnimationsEnabled;
+    }
+
+    public int getReplayBlockLogMaxPerSession() {
+        return replayBlockLogMaxPerSession;
+    }
+
+    public void setReplayBlockLogMaxPerSession(int replayBlockLogMaxPerSession) {
+        this.replayBlockLogMaxPerSession = replayBlockLogMaxPerSession;
+    }
+
     public boolean isServerStatusEnabled() {
         return serverStatusEnabled;
     }
@@ -692,6 +849,45 @@ public class Settings {
     public void setServerStatusChunkTileThreshold(int serverStatusChunkTileThreshold) {
         this.serverStatusChunkTileThreshold = serverStatusChunkTileThreshold;
     }
+
+    // Activity log getters and setters
+    public boolean isActivityLogEnabled() { return activityLogEnabled; }
+    public void setActivityLogEnabled(boolean v) { this.activityLogEnabled = v; }
+
+    public String getActivityLogStorageType() { return activityLogStorageType; }
+    public void setActivityLogStorageType(String v) { this.activityLogStorageType = v; }
+
+    public int getActivityLogEntriesPerPage() { return activityLogEntriesPerPage; }
+    public void setActivityLogEntriesPerPage(int v) { this.activityLogEntriesPerPage = v; }
+
+    public long getActivityLogRetentionDays() { return activityLogRetentionDays; }
+    public void setActivityLogRetentionDays(long v) { this.activityLogRetentionDays = v; }
+
+    public boolean isActivityLogChat() { return activityLogChat; }
+    public void setActivityLogChat(boolean v) { this.activityLogChat = v; }
+
+    public boolean isActivityLogCommands() { return activityLogCommands; }
+    public void setActivityLogCommands(boolean v) { this.activityLogCommands = v; }
+
+    public boolean isActivityLogSigns() { return activityLogSigns; }
+    public void setActivityLogSigns(boolean v) { this.activityLogSigns = v; }
+
+    public boolean isActivityLogItems() { return activityLogItems; }
+    public void setActivityLogItems(boolean v) { this.activityLogItems = v; }
+
+    public boolean isActivityLogSessions() { return activityLogSessions; }
+    public void setActivityLogSessions(boolean v) { this.activityLogSessions = v; }
+
+    public boolean isActivityLogAnvils() { return activityLogAnvils; }
+    public void setActivityLogAnvils(boolean v) { this.activityLogAnvils = v; }
+
+    public boolean isActivityLogUsernames() { return activityLogUsernames; }
+    public void setActivityLogUsernames(boolean v) { this.activityLogUsernames = v; }
+
+    /**
+     * Get the server name (uses web panel server name).
+     */
+    public String getServerName() { return webPanelServerName; }
 
     // Fake messages getters and setters
     public boolean isVanishFakeMessagesEnabled() {
