@@ -202,6 +202,27 @@ cmdhistory:
   footer: "<gold><strikethrough>     </strikethrough> Page <yellow><page></yellow>/<yellow><total></yellow> <strikethrough>     </strikethrough>"
 
 # ============================================
+# ACTIVITY LOG (/log command)
+# ============================================
+log:
+  header: "<gold><strikethrough>     </strikethrough> Activity Log for <yellow><player></yellow> <dark_gray>(<white><total></white> entries) <strikethrough>     </strikethrough>"
+  entry: "<gray><time> <white>- <type_color>(<player>): <white><content>"
+  empty: "<gray>No activity logs found for <yellow><player></yellow>."
+  footer: "<gold><strikethrough>     </strikethrough> Page <yellow><page></yellow>/<yellow><total></yellow> <strikethrough>     </strikethrough>"
+  filter-info: "<gray>Filters: <white><filters>"
+
+# ============================================
+# REPLAY
+# ============================================
+replay:
+  not-available: "<red>Replay playback requires the Citizens plugin to be installed."
+  started: "<green>Replay playback started for <yellow><player></yellow>."
+  stopped: "<gray>Replay playback ended."
+  not-found: "<red>No replay found for <yellow><player></yellow>."
+  paused: "<yellow>Replay paused."
+  resumed: "<green>Replay resumed."
+
+# ============================================
 # ANALYTICS
 # ============================================
 analytics:
