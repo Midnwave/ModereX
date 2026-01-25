@@ -217,6 +217,19 @@ public class ConfigManager {
         settings.setJoinLeaveJoinFormat(config.getString("join-leave.join-format", "<gray><player_prefix><yellow><player></yellow> joined the server"));
         settings.setJoinLeaveLeaveFormat(config.getString("join-leave.leave-format", "<gray><player_prefix><yellow><player></yellow> left the server"));
 
+        // Activity Log settings
+        settings.setActivityLogEnabled(config.getBoolean("activity-log.enabled", true));
+        settings.setActivityLogStorageType(config.getString("activity-log.storage-type", "database"));
+        settings.setActivityLogEntriesPerPage(config.getInt("activity-log.entries-per-page", 10));
+        settings.setActivityLogRetentionDays(config.getLong("activity-log.retention-days", 30));
+        settings.setActivityLogChat(config.getBoolean("activity-log.log.chat", true));
+        settings.setActivityLogCommands(config.getBoolean("activity-log.log.commands", true));
+        settings.setActivityLogSigns(config.getBoolean("activity-log.log.signs", true));
+        settings.setActivityLogItems(config.getBoolean("activity-log.log.items", true));
+        settings.setActivityLogAnvils(config.getBoolean("activity-log.log.anvils", true));
+        settings.setActivityLogSessions(config.getBoolean("activity-log.log.sessions", true));
+        settings.setActivityLogUsernames(config.getBoolean("activity-log.log.usernames", true));
+
         settings.setConfigVersion(getCurrentConfigVersion());
     }
 
