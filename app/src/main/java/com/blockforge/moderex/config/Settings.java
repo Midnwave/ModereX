@@ -42,7 +42,8 @@ public class Settings {
     // GitHub auto-update settings
     private boolean githubAutoUpdateEnabled = true;
     private boolean githubAutoDownload = true;
-    private String githubRepo = "crenshawcodes/ModereX"; // owner/repo format
+    private String githubRepo = "Midnwave/ModereX"; // owner/repo format
+    private String githubToken = ""; // PAT for private repos
 
     // Anticheat settings
     private boolean anticheatAutoDetect = true;
@@ -413,6 +414,14 @@ public class Settings {
 
     public void setGithubRepo(String githubRepo) {
         this.githubRepo = githubRepo;
+    }
+
+    public String getGithubToken() {
+        return githubToken;
+    }
+
+    public void setGithubToken(String githubToken) {
+        this.githubToken = githubToken;
     }
 
     public boolean isAnticheatAutoDetect() {

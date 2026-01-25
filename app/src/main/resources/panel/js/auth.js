@@ -1,5 +1,7 @@
 /* ============================================
    ModereX Control Panel - Authentication
+   Revamped with device trust, token validation,
+   and secure action verification
    ============================================ */
 (function() {
   'use strict';
@@ -7,12 +9,27 @@
   const { $ } = window.MX.utils;
   const ws = window.MX.ws;
 
+  // Token validation interval (10 seconds)
+  const TOKEN_VALIDATION_INTERVAL = 10000;
+
+  // Auth states
+  const AuthStatus = {
+    UNAUTHENTICATED: 'unauthenticated',
+    PENDING_VERIFICATION: 'pending_verification',
+    VERIFIED: 'verified'
+  };
+
   // Auth state
   let authState = {
+    status: AuthStatus.UNAUTHENTICATED,
     connected: false,
     authenticated: false,
     accessDenied: false,
     session: null,
+    token: null,              // Current auth token
+    tokenValid: false,        // Token validation status
+    deviceFingerprint: null,  // Unique device identifier
+    deviceTrustEnabled: false, // User's device trust setting
     serverHost: null,
     serverPort: null,
     configLoaded: false,
@@ -21,14 +38,53 @@
     reconnectAttempts: 0,
     maxReconnectAttempts: 10,
     lastError: null,
-    connectionPhase: 'idle' // idle, connecting, authenticating, connected
+    lastValidation: null,     // Timestamp of last token validation
+    connectionPhase: 'idle'   // idle, connecting, authenticating, connected
   };
+
+  // Timers
+  let tokenValidationTimer = null;
 
   // DOM Elements
   let dom = {};
 
   /**
-   * Show connection toast alert (watchlist alert style)
+   * Generate a unique device fingerprint
+   * This creates a stable identifier for the browser/device
+   */
+  function generateDeviceFingerprint() {
+    const components = [
+      navigator.userAgent,
+      navigator.language,
+      screen.width + 'x' + screen.height,
+      screen.colorDepth,
+      new Date().getTimezoneOffset(),
+      navigator.hardwareConcurrency || 'unknown',
+      navigator.platform
+    ];
+
+    // Create a hash from components
+    let hash = 0;
+    const str = components.join('|');
+    for (let i = 0; i < str.length; i++) {
+      const char = str.charCodeAt(i);
+      hash = ((hash << 5) - hash) + char;
+      hash = hash & hash;
+    }
+
+    // Use stored ID if exists, otherwise create new
+    const storedId = localStorage.getItem('mx_device_id');
+    if (storedId) {
+      return storedId;
+    }
+
+    const newId = Math.abs(hash).toString(16) + '-' + Date.now().toString(36);
+    localStorage.setItem('mx_device_id', newId);
+    return newId;
+  }
+
+  /**
+   * Show connection toast alert
    */
   function showConnectionToast(type, title, message) {
     if (window.MX?.toast) {
@@ -40,6 +96,10 @@
    * Initialize auth module
    */
   function init() {
+    // Generate device fingerprint
+    authState.deviceFingerprint = generateDeviceFingerprint();
+    console.log('[Auth] Device fingerprint:', authState.deviceFingerprint);
+
     cacheDom();
     checkUrlToken();
     setupEventListeners();
@@ -64,6 +124,7 @@
    */
   async function startConnection() {
     authState.connectionPhase = 'connecting';
+    authState.status = AuthStatus.PENDING_VERIFICATION;
     updateStatus('Connecting...', 'Loading server configuration');
 
     try {
@@ -96,6 +157,7 @@
     } catch (err) {
       console.error('[Auth] Connection failed:', err);
       authState.connectionPhase = 'idle';
+      authState.status = AuthStatus.UNAUTHENTICATED;
       authState.lastError = err.message || 'Connection failed';
 
       showConnectionToast('bad', 'Connection Failed', authState.lastError);
@@ -165,33 +227,51 @@
 
   /**
    * Try to authenticate using available methods
+   * Priority: URL token > Saved token with device trust check > Session
    */
   function tryAuthenticate() {
     authState.connectionPhase = 'authenticating';
+    authState.status = AuthStatus.PENDING_VERIFICATION;
     updateStatus('Authenticating...', 'Verifying credentials');
 
-    // Priority: URL token > Saved token > Session > Trusted device
     const urlToken = authState.urlToken;
     const savedToken = localStorage.getItem('mx_permanent_token');
     const savedSession = getSavedSession();
+    const savedDeviceFingerprint = localStorage.getItem('mx_token_device');
 
     if (urlToken) {
       console.log('[Auth] Authenticating with URL token');
       updateStatus('Authenticating...', 'Verifying link token');
-      ws.authWithUrlToken(urlToken);
-      authState.urlToken = null; // Clear after use
+      ws.send('AUTH_URL_TOKEN', {
+        token: urlToken,
+        deviceFingerprint: authState.deviceFingerprint
+      });
+      authState.urlToken = null;
     } else if (savedToken) {
-      console.log('[Auth] Authenticating with saved token');
-      updateStatus('Authenticating...', 'Verifying saved token');
-      ws.authWithToken(savedToken);
+      // Check if this device previously logged in with this token
+      if (savedDeviceFingerprint === authState.deviceFingerprint) {
+        console.log('[Auth] Same device - verifying saved token with device trust check');
+        updateStatus('Authenticating...', 'Checking device trust');
+        // Send token with device fingerprint - server will check device trust setting
+        ws.send('VERIFY_TOKEN', {
+          token: savedToken,
+          deviceFingerprint: authState.deviceFingerprint
+        });
+      } else {
+        console.log('[Auth] Different device - requiring manual auth');
+        // Different device - require re-entering token
+        showManualAuth('Please enter your token to continue on this device.');
+      }
     } else if (savedSession) {
       console.log('[Auth] Authenticating with session');
       updateStatus('Authenticating...', 'Resuming session');
-      ws.authWithSession(savedSession);
+      ws.send('AUTH_SESSION', {
+        sessionId: savedSession,
+        deviceFingerprint: authState.deviceFingerprint
+      });
     } else {
-      console.log('[Auth] Trying trusted device auth');
-      updateStatus('Authenticating...', 'Checking device trust');
-      ws.authWithTrustedDevice();
+      console.log('[Auth] No saved credentials - showing manual auth');
+      showManualAuth();
     }
 
     // Set auth timeout
@@ -208,23 +288,21 @@
    */
   function showManualAuth(errorMsg) {
     authState.connectionPhase = 'idle';
+    authState.status = AuthStatus.UNAUTHENTICATED;
 
-    // Hide status area and show manual section
     if (dom.authStatusArea) {
       dom.authStatusArea.style.display = 'none';
     }
 
-    // Show manual auth section
     if (dom.authManualSection) {
       dom.authManualSection.style.display = 'block';
     }
 
-    // Show error if provided
     if (errorMsg) {
       showError(errorMsg);
     }
 
-    // Load saved token into field
+    // Load saved token into field (but user must re-enter if device trust is off)
     const savedToken = localStorage.getItem('mx_permanent_token');
     if (savedToken && dom.authToken) {
       dom.authToken.value = savedToken;
@@ -287,12 +365,15 @@
       const wasAuthenticated = authState.authenticated;
       authState.connected = false;
       authState.authenticated = false;
-      authState.connectionPhase = 'idle';
+      authState.tokenValid = false;
+      stopTokenValidation();
 
       console.log('[Auth] Disconnected:', data.code, data.reason);
 
       // Handle access denied - don't reconnect
       if (data.code === 4001 || data.code === 4003) {
+        authState.status = AuthStatus.UNAUTHENTICATED;
+        authState.token = null;
         showAccessDenied(data.reason || 'Access denied');
         return;
       }
@@ -314,68 +395,99 @@
         showConnectionToast('warn', 'Disconnected', disconnectReason);
       }
 
-      // Auto-reconnect
-      scheduleReconnect();
+      // Check if we should auto-reconnect with device trust
+      if (authState.deviceTrustEnabled && authState.token) {
+        console.log('[Auth] Device trust enabled - attempting auto-reconnect');
+        authState.status = AuthStatus.PENDING_VERIFICATION;
+        authState.connectionPhase = 'idle';
+        scheduleReconnect();
+      } else {
+        // Fully logout
+        authState.status = AuthStatus.UNAUTHENTICATED;
+        authState.token = null;
+        authState.session = null;
+        authState.connectionPhase = 'idle';
+        // Keep saved token but user will need to re-authenticate
+        scheduleReconnect();
+      }
     });
 
+    // Token verification response (from saved token)
+    ws.on('TOKEN_VERIFIED', (data) => {
+      console.log('[Auth] Token verified:', data);
+
+      if (data.valid) {
+        // Check device trust setting
+        authState.deviceTrustEnabled = data.deviceTrustEnabled || false;
+
+        if (authState.deviceTrustEnabled) {
+          // Device trust is ON - complete authentication
+          authState.token = localStorage.getItem('mx_permanent_token');
+          completeAuthentication(data);
+        } else {
+          // Device trust is OFF - require re-entering token
+          console.log('[Auth] Device trust disabled - requiring manual authentication');
+          authState.token = null;
+          authState.status = AuthStatus.UNAUTHENTICATED;
+          showManualAuth('Device trust is disabled. Please enter your token to continue.');
+        }
+      } else {
+        // Token invalid
+        console.log('[Auth] Token invalid');
+        authState.token = null;
+        authState.status = AuthStatus.UNAUTHENTICATED;
+        authState.tokenValid = false;
+        localStorage.removeItem('mx_permanent_token');
+        localStorage.removeItem('mx_token_device');
+        showManualAuth('Session expired. Please enter your token again.');
+      }
+    });
+
+    // Token validation response (periodic check every 10 seconds)
+    ws.on('TOKEN_VALIDATION', (data) => {
+      authState.lastValidation = Date.now();
+
+      if (!data.valid) {
+        console.log('[Auth] Token no longer valid - logging out');
+        forceLogout('Your session has expired.');
+      } else {
+        authState.tokenValid = true;
+        // Update device trust setting in case it changed
+        authState.deviceTrustEnabled = data.deviceTrustEnabled || false;
+      }
+    });
+
+    // Standard auth success (from manual token entry)
     ws.on('auth_success', (data) => {
       console.log('[Auth] Authentication successful:', data.playerName || data.username);
 
-      authState.authenticated = true;
-      authState.session = data;
-      authState.accessDenied = false;
-      authState.connectionPhase = 'connected';
-      authState.reconnectAttempts = 0;
-      authState.lastError = null;
-
-      // Clear any pending reconnect timer
-      if (authState.reconnectTimer) {
-        clearTimeout(authState.reconnectTimer);
-        authState.reconnectTimer = null;
+      // Store the token
+      if (data.token) {
+        authState.token = data.token;
+      } else if (data.permanentToken) {
+        authState.token = data.permanentToken;
       }
 
-      // Save session
-      if (data.sessionId) {
-        saveSession(data.sessionId);
+      authState.deviceTrustEnabled = data.deviceTrustEnabled || false;
+
+      // Save token with device fingerprint
+      if (authState.token) {
+        localStorage.setItem('mx_permanent_token', authState.token);
+        localStorage.setItem('mx_token_device', authState.deviceFingerprint);
       }
 
-      // Save permanent token if provided
-      if (data.permanentToken) {
-        localStorage.setItem('mx_permanent_token', data.permanentToken);
-      }
-
-      // Update UI with success
-      updateStatus('Connected', `Welcome, ${data.playerName || data.username}`);
-      if (dom.authStatusArea) {
-        dom.authStatusArea.style.display = '';
-        dom.authStatusArea.classList.remove('error');
-        dom.authStatusArea.classList.add('success');
-      }
-      if (dom.authManualSection) {
-        dom.authManualSection.style.display = 'none';
-      }
-
-      // Play connection sound
-      window.MX.sounds?.connect();
-
-      // Show success toast
-      showConnectionToast('ok', 'Connected', `Welcome, ${data.playerName || data.username}`);
-
-      // Hide overlay after animation
-      setTimeout(() => {
-        hideAuthOverlay();
-        window.dispatchEvent(new CustomEvent('mx:authenticated', { detail: data }));
-      }, 800);
+      completeAuthentication(data);
     });
 
     ws.on('auth_failed', (data) => {
       console.log('[Auth] Authentication failed:', data?.message);
 
       authState.authenticated = false;
+      authState.status = AuthStatus.UNAUTHENTICATED;
       authState.connectionPhase = 'idle';
       authState.lastError = data?.message || 'Authentication failed';
+      authState.token = null;
 
-      // Determine specific error
       let errorTitle = 'Authentication Failed';
       let errorMessage = data?.message || 'Invalid credentials';
 
@@ -383,6 +495,7 @@
         errorTitle = 'Invalid Token';
         errorMessage = 'The token is invalid or expired. Get a new one with /mx gettoken';
         localStorage.removeItem('mx_permanent_token');
+        localStorage.removeItem('mx_token_device');
       } else if (data?.code === 'NO_PERMISSION') {
         errorTitle = 'No Permission';
         errorMessage = 'You need moderex.webpanel permission to access the panel';
@@ -400,7 +513,9 @@
       console.log('[Auth] Access denied:', data?.message);
       authState.accessDenied = true;
       authState.authenticated = false;
+      authState.status = AuthStatus.UNAUTHENTICATED;
       authState.connectionPhase = 'idle';
+      authState.token = null;
 
       showConnectionToast('bad', 'Access Denied', data?.message || 'You do not have permission to access the panel');
       showAccessDenied(data?.message);
@@ -408,13 +523,14 @@
 
     ws.on('session_expired', () => {
       console.log('[Auth] Session expired');
-      clearSavedSession();
-      authState.authenticated = false;
-      authState.connectionPhase = 'idle';
+      forceLogout('Session expired. Please log in again.');
+    });
 
-      showConnectionToast('warn', 'Session Expired', 'Please log in again');
-      showAuthOverlay();
-      showManualAuth('Session expired. Please log in again.');
+    // Permission check response for action verification
+    ws.on('PERMISSION_CHECK', (data) => {
+      if (!data.hasPermission) {
+        window.MX.toast?.('error', 'Permission Denied', data.message || 'You do not have permission for this action.');
+      }
     });
 
     // Handle ping for connection health
@@ -426,15 +542,146 @@
   }
 
   /**
+   * Complete the authentication process - shows green checkmark
+   */
+  function completeAuthentication(data) {
+    authState.authenticated = true;
+    authState.status = AuthStatus.VERIFIED;
+    authState.tokenValid = true;
+    authState.session = data;
+    authState.accessDenied = false;
+    authState.connectionPhase = 'connected';
+    authState.reconnectAttempts = 0;
+    authState.lastError = null;
+
+    // Clear any pending reconnect timer
+    if (authState.reconnectTimer) {
+      clearTimeout(authState.reconnectTimer);
+      authState.reconnectTimer = null;
+    }
+
+    // Save session
+    if (data.sessionId) {
+      saveSession(data.sessionId);
+    }
+
+    // Start token validation (every 10 seconds)
+    startTokenValidation();
+
+    // Update UI with success (green checkmark)
+    updateStatus('Connected', `Welcome, ${data.playerName || data.username}`);
+    if (dom.authStatusArea) {
+      dom.authStatusArea.style.display = '';
+      dom.authStatusArea.classList.remove('error');
+      dom.authStatusArea.classList.add('success');
+    }
+    if (dom.authManualSection) {
+      dom.authManualSection.style.display = 'none';
+    }
+
+    // Play connection sound
+    window.MX.sounds?.connect();
+
+    // Show success toast
+    showConnectionToast('ok', 'Connected', `Welcome, ${data.playerName || data.username}`);
+
+    // Hide overlay after animation
+    setTimeout(() => {
+      hideAuthOverlay();
+      window.dispatchEvent(new CustomEvent('mx:authenticated', { detail: data }));
+    }, 800);
+  }
+
+  /**
+   * Start periodic token validation (every 10 seconds)
+   */
+  function startTokenValidation() {
+    stopTokenValidation();
+
+    tokenValidationTimer = setInterval(() => {
+      if (authState.connected && authState.token && authState.status === AuthStatus.VERIFIED) {
+        console.log('[Auth] Validating token...');
+        ws.send('VALIDATE_TOKEN', {
+          token: authState.token,
+          deviceFingerprint: authState.deviceFingerprint
+        });
+      }
+    }, TOKEN_VALIDATION_INTERVAL);
+
+    console.log('[Auth] Started token validation (every 10s)');
+  }
+
+  /**
+   * Stop token validation
+   */
+  function stopTokenValidation() {
+    if (tokenValidationTimer) {
+      clearInterval(tokenValidationTimer);
+      tokenValidationTimer = null;
+      console.log('[Auth] Stopped token validation');
+    }
+  }
+
+  /**
+   * Verify token before performing an action
+   * Call this before any sensitive action (ban, settings change, etc.)
+   * Returns true if allowed to proceed, false otherwise
+   */
+  function verifyBeforeAction(actionName) {
+    if (authState.status !== AuthStatus.VERIFIED) {
+      console.warn('[Auth] Action blocked - not verified:', actionName);
+      window.MX.toast?.('error', 'Not Authenticated', 'Please log in to perform this action.');
+      return false;
+    }
+
+    if (!authState.token || !authState.tokenValid) {
+      console.warn('[Auth] Action blocked - token invalid:', actionName);
+      window.MX.toast?.('error', 'Session Invalid', 'Your session has expired. Please log in again.');
+      forceLogout('Session expired.');
+      return false;
+    }
+
+    if (!authState.connected) {
+      console.warn('[Auth] Action blocked - not connected:', actionName);
+      window.MX.toast?.('error', 'Not Connected', 'Connection lost. Attempting to reconnect...');
+      return false;
+    }
+
+    return true;
+  }
+
+  /**
+   * Force logout the user
+   */
+  function forceLogout(message) {
+    stopTokenValidation();
+    authState.status = AuthStatus.UNAUTHENTICATED;
+    authState.authenticated = false;
+    authState.token = null;
+    authState.tokenValid = false;
+    authState.session = null;
+    authState.connectionPhase = 'idle';
+
+    // Don't clear saved token - user can re-authenticate
+    clearSavedSession();
+
+    ws.disconnect();
+    showAuthOverlay();
+
+    if (message) {
+      showConnectionToast('warn', 'Logged Out', message);
+      showManualAuth(message);
+    }
+  }
+
+  /**
    * Schedule auto-reconnect with exponential backoff
    */
   function scheduleReconnect() {
-    // Clear any existing timer
     if (authState.reconnectTimer) {
       clearTimeout(authState.reconnectTimer);
     }
 
-    // Check max attempts
     if (authState.reconnectAttempts >= authState.maxReconnectAttempts) {
       console.log('[Auth] Max reconnect attempts reached');
       showConnectionToast('bad', 'Connection Failed', 'Unable to connect after multiple attempts');
@@ -442,13 +689,11 @@
       return;
     }
 
-    // Exponential backoff: 1s, 2s, 4s, 8s, 16s, max 30s
     const delay = Math.min(1000 * Math.pow(2, authState.reconnectAttempts), 30000);
     authState.reconnectAttempts++;
 
     console.log(`[Auth] Reconnecting in ${delay}ms (attempt ${authState.reconnectAttempts}/${authState.maxReconnectAttempts})`);
 
-    // Show reconnecting status
     showAuthOverlay();
     updateStatus('Reconnecting...', `Attempt ${authState.reconnectAttempts} of ${authState.maxReconnectAttempts}`);
     if (dom.authStatusArea) {
@@ -492,8 +737,10 @@
     clearError();
     setLoading(true);
 
-    // Save token
+    // Save token with device fingerprint
     localStorage.setItem('mx_permanent_token', token);
+    localStorage.setItem('mx_token_device', authState.deviceFingerprint);
+    authState.token = token;
 
     // Get host/port
     let host = authState.serverHost;
@@ -509,10 +756,13 @@
     // Connect and authenticate
     if (ws.isConnected()) {
       authState.connectionPhase = 'authenticating';
+      authState.status = AuthStatus.PENDING_VERIFICATION;
       updateStatus('Authenticating...', 'Verifying token');
-      ws.authWithToken(token);
+      ws.send('AUTH_TOKEN', {
+        token: token,
+        deviceFingerprint: authState.deviceFingerprint
+      });
 
-      // Timeout for manual auth
       setTimeout(() => {
         if (!authState.authenticated) {
           setLoading(false);
@@ -521,12 +771,17 @@
       }, 5000);
     } else {
       authState.connectionPhase = 'connecting';
+      authState.status = AuthStatus.PENDING_VERIFICATION;
       updateStatus('Connecting...', 'Establishing connection');
 
       connectWebSocket().then(() => {
-        ws.authWithToken(token);
+        ws.send('AUTH_TOKEN', {
+          token: token,
+          deviceFingerprint: authState.deviceFingerprint
+        });
       }).catch((err) => {
         setLoading(false);
+        authState.status = AuthStatus.UNAUTHENTICATED;
         showError(err.message || 'Connection failed');
         showConnectionToast('bad', 'Connection Failed', err.message || 'Could not connect to server');
       });
@@ -554,6 +809,7 @@
 
   function showAccessDenied(message) {
     hideAuthOverlay();
+    stopTokenValidation();
 
     if (dom.accessDeniedOverlay) {
       dom.accessDeniedOverlay.classList.add('show');
@@ -620,6 +876,7 @@
       localStorage.removeItem('mx_auth');
       localStorage.removeItem('mx_session');
       localStorage.removeItem('mx_permanent_token');
+      localStorage.removeItem('mx_token_device');
     } catch (e) {}
   }
 
@@ -627,32 +884,56 @@
    * Public API
    */
   function isAuthenticated() {
-    return authState.authenticated;
+    return authState.authenticated && authState.status === AuthStatus.VERIFIED;
+  }
+
+  function isTokenValid() {
+    return authState.tokenValid && authState.token !== null;
   }
 
   function getSession() {
     return authState.session;
   }
 
+  function getToken() {
+    return authState.token;
+  }
+
+  function getDeviceFingerprint() {
+    return authState.deviceFingerprint;
+  }
+
   function getConnectionPhase() {
     return authState.connectionPhase;
   }
 
+  function getStatus() {
+    return authState.status;
+  }
+
   function logout() {
+    stopTokenValidation();
     clearSavedAuth();
+
+    // Notify server of logout
+    if (authState.connected && authState.token) {
+      ws.send('LOGOUT', { token: authState.token });
+    }
+
     ws.disconnect();
     authState.authenticated = false;
+    authState.status = AuthStatus.UNAUTHENTICATED;
+    authState.token = null;
+    authState.tokenValid = false;
     authState.session = null;
     authState.connectionPhase = 'idle';
     authState.reconnectAttempts = 0;
 
-    // Clear reconnect timer
     if (authState.reconnectTimer) {
       clearTimeout(authState.reconnectTimer);
       authState.reconnectTimer = null;
     }
 
-    // Reset UI
     if (dom.authStatusArea) {
       dom.authStatusArea.classList.remove('error', 'success');
     }
@@ -668,7 +949,6 @@
    * Manual reconnect
    */
   function reconnect() {
-    // Clear any pending timers
     if (authState.reconnectTimer) {
       clearTimeout(authState.reconnectTimer);
       authState.reconnectTimer = null;
@@ -676,8 +956,8 @@
 
     authState.reconnectAttempts = 0;
     authState.connectionPhase = 'idle';
+    authState.status = AuthStatus.UNAUTHENTICATED;
 
-    // Reset UI
     if (dom.authStatusArea) {
       dom.authStatusArea.style.display = '';
       dom.authStatusArea.classList.remove('error', 'success');
@@ -687,10 +967,8 @@
     }
     clearError();
 
-    // Show auth overlay
     showAuthOverlay();
 
-    // Disconnect and restart
     ws.disconnect();
     setTimeout(() => {
       startConnection();
@@ -704,11 +982,17 @@
   window.MX = window.MX || {};
   window.MX.auth = {
     isAuthenticated,
+    isTokenValid,
     getSession,
+    getToken,
+    getDeviceFingerprint,
     getConnectionPhase,
+    getStatus,
     logout,
     reconnect,
-    authenticate
+    authenticate,
+    verifyBeforeAction,
+    AuthStatus
   };
 
 })();

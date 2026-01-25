@@ -286,7 +286,9 @@ public final class ModereX extends JavaPlugin {
         // Check for GitHub updates and auto-download
         if (configManager.getSettings().isGithubAutoUpdateEnabled()) {
             logStartup("Checking GitHub for updates...");
-            new com.blockforge.moderex.util.GitHubAutoUpdater(this).checkAsync();
+            var githubUpdater = new com.blockforge.moderex.util.GitHubAutoUpdater(this);
+            githubUpdater.checkAsync();
+            githubUpdater.schedulePeriodicCheck(); // Check every 24 hours
         }
 
         long endTime = System.currentTimeMillis();
