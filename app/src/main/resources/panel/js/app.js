@@ -2901,6 +2901,27 @@
         results.push({ category: 'Anticheat Checks', items: anticheatChecks.slice(0, 4) });
       }
 
+      // Search developer checklist items (limit 5)
+      const checklistMatches = (state.devChecklist || [])
+        .filter(item => {
+          const title = (item.title || '').toLowerCase();
+          const desc = (item.description || '').toLowerCase();
+          const category = (item.category || '').toLowerCase();
+          return title.includes(q) || desc.includes(q) || category.includes(q);
+        })
+        .slice(0, 5)
+        .map(item => ({
+          type: 'checklist',
+          id: item.id,
+          title: item.title,
+          subtitle: `${item.category || 'Uncategorized'} - ${item.checked ? 'Completed' : 'Pending'}`,
+          icon: item.checked ? 'fa-check-circle' : 'fa-circle',
+          data: item
+        }));
+      if (checklistMatches.length > 0) {
+        results.push({ category: 'Developer Checklist', items: checklistMatches });
+      }
+
       // Flatten results for keyboard navigation
       searchState.results = results.flatMap(r => r.items);
       searchState.selectedIndex = searchState.results.length > 0 ? 0 : -1;
@@ -3072,6 +3093,22 @@
             }
           }
         }, 150);
+        break;
+      case 'checklist':
+        // Navigate to developer tools page and highlight the checklist item
+        if (state.settings?.developerMode) {
+          go('devtools');
+          setTimeout(() => {
+            const itemEl = document.querySelector(`[data-checklist-id="${result.id}"]`);
+            if (itemEl) {
+              itemEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+              itemEl.classList.add('highlight-flash');
+              setTimeout(() => itemEl.classList.remove('highlight-flash'), 2000);
+            }
+          }, 150);
+        } else {
+          toast('info', 'Developer Mode Required', 'Enable Developer Mode in Settings to view checklist');
+        }
         break;
     }
 
