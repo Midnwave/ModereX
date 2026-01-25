@@ -1,5 +1,6 @@
 package com.blockforge.moderex.replay;
 
+import com.blockforge.moderex.ModereX;
 import org.bukkit.entity.Player;
 
 import java.io.*;
@@ -249,6 +250,28 @@ public class ReplaySession {
                     dos.writeUTF(serialized);
                 }
             }
+        }
+
+        // Save block logs if available
+        try {
+            ModereX plugin = ModereX.getInstance();
+            if (plugin != null && plugin.getBlockLogManager() != null) {
+                plugin.getBlockLogManager().saveSessionLogs(sessionId, sessionDir);
+            }
+        } catch (Exception e) {
+            // Log error but don't fail the save
+            System.err.println("[ModereX] Failed to save block logs for session " + sessionId + ": " + e.getMessage());
+        }
+
+        // Save entity logs if available
+        try {
+            ModereX plugin = ModereX.getInstance();
+            if (plugin != null && plugin.getEntityLogManager() != null) {
+                plugin.getEntityLogManager().saveSessionLogs(sessionId, sessionDir);
+            }
+        } catch (Exception e) {
+            // Log error but don't fail the save
+            System.err.println("[ModereX] Failed to save entity logs for session " + sessionId + ": " + e.getMessage());
         }
 
         saved = true;
