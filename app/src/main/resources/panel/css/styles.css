@@ -16,30 +16,32 @@
   --muted: #6b7fa8;
   --muted2: #4a5c7a;
   
-  /* Primary */
+  /* Primary - Default values, JS overrides with user's theme color */
   --primary: #2d7aed;
   --primary-light: #5a9cff;
   --primary-dark: #1a5cc0;
   --primary-rgb: 45, 122, 237;
-  --primary-glow: var(--primary-35);
   --primary-04: rgba(45, 122, 237, 0.04);
-  --primary-05: var(--primary-05);
+  --primary-05: rgba(45, 122, 237, 0.05);
   --primary-06: rgba(45, 122, 237, 0.06);
-  --primary-08: var(--primary-08);
+  --primary-08: rgba(45, 122, 237, 0.08);
   --primary-10: rgba(45, 122, 237, 0.10);
-  --primary-12: var(--primary-12);
-  --primary-15: var(--primary-15);
-  --primary-18: var(--primary-18);
+  --primary-12: rgba(45, 122, 237, 0.12);
+  --primary-15: rgba(45, 122, 237, 0.15);
+  --primary-16: rgba(45, 122, 237, 0.16);
+  --primary-18: rgba(45, 122, 237, 0.18);
   --primary-20: rgba(45, 122, 237, 0.20);
-  --primary-22: var(--primary-22);
-  --primary-25: var(--primary-25);
-  --primary-28: var(--primary-28);
+  --primary-22: rgba(45, 122, 237, 0.22);
+  --primary-25: rgba(45, 122, 237, 0.25);
+  --primary-28: rgba(45, 122, 237, 0.28);
   --primary-30: rgba(45, 122, 237, 0.30);
-  --primary-35: var(--primary-35);
+  --primary-35: rgba(45, 122, 237, 0.35);
   --primary-40: rgba(45, 122, 237, 0.40);
-  --primary-45: var(--primary-45);
+  --primary-45: rgba(45, 122, 237, 0.45);
   --primary-50: rgba(45, 122, 237, 0.50);
   --primary-60: rgba(45, 122, 237, 0.60);
+  --primary-glow: rgba(45, 122, 237, 0.35);
+  --line-glow: rgba(45, 122, 237, 0.22);
   
   /* Accent */
   --accent: #7c5cff;
@@ -55,7 +57,6 @@
   
   /* Special Effects */
   --watchlist-glow: 0 0 20px rgba(245, 158, 11, 0.45), 0 0 40px rgba(245, 158, 11, 0.20);
-  --line-glow: rgba(90, 156, 255, 0.22);
   
   /* Shadows */
   --shadow-sm: 0 4px 12px rgba(0, 0, 0, 0.25);
