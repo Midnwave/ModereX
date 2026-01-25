@@ -200,9 +200,21 @@
           <div class="sb-item" data-page="actions"><i class="fa-solid fa-bolt"></i> Actions</div>
           <div class="sb-item" data-page="integrations"><i class="fa-solid fa-plug"></i> Integrations</div>
         </div>
+
+        <!-- Developer Section (shown when dev mode enabled) -->
+        <div class="sb-group sb-dev-section" id="sbDevSection" style="display:none">
+          <div class="sb-label">Developer</div>
+          <div class="sb-item" data-page="devtools"><i class="fa-solid fa-code"></i> Developer Tools</div>
+        </div>
       </div>
-      
+
       <div class="sb-foot">
+        <!-- Developer Mode Toggle -->
+        <div class="dev-mode-toggle" id="devModeToggle" onclick="toggleDevMode()">
+          <div class="dev-mode-icon"><i class="fa-solid fa-terminal"></i></div>
+          <div class="dev-mode-text">Dev Mode</div>
+          <div class="dev-mode-switch" id="devModeSwitch"></div>
+        </div>
         <div class="status-card">
           <div class="status-left">
             <small>Server Status</small>
@@ -1705,11 +1717,156 @@
             </div>
           </div>
         </section>
-        
+
+        <!-- Developer Tools Page -->
+        <section class="page" id="page-devtools">
+          <div class="page-head">
+            <div class="page-title">
+              <h1><i class="fa-solid fa-code" style="color:#a78bfa;margin-right:12px"></i>Developer Tools</h1>
+              <p>Development utilities, stress testing, and debugging tools.</p>
+            </div>
+          </div>
+
+          <div class="panel pad">
+            <!-- Development Checklist -->
+            <div class="card" style="margin:0">
+              <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px">
+                <h3 style="margin:0"><i class="fa-solid fa-list-check" style="color:#a78bfa;margin-right:10px"></i>Development Checklist</h3>
+                <div style="display:flex;gap:8px">
+                  <button class="mini" onclick="openChecklistAdd()"><i class="fa-solid fa-plus"></i> Add Item</button>
+                  <button class="mini" onclick="openChecklistReset()"><i class="fa-solid fa-rotate-right"></i> Reset</button>
+                </div>
+              </div>
+              <div id="checklistProgress" style="margin-bottom:14px"></div>
+              <div id="checklistContainer"></div>
+            </div>
+
+            <!-- Stress Testing -->
+            <div class="card">
+              <h3><i class="fa-solid fa-bolt" style="color:#f59e0b;margin-right:10px"></i>Stress Testing</h3>
+              <p style="margin-bottom:16px">Generate fake data to test panel performance and UI.</p>
+
+              <div class="grid cols-2" style="gap:16px">
+                <!-- Spoof Players -->
+                <div class="stress-test-card" style="padding:16px;background:rgba(0,0,0,0.2);border-radius:var(--radius);border:1px solid var(--border)">
+                  <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px">
+                    <div style="width:36px;height:36px;background:rgba(59,130,246,0.15);border-radius:var(--radius);display:flex;align-items:center;justify-content:center">
+                      <i class="fa-solid fa-users" style="color:#3b82f6"></i>
+                    </div>
+                    <div>
+                      <div style="font-weight:600">Spoof Players</div>
+                      <div style="font-size:11px;color:var(--text-secondary)">Up to 100,000 fake players</div>
+                    </div>
+                  </div>
+                  <div style="display:flex;gap:8px;align-items:center;margin-bottom:10px">
+                    <input type="number" class="input" id="spoofPlayerCount" placeholder="Count" value="100" min="1" max="100000" style="flex:1">
+                    <button class="btn primary" onclick="startSpoofPlayers()"><i class="fa-solid fa-play"></i> Start</button>
+                  </div>
+                  <div class="stress-progress" id="spoofPlayerProgress" style="display:none">
+                    <div class="stress-bar"><div class="stress-fill" id="spoofPlayerFill"></div></div>
+                    <div class="stress-log" id="spoofPlayerLog"></div>
+                  </div>
+                </div>
+
+                <!-- Spoof Staff -->
+                <div class="stress-test-card" style="padding:16px;background:rgba(0,0,0,0.2);border-radius:var(--radius);border:1px solid var(--border)">
+                  <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px">
+                    <div style="width:36px;height:36px;background:rgba(139,92,246,0.15);border-radius:var(--radius);display:flex;align-items:center;justify-content:center">
+                      <i class="fa-solid fa-user-shield" style="color:#8b5cf6"></i>
+                    </div>
+                    <div>
+                      <div style="font-weight:600">Spoof Staff</div>
+                      <div style="font-size:11px;color:var(--text-secondary)">Up to 50,000 fake staff members</div>
+                    </div>
+                  </div>
+                  <div style="display:flex;gap:8px;align-items:center;margin-bottom:10px">
+                    <input type="number" class="input" id="spoofStaffCount" placeholder="Count" value="50" min="1" max="50000" style="flex:1">
+                    <button class="btn primary" onclick="startSpoofStaff()"><i class="fa-solid fa-play"></i> Start</button>
+                  </div>
+                  <div class="stress-progress" id="spoofStaffProgress" style="display:none">
+                    <div class="stress-bar"><div class="stress-fill" id="spoofStaffFill"></div></div>
+                    <div class="stress-log" id="spoofStaffLog"></div>
+                  </div>
+                </div>
+
+                <!-- Spoof Punishments -->
+                <div class="stress-test-card" style="padding:16px;background:rgba(0,0,0,0.2);border-radius:var(--radius);border:1px solid var(--border)">
+                  <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px">
+                    <div style="width:36px;height:36px;background:rgba(239,68,68,0.15);border-radius:var(--radius);display:flex;align-items:center;justify-content:center">
+                      <i class="fa-solid fa-gavel" style="color:#ef4444"></i>
+                    </div>
+                    <div>
+                      <div style="font-weight:600">Spoof Punishments</div>
+                      <div style="font-size:11px;color:var(--text-secondary)">Random bans, mutes, warns, kicks</div>
+                    </div>
+                  </div>
+                  <div style="display:flex;gap:8px;align-items:center;margin-bottom:10px">
+                    <input type="number" class="input" id="spoofPunishmentCount" placeholder="Count" value="500" min="1" max="10000" style="flex:1">
+                    <button class="btn primary" onclick="startSpoofPunishments()"><i class="fa-solid fa-play"></i> Start</button>
+                  </div>
+                  <div class="stress-progress" id="spoofPunishmentProgress" style="display:none">
+                    <div class="stress-bar"><div class="stress-fill" id="spoofPunishmentFill"></div></div>
+                    <div class="stress-log" id="spoofPunishmentLog"></div>
+                  </div>
+                </div>
+
+                <!-- Spoof Automod -->
+                <div class="stress-test-card" style="padding:16px;background:rgba(0,0,0,0.2);border-radius:var(--radius);border:1px solid var(--border)">
+                  <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px">
+                    <div style="width:36px;height:36px;background:rgba(16,185,129,0.15);border-radius:var(--radius);display:flex;align-items:center;justify-content:center">
+                      <i class="fa-solid fa-robot" style="color:#10b981"></i>
+                    </div>
+                    <div>
+                      <div style="font-weight:600">Spoof Automod</div>
+                      <div style="font-size:11px;color:var(--text-secondary)">Random automod triggers</div>
+                    </div>
+                  </div>
+                  <div style="display:flex;gap:8px;align-items:center;margin-bottom:10px">
+                    <input type="number" class="input" id="spoofAutomodCount" placeholder="Count" value="200" min="1" max="5000" style="flex:1">
+                    <button class="btn primary" onclick="startSpoofAutomod()"><i class="fa-solid fa-play"></i> Start</button>
+                  </div>
+                  <div class="stress-progress" id="spoofAutomodProgress" style="display:none">
+                    <div class="stress-bar"><div class="stress-fill" id="spoofAutomodFill"></div></div>
+                    <div class="stress-log" id="spoofAutomodLog"></div>
+                  </div>
+                </div>
+              </div>
+
+              <div style="margin-top:16px;padding:12px;background:rgba(245,158,11,0.1);border-radius:var(--radius);border:1px solid rgba(245,158,11,0.2)">
+                <div style="display:flex;align-items:center;gap:10px">
+                  <i class="fa-solid fa-triangle-exclamation" style="color:#f59e0b"></i>
+                  <div>
+                    <div style="font-weight:600;color:#f59e0b">Auto-Cleanup</div>
+                    <div style="font-size:12px;color:var(--text-secondary)">Spoofed data is automatically removed after 10 minutes to prevent pollution.</div>
+                  </div>
+                </div>
+              </div>
+
+              <div class="block" style="margin-top:16px">
+                <button class="btn" onclick="clearAllSpoofedData()"><i class="fa-solid fa-trash"></i> Clear All Spoofed Data</button>
+                <button class="btn" onclick="stopAllStressTests()"><i class="fa-solid fa-stop"></i> Stop All Tests</button>
+              </div>
+            </div>
+
+            <!-- Debug Logs -->
+            <div class="card">
+              <h3><i class="fa-solid fa-bug" style="color:#22c55e;margin-right:10px"></i>Debug Console</h3>
+              <p style="margin-bottom:12px">Real-time debug output and WebSocket messages.</p>
+              <div id="devDebugLogs" style="height:250px;overflow-y:auto;font-family:var(--font-mono);font-size:12px;padding:12px;background:rgba(0,0,0,0.3);border-radius:var(--radius);border:1px solid var(--border)">
+                <div style="color:var(--muted)">[Debug console ready]</div>
+              </div>
+              <div class="block" style="margin-top:12px">
+                <button class="mini" onclick="clearDebugLogs()"><i class="fa-solid fa-eraser"></i> Clear</button>
+                <button class="mini" onclick="copyDebugLogs()"><i class="fa-solid fa-copy"></i> Copy</button>
+              </div>
+            </div>
+          </div>
+        </section>
+
       </div>
     </main>
   </div>
-  
+
   <!-- Player Drawer -->
   <div class="drawerOverlay" id="drawerOverlay" onclick="closeDrawer()"></div>
   <div class="drawer" id="playerDrawer">

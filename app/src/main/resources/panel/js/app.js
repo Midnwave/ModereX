@@ -215,6 +215,14 @@
     if (page === 'mysettings' && window.loadDevChecklist) window.loadDevChecklist();
     if (page === 'status' && window.initServerStatus) window.initServerStatus();
     if (page === 'replay' && window.initReplayViewer) window.initReplayViewer();
+    if (page === 'devtools') {
+      if (!state.settings?.developerMode) {
+        toast('warn', 'Developer Mode Required', 'Enable Developer Mode to access this page.');
+        go('dashboard');
+        return;
+      }
+      loadDevChecklist();
+    }
   };
 
   // ===== TEXT UTILITIES =====
@@ -4815,6 +4823,228 @@
   window.confirmResetChecklist = confirmResetChecklist;
   window.loadDevChecklist = loadDevChecklist;
 
+  // ===== DEVELOPER MODE =====
+  function toggleDevMode() {
+    state.settings = state.settings || {};
+    state.settings.developerMode = !state.settings.developerMode;
+
+    const toggle = document.getElementById('devModeToggle');
+    const devSection = document.getElementById('sbDevSection');
+
+    if (toggle) toggle.classList.toggle('active', state.settings.developerMode);
+    if (devSection) devSection.style.display = state.settings.developerMode ? 'block' : 'none';
+
+    saveState();
+    toast('info', 'Developer Mode', state.settings.developerMode ? 'Enabled' : 'Disabled');
+
+    // Load checklist when enabling
+    if (state.settings.developerMode) {
+      loadDevChecklist();
+    }
+  }
+
+  function applyDevModeUI() {
+    const toggle = document.getElementById('devModeToggle');
+    const devSection = document.getElementById('sbDevSection');
+
+    if (toggle) toggle.classList.toggle('active', state.settings?.developerMode || false);
+    if (devSection) devSection.style.display = state.settings?.developerMode ? 'block' : 'none';
+  }
+
+  window.toggleDevMode = toggleDevMode;
+  window.applyDevModeUI = applyDevModeUI;
+
+  // ===== STRESS TESTING =====
+  let spoofedDataCleanupTimers = [];
+  let activeStressTests = new Map();
+
+  function startSpoofPlayers() {
+    const count = Math.min(100000, Math.max(1, parseInt(document.getElementById('spoofPlayerCount')?.value || '100', 10)));
+    runStressTest('spoofPlayer', count, (i) => {
+      const player = {
+        id: `spoof-player-${i}`,
+        uuid: `00000000-0000-0000-0000-${String(i).padStart(12, '0')}`,
+        name: `SpoofPlayer${i}`,
+        ip: `192.168.${Math.floor(i / 256) % 256}.${i % 256}`,
+        platform: Math.random() > 0.8 ? 'Bedrock' : 'Java',
+        geyser: Math.random() > 0.8,
+        status: Math.random() > 0.3 ? 'online' : 'offline',
+        lastSeen: now() - Math.floor(Math.random() * 86400000),
+        flags: Math.floor(Math.random() * 5),
+        warnings: Math.floor(Math.random() * 3),
+        _spoofed: true
+      };
+      state.players.push(player);
+    }, () => {
+      ui.renderPlayers();
+      ui.renderDashboard();
+    });
+  }
+
+  function startSpoofStaff() {
+    const count = Math.min(50000, Math.max(1, parseInt(document.getElementById('spoofStaffCount')?.value || '50', 10)));
+    runStressTest('spoofStaff', count, (i) => {
+      const staff = {
+        id: `spoof-staff-${i}`,
+        name: `SpoofStaff${i}`,
+        rank: ['Admin', 'Moderator', 'Helper'][Math.floor(Math.random() * 3)],
+        online: Math.random() > 0.5,
+        _spoofed: true
+      };
+      if (!state.staffList) state.staffList = [];
+      state.staffList.push(staff);
+    }, () => {
+      ui.renderDashboard();
+    });
+  }
+
+  function startSpoofPunishments() {
+    const count = Math.min(10000, Math.max(1, parseInt(document.getElementById('spoofPunishmentCount')?.value || '500', 10)));
+    const types = ['BAN', 'MUTE', 'WARN', 'KICK'];
+    const reasons = ['Hacking', 'Spam', 'Toxic behavior', 'Griefing', 'Advertising', 'AFK farming'];
+    runStressTest('spoofPunishment', count, (i) => {
+      const punishment = {
+        id: `spoof-pun-${i}`,
+        caseId: `MX-SPOOF-${String(i).padStart(6, '0')}`,
+        type: types[Math.floor(Math.random() * types.length)],
+        playerName: `SpoofPlayer${Math.floor(Math.random() * 1000)}`,
+        playerUuid: `00000000-0000-0000-0000-${String(Math.floor(Math.random() * 1000)).padStart(12, '0')}`,
+        reason: reasons[Math.floor(Math.random() * reasons.length)],
+        staff: `SpoofStaff${Math.floor(Math.random() * 50)}`,
+        time: now() - Math.floor(Math.random() * 604800000),
+        duration: Math.random() > 0.3 ? Math.floor(Math.random() * 86400) : 0,
+        active: Math.random() > 0.4,
+        _spoofed: true
+      };
+      state.punishments.push(punishment);
+    }, () => {
+      ui.renderPunishments();
+      ui.renderDashboard();
+    });
+  }
+
+  function startSpoofAutomod() {
+    const count = Math.min(5000, Math.max(1, parseInt(document.getElementById('spoofAutomodCount')?.value || '200', 10)));
+    const triggers = ['Spam detected', 'Caps lock', 'Advertising', 'Swearing', 'Repeating messages'];
+    runStressTest('spoofAutomod', count, (i) => {
+      state.watchAlerts.push({
+        type: 'Automod',
+        details: triggers[Math.floor(Math.random() * triggers.length)],
+        playerName: `SpoofPlayer${Math.floor(Math.random() * 1000)}`,
+        playerUuid: `00000000-0000-0000-0000-${String(Math.floor(Math.random() * 1000)).padStart(12, '0')}`,
+        t: now() - Math.floor(Math.random() * 3600000),
+        _spoofed: true
+      });
+    }, () => {
+      ui.renderDashboard();
+    });
+  }
+
+  function runStressTest(testId, count, createFn, completeFn) {
+    const progressEl = document.getElementById(`${testId}Progress`);
+    const fillEl = document.getElementById(`${testId}Fill`);
+    const logEl = document.getElementById(`${testId}Log`);
+
+    if (progressEl) progressEl.style.display = 'block';
+    if (logEl) logEl.innerHTML = '';
+
+    let processed = 0;
+    const batchSize = Math.min(1000, Math.ceil(count / 10));
+
+    function processBatch() {
+      const endIndex = Math.min(processed + batchSize, count);
+      for (let i = processed; i < endIndex; i++) {
+        createFn(i);
+      }
+      processed = endIndex;
+
+      const progress = Math.round((processed / count) * 100);
+      if (fillEl) fillEl.style.width = `${progress}%`;
+      if (logEl) {
+        logEl.innerHTML = `<div class="stress-log-entry">Generated ${processed}/${count} (${progress}%)</div>`;
+      }
+
+      if (processed < count) {
+        activeStressTests.set(testId, setTimeout(processBatch, 10));
+      } else {
+        // Complete
+        if (logEl) logEl.innerHTML += `<div class="stress-log-entry success">Completed! ${count} items generated.</div>`;
+        completeFn();
+        activeStressTests.delete(testId);
+
+        // Schedule cleanup after 10 minutes
+        const cleanupTimer = setTimeout(() => {
+          clearSpoofedDataByType(testId);
+          toast('info', 'Cleanup', `Spoofed ${testId} data has been cleaned up.`);
+        }, 10 * 60 * 1000);
+        spoofedDataCleanupTimers.push(cleanupTimer);
+      }
+    }
+
+    processBatch();
+  }
+
+  function stopAllStressTests() {
+    for (const [testId, timer] of activeStressTests) {
+      clearTimeout(timer);
+      const logEl = document.getElementById(`${testId}Log`);
+      if (logEl) logEl.innerHTML += `<div class="stress-log-entry error">Stopped.</div>`;
+    }
+    activeStressTests.clear();
+    toast('info', 'Stress Tests', 'All tests stopped.');
+  }
+
+  function clearAllSpoofedData() {
+    state.players = state.players.filter(p => !p._spoofed);
+    state.punishments = state.punishments.filter(p => !p._spoofed);
+    state.watchAlerts = state.watchAlerts.filter(a => !a._spoofed);
+    if (state.staffList) state.staffList = state.staffList.filter(s => !s._spoofed);
+
+    // Clear cleanup timers
+    spoofedDataCleanupTimers.forEach(t => clearTimeout(t));
+    spoofedDataCleanupTimers = [];
+
+    ui.renderAll();
+    toast('ok', 'Cleared', 'All spoofed data has been removed.');
+  }
+
+  function clearSpoofedDataByType(testId) {
+    if (testId.includes('Player')) {
+      state.players = state.players.filter(p => !p._spoofed);
+    } else if (testId.includes('Staff')) {
+      if (state.staffList) state.staffList = state.staffList.filter(s => !s._spoofed);
+    } else if (testId.includes('Punishment')) {
+      state.punishments = state.punishments.filter(p => !p._spoofed);
+    } else if (testId.includes('Automod')) {
+      state.watchAlerts = state.watchAlerts.filter(a => !a._spoofed);
+    }
+    ui.renderAll();
+  }
+
+  // Debug log functions
+  function clearDebugLogs() {
+    const logEl = document.getElementById('devDebugLogs');
+    if (logEl) logEl.innerHTML = '<div style="color:var(--muted)">[Debug console cleared]</div>';
+  }
+
+  function copyDebugLogs() {
+    const logEl = document.getElementById('devDebugLogs');
+    if (logEl) {
+      navigator.clipboard.writeText(logEl.innerText).then(() => {
+        toast('ok', 'Copied', 'Debug logs copied to clipboard.');
+      });
+    }
+  }
+
+  window.startSpoofPlayers = startSpoofPlayers;
+  window.startSpoofStaff = startSpoofStaff;
+  window.startSpoofPunishments = startSpoofPunishments;
+  window.startSpoofAutomod = startSpoofAutomod;
+  window.stopAllStressTests = stopAllStressTests;
+  window.clearAllSpoofedData = clearAllSpoofedData;
+  window.clearDebugLogs = clearDebugLogs;
+  window.copyDebugLogs = copyDebugLogs;
+
   // ===== WEB PANEL AUTO-UPDATE =====
   const PANEL_VERSION = 'DEV-2026-01-25-001';
   const PANEL_BUILD_DATE = '2026-01-25';
@@ -4977,6 +5207,7 @@
     go('dashboard');
     applyMySettingsUI();
     applyThemeFromState();
+    applyDevModeUI();
     setInterval(saveState, 4000);
     window.addEventListener('beforeunload', saveState);
 
