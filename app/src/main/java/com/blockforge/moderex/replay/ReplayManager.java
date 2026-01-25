@@ -326,6 +326,14 @@ public class ReplayManager {
         }
     }
 
+    /**
+     * Called by ReplayPlayback when it stops itself.
+     * Removes the playback from tracking without calling stop() again.
+     */
+    public void onPlaybackStopped(UUID viewerUuid) {
+        activePlaybacks.remove(viewerUuid);
+    }
+
     public ReplayPlayback getPlayback(UUID viewerUuid) {
         return activePlaybacks.get(viewerUuid);
     }
@@ -459,6 +467,54 @@ public class ReplayManager {
         }
     }
 
+    /**
+     * Get all active sessions that are recording a specific player.
+     * This includes sessions where the player is the primary subject or a nearby player.
+     *
+     * @param playerUuid The player UUID to check
+     * @return List of sessions recording this player
+     */
+    public List<ReplaySession> getActiveSessionsForPlayer(UUID playerUuid) {
+        List<ReplaySession> result = new ArrayList<>();
+        for (ReplaySession session : activeSessions.values()) {
+            if (session.getRecordedPlayerUuids().contains(playerUuid)) {
+                result.add(session);
+            }
+        }
+        return result;
+    }
+
+    /**
+     * Get all active sessions near a location.
+     * Used for tracking environmental events like explosions or pistons.
+     *
+     * @param location The location to check
+     * @param radius The search radius
+     * @return List of sessions with recorded players near the location
+     */
+    public List<ReplaySession> getActiveSessionsNearLocation(Location location, int radius) {
+        List<ReplaySession> result = new ArrayList<>();
+        for (ReplaySession session : activeSessions.values()) {
+            for (UUID playerUuid : session.getRecordedPlayerUuids()) {
+                Player player = Bukkit.getPlayer(playerUuid);
+                if (player != null && player.isOnline() && player.getWorld().equals(location.getWorld())) {
+                    if (player.getLocation().distance(location) <= radius) {
+                        result.add(session);
+                        break; // Only add session once
+                    }
+                }
+            }
+        }
+        return result;
+    }
+
+    /**
+     * Get the replays directory path.
+     */
+    public Path getReplaysDirectory() {
+        return replaysDirectory;
+    }
+
     // Getters and setters for settings
     public boolean isEnabled() { return enabled; }
     public void setEnabled(boolean enabled) { this.enabled = enabled; }
@@ -490,3 +546,10 @@ public class ReplayManager {
         }
     }
 }
+
+/** TODO:
+ * - Fix Sounds  (QoL)
+ * - Refactor explosions to not include wind* explosions
+ * - Fix i18n packet manager
+ * - Vanish players on replay
+ */
