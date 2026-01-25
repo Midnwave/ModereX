@@ -25,7 +25,6 @@ Thumbs.db
 *.bak
 *.swp
 *~
-tmpclaude-*
 nul
 
 # Build outputs (keep source, exclude compiled)
@@ -68,7 +67,6 @@ COMMIT_LOG.txt
 FEATURES_CHANGELOG.txt
 PENDING_COMMITS.md
 .ai/
-CLAUDE.md
 
 # External API sources
 CitizensAPI-master/
