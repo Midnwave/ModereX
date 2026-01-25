@@ -343,7 +343,27 @@ public enum MessageKey {
     // AFK
     AFK_KICK_MESSAGE("afk.kick-message"),
     AFK_KICK_REASON("afk.kick-reason"),
-    AFK_KICK_BROADCAST("afk.kick-broadcast");
+    AFK_KICK_BROADCAST("afk.kick-broadcast"),
+
+    // Activity Log (/log command)
+    LOG_HEADER("log.header"),
+    LOG_ENTRY("log.entry"),
+    LOG_EMPTY("log.empty"),
+    LOG_FOOTER("log.footer"),
+    LOG_FILTER_INFO("log.filter-info"),
+
+    // Replay
+    REPLAY_NOT_AVAILABLE("replay.not-available"),
+    REPLAY_STARTED("replay.started"),
+    REPLAY_STOPPED("replay.stopped"),
+    REPLAY_NOT_FOUND("replay.not-found"),
+    REPLAY_PAUSED("replay.paused"),
+    REPLAY_RESUMED("replay.resumed"),
+
+    // General aliases for common patterns
+    GENERAL_NO_PERMISSION("general.no-permission"),
+    GENERAL_PLAYER_NOT_FOUND("general.player-not-found"),
+    GENERAL_INVALID_ARGUMENTS("general.invalid-arguments");
 
     private final String path;
 
