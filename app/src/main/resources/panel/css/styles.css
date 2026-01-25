@@ -5,12 +5,12 @@
 :root {
   /* Colors */
   --bg0: #030508;
-  --bg1: #080c14;
-  --bg2: #0c1220;
-  --surface: #101828;
-  --surface2: #0a1018;
-  --border: #1a2744;
-  --border-light: #243352;
+  --bg1: #0a0a0e;
+  --bg2: #0e0e12;
+  --surface: #141418;
+  --surface2: #0a0a0c;
+  --border: #2a2a30;
+  --border-light: #3a3a42;
   --text: #f0f4ff;
   --text-secondary: #a8b8d8;
   --muted: #6b7fa8;
@@ -69,8 +69,8 @@
   --radius-lg: 14px;
   
   /* Glass */
-  --glass: rgba(16, 24, 40, 0.85);
-  --glass2: rgba(8, 12, 20, 0.75);
+  --glass: rgba(20, 20, 24, 0.85);
+  --glass2: rgba(12, 12, 14, 0.75);
   
   /* Typography */
   --font: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
@@ -216,7 +216,7 @@ body {
 /* ===== SIDEBAR ===== */
 .sidebar {
   width: 280px;
-  background: linear-gradient(180deg, rgba(8, 12, 20, 0.95), rgba(6, 9, 16, 0.92));
+  background: linear-gradient(180deg, rgba(12, 12, 14, 0.95), rgba(9, 9, 11, 0.92));
   border-right: 1px solid var(--border);
   box-shadow: 8px 0 40px rgba(0, 0, 0, 0.35);
   display: flex;
@@ -465,7 +465,7 @@ body {
   justify-content: space-between;
   padding: 0 20px;
   border-bottom: 1px solid var(--border);
-  background: linear-gradient(180deg, rgba(8, 12, 20, 0.8), rgba(8, 12, 20, 0.5));
+  background: linear-gradient(180deg, rgba(12, 12, 14, 0.8), rgba(12, 12, 14, 0.5));
   backdrop-filter: blur(16px);
   gap: 16px;
 }
@@ -928,7 +928,7 @@ body {
 
 /* ===== PANELS ===== */
 .panel {
-  background: linear-gradient(180deg, rgba(16, 24, 40, 0.75), rgba(12, 18, 32, 0.65));
+  background: linear-gradient(180deg, rgba(20, 20, 24, 0.75), rgba(16, 16, 20, 0.65));
   border: 1px solid var(--border);
   border-radius: var(--radius-lg);
   box-shadow: var(--shadow);
@@ -1164,7 +1164,7 @@ th {
 thead th {
   position: sticky;
   top: 0;
-  background: rgba(8, 12, 20, 0.9);
+  background: rgba(12, 12, 14, 0.9);
   z-index: 2;
 }
 
@@ -2240,7 +2240,7 @@ textarea.input {
 .authOverlay {
   position: fixed;
   inset: 0;
-  background: radial-gradient(ellipse at center, rgba(6, 10, 18, 0.98), rgba(3, 5, 8, 0.99));
+  background: radial-gradient(ellipse at center, rgba(10, 10, 12, 0.98), rgba(5, 5, 6, 0.99));
   z-index: 6000;
   display: flex;
   align-items: center;
@@ -2258,7 +2258,7 @@ textarea.input {
   padding: 40px;
   border-radius: var(--radius-lg);
   border: 1px solid var(--border);
-  background: linear-gradient(180deg, rgba(16, 24, 40, 0.9), rgba(10, 14, 22, 0.95));
+  background: linear-gradient(180deg, rgba(20, 20, 24, 0.9), rgba(14, 14, 16, 0.95));
   box-shadow: var(--shadow-lg);
   text-align: center;
 }
@@ -2526,7 +2526,7 @@ textarea.input {
 .accessDeniedOverlay {
   position: fixed;
   inset: 0;
-  background: radial-gradient(ellipse at center, rgba(6, 10, 18, 0.98), rgba(3, 5, 8, 0.99));
+  background: radial-gradient(ellipse at center, rgba(10, 10, 12, 0.98), rgba(5, 5, 6, 0.99));
   z-index: 7000;
   display: none;
   align-items: center;
@@ -2542,7 +2542,7 @@ textarea.input {
   padding: 40px;
   border-radius: var(--radius-lg);
   border: 1px solid rgba(239, 68, 68, 0.3);
-  background: linear-gradient(180deg, rgba(16, 24, 40, 0.9), rgba(10, 14, 22, 0.95));
+  background: linear-gradient(180deg, rgba(20, 20, 24, 0.9), rgba(14, 14, 16, 0.95));
   box-shadow: 0 0 60px rgba(239, 68, 68, 0.1);
   text-align: center;
 }
@@ -3482,7 +3482,7 @@ textarea.input {
   padding: 32px 36px;
   border-radius: var(--radius-lg);
   border: 1px solid var(--border);
-  background: linear-gradient(180deg, rgba(16, 24, 40, 0.95), rgba(8, 12, 20, 0.95));
+  background: linear-gradient(180deg, rgba(20, 20, 24, 0.95), rgba(12, 12, 14, 0.95));
   box-shadow: var(--shadow-lg);
   min-width: 280px;
 }
@@ -3541,7 +3541,7 @@ textarea.input {
   padding: 48px 60px;
   border-radius: var(--radius-lg);
   border: 1px solid rgba(239, 68, 68, 0.3);
-  background: linear-gradient(180deg, rgba(16, 24, 40, 0.95), rgba(10, 14, 22, 0.98));
+  background: linear-gradient(180deg, rgba(20, 20, 24, 0.95), rgba(14, 14, 16, 0.98));
   box-shadow: 0 0 80px rgba(239, 68, 68, 0.15);
   text-align: center;
   max-width: 420px;
@@ -3741,7 +3741,7 @@ textarea.input {
   background:
     radial-gradient(ellipse 80% 60% at 20% 30%, var(--primary-40), transparent 60%),
     radial-gradient(ellipse 60% 50% at 80% 70%, rgba(124, 92, 255, 0.3), transparent 50%),
-    linear-gradient(180deg, #030508, #080c14);
+    linear-gradient(180deg, #030508, #0a0a0e);
 }
 
 .pattern-preview.waves {
@@ -3753,7 +3753,7 @@ textarea.input {
       var(--primary-15) 4px,
       var(--primary-15) 8px
     ),
-    linear-gradient(180deg, #030508, #0c1220);
+    linear-gradient(180deg, #030508, #0e0e12);
 }
 
 .pattern-preview.stars {
@@ -3765,14 +3765,14 @@ textarea.input {
     radial-gradient(1px 1px at 90% 40%, white, transparent),
     radial-gradient(2px 2px at 25% 80%, rgba(255,255,255,0.8), transparent),
     radial-gradient(2px 2px at 75% 15%, rgba(255,255,255,0.8), transparent),
-    linear-gradient(180deg, #030508, #0c1220);
+    linear-gradient(180deg, #030508, #0e0e12);
 }
 
 .pattern-preview.grid {
   background:
     linear-gradient(var(--primary-10) 1px, transparent 1px),
     linear-gradient(90deg, var(--primary-10) 1px, transparent 1px),
-    linear-gradient(180deg, #030508, #0c1220);
+    linear-gradient(180deg, #030508, #0e0e12);
   background-size: 8px 8px, 8px 8px, 100% 100%;
 }
 
@@ -3782,7 +3782,7 @@ textarea.input {
     linear-gradient(transparent 49%, var(--primary-20) 49%, var(--primary-20) 51%, transparent 51%),
     radial-gradient(circle at 25% 25%, var(--primary-30) 2px, transparent 2px),
     radial-gradient(circle at 75% 75%, var(--primary-30) 2px, transparent 2px),
-    linear-gradient(180deg, #030508, #0c1220);
+    linear-gradient(180deg, #030508, #0e0e12);
   background-size: 20px 20px, 20px 20px, 20px 20px, 20px 20px, 100% 100%;
 }
 
@@ -3791,7 +3791,7 @@ textarea.input {
     radial-gradient(circle at 50% 0%, var(--primary-20) 3px, transparent 3px),
     radial-gradient(circle at 0% 100%, var(--primary-20) 3px, transparent 3px),
     radial-gradient(circle at 100% 100%, var(--primary-20) 3px, transparent 3px),
-    linear-gradient(180deg, #030508, #0c1220);
+    linear-gradient(180deg, #030508, #0e0e12);
   background-size: 16px 16px, 16px 16px, 16px 16px, 100% 100%;
 }
 
@@ -3802,7 +3802,7 @@ textarea.input {
     radial-gradient(circle at 75% 35%, rgba(16, 185, 129, 0.6) 1px, transparent 1px),
     radial-gradient(circle at 85% 85%, var(--primary-40) 2px, transparent 2px),
     radial-gradient(circle at 25% 75%, rgba(124, 92, 255, 0.4) 2px, transparent 2px),
-    linear-gradient(180deg, #030508, #0c1220);
+    linear-gradient(180deg, #030508, #0e0e12);
 }
 
 .pattern-preview.nebula {
@@ -3810,7 +3810,7 @@ textarea.input {
     radial-gradient(ellipse at 30% 40%, rgba(124, 92, 255, 0.4), transparent 50%),
     radial-gradient(ellipse at 70% 60%, rgba(236, 72, 153, 0.3), transparent 50%),
     radial-gradient(ellipse at 50% 50%, var(--primary-20), transparent 60%),
-    linear-gradient(180deg, #030508, #0c1220);
+    linear-gradient(180deg, #030508, #0e0e12);
 }
 
 .pattern-preview.matrix {
@@ -3823,7 +3823,7 @@ textarea.input {
       rgba(16, 185, 129, 0.1) 4px
     ),
     linear-gradient(180deg, rgba(16, 185, 129, 0.2) 0%, transparent 100%),
-    linear-gradient(180deg, #030508, #0c1220);
+    linear-gradient(180deg, #030508, #0e0e12);
 }
 
 .pattern-preview.rain {
@@ -3842,7 +3842,7 @@ textarea.input {
       var(--primary-10) 12px,
       var(--primary-10) 14px
     ),
-    linear-gradient(180deg, #030508, #0c1220);
+    linear-gradient(180deg, #030508, #0e0e12);
   background-size: 3px 100%, 7px 100%, 100% 100%;
 }
 
@@ -3850,16 +3850,16 @@ textarea.input {
   background:
     linear-gradient(135deg, transparent 45%, var(--primary-15) 45%, var(--primary-15) 55%, transparent 55%),
     linear-gradient(-135deg, transparent 45%, rgba(124, 92, 255, 0.1) 45%, rgba(124, 92, 255, 0.1) 55%, transparent 55%),
-    linear-gradient(180deg, #030508, #0c1220);
+    linear-gradient(180deg, #030508, #0e0e12);
   background-size: 20px 20px, 20px 20px, 100% 100%;
 }
 
 .pattern-preview.gradient {
-  background: linear-gradient(135deg, #030508, #0c1830, #030508);
+  background: linear-gradient(135deg, #030508, #0c1014, #030508);
 }
 
 .pattern-preview.minimal {
-  background: linear-gradient(180deg, #030508, #080c14);
+  background: linear-gradient(180deg, #030508, #0a0a0e);
 }
 
 /* Dynamic theme styles - applied to body via data attribute */
@@ -5100,7 +5100,7 @@ body.light-theme-text .card h3 {
   left: 0;
   right: 0;
   margin-top: 8px;
-  background: linear-gradient(180deg, #101828 0%, #0a1018 100%);
+  background: linear-gradient(180deg, #141418 0%, #0a0a0c 100%);
   border: 1px solid var(--border-light);
   border-radius: var(--radius);
   box-shadow: 0 20px 60px rgba(0, 0, 0, 0.7), 0 0 0 1px rgba(255, 255, 255, 0.05);
