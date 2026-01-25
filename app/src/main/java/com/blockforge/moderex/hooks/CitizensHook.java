@@ -168,7 +168,10 @@ public class CitizensHook {
             // Spawn the NPC if not already spawned
             boolean isSpawned = (Boolean) npcClass.getMethod("isSpawned").invoke(npc);
             if (!isSpawned) {
-                npcClass.getMethod("spawn", Location.class).invoke(npc, location);
+                // Ensure spawn location is valid - NPCs need to spawn at feet level
+                // Add small Y offset if the location is inside a block to prevent clipping
+                Location spawnLoc = adjustSpawnLocation(location);
+                npcClass.getMethod("spawn", Location.class).invoke(npc, spawnLoc);
             }
 
             // Get the NPC's unique ID
@@ -186,6 +189,55 @@ public class CitizensHook {
             plugin.logError("Failed to create Citizens NPC", e);
             return null;
         }
+    }
+
+    /**
+     * Adjust spawn location to prevent NPC from clipping into blocks.
+     * Ensures the NPC spawns at a valid position with enough headroom.
+     */
+    private Location adjustSpawnLocation(Location location) {
+        if (location == null || location.getWorld() == null) return location;
+
+        Location adjusted = location.clone();
+        org.bukkit.World world = adjusted.getWorld();
+        int blockX = adjusted.getBlockX();
+        int blockY = adjusted.getBlockY();
+        int blockZ = adjusted.getBlockZ();
+
+        // Check if the feet position is inside a solid block
+        org.bukkit.block.Block feetBlock = world.getBlockAt(blockX, blockY, blockZ);
+        org.bukkit.block.Block headBlock = world.getBlockAt(blockX, blockY + 1, blockZ);
+
+        // If feet are in a solid block, try to find a valid position above
+        if (feetBlock.getType().isSolid() && !feetBlock.isPassable()) {
+            // Move up to find air
+            for (int yOffset = 1; yOffset <= 3; yOffset++) {
+                org.bukkit.block.Block checkFeet = world.getBlockAt(blockX, blockY + yOffset, blockZ);
+                org.bukkit.block.Block checkHead = world.getBlockAt(blockX, blockY + yOffset + 1, blockZ);
+                if (!checkFeet.getType().isSolid() && !checkHead.getType().isSolid()) {
+                    adjusted.setY(blockY + yOffset);
+                    plugin.logDebug("[Citizens] Adjusted NPC spawn Y from " + blockY + " to " + (blockY + yOffset));
+                    break;
+                }
+            }
+        }
+
+        // Ensure there's headroom (2 blocks of air needed for player-type NPC)
+        if (headBlock.getType().isSolid() && !headBlock.isPassable()) {
+            // Find ground below or move up
+            for (int yOffset = -1; yOffset >= -5; yOffset--) {
+                org.bukkit.block.Block groundCheck = world.getBlockAt(blockX, blockY + yOffset, blockZ);
+                org.bukkit.block.Block feetCheck = world.getBlockAt(blockX, blockY + yOffset + 1, blockZ);
+                org.bukkit.block.Block headCheck = world.getBlockAt(blockX, blockY + yOffset + 2, blockZ);
+                if (groundCheck.getType().isSolid() && !feetCheck.getType().isSolid() && !headCheck.getType().isSolid()) {
+                    adjusted.setY(blockY + yOffset + 1);
+                    plugin.logDebug("[Citizens] Adjusted NPC spawn Y for headroom from " + blockY + " to " + (blockY + yOffset + 1));
+                    break;
+                }
+            }
+        }
+
+        return adjusted;
     }
 
     /**
@@ -273,9 +325,10 @@ public class CitizensHook {
             Object entity = npcClass.getMethod("getEntity").invoke(npc);
 
             if (entity != null) {
-                // Teleport the NPC
+                // Teleport the NPC - use adjusted location to prevent clipping
+                Location adjustedLoc = adjustSpawnLocation(location);
                 Class<?> entityClass = entity.getClass();
-                entityClass.getMethod("teleport", Location.class).invoke(entity, location);
+                entityClass.getMethod("teleport", Location.class).invoke(entity, adjustedLoc);
             }
         } catch (Exception e) {
             plugin.logDebug("[Citizens] Failed to update NPC location: " + e.getMessage());
@@ -304,6 +357,138 @@ public class CitizensHook {
         } catch (Exception e) {
             plugin.logDebug("[Citizens] Failed to set NPC sneaking: " + e.getMessage());
         }
+    }
+
+    /**
+     * Set the NPC's gliding state (elytra).
+     * Automatically equips an elytra if gliding is enabled and NPC doesn't have one.
+     *
+     * @param npcId The NPC's unique ID
+     * @param gliding Whether the NPC should be gliding
+     */
+    public void setNpcGliding(UUID npcId, boolean gliding) {
+        if (!available || citizensClassLoader == null) return;
+
+        Object npc = replayNpcs.get(npcId);
+        if (npc == null) return;
+
+        try {
+            Class<?> npcClass = getCitizensClass("net.citizensnpcs.api.npc.NPC");
+            Object entity = npcClass.getMethod("getEntity").invoke(npc);
+
+            if (entity != null && entity instanceof org.bukkit.entity.LivingEntity living) {
+                // If gliding, ensure NPC has an elytra equipped
+                if (gliding) {
+                    var equipment = living.getEquipment();
+                    if (equipment != null) {
+                        org.bukkit.inventory.ItemStack chestplate = equipment.getChestplate();
+                        if (chestplate == null || chestplate.getType() != org.bukkit.Material.ELYTRA) {
+                            // Store original chestplate and equip elytra
+                            equipment.setChestplate(new org.bukkit.inventory.ItemStack(org.bukkit.Material.ELYTRA));
+                        }
+                    }
+                }
+                living.setGliding(gliding);
+            }
+        } catch (Exception e) {
+            plugin.logDebug("[Citizens] Failed to set NPC gliding: " + e.getMessage());
+        }
+    }
+
+    /**
+     * Set the NPC's swimming state.
+     *
+     * @param npcId The NPC's unique ID
+     * @param swimming Whether the NPC should be swimming
+     */
+    public void setNpcSwimming(UUID npcId, boolean swimming) {
+        if (!available || citizensClassLoader == null) return;
+
+        Object npc = replayNpcs.get(npcId);
+        if (npc == null) return;
+
+        try {
+            Class<?> npcClass = getCitizensClass("net.citizensnpcs.api.npc.NPC");
+            Object entity = npcClass.getMethod("getEntity").invoke(npc);
+
+            if (entity != null && entity instanceof org.bukkit.entity.LivingEntity living) {
+                living.setSwimming(swimming);
+            }
+        } catch (Exception e) {
+            plugin.logDebug("[Citizens] Failed to set NPC swimming: " + e.getMessage());
+        }
+    }
+
+    /**
+     * Spawn a visual projectile from the NPC's location in their looking direction.
+     *
+     * @param npcId The NPC's unique ID
+     * @param projectileType The type of projectile (ARROW, TRIDENT, ENDER_PEARL, SNOWBALL, EGG, etc.)
+     */
+    public void spawnVisualProjectile(UUID npcId, String projectileType) {
+        if (!available || citizensClassLoader == null) return;
+
+        Object npc = replayNpcs.get(npcId);
+        if (npc == null) return;
+
+        try {
+            Class<?> npcClass = getCitizensClass("net.citizensnpcs.api.npc.NPC");
+            Object entity = npcClass.getMethod("getEntity").invoke(npc);
+
+            if (entity != null && entity instanceof org.bukkit.entity.LivingEntity living) {
+                org.bukkit.Location eyeLoc = living.getEyeLocation().clone();
+                org.bukkit.util.Vector direction = eyeLoc.getDirection().clone();
+                org.bukkit.Location spawnLoc = eyeLoc.add(direction.clone().multiply(0.5));
+
+                // Determine projectile class based on type
+                Class<? extends org.bukkit.entity.Projectile> projectileClass = getProjectileClass(projectileType);
+                if (projectileClass == null) return;
+
+                // Use launchProjectile for proper projectile spawning (works better for throwables)
+                org.bukkit.entity.Projectile projectile = living.launchProjectile(projectileClass, direction.multiply(1.5));
+
+                // Make it a visual-only projectile (no damage, no teleport for pearls)
+                projectile.setShooter(null);
+
+                // For ender pearls, cancel the teleport by removing before impact
+                if (projectile instanceof org.bukkit.entity.EnderPearl) {
+                    // Remove pearl after 2 seconds (before it lands)
+                    plugin.getServer().getScheduler().runTaskLater(plugin, projectile::remove, 40L);
+                } else {
+                    // Remove after 3 seconds for other projectiles
+                    plugin.getServer().getScheduler().runTaskLater(plugin, projectile::remove, 60L);
+                }
+            }
+        } catch (Exception e) {
+            plugin.logDebug("[Citizens] Failed to spawn visual projectile: " + e.getMessage());
+        }
+    }
+
+    /**
+     * Get the projectile class from its type name.
+     */
+    @SuppressWarnings("unchecked")
+    private Class<? extends org.bukkit.entity.Projectile> getProjectileClass(String type) {
+        if (type == null) return null;
+        return switch (type.toUpperCase()) {
+            case "ARROW", "BOW_SHOOT", "CROSSBOW_SHOOT" -> org.bukkit.entity.Arrow.class;
+            case "TRIDENT", "TRIDENT_THROW" -> org.bukkit.entity.Trident.class;
+            case "ENDER_PEARL", "ENDER_PEARL_THROW" -> org.bukkit.entity.EnderPearl.class;
+            case "SNOWBALL", "SNOWBALL_THROW" -> org.bukkit.entity.Snowball.class;
+            case "EGG", "EGG_THROW" -> org.bukkit.entity.Egg.class;
+            case "FIREBALL" -> org.bukkit.entity.Fireball.class;
+            case "POTION", "POTION_THROW" -> org.bukkit.entity.ThrownPotion.class;
+            case "WIND_CHARGE", "WIND_CHARGE_THROW" -> {
+                // Wind charge might not exist in all versions
+                try {
+                    yield (Class<? extends org.bukkit.entity.Projectile>)
+                            Class.forName("org.bukkit.entity.WindCharge");
+                } catch (ClassNotFoundException e) {
+                    yield null;
+                }
+            }
+            default -> null;
+        };
     }
 
     /**
@@ -357,6 +542,56 @@ public class CitizensHook {
             }
         } catch (Exception e) {
             plugin.logDebug("[Citizens] Failed to set NPC armor: " + e.getMessage());
+        }
+    }
+
+    /**
+     * Set the NPC's off-hand item.
+     *
+     * @param npcId The NPC's unique ID
+     * @param item The item to hold in off-hand
+     */
+    public void setNpcOffHandItem(UUID npcId, org.bukkit.inventory.ItemStack item) {
+        if (!available || citizensClassLoader == null) return;
+
+        Object npc = replayNpcs.get(npcId);
+        if (npc == null) return;
+
+        try {
+            Class<?> npcClass = getCitizensClass("net.citizensnpcs.api.npc.NPC");
+            Object entity = npcClass.getMethod("getEntity").invoke(npc);
+
+            if (entity != null && entity instanceof org.bukkit.entity.LivingEntity living) {
+                var equipment = living.getEquipment();
+                if (equipment != null) {
+                    equipment.setItemInOffHand(item);
+                }
+            }
+        } catch (Exception e) {
+            plugin.logDebug("[Citizens] Failed to set NPC off-hand item: " + e.getMessage());
+        }
+    }
+
+    /**
+     * Play an arm swing animation on the NPC.
+     *
+     * @param npcId The NPC's unique ID
+     */
+    public void playNpcArmSwing(UUID npcId) {
+        if (!available || citizensClassLoader == null) return;
+
+        Object npc = replayNpcs.get(npcId);
+        if (npc == null) return;
+
+        try {
+            Class<?> npcClass = getCitizensClass("net.citizensnpcs.api.npc.NPC");
+            Object entity = npcClass.getMethod("getEntity").invoke(npc);
+
+            if (entity != null && entity instanceof org.bukkit.entity.LivingEntity living) {
+                living.swingMainHand();
+            }
+        } catch (Exception e) {
+            plugin.logDebug("[Citizens] Failed to play NPC arm swing: " + e.getMessage());
         }
     }
 
