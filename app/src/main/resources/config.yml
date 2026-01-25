@@ -99,6 +99,25 @@ webpanel:
   # When enabled, you can access the panel at: http://your-server:25565/
   same-port: false
 
+  # Token validation interval in seconds (checks if session is still valid)
+  token-validation-interval: 10
+
+  # Enable device fingerprint checking for extra security
+  # When enabled, tokens are tied to specific browser/device fingerprints
+  device-fingerprint-enabled: false
+
+  # LuckPerms rank display colors for web panel
+  # Maps LuckPerms group names to hex color codes
+  # These colors are used for the rank badge glow effect
+  rank-colors:
+    owner: '#ff5555'      # Red
+    admin: '#ff5555'      # Red
+    moderator: '#55ff55'  # Green
+    helper: '#55ffff'     # Cyan
+    builder: '#ffaa00'    # Orange
+    vip: '#aa00aa'        # Purple
+    default: '#8b5cf6'    # Default purple
+
 # ============================================
 # PROXY SETTINGS
 # ============================================
@@ -566,7 +585,7 @@ activity-log:
 # CONFIGURATION VERSION
 # ============================================
 # DO NOT MODIFY - Used for automatic config migration
-config-version: 10.0
+config-version: 11
 
 
 
