@@ -2,7 +2,12 @@ package com.blockforge.moderex.replay;
 
 import org.bukkit.Location;
 import org.bukkit.inventory.ItemStack;
+import org.bukkit.util.io.BukkitObjectInputStream;
+import org.bukkit.util.io.BukkitObjectOutputStream;
 
+import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
+import java.util.Base64;
 import java.util.UUID;
 
 public class ReplaySnapshot {
@@ -53,7 +58,32 @@ public class ReplaySnapshot {
         DEATH,
         RESPAWN,
         TELEPORT,
-        PORTAL_ENTER
+        PORTAL_ENTER,
+        // 1.21.11+ Spear actions (safewrapped - only logged if spear exists)
+        SPEAR_JAB,
+        SPEAR_CHARGE,
+        // Equipment changes
+        ARMOR_EQUIP,
+        OFFHAND_SWAP,
+        // Crossbow
+        CROSSBOW_SHOOT,
+        // Consumables and special items
+        WIND_CHARGE_THROW,
+        ENDER_PEARL_THROW,
+        TRIDENT_THROW,
+        EGG_THROW,
+        SNOWBALL_THROW,
+        POTION_THROW,
+        FIREWORK_USE,
+        RIPTIDE_USE,
+        SHIELD_BLOCK_START,
+        SHIELD_BLOCK_END,
+        // Entity interactions
+        ENTITY_SPAWN,
+        ENTITY_KILL,
+        ENTITY_INTERACT,
+        ENTITY_MOUNT,
+        ENTITY_DISMOUNT
     }
 
     private ReplaySnapshot(Builder builder) {
@@ -100,15 +130,23 @@ public class ReplaySnapshot {
         return new Location(world, x, y, z, yaw, pitch);
     }
 
+    // Use a delimiter that won't appear in base64 or normal data
+    private static final String FIELD_DELIMITER = "|||";
+
     public String serialize() {
         StringBuilder sb = new StringBuilder();
-        sb.append(timestamp).append(";");
-        sb.append(String.format("%.3f,%.3f,%.3f,%.2f,%.2f", x, y, z, yaw, pitch)).append(";");
-        sb.append(worldName).append(";");
-        sb.append(encodeFlags()).append(";");
-        sb.append(heldSlot).append(";");
-        sb.append(action.ordinal()).append(";");
-        sb.append(actionData != null ? actionData : "");
+        sb.append(timestamp).append(FIELD_DELIMITER);
+        sb.append(String.format("%.3f,%.3f,%.3f,%.2f,%.2f", x, y, z, yaw, pitch)).append(FIELD_DELIMITER);
+        sb.append(worldName).append(FIELD_DELIMITER);
+        sb.append(encodeFlags()).append(FIELD_DELIMITER);
+        sb.append(heldSlot).append(FIELD_DELIMITER);
+        sb.append(action.ordinal()).append(FIELD_DELIMITER);
+        // Base64 encode actionData to avoid any delimiter issues
+        sb.append(actionData != null ? Base64.getEncoder().encodeToString(actionData.getBytes(java.nio.charset.StandardCharsets.UTF_8)) : "").append(FIELD_DELIMITER);
+        // Serialize equipment
+        sb.append(serializeItem(mainHand)).append(FIELD_DELIMITER);
+        sb.append(serializeItem(offHand)).append(FIELD_DELIMITER);
+        sb.append(serializeArmor(armor));
         return sb.toString();
     }
 
@@ -122,7 +160,139 @@ public class ReplaySnapshot {
         return flags;
     }
 
+    /**
+     * Serialize an ItemStack to a Base64 string.
+     */
+    private static String serializeItem(ItemStack item) {
+        if (item == null) return "";
+        try {
+            ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
+            BukkitObjectOutputStream dataOutput = new BukkitObjectOutputStream(outputStream);
+            dataOutput.writeObject(item);
+            dataOutput.close();
+            return Base64.getEncoder().encodeToString(outputStream.toByteArray());
+        } catch (Exception e) {
+            return "";
+        }
+    }
+
+    /**
+     * Deserialize an ItemStack from a Base64 string.
+     */
+    private static ItemStack deserializeItem(String data) {
+        if (data == null || data.isEmpty()) return null;
+        try {
+            ByteArrayInputStream inputStream = new ByteArrayInputStream(Base64.getDecoder().decode(data));
+            BukkitObjectInputStream dataInput = new BukkitObjectInputStream(inputStream);
+            ItemStack item = (ItemStack) dataInput.readObject();
+            dataInput.close();
+            return item;
+        } catch (Exception e) {
+            return null;
+        }
+    }
+
+    /**
+     * Serialize armor array to a Base64 string.
+     */
+    private static String serializeArmor(ItemStack[] armor) {
+        if (armor == null) return "";
+        try {
+            ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
+            BukkitObjectOutputStream dataOutput = new BukkitObjectOutputStream(outputStream);
+            dataOutput.writeInt(armor.length);
+            for (ItemStack item : armor) {
+                dataOutput.writeObject(item);
+            }
+            dataOutput.close();
+            return Base64.getEncoder().encodeToString(outputStream.toByteArray());
+        } catch (Exception e) {
+            return "";
+        }
+    }
+
+    /**
+     * Deserialize armor array from a Base64 string.
+     */
+    private static ItemStack[] deserializeArmor(String data) {
+        if (data == null || data.isEmpty()) return null;
+        try {
+            ByteArrayInputStream inputStream = new ByteArrayInputStream(Base64.getDecoder().decode(data));
+            BukkitObjectInputStream dataInput = new BukkitObjectInputStream(inputStream);
+            int length = dataInput.readInt();
+            ItemStack[] armor = new ItemStack[length];
+            for (int i = 0; i < length; i++) {
+                armor[i] = (ItemStack) dataInput.readObject();
+            }
+            dataInput.close();
+            return armor;
+        } catch (Exception e) {
+            return null;
+        }
+    }
+
     public static ReplaySnapshot deserialize(String data) {
+        // Try new format first (with ||| delimiter)
+        if (data.contains(FIELD_DELIMITER)) {
+            return deserializeNewFormat(data);
+        }
+        // Fall back to old format (with ; delimiter) for backwards compatibility
+        return deserializeOldFormat(data);
+    }
+
+    private static ReplaySnapshot deserializeNewFormat(String data) {
+        String[] parts = data.split("\\|\\|\\|", -1);
+        if (parts.length < 6) return null;
+
+        try {
+            long timestamp = Long.parseLong(parts[0]);
+            String[] pos = parts[1].split(",");
+            double x = Double.parseDouble(pos[0]);
+            double y = Double.parseDouble(pos[1]);
+            double z = Double.parseDouble(pos[2]);
+            float yaw = Float.parseFloat(pos[3]);
+            float pitch = Float.parseFloat(pos[4]);
+            String worldName = parts[2];
+            int flags = Integer.parseInt(parts[3]);
+            int heldSlot = Integer.parseInt(parts[4]);
+            ActionType action = ActionType.values()[Integer.parseInt(parts[5])];
+
+            // Decode base64 actionData
+            String actionData = null;
+            if (parts.length > 6 && !parts[6].isEmpty()) {
+                try {
+                    actionData = new String(Base64.getDecoder().decode(parts[6]), java.nio.charset.StandardCharsets.UTF_8);
+                } catch (Exception e) {
+                    actionData = parts[6]; // Fallback if not base64
+                }
+            }
+
+            // Deserialize equipment
+            ItemStack mainHand = parts.length > 7 ? deserializeItem(parts[7]) : null;
+            ItemStack offHand = parts.length > 8 ? deserializeItem(parts[8]) : null;
+            ItemStack[] armor = parts.length > 9 ? deserializeArmor(parts[9]) : null;
+
+            return new Builder()
+                    .timestamp(timestamp)
+                    .position(x, y, z, yaw, pitch)
+                    .world(worldName)
+                    .sneaking((flags & 1) != 0)
+                    .sprinting((flags & 2) != 0)
+                    .swimming((flags & 4) != 0)
+                    .gliding((flags & 8) != 0)
+                    .onGround((flags & 16) != 0)
+                    .heldSlot(heldSlot)
+                    .action(action, actionData)
+                    .mainHand(mainHand)
+                    .offHand(offHand)
+                    .armor(armor)
+                    .build();
+        } catch (Exception e) {
+            return null;
+        }
+    }
+
+    private static ReplaySnapshot deserializeOldFormat(String data) {
         String[] parts = data.split(";", 7);
         if (parts.length < 6) return null;
 
