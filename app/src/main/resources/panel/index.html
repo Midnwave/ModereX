@@ -238,11 +238,69 @@
           <span class="chip" id="timeChip"><i class="fa-regular fa-clock"></i> --:--</span>
           <span class="chip" id="statusChip" title="Connection status"><i class="fa-solid fa-signal"></i> <span id="pingText">--</span>ms</span>
           <span class="chip warn" id="savingChip" style="display:none"><i class="fa-solid fa-spinner fa-spin"></i> Saving...</span>
+
+          <!-- Rank Badge -->
+          <div class="rank-badge-container" id="rankBadgeContainer" style="display:none">
+            <div class="rank-badge" id="rankBadge">
+              <i class="fa-solid fa-shield-halved"></i>
+              <span id="rankName">Admin</span>
+            </div>
+            <!-- Custom Rank Tooltip -->
+            <div class="rank-tooltip" id="rankTooltip">
+              <div class="rank-tooltip-header">
+                <i class="fa-solid fa-shield-halved"></i>
+                <span id="rankTooltipTitle">Rank Information</span>
+              </div>
+              <div class="rank-tooltip-body">
+                <div class="rank-tooltip-row">
+                  <span class="rank-tooltip-label">Rank</span>
+                  <span class="rank-tooltip-value" id="rankTooltipRank">Admin</span>
+                </div>
+                <div class="rank-tooltip-row">
+                  <span class="rank-tooltip-label">Weight</span>
+                  <span class="rank-tooltip-value" id="rankTooltipWeight">100</span>
+                </div>
+                <div class="rank-tooltip-row">
+                  <span class="rank-tooltip-label">Prefix</span>
+                  <span class="rank-tooltip-value" id="rankTooltipPrefix">[Admin]</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- User Profile Dropdown -->
           <div class="top-profile" id="topProfile" style="display:none">
             <div class="profile-avatar"><img id="topAvatar" src="" alt=""></div>
             <div class="profile-meta">
               <div class="profile-name" id="topName">Player</div>
               <div class="profile-sub" id="topPlatform">Java</div>
+            </div>
+            <i class="fa-solid fa-chevron-down profile-chevron"></i>
+
+            <!-- Profile Dropdown Menu -->
+            <div class="profile-dropdown" id="profileDropdown">
+              <div class="profile-dropdown-header">
+                <img id="dropdownAvatar" src="" alt="">
+                <div class="profile-dropdown-info">
+                  <span class="profile-dropdown-name" id="dropdownName">Player</span>
+                  <span class="profile-dropdown-rank" id="dropdownRank">Member</span>
+                </div>
+              </div>
+              <div class="profile-dropdown-divider"></div>
+              <div class="profile-dropdown-item" onclick="go('mysettings'); closeProfileDropdown()">
+                <i class="fa-solid fa-gear"></i>
+                <span>My Settings</span>
+              </div>
+              <div class="profile-dropdown-item" onclick="openNotificationsPanel()">
+                <i class="fa-solid fa-bell"></i>
+                <span>Notifications</span>
+                <span class="notification-count" id="notificationCount" style="display:none">0</span>
+              </div>
+              <div class="profile-dropdown-divider"></div>
+              <div class="profile-dropdown-item logout" onclick="logout()">
+                <i class="fa-solid fa-right-from-bracket"></i>
+                <span>Log Out</span>
+              </div>
             </div>
           </div>
         </div>

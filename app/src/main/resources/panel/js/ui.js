@@ -1300,6 +1300,8 @@
     const user = state.currentUser;
     if (!user) {
       dom.topProfile.style.display = 'none';
+      const rankContainer = document.getElementById('rankBadgeContainer');
+      if (rankContainer) rankContainer.style.display = 'none';
       return;
     }
     dom.topProfile.style.display = 'flex';
@@ -1307,6 +1309,62 @@
     dom.topAvatar.src = avatarUrl(user);
     dom.topName.textContent = user.name;
     dom.topPlatform.textContent = user.geyser || user.platform === 'Bedrock' ? 'Geyser' : 'Java';
+
+    // Update dropdown elements
+    const dropdownAvatar = document.getElementById('dropdownAvatar');
+    const dropdownName = document.getElementById('dropdownName');
+    const dropdownRank = document.getElementById('dropdownRank');
+    if (dropdownAvatar) {
+      dropdownAvatar.onerror = () => { dropdownAvatar.src = `https://minotar.net/helm/${encodeURIComponent(user.name)}/64.png`; };
+      dropdownAvatar.src = avatarUrl(user);
+    }
+    if (dropdownName) dropdownName.textContent = user.name;
+
+    // Update rank badge
+    const rankContainer = document.getElementById('rankBadgeContainer');
+    const rankBadge = document.getElementById('rankBadge');
+    const rankName = document.getElementById('rankName');
+    const rankTooltipRank = document.getElementById('rankTooltipRank');
+    const rankTooltipWeight = document.getElementById('rankTooltipWeight');
+    const rankTooltipPrefix = document.getElementById('rankTooltipPrefix');
+
+    if (user.rank && rankContainer) {
+      rankContainer.style.display = 'block';
+      if (rankName) rankName.textContent = user.rank.name || 'Member';
+      if (rankTooltipRank) rankTooltipRank.textContent = user.rank.name || 'Member';
+      if (rankTooltipWeight) rankTooltipWeight.textContent = user.rank.weight || '0';
+      if (rankTooltipPrefix) rankTooltipPrefix.textContent = user.rank.prefix || 'None';
+      if (dropdownRank) dropdownRank.textContent = user.rank.name || 'Member';
+
+      // Apply rank colors from config
+      if (user.rank.color && rankBadge) {
+        const hexColor = user.rank.color;
+        const rgb = hexToRgb(hexColor);
+        if (rgb) {
+          rankBadge.style.setProperty('--rank-color', hexColor);
+          rankBadge.style.setProperty('--rank-bg', `rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, 0.15)`);
+          rankBadge.style.setProperty('--rank-border', `rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, 0.3)`);
+          rankBadge.style.setProperty('--rank-glow', `rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, 0.25)`);
+        }
+      }
+    } else if (rankContainer) {
+      rankContainer.style.display = 'none';
+    }
+  }
+
+  // Helper to convert hex color to RGB
+  function hexToRgb(hex) {
+    if (!hex) return null;
+    hex = hex.replace('#', '');
+    if (hex.length === 3) {
+      hex = hex.split('').map(c => c + c).join('');
+    }
+    const result = /^([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
+    return result ? {
+      r: parseInt(result[1], 16),
+      g: parseInt(result[2], 16),
+      b: parseInt(result[3], 16)
+    } : null;
   }
 
   function renderChatToggles() {

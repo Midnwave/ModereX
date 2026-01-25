@@ -3190,10 +3190,13 @@
         platform: 'Java',
         prefix: session.prefix || '',
         suffix: session.suffix || '',
-        connectedAt: now()
+        connectedAt: now(),
+        rank: session.rank || null  // LuckPerms rank info: { name, weight, prefix, color }
       };
       state.staffName = session.playerName || session.username;
+      state.notifications = state.notifications || [];
       ui.renderTopUser();
+      updateNotificationCount();
 
       // Update server name in sidebar
       const serverNameText = document.getElementById('serverNameText');
@@ -4773,6 +4776,103 @@
   window.PANEL_VERSION = PANEL_VERSION;
   window.PANEL_BUILD_DATE = PANEL_BUILD_DATE;
 
+  // ===== PROFILE DROPDOWN =====
+  function toggleProfileDropdown() {
+    const dropdown = document.getElementById('profileDropdown');
+    const profile = document.getElementById('topProfile');
+    if (!dropdown || !profile) return;
+
+    const isOpen = dropdown.classList.contains('show');
+    if (isOpen) {
+      closeProfileDropdown();
+    } else {
+      dropdown.classList.add('show');
+      profile.classList.add('open');
+      // Close when clicking outside
+      setTimeout(() => {
+        document.addEventListener('click', handleProfileClickOutside);
+      }, 0);
+    }
+  }
+
+  function closeProfileDropdown() {
+    const dropdown = document.getElementById('profileDropdown');
+    const profile = document.getElementById('topProfile');
+    if (dropdown) dropdown.classList.remove('show');
+    if (profile) profile.classList.remove('open');
+    document.removeEventListener('click', handleProfileClickOutside);
+  }
+
+  function handleProfileClickOutside(e) {
+    const profile = document.getElementById('topProfile');
+    if (profile && !profile.contains(e.target)) {
+      closeProfileDropdown();
+    }
+  }
+
+  function logout() {
+    closeProfileDropdown();
+    state.authenticated = false;
+    state.currentUser = null;
+    state.staffName = '';
+    state.notifications = [];
+
+    // Disconnect WebSocket
+    const ws = window.MX?.ws;
+    if (ws) ws.disconnect();
+
+    // Clear saved auth
+    try {
+      localStorage.removeItem('mx_auth');
+      localStorage.removeItem('mx_token');
+    } catch (e) {}
+
+    // Reload to show auth screen
+    window.location.reload();
+  }
+
+  // ===== NOTIFICATIONS =====
+  function updateNotificationCount() {
+    const countEl = document.getElementById('notificationCount');
+    if (!countEl) return;
+
+    const count = (state.notifications || []).filter(n => !n.read).length;
+    if (count > 0) {
+      countEl.textContent = count > 99 ? '99+' : count;
+      countEl.style.display = 'flex';
+    } else {
+      countEl.style.display = 'none';
+    }
+  }
+
+  function openNotificationsPanel() {
+    closeProfileDropdown();
+    // For now, just show a toast - notifications panel can be added later
+    toast('info', 'Notifications', `You have ${(state.notifications || []).filter(n => !n.read).length} unread notifications`);
+  }
+
+  function addNotification(notification) {
+    if (!state.notifications) state.notifications = [];
+    state.notifications.unshift({
+      id: uid('notif'),
+      ...notification,
+      read: false,
+      timestamp: now()
+    });
+    // Keep only last 50 notifications
+    if (state.notifications.length > 50) {
+      state.notifications = state.notifications.slice(0, 50);
+    }
+    updateNotificationCount();
+  }
+
+  window.toggleProfileDropdown = toggleProfileDropdown;
+  window.closeProfileDropdown = closeProfileDropdown;
+  window.logout = logout;
+  window.openNotificationsPanel = openNotificationsPanel;
+  window.addNotification = addNotification;
+  window.updateNotificationCount = updateNotificationCount;
+
   // ===== INITIALIZATION =====
   document.addEventListener('DOMContentLoaded', () => {
     ui.initDom();
@@ -4794,6 +4894,16 @@
     // Check for panel updates on load and every 5 minutes
     setTimeout(checkForPanelUpdate, 3000);
     updateCheckInterval = setInterval(checkForPanelUpdate, 5 * 60 * 1000);
+
+    // Setup profile dropdown click handler
+    const topProfile = document.getElementById('topProfile');
+    if (topProfile) {
+      topProfile.addEventListener('click', (e) => {
+        // Don't toggle if clicking on dropdown item
+        if (e.target.closest('.profile-dropdown-item')) return;
+        toggleProfileDropdown();
+      });
+    }
   });
 
   // Setup status indicator handlers
