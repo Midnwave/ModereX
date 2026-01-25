@@ -1,0 +1,24 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(gradle clean build:*)",
+      "Bash(gradle build:*)",
+      "Bash(for:*)",
+      "Bash(do sed -i 's/package com\\\\.blockforge\\\\.moderex\\\\.commands\\\\.moderation;/package com.blockforge.moderex.commands.moderation.punishment;/' \"$file\")",
+      "Bash(done)",
+      "Bash(do sed -i 's/package com\\\\.blockforge\\\\.moderex\\\\.commands\\\\.moderation;/package com.blockforge.moderex.commands.moderation.check;/' \"$file\")",
+      "Bash(gradlew build:*)",
+      "Bash(./gradlew build:*)",
+      "Bash(git add:*)",
+      "Bash(git commit:*)",
+      "Bash(python:*)",
+      "Bash(ls:*)",
+      "Bash(./gradlew.bat build:*)",
+      "Bash(./gradlew compileJava:*)",
+      "WebSearch",
+      "Bash(gradlew.bat compileJava:*)",
+      "Bash(cmd /c \"cd /d C:\\\\Dev\\\\ModereX && gradlew.bat compileJava --console=plain\")",
+      "Bash(powershell -Command:*)"
+    ]
+  }
+}
