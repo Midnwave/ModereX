@@ -14,6 +14,10 @@ import com.blockforge.moderex.punishment.PunishmentManager;
 import com.blockforge.moderex.punishment.PunishmentScheduler;
 import com.blockforge.moderex.punishment.TemplateManager;
 import com.blockforge.moderex.replay.ReplayManager;
+import com.blockforge.moderex.replay.block.BlockLogManager;
+import com.blockforge.moderex.replay.block.FakeBlockManager;
+import com.blockforge.moderex.replay.entity.EntityLogManager;
+import com.blockforge.moderex.log.ActivityLogManager;
 import com.blockforge.moderex.staff.StaffChatManager;
 import com.blockforge.moderex.staff.StaffSettingsManager;
 import com.blockforge.moderex.staff.VanishManager;
@@ -63,6 +67,10 @@ public final class ModereX extends JavaPlugin {
     private CommandManager commandManager;
     private ListenerManager listenerManager;
     private ReplayManager replayManager;
+    private BlockLogManager blockLogManager;
+    private FakeBlockManager fakeBlockManager;
+    private EntityLogManager entityLogManager;
+    private ActivityLogManager activityLogManager;
     private TemplateManager templateManager;
     private com.blockforge.moderex.monitor.ServerStatusManager serverStatusManager;
     private StaffSettingsManager staffSettingsManager;
@@ -192,8 +200,15 @@ public final class ModereX extends JavaPlugin {
         rulesManager.initialize();
 
         logStartup("Initializing replay system...");
+        this.blockLogManager = new BlockLogManager(this);
+        this.fakeBlockManager = new FakeBlockManager(this);
+        this.entityLogManager = new EntityLogManager(this);
         this.replayManager = new ReplayManager(this);
         replayManager.start();
+
+        logStartup("Initializing activity log system...");
+        this.activityLogManager = new ActivityLogManager(this);
+        activityLogManager.initialize();
 
         logStartup("Initializing server status monitor...");
         this.serverStatusManager = new com.blockforge.moderex.monitor.ServerStatusManager(this);
@@ -306,6 +321,11 @@ public final class ModereX extends JavaPlugin {
         // Stop replay system
         if (replayManager != null) {
             replayManager.stop();
+        }
+
+        // Stop activity log system
+        if (activityLogManager != null) {
+            activityLogManager.shutdown();
         }
 
         // Stop punishment scheduler
@@ -603,6 +623,22 @@ public final class ModereX extends JavaPlugin {
 
     public ReplayManager getReplayManager() {
         return replayManager;
+    }
+
+    public ActivityLogManager getActivityLogManager() {
+        return activityLogManager;
+    }
+
+    public BlockLogManager getBlockLogManager() {
+        return blockLogManager;
+    }
+
+    public FakeBlockManager getFakeBlockManager() {
+        return fakeBlockManager;
+    }
+
+    public EntityLogManager getEntityLogManager() {
+        return entityLogManager;
     }
 
     public TemplateManager getTemplateManager() {
