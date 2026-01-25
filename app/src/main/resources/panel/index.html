@@ -132,6 +132,22 @@
   <!-- Sidebar Overlay (mobile) -->
   <div class="sidebarOverlay" id="sidebarOverlay" onclick="toggleSidebar()"></div>
 
+  <!-- Update Banner -->
+  <div class="updateBanner" id="updateBanner">
+    <div class="updateBanner-content">
+      <i class="fa-solid fa-arrow-up-right-from-square"></i>
+      <div class="updateBanner-text">
+        <span class="update-title">Panel Update Available</span>
+        <span class="update-version">V6 • 2026-01-25</span>
+        <span class="update-notes">New features available</span>
+      </div>
+      <div class="updateBanner-actions">
+        <button class="mini primary" onclick="applyPanelUpdate()"><i class="fa-solid fa-rotate"></i> Update Now</button>
+        <button class="mini" onclick="dismissUpdateBanner()"><i class="fa-solid fa-xmark"></i></button>
+      </div>
+    </div>
+  </div>
+
   <!-- Main App -->
   <div class="app">
     <!-- Sidebar -->
@@ -140,6 +156,7 @@
       <div class="logo logo-img"><img src="537154108207028818e303ef9465c1f66717660d_96.png" alt="ModereX logo"></div>
         <div class="brand">
           <b>ModereX</b>
+          <span class="sb-version">V6 • 2026-01-25</span>
         </div>
       </div>
       

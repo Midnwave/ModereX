@@ -4723,6 +4723,55 @@
   window.confirmResetChecklist = confirmResetChecklist;
   window.loadDevChecklist = loadDevChecklist;
 
+  // ===== WEB PANEL AUTO-UPDATE =====
+  const PANEL_VERSION = 'V6';
+  const PANEL_BUILD_DATE = '2026-01-25';
+  let updateCheckInterval = null;
+
+  function checkForPanelUpdate() {
+    // Check with server for latest panel version
+    fetch('/api/panel-version?_=' + Date.now())
+      .then(res => res.json())
+      .then(data => {
+        if (data.version && data.version !== PANEL_VERSION) {
+          showUpdateNotification(data.version, data.buildDate, data.notes);
+        } else if (data.buildDate && data.buildDate !== PANEL_BUILD_DATE) {
+          showUpdateNotification(data.version || PANEL_VERSION, data.buildDate, data.notes);
+        }
+      })
+      .catch(() => {
+        // Silent fail - update check is optional
+      });
+  }
+
+  function showUpdateNotification(newVersion, buildDate, notes) {
+    const msg = notes ? `${notes}` : 'A newer version is available.';
+    toast('info', `Update Available: ${newVersion}`, msg, { duration: 10000 });
+
+    // Show persistent update banner
+    const banner = document.getElementById('updateBanner');
+    if (banner) {
+      banner.querySelector('.update-version').textContent = `${newVersion} • ${buildDate}`;
+      banner.querySelector('.update-notes').textContent = notes || 'New features and improvements';
+      banner.classList.add('show');
+    }
+  }
+
+  function dismissUpdateBanner() {
+    const banner = document.getElementById('updateBanner');
+    if (banner) banner.classList.remove('show');
+  }
+
+  function applyPanelUpdate() {
+    // Force reload bypassing cache
+    window.location.reload(true);
+  }
+
+  window.dismissUpdateBanner = dismissUpdateBanner;
+  window.applyPanelUpdate = applyPanelUpdate;
+  window.PANEL_VERSION = PANEL_VERSION;
+  window.PANEL_BUILD_DATE = PANEL_BUILD_DATE;
+
   // ===== INITIALIZATION =====
   document.addEventListener('DOMContentLoaded', () => {
     ui.initDom();
@@ -4740,6 +4789,10 @@
     applyThemeFromState();
     setInterval(saveState, 4000);
     window.addEventListener('beforeunload', saveState);
+
+    // Check for panel updates on load and every 5 minutes
+    setTimeout(checkForPanelUpdate, 3000);
+    updateCheckInterval = setInterval(checkForPanelUpdate, 5 * 60 * 1000);
   });
 
   // Setup status indicator handlers
