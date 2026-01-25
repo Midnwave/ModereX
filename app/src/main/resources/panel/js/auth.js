@@ -98,7 +98,6 @@
   function init() {
     // Generate device fingerprint
     authState.deviceFingerprint = generateDeviceFingerprint();
-    console.log('[Auth] Device fingerprint:', authState.deviceFingerprint);
 
     cacheDom();
     checkUrlToken();
