@@ -2477,22 +2477,59 @@
     return `${seconds}s`;
   }
 
-  // Status indicator updates
+  // Status indicator updates with ping-based color coding
   function updateStatusIndicator(status, ping) {
     const statusChip = document.getElementById('statusChip');
     const pingText = document.getElementById('pingText');
+    const statusDot = document.getElementById('statusDot');
 
     if (!statusChip || !pingText) return;
 
-    if (status === 'connected') {
-      statusChip.className = 'chip ok';
-      pingText.textContent = ping > 0 ? ping : '--';
+    // Update ping text
+    pingText.textContent = ping > 0 ? ping : '--';
+
+    // Determine status based on connection and ping
+    let statusClass = 'chip';
+    let dotClass = '';
+    let statusLabel = 'Disconnected';
+
+    if (status === 'connected' && ping > 0) {
+      if (ping < 100) {
+        // Green: Excellent (<100ms)
+        statusClass = 'chip ok';
+        dotClass = 'ok';
+        statusLabel = 'Excellent';
+      } else if (ping < 300) {
+        // Yellow: Good (100-300ms)
+        statusClass = 'chip warn';
+        dotClass = 'warn';
+        statusLabel = 'Good';
+      } else {
+        // Red: Poor (>300ms)
+        statusClass = 'chip bad';
+        dotClass = 'bad';
+        statusLabel = 'Poor';
+      }
+    } else if (status === 'connected') {
+      statusClass = 'chip ok';
+      dotClass = 'ok';
+      statusLabel = 'Connected';
     } else if (status === 'saving') {
-      statusChip.className = 'chip warn';
-      pingText.textContent = ping > 0 ? ping : '--';
+      statusClass = 'chip warn';
+      dotClass = 'warn';
+      statusLabel = 'Saving...';
     } else {
-      statusChip.className = 'chip bad';
-      pingText.textContent = '--';
+      statusClass = 'chip bad';
+      dotClass = 'bad';
+      statusLabel = 'Disconnected';
+    }
+
+    statusChip.className = statusClass;
+    statusChip.title = `${statusLabel}${ping > 0 ? ' - ' + ping + 'ms latency' : ''}`;
+
+    // Also update sidebar status dot
+    if (statusDot) {
+      statusDot.className = 'dot' + (dotClass ? ' ' + dotClass : '');
     }
   }
 

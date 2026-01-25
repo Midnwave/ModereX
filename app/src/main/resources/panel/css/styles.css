@@ -420,6 +420,23 @@ body {
   background: var(--ok);
   box-shadow: 0 0 12px var(--ok-glow);
   animation: pulse 2s ease-in-out infinite;
+  transition: background 0.3s, box-shadow 0.3s;
+}
+
+.dot.ok {
+  background: var(--ok);
+  box-shadow: 0 0 12px var(--ok-glow);
+}
+
+.dot.warn {
+  background: var(--warn);
+  box-shadow: 0 0 12px rgba(245, 158, 11, 0.4);
+}
+
+.dot.bad {
+  background: var(--error);
+  box-shadow: 0 0 12px rgba(239, 68, 68, 0.4);
+  animation: none;
 }
 
 @keyframes pulse {
