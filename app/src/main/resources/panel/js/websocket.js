@@ -28,6 +28,12 @@
   // Message handlers registered by other modules
   const handlers = new Map();
 
+  // Sequential request queue for database operations
+  const requestQueue = [];
+  let isProcessingQueue = false;
+  const pendingRequests = new Map(); // requestId -> { resolve, reject, timeout }
+  let requestIdCounter = 0;
+
   /**
    * Connect to the WebSocket server
    * @param {string} host - Server host (e.g., 'localhost')
@@ -150,6 +156,113 @@
   }
 
   /**
+   * Send a message and wait for response (Promise-based)
+   * Used for sequential operations that need confirmation
+   * @param {string} type - Message type
+   * @param {object} data - Message data
+   * @param {string} responseType - Expected response type
+   * @param {number} timeout - Timeout in ms (default 30s)
+   */
+  function sendAndWait(type, data = {}, responseType = null, timeout = 30000) {
+    return new Promise((resolve, reject) => {
+      if (!ws || ws.readyState !== WebSocket.OPEN) {
+        reject(new Error('Not connected'));
+        return;
+      }
+
+      const requestId = ++requestIdCounter;
+      const expectedResponse = responseType || `${type}_RESPONSE`;
+
+      // Add request ID to data for correlation
+      data._requestId = requestId;
+
+      const timeoutId = setTimeout(() => {
+        pendingRequests.delete(requestId);
+        reject(new Error(`Request timeout: ${type}`));
+      }, timeout);
+
+      pendingRequests.set(requestId, {
+        resolve,
+        reject,
+        timeout: timeoutId,
+        expectedType: expectedResponse
+      });
+
+      const message = JSON.stringify({ type, data });
+      ws.send(message);
+      if (window.debugLog) window.debugLog('WS', `Sent (awaiting): ${type}`, 'info');
+    });
+  }
+
+  /**
+   * Queue a database operation for sequential processing
+   * Ensures operations are processed one at a time in order
+   * @param {string} type - Message type
+   * @param {object} data - Message data
+   */
+  function queueOperation(type, data = {}) {
+    return new Promise((resolve, reject) => {
+      requestQueue.push({ type, data, resolve, reject });
+      processQueue();
+    });
+  }
+
+  /**
+   * Process the next item in the request queue
+   */
+  async function processQueue() {
+    if (isProcessingQueue || requestQueue.length === 0) return;
+
+    isProcessingQueue = true;
+
+    while (requestQueue.length > 0) {
+      const { type, data, resolve, reject } = requestQueue.shift();
+
+      try {
+        // Send the request
+        const success = send(type, data);
+        if (success) {
+          // Give a small delay between operations
+          await new Promise(r => setTimeout(r, 50));
+          resolve(true);
+        } else {
+          reject(new Error('Failed to send'));
+        }
+      } catch (err) {
+        reject(err);
+      }
+    }
+
+    isProcessingQueue = false;
+  }
+
+  /**
+   * Handle response for pending requests
+   */
+  function handlePendingResponse(type, data) {
+    const requestId = data?._requestId;
+    if (requestId && pendingRequests.has(requestId)) {
+      const pending = pendingRequests.get(requestId);
+      clearTimeout(pending.timeout);
+      pendingRequests.delete(requestId);
+      pending.resolve(data);
+      return true;
+    }
+
+    // Also check by type for requests without explicit requestId
+    for (const [id, pending] of pendingRequests) {
+      if (pending.expectedType === type) {
+        clearTimeout(pending.timeout);
+        pendingRequests.delete(id);
+        pending.resolve(data);
+        return true;
+      }
+    }
+
+    return false;
+  }
+
+  /**
    * Register a handler for a message type
    * @param {string} type - Message type
    * @param {function} handler - Handler function
@@ -194,6 +307,13 @@
    */
   function handleMessage(message) {
     const { type, data } = message;
+
+    // Check for pending request responses first
+    if (handlePendingResponse(type, data)) {
+      // Still emit to handlers for UI updates
+      emit(type, data);
+      return;
+    }
 
     // Handle ping response
     if (type === 'PONG') {
@@ -613,7 +733,11 @@
     applyAlertPreset,
     updateMuteSettings,
     updateWarnSettings,
-    updateAnticheatSettings
+    updateAnticheatSettings,
+
+    // Sequential request processing
+    sendAndWait,
+    queueOperation
   };
 
 })();
