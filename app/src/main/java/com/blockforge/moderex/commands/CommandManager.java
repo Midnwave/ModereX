@@ -7,6 +7,7 @@ import com.blockforge.moderex.commands.moderation.check.*;
 import com.blockforge.moderex.commands.moderation.list.*;
 import com.blockforge.moderex.commands.moderation.history.*;
 import com.blockforge.moderex.commands.utility.*;
+import com.blockforge.moderex.commands.utility.ReplayCommand;
 import org.bukkit.Bukkit;
 import org.bukkit.command.CommandMap;
 import org.bukkit.command.PluginCommand;
@@ -105,12 +106,15 @@ public class CommandManager {
         registerPaperCommand(commandMap, "cmdblacklist", new CmdBlacklistCommand(plugin), "Blacklist command", List.of());
         registerPaperCommand(commandMap, "cmdunblacklist", new CmdUnblacklistCommand(plugin), "Remove command blacklist", List.of());
         registerPaperCommand(commandMap, "cmdhistory", new CmdHistoryCommand(plugin), "View command history", List.of());
+        registerPaperCommand(commandMap, "log", new LogCommand(plugin), "View player activity log", List.of("activitylog", "playerlog"));
         registerPaperCommand(commandMap, "seen", new SeenCommand(plugin), "View player last seen info", List.of("playerinfo", "lastseen"));
         registerPaperCommand(commandMap, "disguise", new DisguiseCommand(plugin), "Disguise as another player", List.of("d"));
         registerPaperCommand(commandMap, "undisguise", new UndisguiseCommand(plugin), "Remove disguise", List.of("ud"));
         registerPaperCommand(commandMap, "disguisename", new DisguiseNameCommand(plugin), "Change disguise name", List.of("dname"));
         registerPaperCommand(commandMap, "disguiseskin", new DisguiseSkinCommand(plugin), "Change disguise skin", List.of("dskin"));
         registerPaperCommand(commandMap, "rules", new RulesCommand(plugin), "View server rules", List.of("serverrules"));
+
+        registerPaperCommand(commandMap, "replay", new ReplayCommand(plugin), "Replay system commands", List.of("replays"));
 
         registerPaperCommand(commandMap, "mban", new BanCommand(plugin), "Ban a player", List.of());
         registerPaperCommand(commandMap, "munban", new UnbanCommand(plugin), "Unban a player", List.of());
@@ -191,12 +195,15 @@ public class CommandManager {
         registerSpigotCommand("cmdblacklist", new CmdBlacklistCommand(plugin));
         registerSpigotCommand("cmdunblacklist", new CmdUnblacklistCommand(plugin));
         registerSpigotCommand("cmdhistory", new CmdHistoryCommand(plugin));
+        registerSpigotCommand("log", new LogCommand(plugin));
         registerSpigotCommand("seen", new SeenCommand(plugin));
         registerSpigotCommand("disguise", new DisguiseCommand(plugin));
         registerSpigotCommand("undisguise", new UndisguiseCommand(plugin));
         registerSpigotCommand("disguisename", new DisguiseNameCommand(plugin));
         registerSpigotCommand("disguiseskin", new DisguiseSkinCommand(plugin));
         registerSpigotCommand("rules", new RulesCommand(plugin));
+
+        registerSpigotCommand("replay", new ReplayCommand(plugin));
 
         registerSpigotCommand("mban", new BanCommand(plugin));
         registerSpigotCommand("munban", new UnbanCommand(plugin));
