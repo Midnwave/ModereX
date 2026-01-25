@@ -4724,8 +4724,9 @@
   window.loadDevChecklist = loadDevChecklist;
 
   // ===== WEB PANEL AUTO-UPDATE =====
-  const PANEL_VERSION = 'V6';
+  const PANEL_VERSION = 'DEV-2026-01-25-001';
   const PANEL_BUILD_DATE = '2026-01-25';
+  const PANEL_BUILD_NUMBER = 1; // Increment this for each build on the same day
   let updateCheckInterval = null;
 
   function checkForPanelUpdate() {
