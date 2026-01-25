@@ -7,10 +7,13 @@ import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
 import org.bukkit.event.block.Action;
+import org.bukkit.event.block.BlockBreakEvent;
+import org.bukkit.event.block.BlockPlaceEvent;
 import org.bukkit.event.player.PlayerInteractEvent;
 import org.bukkit.event.player.PlayerDropItemEvent;
 import org.bukkit.event.player.PlayerQuitEvent;
 import org.bukkit.event.player.PlayerSwapHandItemsEvent;
+import org.bukkit.event.player.PlayerInteractEntityEvent;
 import org.bukkit.event.inventory.InventoryClickEvent;
 
 /**
@@ -76,6 +79,33 @@ public class ReplayListener implements Listener {
 
     @EventHandler(priority = EventPriority.HIGHEST)
     public void onPlayerSwapHands(PlayerSwapHandItemsEvent event) {
+        Player player = event.getPlayer();
+
+        if (plugin.getReplayManager().isViewingReplay(player.getUniqueId())) {
+            event.setCancelled(true);
+        }
+    }
+
+    @EventHandler(priority = EventPriority.HIGHEST)
+    public void onBlockPlace(BlockPlaceEvent event) {
+        Player player = event.getPlayer();
+
+        if (plugin.getReplayManager().isViewingReplay(player.getUniqueId())) {
+            event.setCancelled(true);
+        }
+    }
+
+    @EventHandler(priority = EventPriority.HIGHEST)
+    public void onBlockBreak(BlockBreakEvent event) {
+        Player player = event.getPlayer();
+
+        if (plugin.getReplayManager().isViewingReplay(player.getUniqueId())) {
+            event.setCancelled(true);
+        }
+    }
+
+    @EventHandler(priority = EventPriority.HIGHEST)
+    public void onPlayerInteractEntity(PlayerInteractEntityEvent event) {
         Player player = event.getPlayer();
 
         if (plugin.getReplayManager().isViewingReplay(player.getUniqueId())) {
