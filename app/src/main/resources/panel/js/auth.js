@@ -250,10 +250,10 @@
     } else if (savedToken) {
       // Check if this device previously logged in with this token
       if (savedDeviceFingerprint === authState.deviceFingerprint) {
-        console.log('[Auth] Same device - verifying saved token with device trust check');
-        updateStatus('Authenticating...', 'Checking device trust');
-        // Send token with device fingerprint - server will check device trust setting
-        ws.send('VERIFY_TOKEN', {
+        console.log('[Auth] Same device - authenticating with saved token');
+        updateStatus('Authenticating...', 'Verifying token');
+        // Use AUTH_PERMANENT_TOKEN which the server understands
+        ws.send('AUTH_PERMANENT_TOKEN', {
           token: savedToken,
           deviceFingerprint: authState.deviceFingerprint
         });
@@ -280,7 +280,7 @@
         console.log('[Auth] Authentication timeout - showing manual auth');
         showManualAuth('Authentication timed out');
       }
-    }, 5000);
+    }, 10000);
   }
 
   /**
@@ -412,52 +412,7 @@
       }
     });
 
-    // Token verification response (from saved token)
-    ws.on('TOKEN_VERIFIED', (data) => {
-      console.log('[Auth] Token verified:', data);
-
-      if (data.valid) {
-        // Check device trust setting
-        authState.deviceTrustEnabled = data.deviceTrustEnabled || false;
-
-        if (authState.deviceTrustEnabled) {
-          // Device trust is ON - complete authentication
-          authState.token = localStorage.getItem('mx_permanent_token');
-          completeAuthentication(data);
-        } else {
-          // Device trust is OFF - require re-entering token
-          console.log('[Auth] Device trust disabled - requiring manual authentication');
-          authState.token = null;
-          authState.status = AuthStatus.UNAUTHENTICATED;
-          showManualAuth('Device trust is disabled. Please enter your token to continue.');
-        }
-      } else {
-        // Token invalid
-        console.log('[Auth] Token invalid');
-        authState.token = null;
-        authState.status = AuthStatus.UNAUTHENTICATED;
-        authState.tokenValid = false;
-        localStorage.removeItem('mx_permanent_token');
-        localStorage.removeItem('mx_token_device');
-        showManualAuth('Session expired. Please enter your token again.');
-      }
-    });
-
-    // Token validation response (periodic check every 10 seconds)
-    ws.on('TOKEN_VALIDATION', (data) => {
-      authState.lastValidation = Date.now();
-
-      if (!data.valid) {
-        console.log('[Auth] Token no longer valid - logging out');
-        forceLogout('Your session has expired.');
-      } else {
-        authState.tokenValid = true;
-        // Update device trust setting in case it changed
-        authState.deviceTrustEnabled = data.deviceTrustEnabled || false;
-      }
-    });
-
-    // Standard auth success (from manual token entry)
+    // Standard auth success (from token authentication)
     ws.on('auth_success', (data) => {
       console.log('[Auth] Authentication successful:', data.playerName || data.username);
 
@@ -593,22 +548,23 @@
   }
 
   /**
-   * Start periodic token validation (every 10 seconds)
+   * Start periodic connection heartbeat (every 10 seconds)
+   * Uses PING/PONG which the server already handles
    */
   function startTokenValidation() {
     stopTokenValidation();
 
     tokenValidationTimer = setInterval(() => {
-      if (authState.connected && authState.token && authState.status === AuthStatus.VERIFIED) {
-        console.log('[Auth] Validating token...');
-        ws.send('VALIDATE_TOKEN', {
-          token: authState.token,
-          deviceFingerprint: authState.deviceFingerprint
+      if (authState.connected && authState.status === AuthStatus.VERIFIED) {
+        // Send heartbeat - server will disconnect us if session is invalid
+        ws.send('HEARTBEAT', {
+          timestamp: Date.now()
         });
+        authState.lastValidation = Date.now();
       }
     }, TOKEN_VALIDATION_INTERVAL);
 
-    console.log('[Auth] Started token validation (every 10s)');
+    console.log('[Auth] Started connection heartbeat (every 10s)');
   }
 
   /**
@@ -758,7 +714,7 @@
       authState.connectionPhase = 'authenticating';
       authState.status = AuthStatus.PENDING_VERIFICATION;
       updateStatus('Authenticating...', 'Verifying token');
-      ws.send('AUTH_TOKEN', {
+      ws.send('AUTH_PERMANENT_TOKEN', {
         token: token,
         deviceFingerprint: authState.deviceFingerprint
       });
@@ -768,14 +724,14 @@
           setLoading(false);
           showError('Authentication timed out');
         }
-      }, 5000);
+      }, 8000);
     } else {
       authState.connectionPhase = 'connecting';
       authState.status = AuthStatus.PENDING_VERIFICATION;
       updateStatus('Connecting...', 'Establishing connection');
 
       connectWebSocket().then(() => {
-        ws.send('AUTH_TOKEN', {
+        ws.send('AUTH_PERMANENT_TOKEN', {
           token: token,
           deviceFingerprint: authState.deviceFingerprint
         });
