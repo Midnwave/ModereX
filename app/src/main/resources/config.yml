@@ -90,8 +90,6 @@ webpanel:
   # Server name displayed in the web panel
   server-name: 'My Server'
 
-  # Authentication token (auto-generated if empty and enabled)
-  auth-token: ''
 
   # EXPERIMENTAL: Host web panel on same port as Minecraft server
   # Uses Netty injection to detect HTTP traffic on the game port
@@ -101,10 +99,6 @@ webpanel:
 
   # Token validation interval in seconds (checks if session is still valid)
   token-validation-interval: 10
-
-  # Enable device fingerprint checking for extra security
-  # When enabled, tokens are tied to specific browser/device fingerprints
-  device-fingerprint-enabled: false
 
   # LuckPerms rank display colors for web panel
   # Maps LuckPerms group names to hex color codes
