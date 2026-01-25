@@ -2,6 +2,8 @@ package com.blockforge.moderex.replay;
 
 import com.blockforge.moderex.ModereX;
 import com.blockforge.moderex.hooks.CitizensHook;
+import com.blockforge.moderex.replay.block.BlockLogEntry;
+import com.blockforge.moderex.replay.block.FakeBlockManager;
 import com.blockforge.moderex.util.TextUtil;
 import net.kyori.adventure.title.Title;
 import org.bukkit.*;
@@ -14,6 +16,7 @@ import org.bukkit.scheduler.BukkitTask;
 
 import java.time.Duration;
 import java.util.*;
+import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * ReplayPlayback handles playback of recorded replay sessions using Citizens NPCs.
@@ -37,7 +40,10 @@ public class ReplayPlayback {
     private GameMode originalGameMode;
     private ItemStack[] originalInventory;
     private ItemStack[] originalArmor;
+    private ItemStack originalOffHand;
+    private int originalHeldSlot;
     private boolean wasFlying;
+    private boolean wasAllowFlight;
     private Collection<PotionEffect> originalEffects;
 
     // Citizens NPCs - Player UUID -> Citizens NPC UUID
@@ -46,6 +52,18 @@ public class ReplayPlayback {
 
     // Action log tracking - track last shown action index per player
     private final Map<UUID, Integer> lastActionIndex = new HashMap<>();
+
+    // Block log tracking for physical block mode
+    private List<BlockLogEntry> blockLogs = new ArrayList<>();
+    private final Map<String, BlockLogEntry> blockLogByLocation = new ConcurrentHashMap<>();
+    private boolean usingPhysicalBlocks = false;
+    private int lastBlockLogIndex = 0;
+
+    // Players teleported away for safety (to restore their location after playback)
+    private final Map<UUID, Location> teleportedPlayersOriginalLocations = new ConcurrentHashMap<>();
+
+    // Track projectile actions already processed to avoid duplicate spawns
+    private final Set<Long> processedProjectileTimestamps = new HashSet<>();
 
     // Hotbar control slots
     private static final int SLOT_REWIND_10 = 0;
@@ -129,6 +147,25 @@ public class ReplayPlayback {
         playbackStartTime = System.currentTimeMillis();
         currentPlaybackTime = session.getStartTime();
 
+        // Determine block handling mode
+        usingPhysicalBlocks = plugin.getConfigManager().getSettings().isReplayUsePhysicalBlocks();
+
+        // Initialize blocks (fake or physical)
+        if (plugin.getConfigManager().getSettings().isReplayBlockLoggingEnabled()) {
+            loadBlockLogs();
+
+            if (usingPhysicalBlocks) {
+                // Scan for players and teleport them away before modifying blocks
+                teleportNearbyPlayersAway();
+
+                // Initialize physical blocks
+                plugin.getFakeBlockManager().initializePhysicalBlocks(viewer, blockLogs);
+            } else if (plugin.getConfigManager().getSettings().isReplayFakeBlocksEnabled()) {
+                // Initialize fake blocks (client-side only)
+                initializeFakeBlocks();
+            }
+        }
+
         // Start playback task (runs every tick)
         playbackTask = plugin.getServer().getScheduler().runTaskTimer(plugin, this::tick, 1L, 1L);
 
@@ -147,26 +184,45 @@ public class ReplayPlayback {
 
         playing = false;
 
-        // Stop tick task
-        if (playbackTask != null) {
-            playbackTask.cancel();
-            playbackTask = null;
-        }
+        // CRITICAL: Remove from activePlaybacks FIRST so ReplayListener stops cancelling events
+        plugin.getReplayManager().onPlaybackStopped(viewer.getUniqueId());
 
-        // Remove all Citizens NPCs
-        if (plugin.getHookManager().hasCitizens()) {
-            CitizensHook citizens = plugin.getHookManager().getCitizensHook();
-            for (UUID npcId : npcIds.values()) {
-                citizens.removeNpc(npcId);
+        try {
+            // Stop tick task
+            if (playbackTask != null) {
+                playbackTask.cancel();
+                playbackTask = null;
             }
+
+            // Remove all Citizens NPCs
+            if (plugin.getHookManager().hasCitizens()) {
+                CitizensHook citizens = plugin.getHookManager().getCitizensHook();
+                for (UUID npcId : npcIds.values()) {
+                    citizens.removeNpc(npcId);
+                }
+            }
+            npcIds.clear();
+
+            viewer.sendMessage(TextUtil.parse("<gray>Replay playback ended."));
+            plugin.logDebug("Stopped playback for " + viewer.getName());
+        } finally {
+            // Cleanup blocks (physical or fake)
+            if (plugin.getFakeBlockManager() != null) {
+                if (usingPhysicalBlocks) {
+                    // Restore physical blocks first
+                    plugin.getFakeBlockManager().restorePhysicalBlocks(viewer);
+                } else {
+                    // Cleanup fake blocks
+                    plugin.getFakeBlockManager().cleanupViewer(viewer);
+                }
+            }
+
+            // Restore teleported players to their original locations
+            restoreTeleportedPlayers();
+
+            // Always restore viewer state, even if NPC cleanup fails
+            restoreViewerState();
         }
-        npcIds.clear();
-
-        // Restore viewer state
-        restoreViewerState();
-
-        viewer.sendMessage(TextUtil.parse("<gray>Replay playback ended."));
-        plugin.logDebug("Stopped playback for " + viewer.getName());
     }
 
     public void togglePause() {
@@ -219,6 +275,18 @@ public class ReplayPlayback {
 
             lastActionIndex.put(playerUuid, newIndex);
         }
+
+        // Also recalculate block log index
+        lastBlockLogIndex = 0;
+        for (int i = 0; i < blockLogs.size(); i++) {
+            if (blockLogs.get(i).getTimestamp() > currentPlaybackTime) {
+                break;
+            }
+            lastBlockLogIndex = i + 1;
+        }
+
+        // Clear processed projectiles when seeking (they may need to be replayed)
+        processedProjectileTimestamps.clear();
     }
 
     public void cycleSpeed() {
@@ -271,6 +339,9 @@ public class ReplayPlayback {
         // Update NPCs
         updateNpcs();
 
+        // Process block logs (place, break, explosions)
+        processBlockLogs();
+
         // Show action logs
         displayActionLogs();
 
@@ -302,11 +373,32 @@ public class ReplayPlayback {
                     Location loc = targetSnapshot.toLocation(world);
                     citizens.updateNpcLocation(npcId, loc);
                     citizens.setNpcSneaking(npcId, targetSnapshot.isSneaking());
+                    citizens.setNpcGliding(npcId, targetSnapshot.isGliding());
+                    citizens.setNpcSwimming(npcId, targetSnapshot.isSwimming());
                     citizens.setNpcHeldItem(npcId, targetSnapshot.getMainHand());
+                    citizens.setNpcOffHandItem(npcId, targetSnapshot.getOffHand());
                     citizens.setNpcArmor(npcId, targetSnapshot.getArmor());
+
+                    // Handle projectile actions - spawn visual projectiles
+                    ReplaySnapshot.ActionType action = targetSnapshot.getAction();
+                    if (isProjectileAction(action) && !processedProjectileTimestamps.contains(targetSnapshot.getTimestamp())) {
+                        processedProjectileTimestamps.add(targetSnapshot.getTimestamp());
+                        citizens.spawnVisualProjectile(npcId, action.name());
+                    }
                 }
             }
         }
+    }
+
+    /**
+     * Check if an action type is a projectile action.
+     */
+    private boolean isProjectileAction(ReplaySnapshot.ActionType action) {
+        return switch (action) {
+            case BOW_SHOOT, CROSSBOW_SHOOT, TRIDENT_THROW, ENDER_PEARL_THROW,
+                 EGG_THROW, SNOWBALL_THROW, WIND_CHARGE_THROW -> true;
+            default -> false;
+        };
     }
 
     private ReplaySnapshot findClosestSnapshot(List<ReplaySnapshot> snapshots, long targetTime) {
@@ -326,6 +418,101 @@ public class ReplayPlayback {
         }
 
         return closest;
+    }
+
+    /**
+     * Process block logs (place, break, explosions, etc.) based on current playback time.
+     * Block logs are processed separately from snapshots because they have precise timestamps.
+     */
+    private void processBlockLogs() {
+        if (blockLogs.isEmpty()) return;
+
+        FakeBlockManager fakeBlockManager = plugin.getFakeBlockManager();
+        if (fakeBlockManager == null) return;
+
+        for (int i = lastBlockLogIndex; i < blockLogs.size(); i++) {
+            BlockLogEntry entry = blockLogs.get(i);
+
+            // Skip if we haven't reached this point yet
+            if (entry.getTimestamp() > currentPlaybackTime) {
+                break;
+            }
+
+            // Process this block log entry
+            processBlockLogEntry(entry);
+
+            // Update last index
+            lastBlockLogIndex = i + 1;
+        }
+    }
+
+    /**
+     * Process a single block log entry for playback visualization.
+     */
+    private void processBlockLogEntry(BlockLogEntry entry) {
+        FakeBlockManager fakeBlockManager = plugin.getFakeBlockManager();
+        if (fakeBlockManager == null) return;
+
+        World world = Bukkit.getWorld(entry.getWorldName());
+        if (world == null) return;
+
+        Location loc = new Location(world, entry.getX(), entry.getY(), entry.getZ());
+
+        if (usingPhysicalBlocks) {
+            // Physical block handling
+            switch (entry.getAction()) {
+                case PLACE -> {
+                    fakeBlockManager.physicallyPlaceBlock(viewer, loc, entry.getNewMaterial(), entry.getNewBlockData());
+                    if (plugin.getConfigManager().getSettings().isReplaySoundsEnabled()) {
+                        ReplaySoundManager.playBlockPlaceSound(viewer, loc, entry.getNewMaterial());
+                    }
+                }
+                case BREAK, EXPLOSION -> {
+                    fakeBlockManager.physicallyBreakBlock(viewer, loc);
+                    if (plugin.getConfigManager().getSettings().isReplaySoundsEnabled()) {
+                        ReplaySoundManager.playBlockBreakSound(viewer, loc, entry.getOldMaterial());
+                    }
+                }
+                case PISTON_EXTEND, PISTON_RETRACT -> {
+                    fakeBlockManager.physicallyPlaceBlock(viewer, loc, entry.getNewMaterial(), entry.getNewBlockData());
+                }
+                default -> {}
+            }
+        } else if (plugin.getConfigManager().getSettings().isReplayFakeBlocksEnabled()) {
+            // Fake block handling (client-side only)
+            switch (entry.getAction()) {
+                case PLACE -> {
+                    fakeBlockManager.revealBlock(viewer, loc);
+                    if (plugin.getConfigManager().getSettings().isReplaySoundsEnabled()) {
+                        ReplaySoundManager.playBlockPlaceSound(viewer, loc, entry.getNewMaterial());
+                    }
+                }
+                case BREAK, EXPLOSION -> {
+                    fakeBlockManager.hideBlockAsAir(viewer, loc);
+                    if (plugin.getConfigManager().getSettings().isReplaySoundsEnabled()) {
+                        ReplaySoundManager.playBlockBreakSound(viewer, loc, entry.getOldMaterial());
+                    }
+                }
+                case PISTON_EXTEND, PISTON_RETRACT -> {
+                    // For pistons, we reveal the new state
+                    fakeBlockManager.revealBlock(viewer, loc);
+                }
+                default -> {}
+            }
+        }
+
+        // Show log message for explosions (they're notable events)
+        if (entry.getAction() == BlockLogEntry.Action.EXPLOSION) {
+            String playerName = entry.getPlayerName() != null ? entry.getPlayerName() : "Unknown";
+            long offsetMs = entry.getTimestamp() - session.getStartTime();
+            String timeStr = formatDuration(offsetMs);
+
+            if (entry.getPlayerUuid() != null) {
+                viewer.sendMessage(TextUtil.parse(
+                        "<gray>[" + timeStr + "] <red>" + playerName + " <gray>caused explosion at <white>" +
+                        entry.getX() + ", " + entry.getY() + ", " + entry.getZ()));
+            }
+        }
     }
 
     /**
@@ -349,8 +536,12 @@ public class ReplayPlayback {
                 }
 
                 // Display action if it has one
-                if (snap.getAction() != ReplaySnapshot.ActionType.NONE) {
-                    displayAction(playerName, snap);
+                // Note: Block actions (PLACE_BLOCK, BREAK_BLOCK) are handled by processBlockLogs()
+                // based on BlockLogEntry timestamps for more accurate playback
+                if (snap.getAction() != ReplaySnapshot.ActionType.NONE &&
+                    snap.getAction() != ReplaySnapshot.ActionType.PLACE_BLOCK &&
+                    snap.getAction() != ReplaySnapshot.ActionType.BREAK_BLOCK) {
+                    displayAction(playerName, snap, playerUuid);
                 }
 
                 // Update last index
@@ -360,15 +551,149 @@ public class ReplayPlayback {
     }
 
     /**
+     * Handle block actions for block visualization (fake or physical).
+     */
+    private void handleBlockAction(ReplaySnapshot snap) {
+        FakeBlockManager fakeBlockManager = plugin.getFakeBlockManager();
+        if (fakeBlockManager == null) return;
+
+        World world = Bukkit.getWorld(snap.getWorldName());
+        if (world == null) return;
+
+        // Parse the block location from action data (format: "MATERIAL at x, y, z")
+        Location blockLoc = parseBlockLocationFromData(snap.getActionData(), world);
+        if (blockLoc == null) {
+            // Fallback to player location if we can't parse
+            blockLoc = snap.toLocation(world);
+        }
+
+        String actionData = snap.getActionData();
+
+        if (usingPhysicalBlocks) {
+            // Physical block handling - actually modify the world
+            if (snap.getAction() == ReplaySnapshot.ActionType.PLACE_BLOCK) {
+                // Parse material and block data from action data
+                Material material = parseMaterialFromData(actionData);
+                String blockData = parseBlockDataFromLogs(blockLoc);
+                fakeBlockManager.physicallyPlaceBlock(viewer, blockLoc, material, blockData);
+            } else if (snap.getAction() == ReplaySnapshot.ActionType.BREAK_BLOCK) {
+                fakeBlockManager.physicallyBreakBlock(viewer, blockLoc);
+            }
+        } else {
+            // Fake block handling - client-side only
+            if (snap.getAction() == ReplaySnapshot.ActionType.PLACE_BLOCK) {
+                // Reveal the block when it's "placed" in the timeline
+                fakeBlockManager.revealBlock(viewer, blockLoc);
+            } else if (snap.getAction() == ReplaySnapshot.ActionType.BREAK_BLOCK) {
+                // Hide the block (show as air) when it's "broken" in the timeline
+                fakeBlockManager.hideBlockAsAir(viewer, blockLoc);
+            }
+        }
+    }
+
+    /**
+     * Parse block location from action data.
+     * Format: "MATERIAL at x, y, z" or "MATERIAL_NAME at x, y, z"
+     */
+    private Location parseBlockLocationFromData(String data, World world) {
+        if (data == null || !data.contains(" at ")) {
+            return null;
+        }
+        try {
+            String[] parts = data.split(" at ");
+            if (parts.length < 2) return null;
+
+            String[] coords = parts[1].split(", ");
+            if (coords.length < 3) return null;
+
+            int x = Integer.parseInt(coords[0].trim());
+            int y = Integer.parseInt(coords[1].trim());
+            int z = Integer.parseInt(coords[2].trim());
+
+            return new Location(world, x, y, z);
+        } catch (NumberFormatException e) {
+            return null;
+        }
+    }
+
+    /**
+     * Parse block data string from block logs for a specific location.
+     */
+    private String parseBlockDataFromLogs(Location loc) {
+        String locationKey = loc.getWorld().getName() + ":" + loc.getBlockX() + ":" + loc.getBlockY() + ":" + loc.getBlockZ();
+        BlockLogEntry entry = blockLogByLocation.get(locationKey);
+        if (entry != null) {
+            return entry.getNewBlockData();
+        }
+        return null;
+    }
+
+    /**
      * Format and display an action to the viewer.
      */
-    private void displayAction(String playerName, ReplaySnapshot snapshot) {
+    private void displayAction(String playerName, ReplaySnapshot snapshot, UUID playerUuid) {
         ReplaySnapshot.ActionType action = snapshot.getAction();
         String data = snapshot.getActionData();
 
         // Format time offset
         long offsetMs = snapshot.getTimestamp() - session.getStartTime();
         String timeStr = formatDuration(offsetMs);
+
+        // Get NPC location for sounds
+        Location actionLoc = null;
+        World world = Bukkit.getWorld(snapshot.getWorldName());
+        if (world != null) {
+            actionLoc = snapshot.toLocation(world);
+        }
+
+        // Handle SWING_ARM - play animation but don't show text
+        if (action == ReplaySnapshot.ActionType.SWING_ARM) {
+            if (plugin.getConfigManager().getSettings().isReplayAnimationsEnabled()) {
+                UUID npcId = npcIds.get(playerUuid);
+                if (npcId != null && plugin.getHookManager().hasCitizens()) {
+                    plugin.getHookManager().getCitizensHook().playNpcArmSwing(npcId);
+                }
+            }
+            return;
+        }
+
+        // Play sounds for certain actions
+        if (plugin.getConfigManager().getSettings().isReplaySoundsEnabled() && actionLoc != null) {
+            switch (action) {
+                case ATTACK -> ReplaySoundManager.playAttackSound(viewer, actionLoc);
+                case DAMAGE_RECEIVED -> {
+                    // Play player hurt sound for the victim
+                    ReplaySoundManager.playEntityHurtSound(viewer, actionLoc, "PLAYER");
+                }
+                case DAMAGE_DEALT -> {
+                    // Play hit sound based on hit type from action data
+                    String hitType = parseHitTypeFromData(data);
+                    ReplaySoundManager.playHitSound(viewer, actionLoc, hitType);
+                }
+                case ITEM_PICKUP -> ReplaySoundManager.playPickupSound(viewer, actionLoc);
+                case DROP_ITEM -> ReplaySoundManager.playDropSound(viewer, actionLoc);
+                case CONSUME_ITEM -> ReplaySoundManager.playConsumeSound(viewer, actionLoc);
+                case BOW_SHOOT -> ReplaySoundManager.playBowSound(viewer, actionLoc);
+                case CROSSBOW_SHOOT -> ReplaySoundManager.playCrossbowSound(viewer, actionLoc);
+                case DEATH -> ReplaySoundManager.playDeathSound(viewer, actionLoc);
+                case TELEPORT -> ReplaySoundManager.playTeleportSound(viewer, actionLoc);
+                case PORTAL_ENTER -> ReplaySoundManager.playPortalSound(viewer, actionLoc);
+                case FISH_CAST -> ReplaySoundManager.playFishCastSound(viewer, actionLoc);
+                case FISH_REEL -> ReplaySoundManager.playFishReelSound(viewer, actionLoc);
+                case PLACE_BLOCK -> {
+                    Material mat = parseMaterialFromData(data);
+                    ReplaySoundManager.playBlockPlaceSound(viewer, actionLoc, mat);
+                }
+                case BREAK_BLOCK -> {
+                    Material mat = parseMaterialFromData(data);
+                    ReplaySoundManager.playBlockBreakSound(viewer, actionLoc, mat);
+                }
+                case SPEAR_JAB -> ReplaySoundManager.playSpearJabSound(viewer, actionLoc);
+                case SPEAR_CHARGE -> ReplaySoundManager.playSpearChargeSound(viewer, actionLoc);
+                case ARMOR_EQUIP -> ReplaySoundManager.playArmorEquipSound(viewer, actionLoc, data);
+                default -> {}
+            }
+        }
 
         // Build message based on action type
         String actionText = switch (action) {
@@ -377,7 +702,6 @@ public class ReplayPlayback {
             case ATTACK -> "<gray>[" + timeStr + "] <red>" + playerName + " <gray>" + (data != null ? data : "attacked");
             case DAMAGE_RECEIVED -> "<gray>[" + timeStr + "] <gold>" + playerName + " <gray>" + (data != null ? data : "took damage");
             case DAMAGE_DEALT -> "<gray>[" + timeStr + "] <red>" + playerName + " <gray>dealt damage" + (data != null ? ": " + data : "");
-            case SWING_ARM -> null; // Too spammy, skip display
             case SNEAK_START -> "<gray>[" + timeStr + "] <white>" + playerName + " <gray>started sneaking";
             case SNEAK_END -> "<gray>[" + timeStr + "] <white>" + playerName + " <gray>stopped sneaking";
             case SPRINT_START -> "<gray>[" + timeStr + "] <white>" + playerName + " <gray>started sprinting";
@@ -397,12 +721,84 @@ public class ReplayPlayback {
             case BREAK_BLOCK -> "<gray>[" + timeStr + "] <yellow>" + playerName + " <gray>broke: <white>" + data;
             case FISH_CAST -> "<gray>[" + timeStr + "] <aqua>" + playerName + " <gray>cast fishing rod";
             case FISH_REEL -> "<gray>[" + timeStr + "] <aqua>" + playerName + " <gray>" + (data != null ? data : "reeled in");
+            // 1.21.11+ Spear actions
+            case SPEAR_JAB -> "<gray>[" + timeStr + "] <gold>" + playerName + " <gray>jabbed with: <white>" + (data != null ? data : "spear");
+            case SPEAR_CHARGE -> "<gray>[" + timeStr + "] <gold>" + playerName + " <gray>charged with: <white>" + (data != null ? data : "spear");
+            // Equipment changes
+            case ARMOR_EQUIP -> "<gray>[" + timeStr + "] <blue>" + playerName + " <gray>equipped: <white>" + data;
+            case OFFHAND_SWAP -> "<gray>[" + timeStr + "] <light_purple>" + playerName + " <gray>swapped hands: <white>" + data;
+            // Crossbow
+            case CROSSBOW_SHOOT -> "<gray>[" + timeStr + "] <red>" + playerName + " <gray>fired: <white>" + (data != null ? data : "crossbow");
+            // Projectiles
+            case WIND_CHARGE_THROW -> "<gray>[" + timeStr + "] <aqua>" + playerName + " <gray>threw wind charge";
+            case ENDER_PEARL_THROW -> "<gray>[" + timeStr + "] <dark_purple>" + playerName + " <gray>threw ender pearl";
+            case TRIDENT_THROW -> "<gray>[" + timeStr + "] <blue>" + playerName + " <gray>threw trident";
+            case EGG_THROW -> "<gray>[" + timeStr + "] <white>" + playerName + " <gray>threw egg";
+            case SNOWBALL_THROW -> "<gray>[" + timeStr + "] <white>" + playerName + " <gray>threw snowball";
+            case POTION_THROW -> "<gray>[" + timeStr + "] <light_purple>" + playerName + " <gray>threw potion";
+            case FIREWORK_USE -> "<gray>[" + timeStr + "] <gold>" + playerName + " <gray>used firework";
+            case RIPTIDE_USE -> "<gray>[" + timeStr + "] <blue>" + playerName + " <gray>used riptide";
+            case SHIELD_BLOCK_START, SHIELD_BLOCK_END, SHIELD_BLOCK -> "<gray>[" + timeStr + "] <aqua>" + playerName + " <gray>" + (data != null ? data : "blocked");
+            // Entity interactions
+            case ENTITY_SPAWN -> "<gray>[" + timeStr + "] <green>Entity spawned: <white>" + (data != null ? data : "unknown");
+            case ENTITY_KILL -> "<gray>[" + timeStr + "] <red>" + playerName + " <gray>" + (data != null ? data : "killed entity");
+            case ENTITY_INTERACT -> "<gray>[" + timeStr + "] <yellow>" + playerName + " <gray>interacted with: <white>" + (data != null ? data : "entity");
+            case ENTITY_MOUNT -> "<gray>[" + timeStr + "] <green>" + playerName + " <gray>" + (data != null ? data : "mounted entity");
+            case ENTITY_DISMOUNT -> "<gray>[" + timeStr + "] <yellow>" + playerName + " <gray>" + (data != null ? data : "dismounted");
             default -> null;
         };
 
         if (actionText != null) {
             viewer.sendMessage(TextUtil.parse(actionText));
         }
+    }
+
+    /**
+     * Parse material name from action data.
+     */
+    private Material parseMaterialFromData(String data) {
+        if (data == null || data.isEmpty()) {
+            return Material.STONE;
+        }
+        try {
+            // Data format is usually "MATERIAL_NAME" or "MATERIAL_NAME at x,y,z"
+            String materialName = data.split(" ")[0];
+            Material mat = Material.matchMaterial(materialName);
+            return mat != null ? mat : Material.STONE;
+        } catch (Exception e) {
+            return Material.STONE;
+        }
+    }
+
+    /**
+     * Parse hit type from damage action data.
+     * Data format: "hit PlayerName for X.X damage (HIT_TYPE)" or "took X.X damage from PlayerName (HIT_TYPE)"
+     */
+    private String parseHitTypeFromData(String data) {
+        if (data == null || data.isEmpty()) {
+            return "STRONG";
+        }
+        try {
+            // Look for hit type in parentheses at the end
+            int lastParen = data.lastIndexOf('(');
+            int closeParen = data.lastIndexOf(')');
+            if (lastParen != -1 && closeParen > lastParen) {
+                String hitType = data.substring(lastParen + 1, closeParen);
+                // Handle projectile hits
+                if (hitType.startsWith("PROJECTILE:")) {
+                    return "STRONG"; // Use strong attack sound for projectiles
+                }
+                // Handle combined types like CRIT_KNOCKBACK
+                if (hitType.contains("_")) {
+                    // Return the primary hit type (first part)
+                    return hitType.split("_")[0];
+                }
+                return hitType;
+            }
+        } catch (Exception ignored) {
+            // Failed to parse, use default
+        }
+        return "STRONG";
     }
 
     private String formatDuration(long ms) {
@@ -415,8 +811,31 @@ public class ReplayPlayback {
     private void backupViewerState() {
         originalLocation = viewer.getLocation().clone();
         originalGameMode = viewer.getGameMode();
-        originalInventory = viewer.getInventory().getContents().clone();
-        originalArmor = viewer.getInventory().getArmorContents().clone();
+
+        // Deep clone inventory contents to avoid reference issues
+        ItemStack[] contents = viewer.getInventory().getContents();
+        originalInventory = new ItemStack[contents.length];
+        for (int i = 0; i < contents.length; i++) {
+            if (contents[i] != null) {
+                originalInventory[i] = contents[i].clone();
+            }
+        }
+
+        // Deep clone armor
+        ItemStack[] armor = viewer.getInventory().getArmorContents();
+        originalArmor = new ItemStack[armor.length];
+        for (int i = 0; i < armor.length; i++) {
+            if (armor[i] != null) {
+                originalArmor[i] = armor[i].clone();
+            }
+        }
+
+        // Backup off-hand and held slot
+        ItemStack offHand = viewer.getInventory().getItemInOffHand();
+        originalOffHand = offHand != null ? offHand.clone() : null;
+        originalHeldSlot = viewer.getInventory().getHeldItemSlot();
+
+        wasAllowFlight = viewer.getAllowFlight();
         wasFlying = viewer.isFlying();
         originalEffects = new ArrayList<>(viewer.getActivePotionEffects());
     }
@@ -427,11 +846,14 @@ public class ReplayPlayback {
             viewer.removePotionEffect(effect.getType());
         }
 
-        // Restore state
+        // Restore location first
         viewer.teleport(originalLocation);
+
+        // Restore gamemode
         viewer.setGameMode(originalGameMode);
-        viewer.getInventory().setContents(originalInventory);
-        viewer.getInventory().setArmorContents(originalArmor);
+
+        // Restore flight state
+        viewer.setAllowFlight(wasAllowFlight);
         viewer.setFlying(wasFlying);
 
         // Restore effects
@@ -444,6 +866,61 @@ public class ReplayPlayback {
             online.showPlayer(plugin, viewer);
             viewer.showPlayer(plugin, online);
         }
+
+        // Restore inventory synchronously, then update multiple times to ensure sync
+        restoreInventory();
+
+        // Schedule additional inventory syncs to ensure client is updated
+        plugin.getServer().getScheduler().runTaskLater(plugin, () -> {
+            if (viewer.isOnline()) {
+                restoreInventory();
+                viewer.updateInventory();
+            }
+        }, 2L);
+
+        plugin.getServer().getScheduler().runTaskLater(plugin, () -> {
+            if (viewer.isOnline()) {
+                viewer.updateInventory();
+            }
+        }, 5L);
+    }
+
+    /**
+     * Restore the viewer's inventory to its original state.
+     */
+    private void restoreInventory() {
+        // Clear inventory completely
+        viewer.getInventory().clear();
+
+        // Restore held slot first
+        viewer.getInventory().setHeldItemSlot(originalHeldSlot);
+
+        // Restore main inventory contents
+        if (originalInventory != null) {
+            for (int i = 0; i < originalInventory.length && i < viewer.getInventory().getSize(); i++) {
+                ItemStack item = originalInventory[i];
+                if (item != null) {
+                    viewer.getInventory().setItem(i, item.clone());
+                }
+            }
+        }
+
+        // Restore armor
+        if (originalArmor != null) {
+            ItemStack[] armorClone = new ItemStack[4];
+            for (int i = 0; i < Math.min(originalArmor.length, 4); i++) {
+                if (originalArmor[i] != null) {
+                    armorClone[i] = originalArmor[i].clone();
+                }
+            }
+            viewer.getInventory().setArmorContents(armorClone);
+        }
+
+        // Restore off-hand
+        viewer.getInventory().setItemInOffHand(originalOffHand != null ? originalOffHand.clone() : null);
+
+        // Force inventory update
+        viewer.updateInventory();
     }
 
     private void setupViewer() {
@@ -580,6 +1057,135 @@ public class ReplayPlayback {
                 TextUtil.parse("<gray>" + session.getPrimaryPlayerName() + " - " + session.getReason().name()),
                 Title.Times.times(Duration.ofMillis(500), Duration.ofSeconds(2), Duration.ofMillis(500))
         ));
+    }
+
+    /**
+     * Load block logs from the session.
+     */
+    private void loadBlockLogs() {
+        try {
+            java.nio.file.Path sessionDir = plugin.getReplayManager().getReplaysDirectory()
+                    .resolve(session.getSessionId());
+
+            blockLogs = plugin.getBlockLogManager()
+                    .loadSessionLogs(session.getSessionId(), sessionDir);
+
+            // Build location map for quick lookup
+            for (BlockLogEntry entry : blockLogs) {
+                blockLogByLocation.put(entry.getLocationKey(), entry);
+            }
+
+            plugin.logDebug("[Replay] Loaded " + blockLogs.size() + " block logs for playback");
+        } catch (Exception e) {
+            plugin.logDebug("[Replay] Failed to load block logs: " + e.getMessage());
+            blockLogs = new ArrayList<>();
+        }
+    }
+
+    /**
+     * Initialize fake blocks for the replay.
+     * Loads block logs and hides placed blocks so they appear as the timeline progresses.
+     */
+    private void initializeFakeBlocks() {
+        if (!blockLogs.isEmpty()) {
+            plugin.getFakeBlockManager().initializeForViewer(viewer, blockLogs);
+            plugin.logDebug("[Replay] Initialized " + blockLogs.size() + " fake blocks for playback");
+        }
+    }
+
+    /**
+     * Teleport nearby players away from the replay area for safety.
+     * Players must not be watching a replay and must not have the bypass permission.
+     */
+    private void teleportNearbyPlayersAway() {
+        int safetyRadius = plugin.getConfigManager().getSettings().getReplayPlayerSafetyRadius();
+        if (safetyRadius <= 0) return;
+
+        // Get the center location from first snapshot
+        Location centerLocation = null;
+        for (UUID playerUuid : session.getRecordedPlayerUuids()) {
+            List<ReplaySnapshot> snapshots = session.getSnapshots(playerUuid);
+            if (!snapshots.isEmpty()) {
+                ReplaySnapshot first = snapshots.get(0);
+                World world = Bukkit.getWorld(first.getWorldName());
+                if (world != null) {
+                    centerLocation = first.toLocation(world);
+                    break;
+                }
+            }
+        }
+
+        if (centerLocation == null) return;
+
+        final Location center = centerLocation;
+        World world = center.getWorld();
+
+        for (Player player : world.getPlayers()) {
+            // Skip the viewer
+            if (player.equals(viewer)) continue;
+
+            // Skip players already viewing a replay
+            if (plugin.getReplayManager().isViewingReplay(player.getUniqueId())) continue;
+
+            // Skip players with bypass permission
+            if (player.hasPermission("moderex.replay.bypass-teleport-safety")) continue;
+
+            // Check if within safety radius
+            if (player.getLocation().distance(center) <= safetyRadius) {
+                // Store original location for restoration
+                teleportedPlayersOriginalLocations.put(player.getUniqueId(), player.getLocation().clone());
+
+                // Find a safe location outside the replay area
+                Location safeLoc = findSafeLocationOutsideRadius(center, safetyRadius + 10);
+                player.teleport(safeLoc);
+
+                player.sendMessage(TextUtil.parse(
+                        "<yellow>You have been teleported away from a replay area. " +
+                        "<gray>You will be returned when the replay ends."));
+
+                plugin.logDebug("[Replay] Teleported " + player.getName() + " away from replay area");
+            }
+        }
+    }
+
+    /**
+     * Find a safe location outside the given radius from center.
+     */
+    private Location findSafeLocationOutsideRadius(Location center, double radius) {
+        // Try to find a safe spot by moving in the +X direction
+        Location safeLoc = center.clone().add(radius, 0, 0);
+
+        // Find ground level
+        World world = safeLoc.getWorld();
+        int x = safeLoc.getBlockX();
+        int z = safeLoc.getBlockZ();
+
+        // Search for solid ground
+        for (int y = safeLoc.getBlockY() + 10; y > world.getMinHeight(); y--) {
+            if (world.getBlockAt(x, y, z).getType().isSolid() &&
+                world.getBlockAt(x, y + 1, z).getType().isAir() &&
+                world.getBlockAt(x, y + 2, z).getType().isAir()) {
+                return new Location(world, x + 0.5, y + 1, z + 0.5);
+            }
+        }
+
+        // Fallback to spawn
+        return world.getSpawnLocation();
+    }
+
+    /**
+     * Restore teleported players to their original locations.
+     */
+    private void restoreTeleportedPlayers() {
+        for (Map.Entry<UUID, Location> entry : teleportedPlayersOriginalLocations.entrySet()) {
+            Player player = Bukkit.getPlayer(entry.getKey());
+            if (player != null && player.isOnline()) {
+                player.teleport(entry.getValue());
+                player.sendMessage(TextUtil.parse(
+                        "<green>The replay has ended. You have been returned to your original location."));
+            }
+        }
+        teleportedPlayersOriginalLocations.clear();
     }
 
     // Getters
