@@ -256,6 +256,12 @@ commands:
     usage: /<command> <player> [page]
     permission: moderex.cmdhistory
 
+  log:
+    description: View player activity log
+    usage: /<command> <player> [action:type] [time:duration] [page]
+    permission: moderex.log
+    aliases: [activitylog, playerlog]
+
   seen:
     description: View when a player was last seen and player info
     usage: /<command> <player>
@@ -285,6 +291,13 @@ commands:
     usage: /<command> [page|rule#|category]
     aliases: [serverrules]
     permission: moderex.rules
+
+  # Replay system commands
+  replay:
+    description: Replay system - record and playback player actions
+    usage: /<command> [start|stop|play|list|search|delete|status|help] [args]
+    aliases: [replays]
+    permission: moderex.command.admin
 
   # Shorthand aliases for moderation commands
   mban:
@@ -370,6 +383,8 @@ permissions:
       moderex.cmdblacklist: true
       moderex.cmdunblacklist: true
       moderex.cmdhistory: true
+      moderex.log: true
+      moderex.log.teleport: true
       moderex.command.seen: true
       moderex.disguise: true
       moderex.command.watchlist: true
@@ -686,6 +701,18 @@ permissions:
 
   moderex.cmdhistory:
     description: View command history
+    default: op
+
+  moderex.log:
+    description: View player activity logs
+    default: op
+
+  moderex.log.view:
+    description: View player activity logs (alias)
+    default: op
+
+  moderex.log.teleport:
+    description: Teleport to sign locations from activity log
     default: op
 
   moderex.command.seen:
