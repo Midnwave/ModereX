@@ -532,6 +532,33 @@ replay:
   # Maximum number of stored replays
   max-stored: 1000
 
+# ============================================
+# ACTIVITY LOG SETTINGS
+# ============================================
+# Logs player activity for review with /log command
+activity-log:
+  # Enable activity logging
+  enabled: true
+
+  # Storage type: database, h2, yml, json, text
+  # 'database' uses the main plugin database (recommended)
+  storage-type: database
+
+  # Number of entries per page in /log output
+  entries-per-page: 10
+
+  # Days to keep logs (0 = unlimited)
+  retention-days: 30
+
+  # What to log (all enabled by default)
+  log:
+    chat: true           # Chat messages
+    commands: true       # Commands executed (sensitive commands are redacted)
+    signs: true          # Sign text with location (click to teleport)
+    items: true          # Item drops, pickups, use, consume, projectiles
+    anvils: true         # Anvil renaming of items
+    sessions: true       # Login/logout with duration
+    usernames: true      # Username changes
 
 # ============================================
 # CONFIGURATION VERSION
