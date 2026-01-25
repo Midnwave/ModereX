@@ -3472,24 +3472,78 @@
       toast('info', 'Revoked', `Punishment ${data.caseId} was revoked`);
     });
 
+    // Rate limiting state for watchlist alerts (by player/IP)
+    const watchlistRateLimit = {
+      alerts: new Map(), // playerUuid/IP -> { count, lastTime, timer }
+      windowMs: 3000,    // 3 second window for aggregation
+      updateIntervalMs: 2000 // Update UI every 2 seconds during high activity
+    };
+
     ws.on('WATCHLIST_ALERT', (data) => {
       if (!isLiveMode) return;
-      // Backend sends alertType, playerName, details, playerUuid
+      // Backend sends alertType, playerName, details, playerUuid, playerIp
       const alertType = data.alertType || data.type || 'Activity';
       const playerName = data.playerName || 'Unknown';
       const details = data.details || '';
+      const playerKey = data.playerIp || data.playerUuid || playerName; // Use IP if available for rate limiting
 
       state.watchAlerts.push({
         type: alertType,
         details: details,
         playerName: playerName,
         playerUuid: data.playerUuid,
+        playerIp: data.playerIp,
         t: now()
       });
 
+      // Rate limiting logic - aggregate rapid alerts from same player/IP
+      const currentTime = Date.now();
+      let rateLimitEntry = watchlistRateLimit.alerts.get(playerKey);
+
+      if (rateLimitEntry && (currentTime - rateLimitEntry.lastTime) < watchlistRateLimit.windowMs) {
+        // Within rate limit window - increment count
+        rateLimitEntry.count++;
+        rateLimitEntry.lastTime = currentTime;
+        rateLimitEntry.latestDetails = details;
+        rateLimitEntry.latestType = alertType;
+
+        // Clear existing timer and set new one
+        if (rateLimitEntry.timer) clearTimeout(rateLimitEntry.timer);
+        rateLimitEntry.timer = setTimeout(() => {
+          // Show aggregated alert after window expires
+          const entry = watchlistRateLimit.alerts.get(playerKey);
+          if (entry && entry.count > 1) {
+            const aggregatedDetails = `${entry.count} alerts in ${Math.round(watchlistRateLimit.windowMs / 1000)}s (latest: ${entry.latestDetails})`;
+            showWatchlistAlertUI(entry.latestType, aggregatedDetails, playerName, data.playerUuid);
+          }
+          watchlistRateLimit.alerts.delete(playerKey);
+        }, watchlistRateLimit.updateIntervalMs);
+
+        // Don't show individual alert - will be aggregated
+        ui.renderDashboard();
+        return;
+      }
+
+      // First alert or outside window - show immediately
+      watchlistRateLimit.alerts.set(playerKey, {
+        count: 1,
+        lastTime: currentTime,
+        latestDetails: details,
+        latestType: alertType,
+        timer: setTimeout(() => {
+          watchlistRateLimit.alerts.delete(playerKey);
+        }, watchlistRateLimit.windowMs)
+      });
+
+      showWatchlistAlertUI(alertType, details, playerName, data.playerUuid);
+      ui.renderDashboard();
+    });
+
+    // Helper to show watchlist alert UI (bar/toast based on settings)
+    function showWatchlistAlertUI(alertType, details, playerName, playerUuid) {
       const settings = loadMySettings();
       const style = settings.watchlistStyle || 'bar';
-      const playerData = { playerId: data.playerUuid, playerName: playerName };
+      const playerData = { playerId: playerUuid, playerName: playerName };
 
       if (style === 'bar' || style === 'both') {
         showAlertBar('watchlist', alertType, details, playerData);
@@ -3497,10 +3551,8 @@
       if (style === 'toast' || style === 'both') {
         toast('warn', 'Watchlist', `${playerName}: ${details}`, playerData);
       }
-
-      ui.renderDashboard();
       window.MX.sounds?.watchlist();
-    });
+    }
 
     ws.on('STAFFCHAT_MESSAGE', (data) => {
       if (!isLiveMode) return;
