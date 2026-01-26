@@ -69,6 +69,12 @@ public class SamePortPanelHandler implements HttpRequestHandler {
                     return;
                 }
 
+                // Handle GET /api/panel-version
+                if (requestPath.equals("/api/panel-version")) {
+                    handlePanelVersionRequest(ctx);
+                    return;
+                }
+
                 // Serve static files
                 serveStaticFile(ctx, requestPath);
 
@@ -93,6 +99,17 @@ public class SamePortPanelHandler implements HttpRequestHandler {
             plugin.logDebug("[SamePort] WebSocket upgrade failed: " + e.getMessage());
             sendError(ctx, 500, "WebSocket upgrade failed");
         }
+    }
+
+    private void handlePanelVersionRequest(ChannelHandlerContext ctx) {
+        JsonObject version = new JsonObject();
+        // Return the current panel version embedded in the JAR
+        // This allows the panel to detect if a newer version is available
+        version.addProperty("version", "DEV-2026-01-25-001");
+        version.addProperty("buildDate", "2026-01-25");
+        version.addProperty("buildNumber", 1);
+        version.addProperty("notes", "Latest development build");
+        sendJson(ctx, 200, GSON.toJson(version));
     }
 
     private void handleConfigRequest(ChannelHandlerContext ctx, String headers) {

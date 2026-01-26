@@ -221,6 +221,8 @@ public class HybridPanelServer {
 
             if (path.equals("/api/config")) {
                 sendConfigResponse(out, headers);
+            } else if (path.equals("/api/panel-version")) {
+                sendPanelVersionResponse(out);
             } else {
                 serveStaticFile(out, path);
             }
@@ -320,6 +322,15 @@ public class HybridPanelServer {
         out.write(response.getBytes(StandardCharsets.UTF_8));
         out.write(body);
         out.flush();
+    }
+
+    private void sendPanelVersionResponse(OutputStream out) throws IOException {
+        JsonObject version = new JsonObject();
+        version.addProperty("version", "DEV-2026-01-25-001");
+        version.addProperty("buildDate", "2026-01-25");
+        version.addProperty("buildNumber", 1);
+        version.addProperty("notes", "Latest development build");
+        sendJson(out, version);
     }
 
     private void sendConfigResponse(OutputStream out, Map<String, String> headers) throws IOException {
@@ -566,6 +577,14 @@ public class HybridPanelServer {
             }
             if (type.equals("AUTH_DEVICE_TRUST")) {
                 handleDeviceTrustAuth(conn, json);
+                return;
+            }
+            if (type.equals("AUTH_DEV_UUID")) {
+                handleDevUuidAuth(conn, json);
+                return;
+            }
+            if (type.equals("DEV_TOKEN_STRESS_TEST")) {
+                handleDevTokenStressTest(conn, json);
                 return;
             }
             if (type.equals("HEARTBEAT") || type.equals("PONG")) {
@@ -940,6 +959,121 @@ public class HybridPanelServer {
         createSession(conn, trustedDevice.playerUuid, playerName, "TRUSTED_DEVICE", prefix, suffix, authSession.sessionId, null);
 
         plugin.logDebug("Trusted device auto-login for " + playerName);
+    }
+
+    /**
+     * Handle UUID-based dev authentication.
+     * Creates a temporary token that is revoked when the connection closes.
+     */
+    private void handleDevUuidAuth(WebSocketConnection conn, JsonObject json) {
+        JsonObject data = json.has("data") ? json.getAsJsonObject("data") : json;
+        String uuidStr = data.has("uuid") ? data.get("uuid").getAsString().trim() : "";
+
+        if (uuidStr.isEmpty()) {
+            sendAuthFailed(conn, "INVALID_UUID", "UUID is required");
+            return;
+        }
+
+        UUID playerUuid;
+        try {
+            playerUuid = UUID.fromString(uuidStr);
+        } catch (IllegalArgumentException e) {
+            sendAuthFailed(conn, "INVALID_UUID", "Invalid UUID format");
+            return;
+        }
+
+        // Check if current session has admin permission (must be authenticated already)
+        WebPanelSession currentSession = sessions.get(conn);
+        if (currentSession == null || !currentSession.hasPermission) {
+            sendAuthFailed(conn, "NOT_AUTHENTICATED", "You must be authenticated to use dev UUID auth");
+            return;
+        }
+
+        // Get player info
+        OfflinePlayer offlinePlayer = Bukkit.getOfflinePlayer(playerUuid);
+        String playerName = offlinePlayer.getName() != null ? offlinePlayer.getName() : "Unknown-" + uuidStr.substring(0, 8);
+
+        String prefix = "", suffix = "";
+        if (plugin.getHookManager().isLuckPermsEnabled()) {
+            prefix = plugin.getHookManager().getLuckPermsHook().getPrefix(playerUuid);
+            suffix = plugin.getHookManager().getLuckPermsHook().getSuffix(playerUuid);
+        }
+
+        // Create a new session as the target UUID
+        WebAuthManager authManager = plugin.getWebAuthManager();
+        WebAuthManager.AuthenticatedSession authSession = authManager != null
+                ? authManager.createSession(playerUuid, playerName)
+                : null;
+
+        createSession(conn, playerUuid, playerName, "DEV_UUID", prefix, suffix, authSession != null ? authSession.sessionId : null, null);
+
+        plugin.logDebug("Dev UUID auth for " + playerName + " (" + playerUuid + ") - token will be revoked on disconnect");
+    }
+
+    /**
+     * Handle token stress test - generates many tokens to test validation speed.
+     */
+    private void handleDevTokenStressTest(WebSocketConnection conn, JsonObject json) {
+        JsonObject data = json.has("data") ? json.getAsJsonObject("data") : json;
+        int count = data.has("count") ? data.get("count").getAsInt() : 1000;
+        count = Math.min(50000, Math.max(100, count));
+
+        // Must be authenticated
+        WebPanelSession session = sessions.get(conn);
+        if (session == null || !session.hasPermission) {
+            sendError(conn, "NOT_AUTHENTICATED", "You must be authenticated to run stress tests");
+            return;
+        }
+
+        final int tokenCount = count;
+        final long startTime = System.currentTimeMillis();
+
+        // Run async to not block
+        plugin.getServer().getScheduler().runTaskAsynchronously(plugin, () -> {
+            WebAuthManager authManager = plugin.getWebAuthManager();
+            if (authManager == null) {
+                sendError(conn, "AUTH_UNAVAILABLE", "Auth manager not available");
+                return;
+            }
+
+            // Generate tokens
+            List<String> tokens = new ArrayList<>();
+            for (int i = 0; i < tokenCount; i++) {
+                // Generate a random token
+                String token = UUID.randomUUID().toString().replace("-", "") + UUID.randomUUID().toString().replace("-", "").substring(0, 16);
+                tokens.add(token);
+
+                // Send progress every 100 tokens
+                if (i % 100 == 0) {
+                    JsonObject progress = new JsonObject();
+                    progress.addProperty("type", "TOKEN_STRESS_PROGRESS");
+                    progress.addProperty("current", i);
+                    progress.addProperty("total", tokenCount);
+                    conn.send(GSON.toJson(progress));
+                }
+            }
+
+            // Now validate all tokens (they won't match, but this tests the hash comparison speed)
+            int validated = 0;
+            for (String token : tokens) {
+                // This will fail validation but exercises the hash comparison
+                authManager.validatePermanentToken(token, "stress-test");
+                validated++;
+            }
+
+            long duration = System.currentTimeMillis() - startTime;
+            double tokensPerSecond = tokenCount / (duration / 1000.0);
+
+            // Send completion
+            JsonObject complete = new JsonObject();
+            complete.addProperty("type", "TOKEN_STRESS_COMPLETE");
+            complete.addProperty("total", tokenCount);
+            complete.addProperty("duration", duration);
+            complete.addProperty("tokensPerSecond", String.format("%.0f", tokensPerSecond));
+            conn.send(GSON.toJson(complete));
+
+            plugin.logDebug("Token stress test complete: " + tokenCount + " tokens in " + duration + "ms (" + String.format("%.0f", tokensPerSecond) + " tokens/sec)");
+        });
     }
 
     private String getClientIp(WebSocketConnection conn) {
