@@ -4212,6 +4212,9 @@ textarea.input {
 
   .top-actions {
     gap: 6px;
+    flex-shrink: 1;
+    min-width: 0;
+    overflow: hidden;
   }
 
   .chip {
@@ -4223,6 +4226,11 @@ textarea.input {
     display: none;
   }
 
+  /* Hide rank badge on small screens */
+  .rank-badge-container {
+    display: none;
+  }
+
   .top-profile {
     min-width: 0;
     padding: 4px;
@@ -4230,6 +4238,20 @@ textarea.input {
 
   .profile-meta {
     display: none;
+  }
+
+  .profile-chevron {
+    display: none;
+  }
+
+  /* Ensure gsearch-container centers properly */
+  .gsearch-container {
+    flex: 1;
+    max-width: none;
+  }
+
+  .gsearch {
+    margin: 0 auto;
   }
 
   .grid.cols-4,
@@ -5203,6 +5225,8 @@ textarea.input {
   width: 100%;
   max-width: 500px;
   justify-self: center;
+  display: flex;
+  justify-content: center;
 }
 
 .gsearch-dropdown {
