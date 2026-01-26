@@ -508,6 +508,16 @@
     authState.reconnectAttempts = 0;
     authState.lastError = null;
 
+    // Log authenticated user info to console for debugging
+    console.log('%c[ModereX] Authenticated User Info', 'color: #4ade80; font-weight: bold;');
+    console.log('  Player:', data.playerName || data.username);
+    console.log('  UUID:', data.playerUuid || data.uuid || 'N/A');
+    console.log('  Auth Method:', data.authMethod || 'Unknown');
+    console.log('  Session ID:', data.sessionId || 'N/A');
+    console.log('  Platform:', data.platform || (data.isBedrock ? 'Bedrock' : 'Java'));
+    if (data.rank) console.log('  Rank:', data.rank);
+    if (data.prefix) console.log('  Prefix:', data.prefix);
+
     // Clear any pending reconnect timer
     if (authState.reconnectTimer) {
       clearTimeout(authState.reconnectTimer);

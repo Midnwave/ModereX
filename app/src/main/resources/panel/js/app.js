@@ -5082,6 +5082,86 @@
   window.clearDebugLogs = clearDebugLogs;
   window.copyDebugLogs = copyDebugLogs;
 
+  // ===== TOKEN STRESS TEST =====
+  function startTokenStressTest() {
+    const count = Math.min(50000, Math.max(100, parseInt(document.getElementById('tokenStressCount')?.value || '1000', 10)));
+
+    // Show warning modal first
+    if (!confirm(`This will generate ${count.toLocaleString()} tokens and test authentication speed.\n\nYou will be LOGGED OUT after this test completes and must re-authenticate with your permanent token.\n\nDevice fingerprint bypass will be enabled - you MUST enter your token manually.\n\nContinue?`)) {
+      return;
+    }
+
+    toast('info', 'Token Stress Test', `Generating ${count.toLocaleString()} tokens...`);
+
+    // Send request to server to start token stress test
+    window.MX.ws.send('DEV_TOKEN_STRESS_TEST', {
+      count: count,
+      timestamp: Date.now()
+    });
+
+    // Show progress
+    const progressEl = document.getElementById('tokenStressProgress');
+    const fillEl = document.getElementById('tokenStressFill');
+    const logEl = document.getElementById('tokenStressLog');
+
+    if (progressEl) progressEl.style.display = 'block';
+    if (fillEl) fillEl.style.width = '0%';
+    if (logEl) logEl.innerHTML = 'Starting token generation...';
+
+    // Listen for progress updates
+    const progressHandler = (data) => {
+      if (data.type === 'TOKEN_STRESS_PROGRESS') {
+        const pct = Math.round((data.current / data.total) * 100);
+        if (fillEl) fillEl.style.width = pct + '%';
+        if (logEl) logEl.innerHTML = `Generated ${data.current.toLocaleString()} / ${data.total.toLocaleString()} tokens (${pct}%)`;
+      } else if (data.type === 'TOKEN_STRESS_COMPLETE') {
+        if (fillEl) fillEl.style.width = '100%';
+        if (logEl) logEl.innerHTML = `Complete! ${data.total.toLocaleString()} tokens in ${data.duration}ms (${data.tokensPerSecond} tokens/sec)`;
+        toast('ok', 'Stress Test Complete', `Validated ${data.total.toLocaleString()} tokens in ${data.duration}ms`);
+
+        // Force logout after 2 seconds
+        setTimeout(() => {
+          toast('warn', 'Logging Out', 'Re-authenticate with your permanent token.');
+          localStorage.removeItem('mx_permanent_token');
+          localStorage.removeItem('mx_token_device');
+          localStorage.removeItem('mx_session');
+          window.MX.auth.logout();
+        }, 2000);
+      }
+    };
+
+    window.MX.ws.on('message', progressHandler);
+  }
+
+  // ===== UUID DEV AUTHENTICATION =====
+  function devUuidAuth() {
+    const uuidInput = document.getElementById('devUuidInput');
+    const uuid = uuidInput?.value?.trim();
+
+    if (!uuid) {
+      toast('bad', 'UUID Required', 'Please enter a valid UUID.');
+      return;
+    }
+
+    // Basic UUID format validation
+    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    if (!uuidRegex.test(uuid)) {
+      toast('bad', 'Invalid UUID', 'UUID must be in format: xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx');
+      return;
+    }
+
+    toast('info', 'Dev Auth', `Authenticating as UUID: ${uuid.substring(0, 8)}...`);
+
+    // Send dev auth request
+    window.MX.ws.send('AUTH_DEV_UUID', {
+      uuid: uuid,
+      timestamp: Date.now()
+    });
+  }
+
+  window.startTokenStressTest = startTokenStressTest;
+  window.devUuidAuth = devUuidAuth;
+
   // ===== WEB PANEL AUTO-UPDATE =====
   const PANEL_VERSION = 'DEV-2026-01-25-001';
   const PANEL_BUILD_DATE = '2026-01-25';
