@@ -1288,21 +1288,6 @@
               </div>
             </div>
 
-            <!-- Developer Checklist -->
-            <div class="card">
-              <div style="display:flex;justify-content:space-between;align-items:center">
-                <h3><i class="fa-solid fa-list-check" style="color:var(--good)"></i> Testing Checklist</h3>
-                <button class="btn small" onclick="addChecklistItem()"><i class="fa-solid fa-plus"></i> Add Item</button>
-              </div>
-              <p>Track testing progress. Items sync to database.</p>
-              <div id="checklistContainer" style="margin-top:14px">
-                <div class="loading-text">Loading checklist...</div>
-              </div>
-              <div style="margin-top:12px;display:flex;gap:8px">
-                <button class="btn small secondary" onclick="resetChecklist()"><i class="fa-solid fa-rotate-left"></i> Reset All</button>
-                <span id="checklistProgress" style="margin-left:auto;color:var(--text-secondary);font-size:13px"></span>
-              </div>
-            </div>
           </div>
         </section>
 
@@ -1828,6 +1813,52 @@
                   <div class="stress-progress" id="spoofAutomodProgress" style="display:none">
                     <div class="stress-bar"><div class="stress-fill" id="spoofAutomodFill"></div></div>
                     <div class="stress-log" id="spoofAutomodLog"></div>
+                  </div>
+                </div>
+
+                <!-- Token Stress Test -->
+                <div class="stress-test-card" style="padding:16px;background:rgba(0,0,0,0.2);border-radius:var(--radius);border:1px solid var(--border)">
+                  <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px">
+                    <div style="width:36px;height:36px;background:rgba(251,146,60,0.15);border-radius:var(--radius);display:flex;align-items:center;justify-content:center">
+                      <i class="fa-solid fa-key" style="color:#fb923c"></i>
+                    </div>
+                    <div>
+                      <div style="font-weight:600">Token Auth Stress Test</div>
+                      <div style="font-size:11px;color:var(--text-secondary)">Tests token hashing &amp; validation speed</div>
+                    </div>
+                  </div>
+                  <div style="display:flex;gap:8px;align-items:center;margin-bottom:10px">
+                    <input type="number" class="input" id="tokenStressCount" placeholder="Tokens" value="1000" min="100" max="50000" style="flex:1">
+                    <button class="btn primary" onclick="startTokenStressTest()"><i class="fa-solid fa-play"></i> Start</button>
+                  </div>
+                  <div class="stress-progress" id="tokenStressProgress" style="display:none">
+                    <div class="stress-bar"><div class="stress-fill" id="tokenStressFill"></div></div>
+                    <div class="stress-log" id="tokenStressLog"></div>
+                  </div>
+                  <div style="padding:8px;background:rgba(251,146,60,0.1);border-radius:var(--radius);border:1px solid rgba(251,146,60,0.2);margin-top:8px;font-size:11px;color:var(--text-secondary)">
+                    <i class="fa-solid fa-triangle-exclamation" style="color:#fb923c;margin-right:6px"></i>
+                    You will be logged out after this test. Re-authenticate with your token.
+                  </div>
+                </div>
+
+                <!-- UUID Dev Auth -->
+                <div class="stress-test-card" style="padding:16px;background:rgba(0,0,0,0.2);border-radius:var(--radius);border:1px solid var(--border)">
+                  <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px">
+                    <div style="width:36px;height:36px;background:rgba(168,85,247,0.15);border-radius:var(--radius);display:flex;align-items:center;justify-content:center">
+                      <i class="fa-solid fa-fingerprint" style="color:#a855f7"></i>
+                    </div>
+                    <div>
+                      <div style="font-weight:600">UUID Dev Authentication</div>
+                      <div style="font-size:11px;color:var(--text-secondary)">Sign in as any UUID (dev only)</div>
+                    </div>
+                  </div>
+                  <div style="display:flex;gap:8px;align-items:center;margin-bottom:10px">
+                    <input type="text" class="input" id="devUuidInput" placeholder="Enter UUID..." style="flex:1">
+                    <button class="btn primary" onclick="devUuidAuth()"><i class="fa-solid fa-sign-in-alt"></i> Auth</button>
+                  </div>
+                  <div style="padding:8px;background:rgba(168,85,247,0.1);border-radius:var(--radius);border:1px solid rgba(168,85,247,0.2);font-size:11px;color:var(--text-secondary)">
+                    <i class="fa-solid fa-info-circle" style="color:#a855f7;margin-right:6px"></i>
+                    Creates a temp token for this UUID. Token revoked on disconnect.
                   </div>
                 </div>
               </div>
