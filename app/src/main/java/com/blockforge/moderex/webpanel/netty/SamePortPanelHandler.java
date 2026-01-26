@@ -16,6 +16,7 @@ import java.net.URL;
 import java.nio.charset.StandardCharsets;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Properties;
 
 public class SamePortPanelHandler implements HttpRequestHandler {
 
@@ -103,12 +104,27 @@ public class SamePortPanelHandler implements HttpRequestHandler {
 
     private void handlePanelVersionRequest(ChannelHandlerContext ctx) {
         JsonObject version = new JsonObject();
-        // Return the current panel version embedded in the JAR
-        // This allows the panel to detect if a newer version is available
-        version.addProperty("version", "DEV-2026-01-25-001");
-        version.addProperty("buildDate", "2026-01-25");
-        version.addProperty("buildNumber", 1);
-        version.addProperty("notes", "Latest development build");
+        // Read version from panel-version.properties file
+        try (InputStream in = plugin.getResource("panel-version.properties")) {
+            if (in != null) {
+                Properties props = new Properties();
+                props.load(in);
+                version.addProperty("version", props.getProperty("version", "UNKNOWN"));
+                version.addProperty("buildDate", props.getProperty("buildDate", ""));
+                version.addProperty("buildNumber", Integer.parseInt(props.getProperty("buildNumber", "0")));
+                version.addProperty("notes", props.getProperty("notes", ""));
+            } else {
+                version.addProperty("version", "UNKNOWN");
+                version.addProperty("buildDate", "");
+                version.addProperty("buildNumber", 0);
+                version.addProperty("notes", "Version file not found");
+            }
+        } catch (Exception e) {
+            version.addProperty("version", "ERROR");
+            version.addProperty("buildDate", "");
+            version.addProperty("buildNumber", 0);
+            version.addProperty("notes", "Failed to read version: " + e.getMessage());
+        }
         sendJson(ctx, 200, GSON.toJson(version));
     }
 

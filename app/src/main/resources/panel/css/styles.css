@@ -4078,11 +4078,18 @@ textarea.input {
   .topbar {
     height: 64px;
     padding: 0 16px;
+    grid-template-columns: auto 1fr auto;
+    gap: 12px;
+  }
+
+  .gsearch-container {
+    max-width: none;
+    justify-self: center;
   }
 
   .gsearch {
-    width: min(320px, 40vw);
-    min-width: 180px;
+    width: min(320px, 100%);
+    min-width: 160px;
   }
 
   .gsearch input {
@@ -4100,8 +4107,13 @@ textarea.input {
     font-size: 12px;
   }
 
+  .top-actions {
+    flex-wrap: nowrap;
+    gap: 8px;
+  }
+
   .top-profile {
-    min-width: 140px;
+    min-width: 120px;
     padding: 5px 8px;
   }
 
@@ -5213,6 +5225,189 @@ textarea.input {
 
   .replay-buttons {
     flex-wrap: wrap;
+  }
+}
+
+/* ============================================
+   Pagination Controls
+   ============================================ */
+
+.pagination-controls {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 16px;
+  padding: 12px 0;
+  border-top: 1px solid var(--border);
+}
+
+.pag-info {
+  font-size: 13px;
+  color: var(--text-secondary);
+}
+
+.pag-info b {
+  color: var(--text);
+}
+
+.pag-size {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: var(--text-secondary);
+}
+
+.pag-dropdown {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px;
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  font-size: 13px;
+  color: var(--text);
+  transition: all var(--transition);
+}
+
+.pag-dropdown:hover {
+  border-color: var(--border-light);
+  background: var(--surface3);
+}
+
+.pag-dropdown i {
+  font-size: 10px;
+  color: var(--muted);
+  transition: transform var(--transition);
+}
+
+.pag-dropdown.open i {
+  transform: rotate(180deg);
+}
+
+.pag-dropdown-menu {
+  position: absolute;
+  bottom: 100%;
+  left: 0;
+  margin-bottom: 4px;
+  background: var(--surface2);
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-sm);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+  z-index: 100;
+  display: none;
+  min-width: 60px;
+}
+
+.pag-dropdown.open .pag-dropdown-menu {
+  display: block;
+}
+
+.pag-dropdown-item {
+  padding: 8px 12px;
+  font-size: 13px;
+  color: var(--text);
+  cursor: pointer;
+  transition: background var(--transition);
+}
+
+.pag-dropdown-item:hover {
+  background: var(--surface3);
+}
+
+.pag-dropdown-item.active {
+  color: var(--primary);
+  background: rgba(45, 122, 237, 0.1);
+}
+
+.pag-nav {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.pag-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  color: var(--text);
+  cursor: pointer;
+  transition: all var(--transition);
+}
+
+.pag-btn:hover:not(:disabled) {
+  background: var(--surface3);
+  border-color: var(--border-light);
+}
+
+.pag-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.pag-num {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 32px;
+  height: 32px;
+  padding: 0 8px;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  color: var(--text-secondary);
+  font-size: 13px;
+  cursor: pointer;
+  transition: all var(--transition);
+}
+
+.pag-num:hover {
+  background: var(--surface2);
+  color: var(--text);
+}
+
+.pag-num.active {
+  background: var(--primary);
+  color: #fff;
+  border-color: var(--primary);
+}
+
+.pag-ellipsis {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+@media (max-width: 600px) {
+  .pagination-controls {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 12px;
+  }
+
+  .pag-info {
+    text-align: center;
+  }
+
+  .pag-size {
+    justify-content: center;
+  }
+
+  .pag-nav {
+    justify-content: center;
   }
 }
 

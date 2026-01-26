@@ -42,6 +42,92 @@
     return text.length > maxLen ? text.substring(0, maxLen) + '...' : text;
   }
 
+  // Pagination helper - renders pagination controls
+  function renderPagination(stateKey, currentPage, totalPages, totalItems, pageSize, targetId) {
+    const container = document.getElementById(targetId + 'Pagination');
+    if (!container) return;
+
+    const startItem = (currentPage - 1) * pageSize + 1;
+    const endItem = Math.min(currentPage * pageSize, totalItems);
+
+    // Page size options
+    const pageSizes = [10, 25, 50, 100];
+    const pageSizeOptions = pageSizes.map(size =>
+      `<div class="pag-dropdown-item ${size === pageSize ? 'active' : ''}" onclick="setPaginationSize('${stateKey}', ${size})">${size}</div>`
+    ).join('');
+
+    // Generate page numbers with ellipsis
+    let pageNumbers = '';
+    const maxVisible = 5;
+    let pages = [];
+
+    if (totalPages <= maxVisible + 2) {
+      for (let i = 1; i <= totalPages; i++) pages.push(i);
+    } else {
+      pages.push(1);
+      if (currentPage > 3) pages.push('...');
+      for (let i = Math.max(2, currentPage - 1); i <= Math.min(totalPages - 1, currentPage + 1); i++) {
+        pages.push(i);
+      }
+      if (currentPage < totalPages - 2) pages.push('...');
+      pages.push(totalPages);
+    }
+
+    pageNumbers = pages.map(p => {
+      if (p === '...') return '<span class="pag-ellipsis">...</span>';
+      return `<button class="pag-num ${p === currentPage ? 'active' : ''}" onclick="setPaginationPage('${stateKey}', ${p})">${p}</button>`;
+    }).join('');
+
+    container.innerHTML = `
+      <div class="pagination-controls">
+        <div class="pag-info">
+          Showing <b>${startItem}</b>-<b>${endItem}</b> of <b>${totalItems}</b>
+        </div>
+        <div class="pag-size">
+          <span>Per page:</span>
+          <div class="pag-dropdown" onclick="this.classList.toggle('open')">
+            <span>${pageSize}</span>
+            <i class="fa-solid fa-chevron-down"></i>
+            <div class="pag-dropdown-menu">${pageSizeOptions}</div>
+          </div>
+        </div>
+        <div class="pag-nav">
+          <button class="pag-btn" onclick="setPaginationPage('${stateKey}', 1)" ${currentPage === 1 ? 'disabled' : ''} title="First">
+            <i class="fa-solid fa-angles-left"></i>
+          </button>
+          <button class="pag-btn" onclick="setPaginationPage('${stateKey}', ${currentPage - 1})" ${currentPage === 1 ? 'disabled' : ''} title="Previous">
+            <i class="fa-solid fa-chevron-left"></i>
+          </button>
+          ${pageNumbers}
+          <button class="pag-btn" onclick="setPaginationPage('${stateKey}', ${currentPage + 1})" ${currentPage === totalPages ? 'disabled' : ''} title="Next">
+            <i class="fa-solid fa-chevron-right"></i>
+          </button>
+          <button class="pag-btn" onclick="setPaginationPage('${stateKey}', ${totalPages})" ${currentPage === totalPages ? 'disabled' : ''} title="Last">
+            <i class="fa-solid fa-angles-right"></i>
+          </button>
+        </div>
+      </div>
+    `;
+  }
+
+  // Pagination navigation functions (exposed globally)
+  window.setPaginationPage = function(stateKey, page) {
+    if (state[stateKey]) {
+      state[stateKey].page = page;
+      if (stateKey === 'punishPagination') window.MX.ui.renderPunishments();
+      else if (stateKey === 'playerPagination') window.MX.ui.renderPlayers();
+    }
+  };
+
+  window.setPaginationSize = function(stateKey, size) {
+    if (state[stateKey]) {
+      state[stateKey].pageSize = size;
+      state[stateKey].page = 1; // Reset to first page
+      if (stateKey === 'punishPagination') window.MX.ui.renderPunishments();
+      else if (stateKey === 'playerPagination') window.MX.ui.renderPlayers();
+    }
+  };
+
   // DOM References
   let dom = {};
 
@@ -316,7 +402,16 @@
     const onlineCount = state.players.filter(p => p.status === 'online' || p.status === 'afk').length;
     dom.playersOnlineChip.innerHTML = `<i class="fa-solid fa-users"></i> ${onlineCount} online`;
 
-    dom.playerRows.innerHTML = filtered.map(p => {
+    // Pagination
+    const pag = state.playerPagination || { page: 1, pageSize: 25 };
+    const totalItems = filtered.length;
+    const totalPages = Math.max(1, Math.ceil(totalItems / pag.pageSize));
+    if (pag.page > totalPages) pag.page = totalPages;
+    if (pag.page < 1) pag.page = 1;
+    const startIdx = (pag.page - 1) * pag.pageSize;
+    const pageItems = filtered.slice(startIdx, startIdx + pag.pageSize);
+
+    dom.playerRows.innerHTML = pageItems.map(p => {
       const statusBadge = p.status === 'online' ? `<span class="badge green"><i class="fa-solid fa-circle"></i> Online</span>` :
         p.status === 'afk' ? `<span class="badge yellow"><i class="fa-solid fa-moon"></i> AFK</span>` :
         `<span class="badge gray"><i class="fa-regular fa-circle"></i> Offline</span>`;
@@ -339,6 +434,9 @@
         </tr>
       `;
     }).join('') || `<tr><td colspan="6" style="color:var(--muted)">No players match criteria.</td></tr>`;
+
+    // Render pagination controls
+    renderPagination('playerPagination', pag.page, totalPages, totalItems, pag.pageSize, 'players');
   }
 
   function renderPunishments() {
@@ -346,14 +444,26 @@
     const q = (dom.punishSearch?.value || '').trim().toLowerCase();
     const filters = state.punishFilters;
 
-    const rows = state.punishments.filter(pun => {
+    // Filter and sort all punishments
+    const allFiltered = state.punishments.filter(pun => {
       if (!filters[pun.type]) return false;
       if (q) {
         const pl = state.players.find(p => p.id === pun.playerId);
         return `${pl?.name || ''} ${pun.reason || ''} ${pun.staff || ''} ${pun.id}`.toLowerCase().includes(q);
       }
       return true;
-    }).sort((a, b) => b.createdAt - a.createdAt).slice(0, 100).map(pun => {
+    }).sort((a, b) => b.createdAt - a.createdAt);
+
+    // Pagination
+    const pag = state.punishPagination || { page: 1, pageSize: 25 };
+    const totalItems = allFiltered.length;
+    const totalPages = Math.max(1, Math.ceil(totalItems / pag.pageSize));
+    if (pag.page > totalPages) pag.page = totalPages;
+    if (pag.page < 1) pag.page = 1;
+    const startIdx = (pag.page - 1) * pag.pageSize;
+    const pageItems = allFiltered.slice(startIdx, startIdx + pag.pageSize);
+
+    const rows = pageItems.map(pun => {
       const pl = state.players.find(p => p.id === pun.playerId);
       const name = pl?.name || 'Player';
       const avatarFallback = `https://minotar.net/helm/${encodeURIComponent(name)}/64.png`;
@@ -401,6 +511,9 @@
     }).join('');
 
     dom.punishRows.innerHTML = rows || `<tr><td colspan="8" style="color:var(--muted)">No punishments match filters.</td></tr>`;
+
+    // Render pagination controls
+    renderPagination('punishPagination', pag.page, totalPages, totalItems, pag.pageSize, 'punishments');
   }
 
   function renderTemplates() {

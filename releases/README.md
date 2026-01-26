@@ -1,3 +1,3 @@
 # Releases
 
-This folder contains release JAR files for ModereX.
+This folder contains the latest dev build JAR files for ModereX. It is unrecommended to not download this until the plugin is fully released.

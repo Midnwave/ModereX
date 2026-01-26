@@ -28,6 +28,8 @@
     pendingPunishType: 'WARN',
     punishTargetLocked: false,
     punishFilters: { BAN: true, MUTE: true, WARN: true, KICK: true },
+    punishPagination: { page: 1, pageSize: 25 },
+    playerPagination: { page: 1, pageSize: 25 },
     logsFilters: {
       search: '',
       mxOnly: true,

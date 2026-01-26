@@ -301,10 +301,47 @@
   window.MX = window.MX || {};
   window.MX.toast = window.toast;
 
+  // ===== DEV TOOLS DEBUG CONSOLE =====
+  // Always logs to the Developer Tools debug console regardless of debug mode
+  window.devtoolsLog = function(category, message, type = 'info') {
+    const logEl = document.getElementById('devDebugLogs');
+    if (!logEl) return;
+
+    const time = new Date().toLocaleTimeString();
+    const typeColors = {
+      info: 'var(--primary)',
+      success: 'var(--good)',
+      warn: 'var(--warn)',
+      error: 'var(--bad)'
+    };
+    const color = typeColors[type] || 'var(--muted)';
+
+    const entry = document.createElement('div');
+    entry.style.cssText = 'padding:4px 0;border-bottom:1px solid rgba(255,255,255,0.05);font-size:12px;font-family:var(--font-mono)';
+    entry.innerHTML = `
+      <span style="color:var(--muted)">${time}</span>
+      <span style="color:${color};font-weight:600">[${escapeHtml(category)}]</span>
+      <span style="color:var(--text)">${escapeHtml(message)}</span>
+    `;
+    logEl.appendChild(entry);
+
+    // Auto-scroll to bottom
+    logEl.scrollTop = logEl.scrollHeight;
+
+    // Keep only last 200 entries
+    while (logEl.children.length > 200) {
+      logEl.removeChild(logEl.firstChild);
+    }
+  };
+  window.MX.devtoolsLog = window.devtoolsLog;
+
   // ===== DEBUG MODE =====
   // Debug log function - shows notifications at bottom when debug mode is enabled
   window.debugLog = function(category, message, type = 'info') {
-    // Check if debug mode is enabled in user settings
+    // Always log to dev tools console
+    window.devtoolsLog(category, message, type);
+
+    // Check if debug mode is enabled in user settings for on-screen display
     if (!state.userSettings?.debugMode) return;
 
     // Add to debug log container
@@ -346,6 +383,9 @@
   // ===== SYSTEM MESSAGES =====
   // System messages are ALWAYS shown (plugin status, updates, etc.) - 10 second display
   window.systemLog = function(message, type = 'info') {
+    // Always log to dev tools console
+    window.devtoolsLog('SYSTEM', message, type);
+
     const container = document.getElementById('debug-log-container') || createDebugContainer();
     const entry = document.createElement('div');
     entry.className = `debug-entry debug-${type} system-entry`;
@@ -375,6 +415,9 @@
   // ===== WATCHLIST ALERTS =====
   // Watchlist alerts - shown when watchlistAlerts setting is enabled
   window.watchlistLog = function(playerName, message, type = 'warn') {
+    // Always log to dev tools console
+    window.devtoolsLog('WATCHLIST', `${playerName} ${message}`, type);
+
     // Check if watchlist alerts are enabled in user settings
     if (!state.userSettings?.watchlistAlerts) return;
 

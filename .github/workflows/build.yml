@@ -57,6 +57,15 @@ jobs:
         echo "Build: ${{ steps.buildnum.outputs.number }}" >> releases/build-info.txt
         echo "Commit: ${{ github.sha }}" >> releases/build-info.txt
 
+    - name: Clean up old releases (keep last 3)
+      run: |
+        cd releases
+        # List versioned JARs sorted by build number, keep last 3, delete the rest
+        # Pattern: ModereX-2.0dev-XX.jar
+        ls -1 ModereX-2.0dev-*.jar 2>/dev/null | sort -t'-' -k3 -n | head -n -3 | xargs -r rm -f
+        echo "Remaining versioned JARs:"
+        ls -1 ModereX-2.0dev-*.jar 2>/dev/null || echo "None"
+
     - name: Commit and push JAR
       run: |
         git config user.name "github-actions[bot]"

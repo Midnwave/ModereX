@@ -358,6 +358,7 @@
       authState.connected = true;
       authState.reconnectAttempts = 0;
       console.log('[Auth] WebSocket connected');
+      if (window.devtoolsLog) window.devtoolsLog('WS', 'WebSocket connected', 'success');
     });
 
     ws.on('disconnected', (data) => {
@@ -368,6 +369,7 @@
       stopTokenValidation();
 
       console.log('[Auth] Disconnected:', data.code, data.reason);
+      if (window.devtoolsLog) window.devtoolsLog('WS', `Disconnected (code: ${data.code}, reason: ${data.reason || 'none'})`, 'warn');
 
       // Handle access denied - don't reconnect
       if (data.code === 4001 || data.code === 4003) {
@@ -414,6 +416,7 @@
     // Standard auth success (from token authentication)
     ws.on('auth_success', (data) => {
       console.log('[Auth] Authentication successful:', data.playerName || data.username);
+      if (window.devtoolsLog) window.devtoolsLog('AUTH', `Authenticated as ${data.playerName || data.username}`, 'success');
 
       // Store the token
       if (data.token) {
@@ -435,6 +438,7 @@
 
     ws.on('auth_failed', (data) => {
       console.log('[Auth] Authentication failed:', data?.message);
+      if (window.devtoolsLog) window.devtoolsLog('AUTH', `Authentication failed: ${data?.message || 'unknown'}`, 'error');
 
       authState.authenticated = false;
       authState.status = AuthStatus.UNAUTHENTICATED;
@@ -465,6 +469,7 @@
 
     ws.on('access_denied', (data) => {
       console.log('[Auth] Access denied:', data?.message);
+      if (window.devtoolsLog) window.devtoolsLog('AUTH', `Access denied: ${data?.message || 'no permission'}`, 'error');
       authState.accessDenied = true;
       authState.authenticated = false;
       authState.status = AuthStatus.UNAUTHENTICATED;
@@ -477,7 +482,19 @@
 
     ws.on('session_expired', () => {
       console.log('[Auth] Session expired');
+      if (window.devtoolsLog) window.devtoolsLog('AUTH', 'Session expired', 'warn');
       forceLogout('Session expired. Please log in again.');
+    });
+
+    // Session terminated (e.g., after stress test)
+    ws.on('SESSION_TERMINATED', (data) => {
+      console.log('[Auth] Session terminated:', data?.reason);
+      if (window.devtoolsLog) window.devtoolsLog('AUTH', `Session terminated: ${data?.reason || 'unknown'}`, 'warn');
+      // Clear all saved auth data
+      localStorage.removeItem('mx_permanent_token');
+      localStorage.removeItem('mx_token_device');
+      localStorage.removeItem('mx_session');
+      forceLogout(data?.reason || 'Session terminated. Please re-authenticate.');
     });
 
     // Permission check response for action verification

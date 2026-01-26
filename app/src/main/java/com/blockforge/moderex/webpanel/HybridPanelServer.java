@@ -326,10 +326,27 @@ public class HybridPanelServer {
 
     private void sendPanelVersionResponse(OutputStream out) throws IOException {
         JsonObject version = new JsonObject();
-        version.addProperty("version", "DEV-2026-01-25-001");
-        version.addProperty("buildDate", "2026-01-25");
-        version.addProperty("buildNumber", 1);
-        version.addProperty("notes", "Latest development build");
+        // Read version from panel-version.properties file
+        try (InputStream in = plugin.getResource("panel-version.properties")) {
+            if (in != null) {
+                Properties props = new Properties();
+                props.load(in);
+                version.addProperty("version", props.getProperty("version", "UNKNOWN"));
+                version.addProperty("buildDate", props.getProperty("buildDate", ""));
+                version.addProperty("buildNumber", Integer.parseInt(props.getProperty("buildNumber", "0")));
+                version.addProperty("notes", props.getProperty("notes", ""));
+            } else {
+                version.addProperty("version", "UNKNOWN");
+                version.addProperty("buildDate", "");
+                version.addProperty("buildNumber", 0);
+                version.addProperty("notes", "Version file not found");
+            }
+        } catch (Exception e) {
+            version.addProperty("version", "ERROR");
+            version.addProperty("buildDate", "");
+            version.addProperty("buildNumber", 0);
+            version.addProperty("notes", "Failed to read version: " + e.getMessage());
+        }
         sendJson(out, version);
     }
 
@@ -1083,7 +1100,9 @@ public class HybridPanelServer {
     }
 
     /**
-     * Handle token stress test - generates many tokens to test validation speed.
+     * Handle token stress test - generates many tokens to test SHA-256 validation speed.
+     * This tests the hashing/validation performance, not actual token storage.
+     * After completion, the user session is terminated and they must re-authenticate.
      */
     private void handleDevTokenStressTest(WebSocketConnection conn, JsonObject json) {
         JsonObject data = json.has("data") ? json.getAsJsonObject("data") : json;
@@ -1099,6 +1118,7 @@ public class HybridPanelServer {
 
         final int tokenCount = count;
         final long startTime = System.currentTimeMillis();
+        final UUID playerUuid = session.playerUuid;
 
         // Run async to not block
         plugin.getServer().getScheduler().runTaskAsynchronously(plugin, () -> {
@@ -1108,15 +1128,25 @@ public class HybridPanelServer {
                 return;
             }
 
-            // Generate tokens
-            List<String> tokens = new ArrayList<>();
+            // Generate and validate tokens (tests SHA-256 hashing performance)
+            int processed = 0;
             for (int i = 0; i < tokenCount; i++) {
-                // Generate a random token
-                String token = UUID.randomUUID().toString().replace("-", "") + UUID.randomUUID().toString().replace("-", "").substring(0, 16);
-                tokens.add(token);
+                // Generate a random token in the same format as real tokens
+                StringBuilder token = new StringBuilder();
+                String chars = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789";
+                java.security.SecureRandom random = new java.security.SecureRandom();
+                for (int j = 0; j < 40; j++) {
+                    if (j > 0 && j % 10 == 0) token.append("-");
+                    token.append(chars.charAt(random.nextInt(chars.length())));
+                }
 
-                // Send progress every 100 tokens
-                if (i % 100 == 0) {
+                // Validate the token (this exercises SHA-256 hashing)
+                // Tokens won't match but the hash computation is performed
+                authManager.validatePermanentToken(token.toString(), "stress-test");
+                processed++;
+
+                // Send progress every 500 tokens
+                if (i % 500 == 0) {
                     JsonObject progress = new JsonObject();
                     progress.addProperty("type", "TOKEN_STRESS_PROGRESS");
                     progress.addProperty("current", i);
@@ -1125,16 +1155,8 @@ public class HybridPanelServer {
                 }
             }
 
-            // Now validate all tokens (they won't match, but this tests the hash comparison speed)
-            int validated = 0;
-            for (String token : tokens) {
-                // This will fail validation but exercises the hash comparison
-                authManager.validatePermanentToken(token, "stress-test");
-                validated++;
-            }
-
             long duration = System.currentTimeMillis() - startTime;
-            double tokensPerSecond = tokenCount / (duration / 1000.0);
+            double tokensPerSecond = duration > 0 ? tokenCount / (duration / 1000.0) : tokenCount;
 
             // Send completion
             JsonObject complete = new JsonObject();
@@ -1142,9 +1164,29 @@ public class HybridPanelServer {
             complete.addProperty("total", tokenCount);
             complete.addProperty("duration", duration);
             complete.addProperty("tokensPerSecond", String.format("%.0f", tokensPerSecond));
+            complete.addProperty("hashAlgorithm", "SHA-256");
             conn.send(GSON.toJson(complete));
 
-            plugin.logDebug("Token stress test complete: " + tokenCount + " tokens in " + duration + "ms (" + String.format("%.0f", tokensPerSecond) + " tokens/sec)");
+            plugin.logDebug("Token stress test complete: " + tokenCount + " SHA-256 hashes in " + duration + "ms (" + String.format("%.0f", tokensPerSecond) + " hashes/sec)");
+
+            // Force disconnect user session after 2 seconds
+            plugin.getServer().getScheduler().runTaskLaterAsynchronously(plugin, () -> {
+                // Terminate the session
+                sessions.remove(conn);
+
+                // Send disconnect message
+                JsonObject disconnect = new JsonObject();
+                disconnect.addProperty("type", "SESSION_TERMINATED");
+                disconnect.addProperty("reason", "Token stress test complete - please re-authenticate");
+                conn.send(GSON.toJson(disconnect));
+
+                // Close the WebSocket connection
+                try {
+                    conn.close();
+                } catch (Exception ignored) {}
+
+                plugin.logDebug("Terminated session for " + playerUuid + " after stress test");
+            }, 40L); // 2 seconds (40 ticks)
         });
     }
 
