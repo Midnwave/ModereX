@@ -551,13 +551,20 @@
 
     // Update UI with success (green checkmark)
     updateStatus('Connected', `Welcome, ${data.playerName || data.username}`);
-    if (dom.authStatusArea) {
-      dom.authStatusArea.style.display = '';
-      dom.authStatusArea.classList.remove('error');
-      dom.authStatusArea.classList.add('success');
+
+    // Re-query elements if cached references are null
+    const statusArea = dom.authStatusArea || document.getElementById('authStatusArea');
+    const manualSection = dom.authManualSection || document.getElementById('authManualSection');
+
+    if (statusArea) {
+      statusArea.style.display = '';
+      statusArea.classList.remove('error');
+      statusArea.classList.add('success');
+      dom.authStatusArea = statusArea;
     }
-    if (dom.authManualSection) {
-      dom.authManualSection.style.display = 'none';
+    if (manualSection) {
+      manualSection.style.display = 'none';
+      dom.authManualSection = manualSection;
     }
 
     // Play connection sound
@@ -571,6 +578,16 @@
       hideAuthOverlay();
       window.dispatchEvent(new CustomEvent('mx:authenticated', { detail: data }));
     }, 800);
+
+    // Safety fallback - ensure overlay is hidden after 2 seconds
+    setTimeout(() => {
+      const overlay = document.getElementById('authOverlay');
+      if (overlay && overlay.style.display !== 'none') {
+        console.log('[Auth] Safety fallback: forcing overlay hide');
+        overlay.classList.add('hide');
+        overlay.style.display = 'none';
+      }
+    }, 2000);
   }
 
   /**
@@ -806,18 +823,28 @@
    * Show/hide overlays
    */
   function showAuthOverlay() {
-    if (dom.authOverlay) {
-      dom.authOverlay.classList.remove('hide');
-      dom.authOverlay.style.display = '';
+    // Re-query element if cached reference is null
+    const overlay = dom.authOverlay || document.getElementById('authOverlay');
+    if (overlay) {
+      overlay.classList.remove('hide');
+      overlay.style.display = '';
+      // Update cache
+      dom.authOverlay = overlay;
     }
   }
 
   function hideAuthOverlay() {
-    if (dom.authOverlay) {
-      dom.authOverlay.classList.add('hide');
+    // Re-query element if cached reference is null
+    const overlay = dom.authOverlay || document.getElementById('authOverlay');
+    if (overlay) {
+      overlay.classList.add('hide');
+      // Update cache
+      dom.authOverlay = overlay;
       setTimeout(() => {
-        dom.authOverlay.style.display = 'none';
+        overlay.style.display = 'none';
       }, 400);
+    } else {
+      console.warn('[Auth] Could not find auth overlay to hide');
     }
   }
 
