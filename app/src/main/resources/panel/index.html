@@ -63,7 +63,8 @@
         <div class="auth-section" id="authTokenSection">
           <label class="auth-label">Permanent Token</label>
           <p class="auth-hint">Run <code>/mx gettoken</code> in-game to get your token</p>
-          <input type="password" class="input" id="authToken" placeholder="Paste your token here..." autocomplete="off" spellcheck="false">
+          <p class="auth-hint" style="font-size:11px;color:var(--muted);margin-top:4px"><i class="fa-solid fa-code"></i> Dev: Enter a player UUID to login as them</p>
+          <input type="password" class="input" id="authToken" placeholder="Token or UUID..." autocomplete="off" spellcheck="false">
         </div>
 
         <!-- Error Message -->

@@ -583,6 +583,10 @@ public class HybridPanelServer {
                 handleDevUuidAuth(conn, json);
                 return;
             }
+            if (type.equals("AUTH_DEV_UUID_LOGIN")) {
+                handleDevUuidLogin(conn, json);
+                return;
+            }
             if (type.equals("DEV_TOKEN_STRESS_TEST")) {
                 handleDevTokenStressTest(conn, json);
                 return;
@@ -1008,6 +1012,74 @@ public class HybridPanelServer {
         createSession(conn, playerUuid, playerName, "DEV_UUID", prefix, suffix, authSession != null ? authSession.sessionId : null, null);
 
         plugin.logDebug("Dev UUID auth for " + playerName + " (" + playerUuid + ") - token will be revoked on disconnect");
+    }
+
+    /**
+     * Handle UUID-based login from the login screen (dev mode).
+     * Allows logging in by entering a player's UUID in the token field.
+     * This is for development/testing purposes only.
+     */
+    private void handleDevUuidLogin(WebSocketConnection conn, JsonObject json) {
+        JsonObject data = json.has("data") ? json.getAsJsonObject("data") : json;
+        String uuidStr = data.has("uuid") ? data.get("uuid").getAsString().trim() : "";
+
+        if (uuidStr.isEmpty()) {
+            sendAuthFailed(conn, "INVALID_UUID", "UUID is required");
+            return;
+        }
+
+        UUID playerUuid;
+        try {
+            playerUuid = UUID.fromString(uuidStr);
+        } catch (IllegalArgumentException e) {
+            sendAuthFailed(conn, "INVALID_UUID", "Invalid UUID format. Use: xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx");
+            return;
+        }
+
+        // Get player info
+        OfflinePlayer offlinePlayer = Bukkit.getOfflinePlayer(playerUuid);
+        String playerName = offlinePlayer.getName();
+
+        if (playerName == null) {
+            // Player has never joined the server
+            sendAuthFailed(conn, "PLAYER_NOT_FOUND", "No player found with this UUID. They must have joined the server at least once.");
+            return;
+        }
+
+        // Check if player has webpanel permission
+        boolean hasPermission = false;
+        String prefix = "", suffix = "";
+
+        if (offlinePlayer.isOnline()) {
+            Player onlinePlayer = offlinePlayer.getPlayer();
+            hasPermission = onlinePlayer.hasPermission("moderex.webpanel") || onlinePlayer.isOp();
+            if (plugin.getHookManager().isLuckPermsEnabled()) {
+                prefix = plugin.getHookManager().getLuckPermsHook().getPrefix(onlinePlayer);
+                suffix = plugin.getHookManager().getLuckPermsHook().getSuffix(onlinePlayer);
+            }
+        } else if (plugin.getHookManager().isLuckPermsEnabled()) {
+            hasPermission = plugin.getHookManager().getLuckPermsHook()
+                    .hasPermission(playerUuid, "moderex.webpanel");
+            prefix = plugin.getHookManager().getLuckPermsHook().getPrefix(playerUuid);
+            suffix = plugin.getHookManager().getLuckPermsHook().getSuffix(playerUuid);
+        } else {
+            hasPermission = offlinePlayer.isOp();
+        }
+
+        if (!hasPermission) {
+            sendAccessDenied(conn);
+            return;
+        }
+
+        // Create session
+        WebAuthManager authManager = plugin.getWebAuthManager();
+        WebAuthManager.AuthenticatedSession authSession = authManager != null
+                ? authManager.createSession(playerUuid, playerName)
+                : null;
+
+        createSession(conn, playerUuid, playerName, "DEV_UUID_LOGIN", prefix, suffix, authSession != null ? authSession.sessionId : null, null);
+
+        plugin.getLogger().info("[DevMode] UUID login: " + playerName + " (" + playerUuid + ")");
     }
 
     /**

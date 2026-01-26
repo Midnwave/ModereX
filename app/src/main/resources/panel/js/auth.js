@@ -688,24 +688,40 @@
   }
 
   /**
-   * Authenticate with permanent token (manual)
+   * Check if input looks like a UUID
+   */
+  function isUUID(str) {
+    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    return uuidRegex.test(str);
+  }
+
+  /**
+   * Authenticate with permanent token (manual) or UUID (dev mode)
    */
   function authenticate() {
     const token = dom.authToken?.value?.trim();
 
     if (!token || token.length < 10) {
-      showError('Please enter a valid token');
-      showConnectionToast('warn', 'Invalid Token', 'Token must be at least 10 characters');
+      showError('Please enter a valid token or UUID');
+      showConnectionToast('warn', 'Invalid Input', 'Enter a token or UUID (for dev mode)');
       return;
     }
 
     clearError();
     setLoading(true);
 
-    // Save token with device fingerprint
-    localStorage.setItem('mx_permanent_token', token);
-    localStorage.setItem('mx_token_device', authState.deviceFingerprint);
-    authState.token = token;
+    // Check if input is a UUID (dev authentication)
+    const isDevUuidAuth = isUUID(token);
+
+    if (isDevUuidAuth) {
+      console.log('[Auth] Detected UUID input - using dev authentication');
+      // Don't save UUID as token
+    } else {
+      // Save token with device fingerprint
+      localStorage.setItem('mx_permanent_token', token);
+      localStorage.setItem('mx_token_device', authState.deviceFingerprint);
+      authState.token = token;
+    }
 
     // Get host/port
     let host = authState.serverHost;
@@ -722,11 +738,20 @@
     if (ws.isConnected()) {
       authState.connectionPhase = 'authenticating';
       authState.status = AuthStatus.PENDING_VERIFICATION;
-      updateStatus('Authenticating...', 'Verifying token');
-      ws.send('AUTH_PERMANENT_TOKEN', {
-        token: token,
-        deviceFingerprint: authState.deviceFingerprint
-      });
+
+      if (isDevUuidAuth) {
+        updateStatus('Authenticating...', 'Dev UUID authentication');
+        ws.send('AUTH_DEV_UUID_LOGIN', {
+          uuid: token,
+          deviceFingerprint: authState.deviceFingerprint
+        });
+      } else {
+        updateStatus('Authenticating...', 'Verifying token');
+        ws.send('AUTH_PERMANENT_TOKEN', {
+          token: token,
+          deviceFingerprint: authState.deviceFingerprint
+        });
+      }
 
       setTimeout(() => {
         if (!authState.authenticated) {
@@ -740,10 +765,17 @@
       updateStatus('Connecting...', 'Establishing connection');
 
       connectWebSocket().then(() => {
-        ws.send('AUTH_PERMANENT_TOKEN', {
-          token: token,
-          deviceFingerprint: authState.deviceFingerprint
-        });
+        if (isDevUuidAuth) {
+          ws.send('AUTH_DEV_UUID_LOGIN', {
+            uuid: token,
+            deviceFingerprint: authState.deviceFingerprint
+          });
+        } else {
+          ws.send('AUTH_PERMANENT_TOKEN', {
+            token: token,
+            deviceFingerprint: authState.deviceFingerprint
+          });
+        }
       }).catch((err) => {
         setLoading(false);
         authState.status = AuthStatus.UNAUTHENTICATED;
