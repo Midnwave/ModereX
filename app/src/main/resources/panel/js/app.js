@@ -4274,10 +4274,10 @@
       const versionBadge = document.getElementById('versionBadge');
       if (versionBadge) {
         versionBadge.style.display = debugEnabled ? 'flex' : 'none';
-        // Set version text
+        // Set version text from loaded panel version
         const versionText = document.getElementById('versionText');
-        if (versionText) {
-          versionText.textContent = 'DEV-2026-01-23_2';
+        if (versionText && panelVersionInfo?.version) {
+          versionText.textContent = panelVersionInfo.version;
         }
       }
     }
@@ -5205,39 +5205,24 @@
   window.startTokenStressTest = startTokenStressTest;
   window.devUuidAuth = devUuidAuth;
 
-  // ===== WEB PANEL AUTO-UPDATE =====
-  const PANEL_VERSION = 'DEV-2026-01-25-001';
-  const PANEL_BUILD_DATE = '2026-01-25';
-  const PANEL_BUILD_NUMBER = 1; // Increment this for each build on the same day
-  let updateCheckInterval = null;
+  // ===== WEB PANEL VERSION =====
+  let panelVersionInfo = null;
 
-  function checkForPanelUpdate() {
-    // Check with server for latest panel version
+  function loadPanelVersion() {
+    // Fetch version from server API (reads from panel-version.properties)
     fetch('/api/panel-version?_=' + Date.now())
       .then(res => res.json())
       .then(data => {
-        if (data.version && data.version !== PANEL_VERSION) {
-          showUpdateNotification(data.version, data.buildDate, data.notes);
-        } else if (data.buildDate && data.buildDate !== PANEL_BUILD_DATE) {
-          showUpdateNotification(data.version || PANEL_VERSION, data.buildDate, data.notes);
+        panelVersionInfo = data;
+        // Update sidebar version display
+        const versionEl = document.getElementById('panelVersion');
+        if (versionEl && data.version) {
+          versionEl.textContent = data.version;
         }
       })
       .catch(() => {
-        // Silent fail - update check is optional
+        // Silent fail - version display is optional
       });
-  }
-
-  function showUpdateNotification(newVersion, buildDate, notes) {
-    const msg = notes ? `${notes}` : 'A newer version is available.';
-    toast('info', `Update Available: ${newVersion}`, msg, { duration: 10000 });
-
-    // Show persistent update banner
-    const banner = document.getElementById('updateBanner');
-    if (banner) {
-      banner.querySelector('.update-version').textContent = `${newVersion} • ${buildDate}`;
-      banner.querySelector('.update-notes').textContent = notes || 'New features and improvements';
-      banner.classList.add('show');
-    }
   }
 
   function dismissUpdateBanner() {
@@ -5252,6 +5237,7 @@
 
   window.dismissUpdateBanner = dismissUpdateBanner;
   window.applyPanelUpdate = applyPanelUpdate;
+  window.loadPanelVersion = loadPanelVersion;
   window.PANEL_VERSION = PANEL_VERSION;
   window.PANEL_BUILD_DATE = PANEL_BUILD_DATE;
 
@@ -5371,9 +5357,8 @@
     setInterval(saveState, 4000);
     window.addEventListener('beforeunload', saveState);
 
-    // Check for panel updates on load and every 5 minutes
-    setTimeout(checkForPanelUpdate, 3000);
-    updateCheckInterval = setInterval(checkForPanelUpdate, 5 * 60 * 1000);
+    // Load panel version from server
+    setTimeout(loadPanelVersion, 1000);
 
     // Setup profile dropdown click handler
     const topProfile = document.getElementById('topProfile');
