@@ -283,7 +283,14 @@
       if (options.playerId) openDrawer(options.playerId);
       dismiss();
     };
-    dom().toastContainer.appendChild(el);
+
+    // Get container - try cached first, then direct query as fallback
+    const container = dom()?.toastContainer || document.getElementById('toastContainer');
+    if (!container) {
+      console.warn('[Toast] Toast container not found, skipping toast:', title);
+      return;
+    }
+    container.appendChild(el);
     setTimeout(dismiss, ttl);
 
     // Play sound based on toast type (unless silent option is set)
