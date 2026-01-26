@@ -4935,170 +4935,201 @@
   window.applyDevModeUI = applyDevModeUI;
 
   // ===== STRESS TESTING =====
-  let spoofedDataCleanupTimers = [];
+  // Now uses server-side data generation for realistic testing
   let activeStressTests = new Map();
+  let stressTestCleanupTimers = [];
 
-  function startSpoofPlayers() {
-    const count = Math.min(100000, Math.max(1, parseInt(document.getElementById('spoofPlayerCount')?.value || '100', 10)));
-    runStressTest('spoofPlayer', count, (i) => {
-      const player = {
-        id: `spoof-player-${i}`,
-        uuid: `00000000-0000-0000-0000-${String(i).padStart(12, '0')}`,
-        name: `SpoofPlayer${i}`,
-        ip: `192.168.${Math.floor(i / 256) % 256}.${i % 256}`,
-        platform: Math.random() > 0.8 ? 'Bedrock' : 'Java',
-        geyser: Math.random() > 0.8,
-        status: Math.random() > 0.3 ? 'online' : 'offline',
-        lastSeen: now() - Math.floor(Math.random() * 86400000),
-        flags: Math.floor(Math.random() * 5),
-        warnings: Math.floor(Math.random() * 3),
-        _spoofed: true
-      };
-      state.players.push(player);
-    }, () => {
-      ui.renderPlayers();
-      ui.renderDashboard();
+  /**
+   * Create test players via server
+   * Server will add actual players to the database
+   */
+  function startCreateTestPlayers() {
+    const count = Math.min(10000, Math.max(1, parseInt(document.getElementById('spoofPlayerCount')?.value || '100', 10)));
+
+    if (!window.MX.ws?.isConnected()) {
+      toast('warn', 'Not Connected', 'Must be connected to server for stress testing');
+      return;
+    }
+
+    if (!confirm(`This will create ${count.toLocaleString()} TEST players in the database.\n\nThese players will have names like "TestPlayer_1234" and can be cleaned up later.\n\nContinue?`)) {
+      return;
+    }
+
+    const progressEl = document.getElementById('spoofPlayerProgress');
+    const fillEl = document.getElementById('spoofPlayerFill');
+    const logEl = document.getElementById('spoofPlayerLog');
+
+    if (progressEl) progressEl.style.display = 'block';
+    if (fillEl) fillEl.style.width = '0%';
+    if (logEl) logEl.innerHTML = '<div class="stress-log-entry">Requesting server to create test players...</div>';
+
+    // Send request to server
+    window.MX.ws.send('DEV_STRESS_CREATE_PLAYERS', {
+      count: count,
+      timestamp: Date.now()
     });
+
+    toast('info', 'Stress Test', `Requesting server to create ${count.toLocaleString()} test players...`);
   }
 
-  function startSpoofStaff() {
-    const count = Math.min(50000, Math.max(1, parseInt(document.getElementById('spoofStaffCount')?.value || '50', 10)));
-    runStressTest('spoofStaff', count, (i) => {
-      const staff = {
-        id: `spoof-staff-${i}`,
-        name: `SpoofStaff${i}`,
-        rank: ['Admin', 'Moderator', 'Helper'][Math.floor(Math.random() * 3)],
-        online: Math.random() > 0.5,
-        _spoofed: true
-      };
-      if (!state.staffList) state.staffList = [];
-      state.staffList.push(staff);
-    }, () => {
-      ui.renderDashboard();
+  /**
+   * Create test punishments via server
+   * Server will add actual punishments to the database
+   */
+  function startCreateTestPunishments() {
+    const count = Math.min(5000, Math.max(1, parseInt(document.getElementById('spoofPunishmentCount')?.value || '500', 10)));
+
+    if (!window.MX.ws?.isConnected()) {
+      toast('warn', 'Not Connected', 'Must be connected to server for stress testing');
+      return;
+    }
+
+    if (!confirm(`This will create ${count.toLocaleString()} TEST punishments in the database.\n\nThese punishments will be marked as test data and can be cleaned up later.\n\nContinue?`)) {
+      return;
+    }
+
+    const progressEl = document.getElementById('spoofPunishmentProgress');
+    const fillEl = document.getElementById('spoofPunishmentFill');
+    const logEl = document.getElementById('spoofPunishmentLog');
+
+    if (progressEl) progressEl.style.display = 'block';
+    if (fillEl) fillEl.style.width = '0%';
+    if (logEl) logEl.innerHTML = '<div class="stress-log-entry">Requesting server to create test punishments...</div>';
+
+    // Send request to server
+    window.MX.ws.send('DEV_STRESS_CREATE_PUNISHMENTS', {
+      count: count,
+      timestamp: Date.now()
     });
+
+    toast('info', 'Stress Test', `Requesting server to create ${count.toLocaleString()} test punishments...`);
   }
 
-  function startSpoofPunishments() {
-    const count = Math.min(10000, Math.max(1, parseInt(document.getElementById('spoofPunishmentCount')?.value || '500', 10)));
-    const types = ['BAN', 'MUTE', 'WARN', 'KICK'];
-    const reasons = ['Hacking', 'Spam', 'Toxic behavior', 'Griefing', 'Advertising', 'AFK farming'];
-    runStressTest('spoofPunishment', count, (i) => {
-      const punishment = {
-        id: `spoof-pun-${i}`,
-        caseId: `MX-SPOOF-${String(i).padStart(6, '0')}`,
-        type: types[Math.floor(Math.random() * types.length)],
-        playerName: `SpoofPlayer${Math.floor(Math.random() * 1000)}`,
-        playerUuid: `00000000-0000-0000-0000-${String(Math.floor(Math.random() * 1000)).padStart(12, '0')}`,
-        reason: reasons[Math.floor(Math.random() * reasons.length)],
-        staff: `SpoofStaff${Math.floor(Math.random() * 50)}`,
-        time: now() - Math.floor(Math.random() * 604800000),
-        duration: Math.random() > 0.3 ? Math.floor(Math.random() * 86400) : 0,
-        active: Math.random() > 0.4,
-        _spoofed: true
-      };
-      state.punishments.push(punishment);
-    }, () => {
-      ui.renderPunishments();
-      ui.renderDashboard();
+  /**
+   * Request server to clean up all test data
+   */
+  function cleanupTestData() {
+    if (!window.MX.ws?.isConnected()) {
+      toast('warn', 'Not Connected', 'Must be connected to server to clean up test data');
+      return;
+    }
+
+    if (!confirm('This will remove ALL test data created by stress tests from the database.\n\nThis includes test players, test punishments, and test tokens.\n\nContinue?')) {
+      return;
+    }
+
+    window.MX.ws.send('DEV_STRESS_CLEANUP', {
+      timestamp: Date.now()
     });
+
+    toast('info', 'Cleanup', 'Requesting server to clean up test data...');
   }
 
-  function startSpoofAutomod() {
-    const count = Math.min(5000, Math.max(1, parseInt(document.getElementById('spoofAutomodCount')?.value || '200', 10)));
-    const triggers = ['Spam detected', 'Caps lock', 'Advertising', 'Swearing', 'Repeating messages'];
-    runStressTest('spoofAutomod', count, (i) => {
-      state.watchAlerts.push({
-        type: 'Automod',
-        details: triggers[Math.floor(Math.random() * triggers.length)],
-        playerName: `SpoofPlayer${Math.floor(Math.random() * 1000)}`,
-        playerUuid: `00000000-0000-0000-0000-${String(Math.floor(Math.random() * 1000)).padStart(12, '0')}`,
-        t: now() - Math.floor(Math.random() * 3600000),
-        _spoofed: true
-      });
-    }, () => {
-      ui.renderDashboard();
-    });
-  }
+  // Handler for stress test progress updates from server
+  function handleStressTestProgress(data) {
+    const { testType, current, total, complete, duration, error, message } = data;
 
-  function runStressTest(testId, count, createFn, completeFn) {
-    const progressEl = document.getElementById(`${testId}Progress`);
+    // Map test types to element IDs
+    const elementMap = {
+      'players': 'spoofPlayer',
+      'punishments': 'spoofPunishment',
+      'tokens': 'tokenStress'
+    };
+
+    const testId = elementMap[testType] || testType;
     const fillEl = document.getElementById(`${testId}Fill`);
     const logEl = document.getElementById(`${testId}Log`);
 
-    if (progressEl) progressEl.style.display = 'block';
-    if (logEl) logEl.innerHTML = '';
-
-    let processed = 0;
-    const batchSize = Math.min(1000, Math.ceil(count / 10));
-
-    function processBatch() {
-      const endIndex = Math.min(processed + batchSize, count);
-      for (let i = processed; i < endIndex; i++) {
-        createFn(i);
-      }
-      processed = endIndex;
-
-      const progress = Math.round((processed / count) * 100);
-      if (fillEl) fillEl.style.width = `${progress}%`;
-      if (logEl) {
-        logEl.innerHTML = `<div class="stress-log-entry">Generated ${processed}/${count} (${progress}%)</div>`;
-      }
-
-      if (processed < count) {
-        activeStressTests.set(testId, setTimeout(processBatch, 10));
-      } else {
-        // Complete
-        if (logEl) logEl.innerHTML += `<div class="stress-log-entry success">Completed! ${count} items generated.</div>`;
-        completeFn();
-        activeStressTests.delete(testId);
-
-        // Schedule cleanup after 10 minutes
-        const cleanupTimer = setTimeout(() => {
-          clearSpoofedDataByType(testId);
-          toast('info', 'Cleanup', `Spoofed ${testId} data has been cleaned up.`);
-        }, 10 * 60 * 1000);
-        spoofedDataCleanupTimers.push(cleanupTimer);
-      }
+    if (error) {
+      if (logEl) logEl.innerHTML = `<div class="stress-log-entry error">${escapeHtml(message || error)}</div>`;
+      toast('bad', 'Stress Test Error', message || error);
+      return;
     }
 
-    processBatch();
+    if (complete) {
+      if (fillEl) fillEl.style.width = '100%';
+      if (logEl) {
+        const perSec = duration > 0 ? Math.round(total / (duration / 1000)) : total;
+        logEl.innerHTML = `<div class="stress-log-entry success">Complete! Created ${total.toLocaleString()} items in ${duration}ms (${perSec.toLocaleString()}/sec)</div>`;
+      }
+      toast('ok', 'Stress Test Complete', `Created ${total.toLocaleString()} test ${testType}`);
+
+      // Refresh data from server
+      window.MX.ws.send('GET_DATA', {});
+    } else {
+      const pct = Math.round((current / total) * 100);
+      if (fillEl) fillEl.style.width = `${pct}%`;
+      if (logEl) {
+        logEl.innerHTML = `<div class="stress-log-entry">Creating ${current.toLocaleString()} / ${total.toLocaleString()} (${pct}%)</div>`;
+      }
+    }
+  }
+
+  // Register the handler
+  if (window.MX.ws) {
+    window.MX.ws.on('DEV_STRESS_PROGRESS', handleStressTestProgress);
+    window.MX.ws.on('DEV_STRESS_COMPLETE', handleStressTestProgress);
+    window.MX.ws.on('DEV_STRESS_ERROR', handleStressTestProgress);
   }
 
   function stopAllStressTests() {
-    for (const [testId, timer] of activeStressTests) {
-      clearTimeout(timer);
-      const logEl = document.getElementById(`${testId}Log`);
-      if (logEl) logEl.innerHTML += `<div class="stress-log-entry error">Stopped.</div>`;
+    if (window.MX.ws?.isConnected()) {
+      window.MX.ws.send('DEV_STRESS_STOP', {});
     }
     activeStressTests.clear();
-    toast('info', 'Stress Tests', 'All tests stopped.');
+    toast('info', 'Stress Tests', 'Stop request sent to server.');
   }
 
-  function clearAllSpoofedData() {
-    state.players = state.players.filter(p => !p._spoofed);
-    state.punishments = state.punishments.filter(p => !p._spoofed);
-    state.watchAlerts = state.watchAlerts.filter(a => !a._spoofed);
-    if (state.staffList) state.staffList = state.staffList.filter(s => !s._spoofed);
+  // Legacy function names for compatibility
+  function startSpoofPlayers() { startCreateTestPlayers(); }
+  function startSpoofPunishments() { startCreateTestPunishments(); }
+  function clearAllSpoofedData() { cleanupTestData(); }
 
-    // Clear cleanup timers
-    spoofedDataCleanupTimers.forEach(t => clearTimeout(t));
-    spoofedDataCleanupTimers = [];
+  // Staff spoofing is local-only (no database table)
+  function startSpoofStaff() {
+    toast('info', 'Info', 'Staff stress testing only affects local UI display.');
+    const count = Math.min(50000, Math.max(1, parseInt(document.getElementById('spoofStaffCount')?.value || '50', 10)));
 
-    ui.renderAll();
-    toast('ok', 'Cleared', 'All spoofed data has been removed.');
-  }
-
-  function clearSpoofedDataByType(testId) {
-    if (testId.includes('Player')) {
-      state.players = state.players.filter(p => !p._spoofed);
-    } else if (testId.includes('Staff')) {
-      if (state.staffList) state.staffList = state.staffList.filter(s => !s._spoofed);
-    } else if (testId.includes('Punishment')) {
-      state.punishments = state.punishments.filter(p => !p._spoofed);
-    } else if (testId.includes('Automod')) {
-      state.watchAlerts = state.watchAlerts.filter(a => !a._spoofed);
+    if (!state.staffList) state.staffList = [];
+    for (let i = 0; i < count; i++) {
+      state.staffList.push({
+        id: `test-staff-${i}`,
+        name: `TestStaff${i}`,
+        rank: ['Admin', 'Moderator', 'Helper'][Math.floor(Math.random() * 3)],
+        online: Math.random() > 0.5,
+        _test: true
+      });
     }
+    ui.renderDashboard();
+    toast('ok', 'Complete', `Added ${count} test staff to local display.`);
+  }
+
+  // Automod alerts are local-only (temporary events)
+  function startSpoofAutomod() {
+    toast('info', 'Info', 'Automod stress testing only affects local UI display.');
+    const count = Math.min(5000, Math.max(1, parseInt(document.getElementById('spoofAutomodCount')?.value || '200', 10)));
+    const triggers = ['Spam detected', 'Caps lock', 'Advertising', 'Swearing', 'Repeating messages'];
+
+    for (let i = 0; i < count; i++) {
+      state.watchAlerts.push({
+        type: 'Automod',
+        details: triggers[Math.floor(Math.random() * triggers.length)],
+        playerName: `TestPlayer${Math.floor(Math.random() * 1000)}`,
+        playerUuid: `00000000-0000-0000-0000-${String(Math.floor(Math.random() * 1000)).padStart(12, '0')}`,
+        t: now() - Math.floor(Math.random() * 3600000),
+        _test: true
+      });
+    }
+    ui.renderDashboard();
+    toast('ok', 'Complete', `Added ${count} test automod alerts to local display.`);
+  }
+
+  // Clear local test data (for staff and automod which are local-only)
+  function clearLocalTestData() {
+    if (state.staffList) state.staffList = state.staffList.filter(s => !s._test);
+    state.watchAlerts = state.watchAlerts.filter(a => !a._test);
     ui.renderAll();
+    toast('ok', 'Cleared', 'Local test data has been removed.');
   }
 
   // Debug log functions
@@ -5120,8 +5151,12 @@
   window.startSpoofStaff = startSpoofStaff;
   window.startSpoofPunishments = startSpoofPunishments;
   window.startSpoofAutomod = startSpoofAutomod;
+  window.startCreateTestPlayers = startCreateTestPlayers;
+  window.startCreateTestPunishments = startCreateTestPunishments;
   window.stopAllStressTests = stopAllStressTests;
   window.clearAllSpoofedData = clearAllSpoofedData;
+  window.cleanupTestData = cleanupTestData;
+  window.clearLocalTestData = clearLocalTestData;
   window.clearDebugLogs = clearDebugLogs;
   window.copyDebugLogs = copyDebugLogs;
 
