@@ -4748,9 +4748,9 @@
           <div style="width:20px;height:20px;border:2px solid var(--border);border-radius:4px;display:flex;align-items:center;justify-content:center;flex-shrink:0;${item.checked ? 'background:var(--good);border-color:var(--good)' : ''}">
             ${item.checked ? '<i class="fa-solid fa-check" style="color:#fff;font-size:11px"></i>' : ''}
           </div>
-          <div style="flex:1">
-            <div style="color:var(--text-primary);${item.checked ? 'text-decoration:line-through;opacity:0.7' : ''}">${escapeHtml(item.title)}</div>
-            ${item.description ? `<div style="font-size:12px;color:var(--text-secondary);margin-top:2px">${escapeHtml(item.description)}</div>` : ''}
+          <div style="flex:1;min-width:0">
+            <div style="color:var(--text-primary);word-wrap:break-word;overflow-wrap:break-word;${item.checked ? 'text-decoration:line-through;opacity:0.7' : ''}">${escapeHtml(item.title)}</div>
+            ${item.description ? `<div style="font-size:12px;color:var(--text-secondary);margin-top:4px;white-space:pre-wrap;word-wrap:break-word;overflow-wrap:break-word">${escapeHtml(item.description)}</div>` : ''}
           </div>
           ${item.id.startsWith('custom-') ? `<button class="btn tiny danger" onclick="event.stopPropagation();deleteChecklistItem('${item.id}')" title="Delete"><i class="fa-solid fa-trash"></i></button>` : ''}
         </div>`;
