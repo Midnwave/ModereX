@@ -2,11 +2,17 @@ package com.blockforge.moderex.commands.moderation.list;
 
 import com.blockforge.moderex.ModereX;
 import com.blockforge.moderex.commands.BaseCommand;
-import com.blockforge.moderex.config.lang.MessageKey;
 import com.blockforge.moderex.punishment.Punishment;
 import com.blockforge.moderex.punishment.PunishmentType;
 import com.blockforge.moderex.util.DurationParser;
+import com.blockforge.moderex.util.TextUtil;
+import net.kyori.adventure.text.Component;
+import net.kyori.adventure.text.event.ClickEvent;
+import net.kyori.adventure.text.event.HoverEvent;
+import net.kyori.adventure.text.format.NamedTextColor;
+import net.kyori.adventure.text.format.TextDecoration;
 import org.bukkit.command.CommandSender;
+import org.bukkit.entity.Player;
 
 import java.util.List;
 
@@ -41,38 +47,86 @@ public class BanListCommand extends BaseCommand {
 
         plugin.getPunishmentManager().getActivePunishmentsList(PunishmentType.BAN, page, BANS_PER_PAGE).thenAccept(bans -> {
             plugin.getPunishmentManager().getActivePunishmentsCount(PunishmentType.BAN).thenAccept(totalBans -> {
-                int totalPages = (int) Math.ceil((double) totalBans / BANS_PER_PAGE);
+                int totalPages = Math.max(1, (int) Math.ceil((double) totalBans / BANS_PER_PAGE));
+
+                // Header with box-drawing
+                sender.sendMessage(TextUtil.parse(""));
+                sender.sendMessage(TextUtil.parse("<dark_gray>┌────────────────────────────────────────────┐"));
+                sender.sendMessage(TextUtil.parse("<dark_gray>│ <red>Active Bans <dark_gray>(<white>" + totalBans + " total<dark_gray>)"));
+                sender.sendMessage(TextUtil.parse("<dark_gray>├────────────────────────────────────────────┤"));
 
                 if (bans.isEmpty()) {
-                    sendMessage(sender, MessageKey.BANLIST_HEADER);
-                    sendMessage(sender, MessageKey.BANLIST_EMPTY);
-                    return;
+                    sender.sendMessage(TextUtil.parse("<dark_gray>│ <gray>No active bans."));
+                } else {
+                    for (Punishment ban : bans) {
+                        String duration = ban.isPermanent() ? "<dark_red>Permanent" :
+                            "<white>" + DurationParser.formatRemaining(ban.getExpiresAt());
+
+                        if (sender instanceof Player) {
+                            Component entry = TextUtil.parse("<dark_gray>│ <red>" + ban.getPlayerName() +
+                                    " <dark_gray>- " + duration)
+                                .clickEvent(ClickEvent.runCommand("/viewpunishment " + ban.getCaseId()))
+                                .hoverEvent(HoverEvent.showText(TextUtil.parse(
+                                    "<gray>Case: <white>" + ban.getCaseId() + "\n" +
+                                    "<gray>Reason: <white>" + (ban.getReason() != null ? ban.getReason() : "None") + "\n" +
+                                    "<gray>Staff: <white>" + ban.getStaffName() + "\n" +
+                                    "\n<yellow>Click to view details")));
+                            sender.sendMessage(entry);
+                        } else {
+                            sender.sendMessage(TextUtil.parse("<dark_gray>│ <red>" + ban.getPlayerName() +
+                                    " <dark_gray>- " + duration + " <dark_gray>by <gray>" + ban.getStaffName()));
+                        }
+                    }
                 }
 
-                sendMessage(sender, MessageKey.BANLIST_HEADER);
+                sender.sendMessage(TextUtil.parse("<dark_gray>└────────────────────────────────────────────┘"));
 
-                for (Punishment ban : bans) {
-                    String duration = ban.isPermanent() ? "Permanent" :
-                        DurationParser.format(ban.getExpiresAt() - ban.getCreatedAt());
-
-                    sendMessage(sender, MessageKey.BANLIST_ENTRY,
-                            "player", ban.getPlayerName(),
-                            "staff", ban.getStaffName(),
-                            "reason", ban.getReason(),
-                            "duration", duration);
+                // Navigation footer
+                if (sender instanceof Player && totalPages > 1) {
+                    sender.sendMessage(buildNavigationFooter(finalPage, totalPages));
+                } else if (totalPages > 1) {
+                    sendMessage(sender, "<gray>Page " + finalPage + "/" + totalPages + " - Use /banlist <page>");
                 }
-
-                sendMessage(sender, MessageKey.BANLIST_FOOTER,
-                        "page", String.valueOf(finalPage),
-                        "total", String.valueOf(totalPages));
+                sender.sendMessage(TextUtil.parse(""));
             });
         });
+    }
+
+    private Component buildNavigationFooter(int currentPage, int totalPages) {
+        Component footer = Component.text("  « ", NamedTextColor.DARK_GRAY);
+
+        if (currentPage > 1) {
+            footer = footer.append(Component.text("[◀ Prev]", NamedTextColor.GOLD)
+                    .decorate(TextDecoration.BOLD)
+                    .clickEvent(ClickEvent.runCommand("/banlist " + (currentPage - 1)))
+                    .hoverEvent(HoverEvent.showText(Component.text("Go to page " + (currentPage - 1), NamedTextColor.YELLOW))));
+        } else {
+            footer = footer.append(Component.text("[◀ Prev]", NamedTextColor.DARK_GRAY));
+        }
+
+        footer = footer.append(Component.text(" — ", NamedTextColor.DARK_GRAY))
+                .append(Component.text("Page ", NamedTextColor.GRAY))
+                .append(Component.text(currentPage, NamedTextColor.GOLD))
+                .append(Component.text("/", NamedTextColor.GRAY))
+                .append(Component.text(totalPages, NamedTextColor.GOLD))
+                .append(Component.text(" — ", NamedTextColor.DARK_GRAY));
+
+        if (currentPage < totalPages) {
+            footer = footer.append(Component.text("[Next ▶]", NamedTextColor.GOLD)
+                    .decorate(TextDecoration.BOLD)
+                    .clickEvent(ClickEvent.runCommand("/banlist " + (currentPage + 1)))
+                    .hoverEvent(HoverEvent.showText(Component.text("Go to page " + (currentPage + 1), NamedTextColor.YELLOW))));
+        } else {
+            footer = footer.append(Component.text("[Next ▶]", NamedTextColor.DARK_GRAY));
+        }
+
+        return footer.append(Component.text(" »", NamedTextColor.DARK_GRAY));
     }
 
     @Override
     protected List<String> tabComplete(CommandSender sender, String[] args) {
         if (args.length == 1) {
-            return filterCompletions(List.of("1", "2", "3"), args[0]);
+            return filterCompletions(List.of("1", "2", "3", "4", "5"), args[0]);
         }
         return super.tabComplete(sender, args);
     }
