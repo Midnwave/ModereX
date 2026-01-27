@@ -143,12 +143,87 @@ FROM moderex_staff_settings;
 - [ ] Anticheat alerts show in real-time
 - [ ] Player activity updates live
 
+### Player Profile Drawer
+
+- [ ] Open player drawer shows current IP
+- [ ] IP History section shows previous IPs (from activity log)
+- [ ] Recent Commands section shows last 10 commands with timestamps
+- [ ] "Expand" button opens command history modal
+- [ ] Automod Logs section shows recent triggers
+- [ ] Chat Logs button opens chat log modal with search/filter
+- [ ] Automod Logs button opens automod log modal with search/filter
+- [ ] Fetched data from database displays correctly (not just live events)
+
 ### Settings Sync
 
 - [ ] Change alert preference in web panel
 - [ ] Verify change in Staff Settings GUI
 - [ ] Change setting in-game
 - [ ] Verify change reflects in web panel
+
+---
+
+## Activity Logging Tests
+
+### Player Activity Logging
+
+- [ ] **Chat Logging** (if enabled in config)
+  - Player chat messages logged to `moderex_activity_log`
+  - Verify type = `CHAT`, content = message
+  - Check web panel shows chat logs for player
+
+- [ ] **Command Logging** (if enabled in config)
+  - Player commands logged to `moderex_activity_log`
+  - Sensitive commands (login/register) redacted
+  - Verify type = `COMMAND`
+
+- [ ] **Session Logging** (if enabled in config)
+  - Join logged with IP address
+  - Quit logged with session duration
+  - IP changes tracked when player joins from new IP
+
+- [ ] **Sign Logging** (if enabled in config)
+  - Sign text logged with location
+  - Verify type = `SIGN`
+
+### Staff Action Logging
+
+- [ ] **Punishment Actions**
+  - Staff issuing punishment logged (STAFF_PUNISHMENT)
+  - Staff pardoning logged (STAFF_PARDON)
+  - Target player receives activity log entry
+
+- [ ] **Watchlist Actions**
+  - Adding to watchlist logged (STAFF_WATCHLIST_ADD)
+  - Removing from watchlist logged (STAFF_WATCHLIST_REMOVE)
+  - Notes logged (STAFF_WATCHLIST_NOTE)
+
+- [ ] **Other Staff Actions**
+  - Vanish enable/disable logged
+  - Slowmode changes logged
+  - Chat lock logged
+
+### Activity Log Database Queries
+
+```sql
+-- Check activity log entries
+SELECT * FROM moderex_activity_log ORDER BY timestamp DESC LIMIT 20;
+
+-- Check chat logs for a player
+SELECT * FROM moderex_activity_log
+WHERE player_uuid = '<uuid>' AND type = 'CHAT'
+ORDER BY timestamp DESC LIMIT 10;
+
+-- Check IP history
+SELECT * FROM moderex_activity_log
+WHERE player_uuid = '<uuid>' AND type IN ('IP_CHANGE', 'SESSION_JOIN')
+ORDER BY timestamp DESC;
+
+-- Check automod triggers
+SELECT * FROM moderex_activity_log
+WHERE type = 'AUTOMOD_TRIGGER'
+ORDER BY timestamp DESC LIMIT 10;
+```
 
 ---
 
@@ -218,10 +293,27 @@ ModereXAPI.getInstance().registerAnticheat(provider);
 
 - [ ] `/seen <player>` shows player info
 - [ ] `/history <player>` shows punishment history
+- [ ] `/history <player> bans` shows only bans (type filter)
+- [ ] `/history <player> --gui` opens history GUI
 - [ ] `/modlog <player>` shows mod log with pagination
 - [ ] `/modlog <player> -staff` shows actions BY staff
-- [ ] `/mx commandhistory <player>` with clickable navigation
-- [ ] `/check <player>` opens check GUI
+- [ ] `/modlog <player> --gui` opens ModLog GUI directly
+- [ ] `/staffhistory <staff>` shows punishments issued by staff
+- [ ] `/staffhistory <staff> bans --gui` with type filter and GUI
+- [ ] `/cmdhistory <player>` shows command history with pagination
+- [ ] `/check <player>` shows comprehensive player info with buttons
+- [ ] `/viewpunishment <caseId>` shows punishment details
+- [ ] `/viewpunishment <caseId> --gui` opens punishment in GUI
+- [ ] `/banlist [page]` shows active bans with pagination
+- [ ] `/mutelist [page]` shows active mutes with pagination
+- [ ] `/warnlist [page]` shows active warnings with pagination
+
+### Permission Tests
+
+- [ ] `moderex.check.ip` - Only see IP info in /check if permitted
+- [ ] `moderex.viewpunishment.ip` - Only see IP in punishment view if permitted
+- [ ] `moderex.history.ip` - Only see IP details in history if permitted
+- [ ] Commands work for console (no click events, no GUI)
 
 ### Tab Completion
 

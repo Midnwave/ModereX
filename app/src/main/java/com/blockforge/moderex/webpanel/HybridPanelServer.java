@@ -4639,24 +4639,59 @@ public class HybridPanelServer {
 
     private void addDefaultChecklistItems() {
         String[][] defaults = {
+            // Punishments
             {"Punishments", "mute-command", "Mute Command", "Test /mute creates mute and blocks chat"},
             {"Punishments", "ban-command", "Ban Command", "Test /ban creates ban and blocks join"},
             {"Punishments", "warn-command", "Warn Command", "Test /warn creates warning notification"},
             {"Punishments", "kick-command", "Kick Command", "Test /kick removes player with message"},
             {"Punishments", "ipban-command", "IP Ban Command", "Test /ipban blocks all accounts on IP"},
             {"Punishments", "unmute-unban", "Unmute/Unban", "Test punishment removal commands"},
+            {"Punishments", "viewpunishment", "View Punishment", "Test /viewpunishment with --gui flag"},
+
+            // Commands
+            {"Commands", "history-cmd", "History Command", "Test /history with type filters and --gui flag"},
+            {"Commands", "staffhistory-cmd", "Staff History", "Test /staffhistory mirrors /modlog functionality"},
+            {"Commands", "modlog-cmd", "ModLog Command", "Test /modlog with --gui flag and type filters"},
+            {"Commands", "cmdhistory-cmd", "Command History", "Test /cmdhistory pagination and formatting"},
+            {"Commands", "check-cmd", "Check Command", "Test /check shows comprehensive info with buttons"},
+            {"Commands", "list-commands", "List Commands", "Test /banlist, /mutelist, /warnlist pagination"},
+
+            // Activity Logging
+            {"Activity Log", "chat-logging", "Chat Logging", "Test chat messages logged to database"},
+            {"Activity Log", "command-logging", "Command Logging", "Test commands logged (sensitive redacted)"},
+            {"Activity Log", "session-logging", "Session Logging", "Test join/quit with IP tracking"},
+            {"Activity Log", "staff-action-log", "Staff Action Log", "Test punishment/pardon logged as staff actions"},
+            {"Activity Log", "automod-logging", "Automod Logging", "Test automod triggers logged to activity log"},
+
+            // Staff Settings
             {"Staff Settings", "settings-gui", "Staff Settings GUI", "Test /mx settings opens and saves correctly"},
             {"Staff Settings", "alert-prefs", "Alert Preferences", "Test per-check alert configuration"},
             {"Staff Settings", "settings-sync", "Settings Sync", "Verify settings sync to web panel"},
+
+            // Automod
             {"Automod", "spam-filter", "Spam Prevention", "Test rapid message blocking"},
             {"Automod", "caps-filter", "Caps Filter", "Test excessive CAPS conversion"},
             {"Automod", "word-filter", "Word Filter", "Test blacklisted word blocking"},
             {"Automod", "anticheat-rules", "Anticheat Rules", "Test auto-punishment at threshold"},
+
+            // Web Panel
             {"Web Panel", "connection", "Panel Connection", "Test /mx connect code authentication"},
             {"Web Panel", "realtime", "Real-time Updates", "Verify punishments appear instantly"},
             {"Web Panel", "settings-sync", "Web Settings Sync", "Test bidirectional settings sync"},
+            {"Web Panel", "player-drawer", "Player Drawer", "Test drawer shows IP history, commands, automod"},
+            {"Web Panel", "chat-logs", "Chat Logs Modal", "Test chat logs modal with search/filter"},
+            {"Web Panel", "automod-logs", "Automod Logs Modal", "Test automod logs modal with search/filter"},
+
+            // Permissions
+            {"Permissions", "ip-permission", "IP Permission", "Test moderex.check.ip hides IP info"},
+            {"Permissions", "history-ip-perm", "History IP Perm", "Test moderex.history.ip for IP details"},
+
+            // Database
             {"Database", "sqlite-verify", "SQLite Tables", "Verify all tables exist and have data"},
             {"Database", "mysql-verify", "MySQL Support", "Test MySQL connection if configured"},
+            {"Database", "activity-log-table", "Activity Log Table", "Verify moderex_activity_log has entries"},
+
+            // Performance
             {"Performance", "gui-responsive", "GUI Responsiveness", "Test GUIs with 1000+ records"},
             {"Performance", "memory-leaks", "Memory Leaks", "Check for leaks after extended use"}
         };
