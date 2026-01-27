@@ -4706,7 +4706,7 @@ public class HybridPanelServer {
         response.addProperty("type", "PLUGIN_UPDATE_RESULT");
         response.addProperty("success", success);
         response.addProperty("message", message);
-        send(conn, response);
+        conn.send(GSON.toJson(response));
     }
 
     /**
