@@ -3,33 +3,41 @@
    ============================================ */
 
 :root {
-  /* Colors */
-  --bg0: #030508;
-  --bg1: #080c14;
-  --bg2: #0c1220;
-  --surface: #101828;
-  --surface2: #0a1018;
-  --border: #1a2744;
-  --border-light: #243352;
-  --text: #f0f4ff;
-  --text-secondary: #a8b8d8;
-  --muted: #6b7fa8;
-  --muted2: #4a5c7a;
+  /* ========== THEME HUE - Change this to shift entire color scheme ========== */
+  /* Blue: 215, Green: 145, Red: 0, Purple: 265, Teal: 175, Orange: 25 */
+  --theme-h: 215;
 
-  /* Primary - RGB values for opacity variants */
+  /* ========== Derived Background Colors (from theme hue) ========== */
+  --bg0: hsl(var(--theme-h), 25%, 2%);
+  --bg1: hsl(var(--theme-h), 30%, 5%);
+  --bg2: hsl(var(--theme-h), 38%, 8%);
+  --surface: hsl(var(--theme-h), 42%, 11%);
+  --surface2: hsl(var(--theme-h), 32%, 6%);
+
+  /* ========== Derived Border Colors ========== */
+  --border: hsl(var(--theme-h), 42%, 18%);
+  --border-light: hsl(var(--theme-h), 38%, 23%);
+
+  /* ========== Derived Text Colors ========== */
+  --text: hsl(var(--theme-h), 60%, 97%);
+  --text-secondary: hsl(var(--theme-h), 30%, 75%);
+  --muted: hsl(var(--theme-h), 25%, 54%);
+  --muted2: hsl(var(--theme-h), 24%, 38%);
+
+  /* ========== Primary Color (main accent) ========== */
   --primary-rgb: 45, 122, 237;
-  --primary: #2d7aed;
+  --primary: hsl(var(--theme-h), 83%, 55%);
   --primary-light-rgb: 90, 156, 255;
-  --primary-light: #5a9cff;
-  --primary-dark: #1a5cc0;
+  --primary-light: hsl(var(--theme-h), 100%, 68%);
+  --primary-dark: hsl(var(--theme-h), 78%, 43%);
   --primary-glow: rgba(var(--primary-rgb), 0.35);
 
-  /* Accent - RGB values for opacity variants */
+  /* ========== Accent Color (secondary, typically purple) ========== */
   --accent-rgb: 124, 92, 255;
   --accent: #7c5cff;
   --accent-light: #9d82ff;
 
-  /* Status - RGB values for opacity variants */
+  /* ========== Status Colors (fixed - not theme-dependent) ========== */
   --ok-rgb: 16, 185, 129;
   --ok: #10b981;
   --ok-glow: rgba(var(--ok-rgb), 0.30);
@@ -40,29 +48,29 @@
   --bad: #ef4444;
   --bad-glow: rgba(var(--bad-rgb), 0.30);
 
-  /* Special Effects */
+  /* ========== Special Effects ========== */
   --watchlist-glow: 0 0 20px rgba(var(--warn-rgb), 0.45), 0 0 40px rgba(var(--warn-rgb), 0.20);
   --line-glow: rgba(var(--primary-light-rgb), 0.22);
 
-  /* Shadows */
+  /* ========== Shadows ========== */
   --shadow-sm: 0 4px 12px rgba(0, 0, 0, 0.25);
   --shadow: 0 12px 40px rgba(0, 0, 0, 0.45);
   --shadow-lg: 0 24px 60px rgba(0, 0, 0, 0.55);
 
-  /* Radii */
+  /* ========== Radii ========== */
   --radius: 10px;
   --radius-sm: 6px;
   --radius-lg: 14px;
 
-  /* Glass */
-  --glass: rgba(16, 24, 40, 0.85);
-  --glass2: rgba(8, 12, 20, 0.75);
+  /* ========== Glass Effects (derived from theme) ========== */
+  --glass: hsla(var(--theme-h), 42%, 11%, 0.85);
+  --glass2: hsla(var(--theme-h), 32%, 6%, 0.75);
 
-  /* Typography */
+  /* ========== Typography ========== */
   --font: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
   --font-mono: 'JetBrains Mono', monospace;
 
-  /* Transitions */
+  /* ========== Transitions ========== */
   --transition-fast: 0.16s cubic-bezier(0.4, 0, 0.2, 1);
   --transition: 0.26s cubic-bezier(0.4, 0, 0.2, 1);
   --transition-slow: 0.44s cubic-bezier(0.4, 0, 0.2, 1);

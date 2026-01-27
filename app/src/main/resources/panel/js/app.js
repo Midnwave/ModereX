@@ -4372,11 +4372,20 @@
     const g = parseInt(color.slice(3, 5), 16);
     const b = parseInt(color.slice(5, 7), 16);
 
+    // Extract RGB for light variant
+    const rL = parseInt(colorLight.slice(1, 3), 16);
+    const gL = parseInt(colorLight.slice(3, 5), 16);
+    const bL = parseInt(colorLight.slice(5, 7), 16);
+
+    // Apply theme hue - this shifts ALL derived colors (backgrounds, borders, muted text)
+    root.style.setProperty('--theme-h', Math.round(hsl.h));
+
     // Apply main CSS variables
     root.style.setProperty('--primary', color);
     root.style.setProperty('--primary-light', colorLight);
     root.style.setProperty('--primary-dark', colorDark);
     root.style.setProperty('--primary-rgb', `${r}, ${g}, ${b}`);
+    root.style.setProperty('--primary-light-rgb', `${rL}, ${gL}, ${bL}`);
 
     // Apply opacity variations for all UI elements
     root.style.setProperty('--primary-glow', `rgba(${r}, ${g}, ${b}, 0.35)`);
@@ -4642,11 +4651,20 @@
     const g = parseInt(color.slice(3, 5), 16);
     const b = parseInt(color.slice(5, 7), 16);
 
+    // Extract RGB for light variant
+    const rL = parseInt(colorLight.slice(1, 3), 16);
+    const gL = parseInt(colorLight.slice(3, 5), 16);
+    const bL = parseInt(colorLight.slice(5, 7), 16);
+
+    // Apply theme hue - this shifts ALL derived colors (backgrounds, borders, muted text)
+    root.style.setProperty('--theme-h', Math.round(hsl.h));
+
     // Apply main CSS variables
     root.style.setProperty('--primary', color);
     root.style.setProperty('--primary-light', colorLight);
     root.style.setProperty('--primary-dark', colorDark);
     root.style.setProperty('--primary-rgb', `${r}, ${g}, ${b}`);
+    root.style.setProperty('--primary-light-rgb', `${rL}, ${gL}, ${bL}`);
 
     // Apply all opacity variations for UI elements
     root.style.setProperty('--primary-glow', `rgba(${r}, ${g}, ${b}, 0.35)`);
