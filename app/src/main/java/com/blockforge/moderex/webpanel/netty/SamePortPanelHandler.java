@@ -76,6 +76,12 @@ public class SamePortPanelHandler implements HttpRequestHandler {
                     return;
                 }
 
+                // Handle GET /api/plugin-version
+                if (requestPath.equals("/api/plugin-version")) {
+                    handlePluginVersionRequest(ctx);
+                    return;
+                }
+
                 // Serve static files
                 serveStaticFile(ctx, requestPath);
 
@@ -125,6 +131,13 @@ public class SamePortPanelHandler implements HttpRequestHandler {
             version.addProperty("buildNumber", 0);
             version.addProperty("notes", "Failed to read version: " + e.getMessage());
         }
+        sendJson(ctx, 200, GSON.toJson(version));
+    }
+
+    private void handlePluginVersionRequest(ChannelHandlerContext ctx) {
+        JsonObject version = new JsonObject();
+        version.addProperty("version", plugin.getDescription().getVersion());
+        version.addProperty("name", plugin.getDescription().getName());
         sendJson(ctx, 200, GSON.toJson(version));
     }
 

@@ -79,6 +79,7 @@ public final class ModereX extends JavaPlugin {
     private com.blockforge.moderex.automod.AfkManager afkManager;
     private DebugWebhook debugWebhook;
     private WebPanelDebugger webPanelDebugger;
+    private com.blockforge.moderex.util.GitHubAutoUpdater githubAutoUpdater;
 
     // Lockdown state
     private boolean globalLockdown = false;
@@ -284,11 +285,11 @@ public final class ModereX extends JavaPlugin {
         }
 
         // Check for GitHub updates and auto-download
+        this.githubAutoUpdater = new com.blockforge.moderex.util.GitHubAutoUpdater(this);
         if (configManager.getSettings().isGithubAutoUpdateEnabled()) {
             logStartup("Checking GitHub for updates...");
-            var githubUpdater = new com.blockforge.moderex.util.GitHubAutoUpdater(this);
-            githubUpdater.checkAsync();
-            githubUpdater.schedulePeriodicCheck(); // Check every 24 hours
+            githubAutoUpdater.checkAsync();
+            githubAutoUpdater.schedulePeriodicCheck(); // Check every 24 hours
         }
 
         long endTime = System.currentTimeMillis();
@@ -609,6 +610,10 @@ public final class ModereX extends JavaPlugin {
 
     public WebPanelDebugger getWebPanelDebugger() {
         return webPanelDebugger;
+    }
+
+    public com.blockforge.moderex.util.GitHubAutoUpdater getGitHubAutoUpdater() {
+        return githubAutoUpdater;
     }
 
     public HookManager getHookManager() {

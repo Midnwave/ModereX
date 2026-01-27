@@ -3933,6 +3933,35 @@
       state.devChecklist = data || [];
       renderDevChecklist();
     });
+
+    ws.on('PLUGIN_UPDATE_RESULT', (data) => {
+      const banner = document.getElementById('updateBanner');
+      if (data.success) {
+        toast('success', 'Update Downloaded', data.message || 'Restart the server to apply the update.');
+        if (banner) {
+          const btn = banner.querySelector('.btn.primary');
+          if (btn) {
+            btn.innerHTML = '<i class="fa-solid fa-check"></i> Restart Required';
+            btn.disabled = true;
+            btn.classList.remove('primary');
+            btn.classList.add('success');
+          }
+          const titleEl = banner.querySelector('.update-title');
+          if (titleEl) titleEl.textContent = 'Update Downloaded!';
+          const notesEl = banner.querySelector('.update-notes');
+          if (notesEl) notesEl.textContent = 'Restart the server to apply';
+        }
+      } else {
+        toast('error', 'Update Failed', data.message || 'Failed to download update.');
+        if (banner) {
+          const btn = banner.querySelector('.btn.primary');
+          if (btn) {
+            btn.disabled = false;
+            btn.innerHTML = '<i class="fa-solid fa-rotate"></i> Retry';
+          }
+        }
+      }
+    });
   }
 
   // Override functions to use WebSocket in live mode
@@ -5265,8 +5294,12 @@
   window.startTokenStressTest = startTokenStressTest;
   window.devUuidAuth = devUuidAuth;
 
-  // ===== WEB PANEL VERSION =====
+  // ===== WEB PANEL VERSION & GITHUB UPDATE CHECKER =====
   let panelVersionInfo = null;
+  let currentPluginVersion = null;
+  let latestGitHubVersion = null;
+  let updateCheckInterval = null;
+  let updateDismissed = false;
 
   function loadPanelVersion() {
     // Fetch version from server API (reads from panel-version.properties)
@@ -5285,20 +5318,104 @@
       });
   }
 
+  function loadCurrentPluginVersion() {
+    // Get current plugin version from server
+    fetch('/api/plugin-version?_=' + Date.now())
+      .then(res => res.json())
+      .then(data => {
+        if (data.version) {
+          currentPluginVersion = data.version;
+          // Start checking GitHub for updates
+          checkGitHubForUpdates();
+          // Check every 10 seconds
+          if (!updateCheckInterval) {
+            updateCheckInterval = setInterval(checkGitHubForUpdates, 10000);
+          }
+        }
+      })
+      .catch(() => {});
+  }
+
+  function checkGitHubForUpdates() {
+    if (updateDismissed) return;
+
+    // Fetch build-info.txt from GitHub releases
+    fetch('https://raw.githubusercontent.com/Midnwave/ModereX/main/releases/build-info.txt?_=' + Date.now())
+      .then(res => {
+        if (!res.ok) throw new Error('Failed to fetch');
+        return res.text();
+      })
+      .then(text => {
+        // Parse build-info.txt
+        const lines = text.split('\n');
+        let version = null;
+        let buildDate = null;
+
+        for (const line of lines) {
+          if (line.startsWith('version=')) {
+            version = line.substring(8).trim();
+          } else if (line.startsWith('build_date=')) {
+            buildDate = line.substring(11).trim();
+          }
+        }
+
+        if (version && version !== currentPluginVersion) {
+          latestGitHubVersion = version;
+          showPluginUpdateBanner(version, buildDate);
+        }
+      })
+      .catch(() => {
+        // Silent fail - update check is optional
+      });
+  }
+
+  function showPluginUpdateBanner(newVersion, buildDate) {
+    const banner = document.getElementById('updateBanner');
+    if (!banner) return;
+
+    const titleEl = banner.querySelector('.update-title');
+    const versionEl = banner.querySelector('.update-version');
+    const notesEl = banner.querySelector('.update-notes');
+
+    if (titleEl) titleEl.textContent = 'Plugin Update Available';
+    if (versionEl) versionEl.textContent = `${newVersion}${buildDate ? ' • ' + buildDate : ''}`;
+    if (notesEl) notesEl.textContent = 'New version available on GitHub';
+
+    banner.classList.add('show');
+  }
+
   function dismissUpdateBanner() {
     const banner = document.getElementById('updateBanner');
     if (banner) banner.classList.remove('show');
+    updateDismissed = true;
   }
 
   function applyPanelUpdate() {
-    // Force reload bypassing cache
-    window.location.reload(true);
+    // Trigger plugin update via WebSocket
+    const ws = window.MX?.ws;
+    if (ws?.isConnected()) {
+      toast('info', 'Updating Plugin', 'Downloading latest version from GitHub...');
+      ws.send('TRIGGER_PLUGIN_UPDATE', {});
+
+      // Disable the button to prevent double-clicks
+      const banner = document.getElementById('updateBanner');
+      if (banner) {
+        const btn = banner.querySelector('.btn.primary');
+        if (btn) {
+          btn.disabled = true;
+          btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Downloading...';
+        }
+      }
+    } else {
+      toast('error', 'Not Connected', 'Cannot update - not connected to server');
+    }
   }
 
   window.dismissUpdateBanner = dismissUpdateBanner;
   window.applyPanelUpdate = applyPanelUpdate;
   window.loadPanelVersion = loadPanelVersion;
-  // Version is now loaded dynamically from server API (panel-version.properties)
+  window.loadCurrentPluginVersion = loadCurrentPluginVersion;
+  window.checkGitHubForUpdates = checkGitHubForUpdates;
 
   // ===== PROFILE DROPDOWN =====
   function toggleProfileDropdown() {
@@ -5418,6 +5535,9 @@
 
     // Load panel version from server
     setTimeout(loadPanelVersion, 1000);
+
+    // Start GitHub update checker after 3 seconds (to let WebSocket connect first)
+    setTimeout(loadCurrentPluginVersion, 3000);
 
     // Setup profile dropdown click handler
     const topProfile = document.getElementById('topProfile');

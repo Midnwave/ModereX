@@ -1354,6 +1354,7 @@ public class HybridPanelServer {
             case "TOGGLE_CHECKLIST_ITEM" -> toggleChecklistItem(conn, data, session);
             case "ADD_CHECKLIST_ITEM" -> addChecklistItem(conn, data, session);
             case "DELETE_CHECKLIST_ITEM" -> deleteChecklistItem(conn, data, session);
+            case "TRIGGER_PLUGIN_UPDATE" -> triggerPluginUpdate(conn, session);
             default -> sendError(conn, "UNKNOWN_TYPE", "Unknown message type: " + type);
         }
     }
@@ -4670,6 +4671,42 @@ public class HybridPanelServer {
             plugin.logError("Failed to delete checklist item", e);
             sendError(conn, "DATABASE_ERROR", "Failed to delete checklist item");
         }
+    }
+
+    private void triggerPluginUpdate(WebSocketConnection conn, WebPanelSession session) {
+        plugin.logDebug("[Update] " + session.playerName + " triggered plugin update from web panel");
+
+        // Run update check asynchronously
+        plugin.getServer().getScheduler().runTaskAsynchronously(plugin, () -> {
+            try {
+                var updater = plugin.getGitHubAutoUpdater();
+                if (updater == null) {
+                    sendPluginUpdateResult(conn, false, "Auto-updater not available");
+                    return;
+                }
+
+                // Force download update from GitHub
+                String result = updater.forceUpdate();
+                boolean success = result != null && result.contains("successfully");
+
+                sendPluginUpdateResult(conn, success, result);
+
+                if (success) {
+                    plugin.getLogger().info("[Update] Plugin update downloaded via web panel by " + session.playerName);
+                }
+            } catch (Exception e) {
+                plugin.logError("Failed to trigger plugin update", e);
+                sendPluginUpdateResult(conn, false, "Update failed: " + e.getMessage());
+            }
+        });
+    }
+
+    private void sendPluginUpdateResult(WebSocketConnection conn, boolean success, String message) {
+        JsonObject response = new JsonObject();
+        response.addProperty("type", "PLUGIN_UPDATE_RESULT");
+        response.addProperty("success", success);
+        response.addProperty("message", message);
+        send(conn, response);
     }
 
     /**
