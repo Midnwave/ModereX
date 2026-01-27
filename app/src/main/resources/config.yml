@@ -565,6 +565,13 @@ activity-log:
   # Days to keep logs (0 = unlimited)
   retention-days: 30
 
+  # Maximum chat messages to show in command output (default: 50)
+  # GUI output has no limit - this only affects /log chat output
+  max-chat-logs: 50
+
+  # Maximum commands to show in /cmdhistory command output (default: 100)
+  max-command-logs: 100
+
   # What to log (all enabled by default)
   log:
     chat: true           # Chat messages
