@@ -5280,8 +5280,7 @@
   window.dismissUpdateBanner = dismissUpdateBanner;
   window.applyPanelUpdate = applyPanelUpdate;
   window.loadPanelVersion = loadPanelVersion;
-  window.PANEL_VERSION = PANEL_VERSION;
-  window.PANEL_BUILD_DATE = PANEL_BUILD_DATE;
+  // Version is now loaded dynamically from server API (panel-version.properties)
 
   // ===== PROFILE DROPDOWN =====
   function toggleProfileDropdown() {
