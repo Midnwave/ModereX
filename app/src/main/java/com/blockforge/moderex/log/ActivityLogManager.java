@@ -318,7 +318,23 @@ public class ActivityLogManager {
                     plugin.getConfigManager().getSettings().isActivityLogItems();
             case ANVIL_RENAME -> plugin.getConfigManager().getSettings().isActivityLogAnvils();
             case SESSION_JOIN, SESSION_QUIT -> plugin.getConfigManager().getSettings().isActivityLogSessions();
-            case USERNAME_CHANGE -> plugin.getConfigManager().getSettings().isActivityLogUsernames();
+            case USERNAME_CHANGE, NICKNAME_CHANGE -> plugin.getConfigManager().getSettings().isActivityLogUsernames();
+            case IP_CHANGE -> plugin.getConfigManager().getSettings().isActivityLogSessions();
+            // Punishment types - always log
+            case PUNISHMENT_BAN, PUNISHMENT_MUTE, PUNISHMENT_WARN, PUNISHMENT_KICK,
+                 PUNISHMENT_IPBAN, PUNISHMENT_IPMUTE,
+                 PUNISHMENT_UNBAN, PUNISHMENT_UNMUTE, PUNISHMENT_UNWARN -> true;
+            // Automod and Anticheat - always log
+            case AUTOMOD_TRIGGER, ANTICHEAT_ALERT -> true;
+            // Staff actions - always log
+            case STAFF_PUNISHMENT, STAFF_PARDON,
+                 STAFF_WATCHLIST_ADD, STAFF_WATCHLIST_REMOVE, STAFF_WATCHLIST_NOTE,
+                 STAFF_CMD_BLACKLIST, STAFF_CMD_UNBLACKLIST,
+                 STAFF_DISGUISE_START, STAFF_DISGUISE_END,
+                 STAFF_VANISH_ENABLE, STAFF_VANISH_DISABLE,
+                 STAFF_REPLAY_START, STAFF_REPLAY_STOP,
+                 STAFF_SLOWMODE_UPDATE, STAFF_CHAT_LOCK, STAFF_LOCKDOWN,
+                 STAFF_AUTOMOD_UPDATE, STAFF_CLEAR_CHAT, STAFF_KICK_ALL -> true;
         };
     }
 
