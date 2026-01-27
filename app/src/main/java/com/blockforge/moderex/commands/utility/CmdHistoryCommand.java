@@ -3,6 +3,7 @@ package com.blockforge.moderex.commands.utility;
 import com.blockforge.moderex.ModereX;
 import com.blockforge.moderex.commands.BaseCommand;
 import com.blockforge.moderex.config.lang.MessageKey;
+import com.blockforge.moderex.util.TextUtil;
 import com.blockforge.moderex.util.TimeUtil;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.event.ClickEvent;
@@ -12,6 +13,7 @@ import net.kyori.adventure.text.format.TextDecoration;
 import org.bukkit.Bukkit;
 import org.bukkit.OfflinePlayer;
 import org.bukkit.command.CommandSender;
+import org.bukkit.entity.Player;
 
 import java.sql.SQLException;
 import java.util.ArrayList;
@@ -30,6 +32,7 @@ public class CmdHistoryCommand extends BaseCommand {
     protected void execute(CommandSender sender, String[] args) {
         if (args.length == 0) {
             sendMessage(sender, "<red>Usage: /cmdhistory <player> [page]");
+            sendMessage(sender, "<gray>Shows recent commands executed by a player.");
             return;
         }
 
@@ -48,6 +51,7 @@ public class CmdHistoryCommand extends BaseCommand {
         if (args.length >= 2) {
             try {
                 page = Integer.parseInt(args[1]);
+                if (page < 1) page = 1;
             } catch (NumberFormatException ignored) {
             }
         }
@@ -88,23 +92,52 @@ public class CmdHistoryCommand extends BaseCommand {
                 );
 
                 final int finalTotalPages = Math.max(1, totalPages);
+                final int finalTotalCount = totalCount;
 
                 plugin.getServer().getScheduler().runTask(plugin, () -> {
-                    sender.sendMessage(plugin.getLanguageManager().get(MessageKey.CMD_HISTORY_HEADER,
-                            "player", displayName));
+                    // Header with box-drawing characters
+                    sender.sendMessage(TextUtil.parse(""));
+                    sender.sendMessage(TextUtil.parse("<dark_gray>┌────────────────────────────────────────────┐"));
+                    sender.sendMessage(TextUtil.parse("<dark_gray>│ <white>Command History: <yellow>" + displayName +
+                            " <dark_gray>(<white>" + finalTotalCount + " total<dark_gray>)"));
+                    sender.sendMessage(TextUtil.parse("<dark_gray>├────────────────────────────────────────────┤"));
 
                     if (entries.isEmpty()) {
-                        sender.sendMessage(plugin.getLanguageManager().get(MessageKey.CMD_HISTORY_EMPTY,
-                                "player", displayName));
+                        sender.sendMessage(TextUtil.parse("<dark_gray>│ <gray>No commands found for this player."));
                     } else {
                         for (CommandEntry entry : entries) {
-                            sender.sendMessage(Component.text("[" + TimeUtil.formatDateTime(entry.executedAt) + "] ", NamedTextColor.GRAY)
-                                    .append(Component.text(entry.command, NamedTextColor.WHITE)));
+                            String cmd = entry.command;
+                            // Truncate long commands
+                            if (cmd.length() > 40) {
+                                cmd = cmd.substring(0, 37) + "...";
+                            }
+
+                            if (sender instanceof Player) {
+                                Component line = TextUtil.parse("<dark_gray>│ <gray>" + TimeUtil.formatTime(entry.executedAt) + " ")
+                                        .append(TextUtil.parse("<white>" + cmd)
+                                                .clickEvent(ClickEvent.suggestCommand(entry.command))
+                                                .hoverEvent(HoverEvent.showText(TextUtil.parse(
+                                                        "<white>" + entry.command + "\n" +
+                                                        "<gray>Date: <white>" + TimeUtil.formatDateTime(entry.executedAt) + "\n" +
+                                                        "\n<yellow>Click to copy command"))));
+                                sender.sendMessage(line);
+                            } else {
+                                sender.sendMessage(TextUtil.parse("<dark_gray>│ <gray>" +
+                                        TimeUtil.formatTime(entry.executedAt) + " <white>" + cmd));
+                            }
                         }
                     }
 
+                    sender.sendMessage(TextUtil.parse("<dark_gray>└────────────────────────────────────────────┘"));
+
                     // Build clickable navigation footer
-                    sender.sendMessage(buildNavigationFooter(displayName, finalPage, finalTotalPages));
+                    if (sender instanceof Player && finalTotalPages > 1) {
+                        sender.sendMessage(buildNavigationFooter(displayName, finalPage, finalTotalPages));
+                    } else if (finalTotalPages > 1) {
+                        sendMessage(sender, "<gray>Page " + finalPage + "/" + finalTotalPages +
+                                " - Use /cmdhistory " + displayName + " <page>");
+                    }
+                    sender.sendMessage(TextUtil.parse(""));
                 });
             } catch (SQLException e) {
                 plugin.logError("Failed to fetch command history", e);
@@ -119,14 +152,14 @@ public class CmdHistoryCommand extends BaseCommand {
      * Similar to WorldGuard's /rg flags command navigation.
      */
     private Component buildNavigationFooter(String playerName, int currentPage, int totalPages) {
-        Component footer = Component.text("« ", NamedTextColor.DARK_GRAY);
+        Component footer = Component.text("  « ", NamedTextColor.DARK_GRAY);
 
         // Previous page button
         if (currentPage > 1) {
             footer = footer.append(
                     Component.text("[◀ Prev]", NamedTextColor.GOLD)
                             .decorate(TextDecoration.BOLD)
-                            .clickEvent(ClickEvent.runCommand("/mx commandhistory " + playerName + " " + (currentPage - 1)))
+                            .clickEvent(ClickEvent.runCommand("/cmdhistory " + playerName + " " + (currentPage - 1)))
                             .hoverEvent(HoverEvent.showText(Component.text("Go to page " + (currentPage - 1), NamedTextColor.YELLOW)))
             );
         } else {
@@ -146,7 +179,7 @@ public class CmdHistoryCommand extends BaseCommand {
             footer = footer.append(
                     Component.text("[Next ▶]", NamedTextColor.GOLD)
                             .decorate(TextDecoration.BOLD)
-                            .clickEvent(ClickEvent.runCommand("/mx commandhistory " + playerName + " " + (currentPage + 1)))
+                            .clickEvent(ClickEvent.runCommand("/cmdhistory " + playerName + " " + (currentPage + 1)))
                             .hoverEvent(HoverEvent.showText(Component.text("Go to page " + (currentPage + 1), NamedTextColor.YELLOW)))
             );
         } else {
@@ -160,6 +193,10 @@ public class CmdHistoryCommand extends BaseCommand {
     protected List<String> tabComplete(CommandSender sender, String[] args) {
         if (args.length == 1) {
             return filterCompletions(getOnlinePlayerNames(sender), args[0]);
+        }
+        if (args.length == 2) {
+            // Suggest page numbers
+            return filterCompletions(List.of("1", "2", "3", "4", "5"), args[1]);
         }
         return super.tabComplete(sender, args);
     }
