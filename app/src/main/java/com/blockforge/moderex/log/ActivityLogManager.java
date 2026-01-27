@@ -225,6 +225,270 @@ public class ActivityLogManager {
     }
 
     /**
+     * Log nickname change.
+     */
+    public void logNicknameChange(Player player, String oldNick, String newNick) {
+        log(player, ActivityType.NICKNAME_CHANGE, newNick, oldNick);
+    }
+
+    /**
+     * Log IP address change.
+     */
+    public void logIpChange(UUID playerUuid, String playerName, String oldIp, String newIp) {
+        log(playerUuid, playerName, ActivityType.IP_CHANGE, newIp, oldIp);
+    }
+
+    // ===== Punishment Logging (for player receiving punishment) =====
+
+    /**
+     * Log a punishment received by a player.
+     */
+    public void logPunishment(UUID playerUuid, String playerName, ActivityType type,
+                              String staffName, String reason, String duration) {
+        String content = String.format("by %s%s%s",
+            staffName,
+            duration != null ? " for " + duration : "",
+            reason != null ? ": " + reason : "");
+        log(playerUuid, playerName, type, content, staffName);
+    }
+
+    public void logBan(UUID playerUuid, String playerName, String staffName, String reason, String duration) {
+        logPunishment(playerUuid, playerName, ActivityType.PUNISHMENT_BAN, staffName, reason, duration);
+    }
+
+    public void logMute(UUID playerUuid, String playerName, String staffName, String reason, String duration) {
+        logPunishment(playerUuid, playerName, ActivityType.PUNISHMENT_MUTE, staffName, reason, duration);
+    }
+
+    public void logWarn(UUID playerUuid, String playerName, String staffName, String reason) {
+        logPunishment(playerUuid, playerName, ActivityType.PUNISHMENT_WARN, staffName, reason, null);
+    }
+
+    public void logKick(UUID playerUuid, String playerName, String staffName, String reason) {
+        logPunishment(playerUuid, playerName, ActivityType.PUNISHMENT_KICK, staffName, reason, null);
+    }
+
+    public void logIpBan(UUID playerUuid, String playerName, String staffName, String reason, String duration) {
+        logPunishment(playerUuid, playerName, ActivityType.PUNISHMENT_IPBAN, staffName, reason, duration);
+    }
+
+    public void logIpMute(UUID playerUuid, String playerName, String staffName, String reason, String duration) {
+        logPunishment(playerUuid, playerName, ActivityType.PUNISHMENT_IPMUTE, staffName, reason, duration);
+    }
+
+    public void logUnban(UUID playerUuid, String playerName, String staffName, String reason) {
+        logPunishment(playerUuid, playerName, ActivityType.PUNISHMENT_UNBAN, staffName, reason, null);
+    }
+
+    public void logUnmute(UUID playerUuid, String playerName, String staffName, String reason) {
+        logPunishment(playerUuid, playerName, ActivityType.PUNISHMENT_UNMUTE, staffName, reason, null);
+    }
+
+    public void logUnwarn(UUID playerUuid, String playerName, String staffName, String reason) {
+        logPunishment(playerUuid, playerName, ActivityType.PUNISHMENT_UNWARN, staffName, reason, null);
+    }
+
+    // ===== Automod & Anticheat Logging =====
+
+    /**
+     * Log an automod trigger.
+     */
+    public void logAutomodTrigger(Player player, String ruleName, String message, String action) {
+        String content = String.format("[%s] %s -> %s", ruleName, message, action);
+        log(player, ActivityType.AUTOMOD_TRIGGER, content, ruleName);
+    }
+
+    /**
+     * Log an anticheat alert.
+     */
+    public void logAnticheatAlert(Player player, String checkName, String details, int violations) {
+        String content = String.format("[%s] %s (VL: %d)", checkName, details, violations);
+        log(player, ActivityType.ANTICHEAT_ALERT, content, checkName);
+    }
+
+    // ===== Staff Action Logging =====
+
+    /**
+     * Log a staff action with target player.
+     */
+    public void logStaffAction(UUID staffUuid, String staffName, ActivityType type,
+                               String targetName, String details) {
+        String content = targetName != null ?
+            String.format("%s: %s", targetName, details) : details;
+        log(staffUuid, staffName, type, content, targetName);
+    }
+
+    /**
+     * Log staff issuing a punishment.
+     */
+    public void logStaffPunishment(UUID staffUuid, String staffName, String targetName,
+                                   String punishmentType, String reason, String duration) {
+        String content = String.format("%s %s%s%s",
+            punishmentType.toUpperCase(),
+            targetName,
+            duration != null ? " for " + duration : "",
+            reason != null ? ": " + reason : "");
+        log(staffUuid, staffName, ActivityType.STAFF_PUNISHMENT, content, targetName);
+    }
+
+    /**
+     * Log staff pardoning a punishment.
+     */
+    public void logStaffPardon(UUID staffUuid, String staffName, String targetName,
+                               String punishmentType, String reason) {
+        String content = String.format("UN%s %s%s",
+            punishmentType.toUpperCase(),
+            targetName,
+            reason != null ? ": " + reason : "");
+        log(staffUuid, staffName, ActivityType.STAFF_PARDON, content, targetName);
+    }
+
+    /**
+     * Log watchlist add.
+     */
+    public void logWatchlistAdd(UUID staffUuid, String staffName, String targetName, String reason) {
+        logStaffAction(staffUuid, staffName, ActivityType.STAFF_WATCHLIST_ADD,
+            targetName, reason != null ? reason : "Added to watchlist");
+    }
+
+    /**
+     * Log watchlist remove.
+     */
+    public void logWatchlistRemove(UUID staffUuid, String staffName, String targetName) {
+        logStaffAction(staffUuid, staffName, ActivityType.STAFF_WATCHLIST_REMOVE,
+            targetName, "Removed from watchlist");
+    }
+
+    /**
+     * Log watchlist note.
+     */
+    public void logWatchlistNote(UUID staffUuid, String staffName, String targetName, String note) {
+        logStaffAction(staffUuid, staffName, ActivityType.STAFF_WATCHLIST_NOTE, targetName, note);
+    }
+
+    /**
+     * Log command blacklist.
+     */
+    public void logCmdBlacklist(UUID staffUuid, String staffName, String targetName,
+                                String command, String duration) {
+        String details = duration != null ?
+            String.format("Blacklisted /%s for %s", command, duration) :
+            String.format("Blacklisted /%s permanently", command);
+        logStaffAction(staffUuid, staffName, ActivityType.STAFF_CMD_BLACKLIST, targetName, details);
+    }
+
+    /**
+     * Log command unblacklist.
+     */
+    public void logCmdUnblacklist(UUID staffUuid, String staffName, String targetName, String command) {
+        logStaffAction(staffUuid, staffName, ActivityType.STAFF_CMD_UNBLACKLIST,
+            targetName, "Unblacklisted /" + command);
+    }
+
+    /**
+     * Log disguise start.
+     */
+    public void logDisguiseStart(UUID staffUuid, String staffName, String disguiseName, String rank) {
+        String details = rank != null ?
+            String.format("Disguised as %s [%s]", disguiseName, rank) :
+            String.format("Disguised as %s", disguiseName);
+        log(staffUuid, staffName, ActivityType.STAFF_DISGUISE_START, details, disguiseName);
+    }
+
+    /**
+     * Log disguise end.
+     */
+    public void logDisguiseEnd(UUID staffUuid, String staffName, String previousDisguise) {
+        log(staffUuid, staffName, ActivityType.STAFF_DISGUISE_END,
+            "Removed disguise", previousDisguise);
+    }
+
+    /**
+     * Log vanish enable.
+     */
+    public void logVanishEnable(Player staff, int level) {
+        log(staff, ActivityType.STAFF_VANISH_ENABLE, "Vanished (level " + level + ")");
+    }
+
+    /**
+     * Log vanish disable.
+     */
+    public void logVanishDisable(Player staff, long duration) {
+        String durationStr = formatDuration(duration);
+        log(staff, ActivityType.STAFF_VANISH_DISABLE, "Unvanished (was vanished for " + durationStr + ")");
+    }
+
+    /**
+     * Log replay start.
+     */
+    public void logReplayStart(UUID staffUuid, String staffName, String targetName, String replayId) {
+        logStaffAction(staffUuid, staffName, ActivityType.STAFF_REPLAY_START,
+            targetName, "Started recording #" + replayId);
+    }
+
+    /**
+     * Log replay stop.
+     */
+    public void logReplayStop(UUID staffUuid, String staffName, String targetName,
+                              String replayId, long duration) {
+        String durationStr = formatDuration(duration);
+        logStaffAction(staffUuid, staffName, ActivityType.STAFF_REPLAY_STOP,
+            targetName, String.format("Stopped recording #%s (%s)", replayId, durationStr));
+    }
+
+    /**
+     * Log slowmode update.
+     */
+    public void logSlowmodeUpdate(UUID staffUuid, String staffName, int seconds) {
+        String content = seconds > 0 ?
+            "Set slowmode to " + seconds + "s" : "Disabled slowmode";
+        log(staffUuid, staffName, ActivityType.STAFF_SLOWMODE_UPDATE, content, null);
+    }
+
+    /**
+     * Log chat lock.
+     */
+    public void logChatLock(UUID staffUuid, String staffName, boolean locked) {
+        log(staffUuid, staffName, ActivityType.STAFF_CHAT_LOCK,
+            locked ? "Locked chat" : "Unlocked chat", null);
+    }
+
+    /**
+     * Log lockdown.
+     */
+    public void logLockdown(UUID staffUuid, String staffName, boolean enabled, String scope) {
+        String content = enabled ?
+            String.format("Enabled %s lockdown", scope) :
+            String.format("Disabled %s lockdown", scope);
+        log(staffUuid, staffName, ActivityType.STAFF_LOCKDOWN, content, scope);
+    }
+
+    /**
+     * Log automod rule update.
+     */
+    public void logAutomodUpdate(UUID staffUuid, String staffName, String ruleName, String action) {
+        log(staffUuid, staffName, ActivityType.STAFF_AUTOMOD_UPDATE,
+            String.format("%s rule: %s", action, ruleName), ruleName);
+    }
+
+    /**
+     * Log clear chat.
+     */
+    public void logClearChat(UUID staffUuid, String staffName) {
+        log(staffUuid, staffName, ActivityType.STAFF_CLEAR_CHAT, "Cleared chat", null);
+    }
+
+    /**
+     * Log kick all.
+     */
+    public void logKickAll(UUID staffUuid, String staffName, int count, String reason) {
+        String content = reason != null ?
+            String.format("Kicked %d players: %s", count, reason) :
+            String.format("Kicked %d players", count);
+        log(staffUuid, staffName, ActivityType.STAFF_KICK_ALL, content, null);
+    }
+
+    /**
      * Get activity log entries with filtering.
      */
     public List<ActivityLogEntry> getEntries(UUID playerUuid, List<ActivityType> types,
