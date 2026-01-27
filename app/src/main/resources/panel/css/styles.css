@@ -19,6 +19,7 @@
   /* Primary - RGB values for opacity variants */
   --primary-rgb: 45, 122, 237;
   --primary: #2d7aed;
+  --primary-light-rgb: 90, 156, 255;
   --primary-light: #5a9cff;
   --primary-dark: #1a5cc0;
   --primary-glow: rgba(var(--primary-rgb), 0.35);
@@ -41,7 +42,7 @@
 
   /* Special Effects */
   --watchlist-glow: 0 0 20px rgba(var(--warn-rgb), 0.45), 0 0 40px rgba(var(--warn-rgb), 0.20);
-  --line-glow: rgba(90, 156, 255, 0.22);
+  --line-glow: rgba(var(--primary-light-rgb), 0.22);
 
   /* Shadows */
   --shadow-sm: 0 4px 12px rgba(0, 0, 0, 0.25);
@@ -154,8 +155,8 @@ body {
   z-index: -2;
   background-image:
     radial-gradient(rgba(255, 255, 255, 0.35) 1px, transparent 1px),
-    radial-gradient(rgba(90, 156, 255, 0.22) 1px, transparent 1px),
-    repeating-linear-gradient(120deg, rgba(90, 156, 255, 0.08), rgba(90, 156, 255, 0.08) 1px, transparent 1px, transparent 160px),
+    radial-gradient(rgba(var(--primary-light-rgb), 0.22) 1px, transparent 1px),
+    repeating-linear-gradient(120deg, rgba(var(--primary-light-rgb), 0.08), rgba(var(--primary-light-rgb), 0.08) 1px, transparent 1px, transparent 160px),
     repeating-linear-gradient(60deg, rgba(255, 255, 255, 0.05), rgba(255, 255, 255, 0.05) 1px, transparent 1px, transparent 200px);
   background-size: 180px 180px, 320px 320px, 280px 280px, 360px 360px;
   opacity: 0.52;
@@ -3529,7 +3530,7 @@ textarea.input {
 }
 
 .world-stat-item .world-icon.end {
-  background: linear-gradient(135deg, rgba(var(--accent-rgb), 0.15), rgba(90, 156, 255, 0.1));
+  background: linear-gradient(135deg, rgba(var(--accent-rgb), 0.15), rgba(var(--primary-light-rgb), 0.1));
   color: var(--accent-light);
 }
 
@@ -5001,7 +5002,7 @@ textarea.input {
   background: var(--primary-light);
   border-radius: 50%;
   cursor: pointer;
-  box-shadow: 0 2px 8px rgba(90, 156, 255, 0.4);
+  box-shadow: 0 2px 8px rgba(var(--primary-light-rgb), 0.4);
   transition: transform 0.15s ease;
 }
 
@@ -5016,7 +5017,7 @@ textarea.input {
   border-radius: 50%;
   cursor: pointer;
   border: none;
-  box-shadow: 0 2px 8px rgba(90, 156, 255, 0.4);
+  box-shadow: 0 2px 8px rgba(var(--primary-light-rgb), 0.4);
 }
 
 .replay-time {
