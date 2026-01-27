@@ -642,19 +642,38 @@
       </div>
     `).join('') : `<div class="drawer-row"><div class="meta"><small>No pardons.</small></div></div>`;
 
-    dom().drawerIps.innerHTML = `<div class="drawer-row"><div class="meta"><b>Current IP</b><small><span class="ip-blur">${escapeHtml(p.ip)}</span></small></div></div>`;
-    const recentCmds = (p.recentCommands || []).slice(-10).reverse();
+    // IP History section - show current IP and historical IPs
+    const ipHistory = (p.ipHistory || []).slice(0, 5);
+    const currentIp = p.ip || (ipHistory.length > 0 ? ipHistory[0].ip : 'Unknown');
+    dom().drawerIps.innerHTML = `
+      <div class="drawer-row"><div class="meta"><b>Current IP</b><small><span class="ip-blur">${escapeHtml(currentIp)}</span></small></div></div>
+      ${ipHistory.length > 1 ? ipHistory.slice(1).map(entry => `
+        <div class="drawer-row"><div class="meta"><b>Previous</b><small><span class="ip-blur">${escapeHtml(entry.ip)}</span> | ${escapeHtml(fmtShort(entry.t))}</small></div></div>
+      `).join('') : ''}
+      ${ipHistory.length > 5 ? `<div class="drawer-row"><div class="meta"><small>${ipHistory.length - 5} more IPs...</small></div></div>` : ''}
+    `;
+
+    // Recent Commands section
+    const recentCmds = (p.recentCommands || []).slice(0, 10);
     dom().drawerRecent.innerHTML = recentCmds.length ? `
-      ${recentCmds.map(item => `<div class="drawer-row"><div class="meta"><b>${escapeHtml(item.cmd || item)}</b></div></div>`).join('')}
+      ${recentCmds.map(item => `<div class="drawer-row"><div class="meta"><b>${escapeHtml(item.cmd || item.command || item)}</b><small>${item.t ? escapeHtml(fmtShort(item.t)) : ''}</small></div></div>`).join('')}
       <div class="drawer-row">
-        <div class="meta"><small>${p.recentCommands.length} total commands</small></div>
+        <div class="meta"><small>${(p.recentCommands || []).length} total commands</small></div>
         <button class="mini" onclick="openCommandHistory('${p.id}')"><i class="fa-solid fa-up-right-from-square"></i> Expand</button>
       </div>
     ` : `<div class="drawer-row"><div class="meta"><small>No commands.</small></div></div>`;
 
-    const automodLogs = state.logs.filter(l => l.kind === 'automod' && l.playerId === p.id).slice(-6).reverse();
+    // Automod Logs section - use fetched data from player details, fallback to state.logs
+    const fetchedAutomod = (p.automodLogs || []).slice(0, 6);
+    const liveAutomod = state.logs.filter(l => l.kind === 'automod' && l.playerId === p.id).slice(-6).reverse();
+    const automodLogs = fetchedAutomod.length > 0 ? fetchedAutomod : liveAutomod;
     dom().drawerAutomod.innerHTML = automodLogs.length ? `
-      ${automodLogs.map(l => `<div class="drawer-row"><div class="meta"><b>${escapeHtml(l.title)}</b><small>${escapeHtml(fmtShort(l.t))} | ${escapeHtml(l.detail)}</small></div></div>`).join('')}
+      ${automodLogs.map(l => {
+        // Handle both fetched format and live format
+        const title = l.rule ? `Automod | ${l.rule}` : (l.title || 'Automod');
+        const detail = l.content || l.detail || '';
+        return `<div class="drawer-row"><div class="meta"><b>${escapeHtml(title)}</b><small>${escapeHtml(fmtShort(l.t))} | ${escapeHtml(detail)}</small></div></div>`;
+      }).join('')}
       <div class="drawer-row">
         <div class="meta"><small>${automodLogs.length} recent events</small></div>
         <button class="mini" onclick="openAutomodLogs('${p.id}')"><i class="fa-solid fa-up-right-from-square"></i> Expand</button>
@@ -1179,7 +1198,15 @@
     const searchEl = $('#chatSearch', overlay);
     const fromEl = $('#chatFrom', overlay);
     const toEl = $('#chatTo', overlay);
-    const allLogs = state.logs.filter(l => l.channel === 'chat' && (l.playerId === p.id || (l.title || '').includes(p.name)));
+    // Use fetched chat logs from player details, with fallback to state.logs
+    const fetchedChatLogs = (p.chatLogs || []).map(l => ({
+      t: l.t,
+      title: `Chat | ${p.name}`,
+      detail: l.content,
+      playerId: p.id
+    }));
+    const liveChatLogs = state.logs.filter(l => l.channel === 'chat' && (l.playerId === p.id || (l.title || '').includes(p.name)));
+    const allLogs = fetchedChatLogs.length > 0 ? fetchedChatLogs : liveChatLogs;
     const render = () => {
       const q = (searchEl.value || '').trim().toLowerCase();
       const fromVal = fromEl.value ? new Date(fromEl.value).getTime() : null;
@@ -1191,7 +1218,7 @@
         return true;
       }).slice(-200);
       listEl.innerHTML = filtered.length ? filtered.map(l => `
-        <div class="drawer-row" data-player-id="${p.id}"><div class="meta"><b>${escapeHtml(fmtLong(l.t))}</b><small>${escapeHtml(l.detail)}</small></div></div>
+        <div class="drawer-row" data-player-id="${p.id}"><div class="meta"><b>${escapeHtml(fmtLong(l.t))}</b><small>${escapeHtml(l.detail || l.content)}</small></div></div>
       `).join('') : `<div class="drawer-row"><div class="meta"><small>No chat logs found.</small></div></div>`;
     };
     searchEl.addEventListener('input', render);
@@ -1243,7 +1270,16 @@
     const searchEl = $('#autoSearch', overlay);
     const fromEl = $('#autoFrom', overlay);
     const toEl = $('#autoTo', overlay);
-    const allLogs = state.logs.filter(l => l.kind === 'automod' && l.playerId === p.id);
+    // Use fetched automod logs from player details, with fallback to state.logs
+    const fetchedAutomodLogs = (p.automodLogs || []).map(l => ({
+      t: l.t,
+      title: l.rule ? `Automod | ${l.rule}` : 'Automod',
+      detail: l.content,
+      playerId: p.id,
+      kind: 'automod'
+    }));
+    const liveAutomodLogs = state.logs.filter(l => l.kind === 'automod' && l.playerId === p.id);
+    const allLogs = fetchedAutomodLogs.length > 0 ? fetchedAutomodLogs : liveAutomodLogs;
     const render = () => {
       const q = (searchEl.value || '').trim().toLowerCase();
       const fromVal = fromEl.value ? new Date(fromEl.value).getTime() : null;
@@ -1255,7 +1291,7 @@
         return true;
       }).slice(-200);
       listEl.innerHTML = filtered.length ? filtered.map(l => `
-        <div class="drawer-row" data-player-id="${p.id}"><div class="meta"><b>${escapeHtml(fmtLong(l.t))}</b><small>${escapeHtml(l.title)} | ${escapeHtml(l.detail)}</small></div></div>
+        <div class="drawer-row" data-player-id="${p.id}"><div class="meta"><b>${escapeHtml(fmtLong(l.t))}</b><small>${escapeHtml(l.title)} | ${escapeHtml(l.detail || l.content)}</small></div></div>
       `).join('') : `<div class="drawer-row"><div class="meta"><small>No automod logs found.</small></div></div>`;
     };
     searchEl.addEventListener('input', render);

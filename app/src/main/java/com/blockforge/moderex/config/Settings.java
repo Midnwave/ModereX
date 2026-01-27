@@ -180,6 +180,8 @@ public class Settings {
     private String activityLogStorageType = "database"; // database, h2, yml, json, text
     private int activityLogEntriesPerPage = 10;
     private long activityLogRetentionDays = 30; // Days to keep logs, 0 for unlimited
+    private int maxChatLogs = 50; // Max chat logs to show in command output
+    private int maxCommandLogs = 100; // Max commands to show in /cmdhistory output
     private boolean activityLogChat = true;
     private boolean activityLogCommands = true;
     private boolean activityLogSigns = true;
@@ -871,6 +873,12 @@ public class Settings {
 
     public long getActivityLogRetentionDays() { return activityLogRetentionDays; }
     public void setActivityLogRetentionDays(long v) { this.activityLogRetentionDays = v; }
+
+    public int getMaxChatLogs() { return maxChatLogs; }
+    public void setMaxChatLogs(int v) { this.maxChatLogs = v; }
+
+    public int getMaxCommandLogs() { return maxCommandLogs; }
+    public void setMaxCommandLogs(int v) { this.maxCommandLogs = v; }
 
     public boolean isActivityLogChat() { return activityLogChat; }
     public void setActivityLogChat(boolean v) { this.activityLogChat = v; }

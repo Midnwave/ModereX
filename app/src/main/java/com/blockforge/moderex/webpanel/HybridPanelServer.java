@@ -2,6 +2,8 @@ package com.blockforge.moderex.webpanel;
 
 import com.blockforge.moderex.ModereX;
 import com.blockforge.moderex.automod.AutomodRule;
+import com.blockforge.moderex.log.ActivityLogEntry;
+import com.blockforge.moderex.log.ActivityLogEntry.ActivityType;
 import com.blockforge.moderex.punishment.Punishment;
 import com.blockforge.moderex.punishment.PunishmentType;
 import com.blockforge.moderex.util.DurationParser;
@@ -1199,6 +1201,19 @@ public class HybridPanelServer {
         return "unknown";
     }
 
+    /**
+     * Extract IP address from a session join log entry content.
+     * Format: "Joined from <ip>"
+     */
+    private String extractIpFromJoinLog(String content) {
+        if (content == null) return null;
+        String prefix = "Joined from ";
+        if (content.startsWith(prefix)) {
+            return content.substring(prefix.length()).trim();
+        }
+        return null;
+    }
+
     private boolean isFloodgatePlayer(UUID uuid) {
         if (uuid == null) return false;
         // Floodgate UUIDs start with 00000000-0000-0000
@@ -1447,21 +1462,22 @@ public class HybridPanelServer {
                 }
                 details.add("punishments", punsArray);
 
-                // Fetch recent commands from database
+                // Fetch recent commands, chat logs, automod logs, and IP history from database
                 plugin.getServer().getScheduler().runTaskAsynchronously(plugin, () -> {
                     try {
+                        // Fetch recent commands
                         List<JsonObject> commands = plugin.getDatabaseManager().query("""
                                 SELECT command, executed_at FROM moderex_command_history
                                 WHERE player_uuid = ?
                                 ORDER BY executed_at DESC
-                                LIMIT 20
+                                LIMIT 50
                                 """,
                                 rs -> {
                                     List<JsonObject> list = new java.util.ArrayList<>();
                                     while (rs.next()) {
                                         JsonObject cmd = new JsonObject();
-                                        cmd.addProperty("command", rs.getString("command"));
-                                        cmd.addProperty("executedAt", rs.getLong("executed_at"));
+                                        cmd.addProperty("cmd", rs.getString("command"));
+                                        cmd.addProperty("t", rs.getLong("executed_at"));
                                         list.add(cmd);
                                     }
                                     return list;
@@ -1475,14 +1491,73 @@ public class HybridPanelServer {
                         }
                         details.add("recentCommands", cmdArray);
 
+                        // Fetch activity logs (chat, automod, IP changes) if activity log is enabled
+                        if (plugin.getActivityLogManager() != null && plugin.getActivityLogManager().isEnabled()) {
+                            int maxChatLogs = plugin.getConfigManager().getSettings().getMaxChatLogs();
+                            int maxCommandLogs = plugin.getConfigManager().getSettings().getMaxCommandLogs();
+
+                            // Chat logs
+                            List<ActivityLogEntry> chatLogs = plugin.getActivityLogManager().getEntries(
+                                    playerUuid, List.of(ActivityType.CHAT), 0, 1, Math.min(maxChatLogs, 100));
+                            JsonArray chatArray = new JsonArray();
+                            for (ActivityLogEntry entry : chatLogs) {
+                                JsonObject log = new JsonObject();
+                                log.addProperty("t", entry.getTimestamp());
+                                log.addProperty("content", entry.getContent());
+                                log.addProperty("server", entry.getServer());
+                                chatArray.add(log);
+                            }
+                            details.add("chatLogs", chatArray);
+
+                            // Automod logs
+                            List<ActivityLogEntry> automodLogs = plugin.getActivityLogManager().getEntries(
+                                    playerUuid, List.of(ActivityType.AUTOMOD_TRIGGER), 0, 1, 50);
+                            JsonArray automodArray = new JsonArray();
+                            for (ActivityLogEntry entry : automodLogs) {
+                                JsonObject log = new JsonObject();
+                                log.addProperty("t", entry.getTimestamp());
+                                log.addProperty("rule", entry.getExtra()); // Rule name stored in extra
+                                log.addProperty("content", entry.getContent());
+                                log.addProperty("server", entry.getServer());
+                                automodArray.add(log);
+                            }
+                            details.add("automodLogs", automodArray);
+
+                            // IP history
+                            List<ActivityLogEntry> ipLogs = plugin.getActivityLogManager().getEntries(
+                                    playerUuid, List.of(ActivityType.IP_CHANGE, ActivityType.SESSION_JOIN), 0, 1, 20);
+                            JsonArray ipArray = new JsonArray();
+                            Set<String> seenIps = new HashSet<>();
+                            for (ActivityLogEntry entry : ipLogs) {
+                                String ip = entry.getType() == ActivityType.IP_CHANGE ?
+                                        entry.getContent() : // IP_CHANGE stores new IP in content
+                                        extractIpFromJoinLog(entry.getContent()); // SESSION_JOIN has "Joined from IP"
+                                if (ip != null && !ip.isEmpty() && seenIps.add(ip)) {
+                                    JsonObject ipEntry = new JsonObject();
+                                    ipEntry.addProperty("ip", ip);
+                                    ipEntry.addProperty("t", entry.getTimestamp());
+                                    ipEntry.addProperty("server", entry.getServer());
+                                    ipArray.add(ipEntry);
+                                }
+                            }
+                            details.add("ipHistory", ipArray);
+                        } else {
+                            details.add("chatLogs", new JsonArray());
+                            details.add("automodLogs", new JsonArray());
+                            details.add("ipHistory", new JsonArray());
+                        }
+
                         JsonObject response = new JsonObject();
                         response.addProperty("type", "PLAYER_DETAILS");
                         response.add("data", details);
                         conn.send(GSON.toJson(response));
                     } catch (Exception e) {
-                        plugin.getLogger().warning("Failed to fetch command history: " + e.getMessage());
-                        // Send response without commands if query fails
+                        plugin.getLogger().warning("Failed to fetch player details: " + e.getMessage());
+                        // Send response with empty arrays if query fails
                         details.add("recentCommands", new JsonArray());
+                        details.add("chatLogs", new JsonArray());
+                        details.add("automodLogs", new JsonArray());
+                        details.add("ipHistory", new JsonArray());
                         JsonObject response = new JsonObject();
                         response.addProperty("type", "PLAYER_DETAILS");
                         response.add("data", details);
