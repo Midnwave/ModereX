@@ -3,6 +3,7 @@ package com.blockforge.moderex.commands.admin;
 import com.blockforge.moderex.ModereX;
 import com.blockforge.moderex.commands.BaseCommand;
 import com.blockforge.moderex.config.lang.MessageKey;
+import com.blockforge.moderex.gui.ModLogGui;
 import com.blockforge.moderex.punishment.Punishment;
 import com.blockforge.moderex.punishment.PunishmentType;
 import com.blockforge.moderex.util.DurationParser;
@@ -15,7 +16,9 @@ import net.kyori.adventure.text.format.TextDecoration;
 import org.bukkit.Bukkit;
 import org.bukkit.OfflinePlayer;
 import org.bukkit.command.CommandSender;
+import org.bukkit.entity.Player;
 
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.UUID;
@@ -31,30 +34,41 @@ public class ModLogCommand extends BaseCommand {
     @Override
     protected void execute(CommandSender sender, String[] args) {
         if (args.length == 0) {
-            sendMessage(sender, "<red>Usage: /modlog <player> [filter] [page]");
+            sendMessage(sender, "<red>Usage: /modlog <player> [filter] [page] [--gui]");
             sendMessage(sender, "<gray>Use <yellow>-staff</yellow> flag to view actions by a staff member");
+            sendMessage(sender, "<gray>Filters: all, bans, mutes, kicks, warns, ipbans, ipmutes");
+            sendMessage(sender, "<gray>Flags: <white>--gui <gray>- Show in GUI instead of chat");
             return;
         }
 
-        // Check for -staff flag (shows actions BY a staff member, not TO a player)
+        // Check for flags and parse arguments
         boolean staffMode = false;
-        String targetName = args[0];
+        boolean useGui = false;
+        String targetName = null;
         String filter = "all";
         int page = 1;
 
-        for (int i = 0; i < args.length; i++) {
-            if (args[i].equalsIgnoreCase("-staff") || args[i].equalsIgnoreCase("--staff")) {
+        for (String arg : args) {
+            if (arg.equalsIgnoreCase("-staff") || arg.equalsIgnoreCase("--staff")) {
                 staffMode = true;
-            } else if (i == 0) {
-                targetName = args[i];
-            } else if (isFilter(args[i])) {
-                filter = args[i].toLowerCase();
+            } else if (arg.equalsIgnoreCase("--gui") || arg.equalsIgnoreCase("-g")) {
+                useGui = true;
+            } else if (targetName == null) {
+                targetName = arg;
+            } else if (isFilter(arg)) {
+                filter = arg.toLowerCase();
             } else {
                 try {
-                    page = Integer.parseInt(args[i]);
+                    page = Integer.parseInt(arg);
+                    if (page < 1) page = 1;
                 } catch (NumberFormatException ignored) {
                 }
             }
+        }
+
+        if (targetName == null) {
+            sendMessage(sender, "<red>Please specify a player.");
+            return;
         }
 
         OfflinePlayer target = Bukkit.getOfflinePlayer(targetName);
@@ -66,6 +80,20 @@ public class ModLogCommand extends BaseCommand {
 
         UUID targetUuid = target.getUniqueId();
         String displayName = target.getName() != null ? target.getName() : targetName;
+
+        // GUI mode requires player
+        if (useGui && !(sender instanceof Player)) {
+            sendMessage(sender, "<red>GUI mode requires a player.");
+            useGui = false;
+        }
+
+        // If GUI mode, open the GUI
+        if (useGui && sender instanceof Player player) {
+            ModLogGui gui = new ModLogGui(plugin, targetUuid, displayName);
+            gui.build();
+            plugin.getGuiManager().open(player, gui);
+            return;
+        }
 
         final String finalFilter = filter;
         final int finalPage = Math.max(1, page);
@@ -89,10 +117,10 @@ public class ModLogCommand extends BaseCommand {
                                           String filter, int page, boolean staffMode, String targetName) {
         List<Punishment> filtered = punishments;
         if (!filter.equals("all")) {
-            PunishmentType filterType = PunishmentType.fromString(filter);
-            if (filterType != null) {
+            List<PunishmentType> filterTypes = parseFilter(filter);
+            if (filterTypes != null && !filterTypes.isEmpty()) {
                 filtered = punishments.stream()
-                        .filter(p -> p.getType() == filterType)
+                        .filter(p -> filterTypes.contains(p.getType()))
                         .toList();
             }
         }
@@ -136,7 +164,26 @@ public class ModLogCommand extends BaseCommand {
                 arg.equalsIgnoreCase("mutes") ||
                 arg.equalsIgnoreCase("kicks") ||
                 arg.equalsIgnoreCase("warns") ||
+                arg.equalsIgnoreCase("ipbans") ||
+                arg.equalsIgnoreCase("ipmutes") ||
+                arg.equalsIgnoreCase("ip") ||
                 PunishmentType.fromString(arg) != null;
+    }
+
+    private List<PunishmentType> parseFilter(String filter) {
+        return switch (filter.toLowerCase()) {
+            case "bans" -> List.of(PunishmentType.BAN);
+            case "mutes" -> List.of(PunishmentType.MUTE);
+            case "kicks" -> List.of(PunishmentType.KICK);
+            case "warns" -> List.of(PunishmentType.WARN);
+            case "ipbans" -> List.of(PunishmentType.IPBAN);
+            case "ipmutes" -> List.of(PunishmentType.IPMUTE);
+            case "ip" -> List.of(PunishmentType.IPBAN, PunishmentType.IPMUTE);
+            default -> {
+                PunishmentType type = PunishmentType.fromString(filter);
+                yield type != null ? List.of(type) : null;
+            }
+        };
     }
 
     private Component formatEntry(Punishment p, boolean staffMode) {
@@ -226,6 +273,12 @@ public class ModLogCommand extends BaseCommand {
             footer = footer.append(Component.text("[Next ▶]", NamedTextColor.DARK_GRAY));
         }
 
+        // GUI button
+        footer = footer.append(Component.text(" ", NamedTextColor.DARK_GRAY))
+                .append(Component.text("[GUI]", NamedTextColor.YELLOW)
+                        .clickEvent(ClickEvent.runCommand("/modlog " + playerName + " " + filter + staffFlag + " --gui"))
+                        .hoverEvent(HoverEvent.showText(Component.text("View in GUI", NamedTextColor.GRAY))));
+
         return footer.append(Component.text(" »", NamedTextColor.DARK_GRAY));
     }
 
@@ -234,11 +287,18 @@ public class ModLogCommand extends BaseCommand {
         if (args.length == 1) {
             return filterCompletions(getOnlinePlayerNames(sender), args[0]);
         }
+        List<String> completions = new ArrayList<>(Arrays.asList(
+                "all", "bans", "mutes", "kicks", "warns", "ipbans", "ipmutes", "-staff", "--gui"));
         if (args.length == 2) {
-            return filterCompletions(Arrays.asList("all", "bans", "mutes", "kicks", "warns", "-staff"), args[1]);
+            return filterCompletions(completions, args[1]);
         }
         if (args.length >= 3) {
-            return filterCompletions(Arrays.asList("all", "bans", "mutes", "kicks", "warns", "-staff"), args[args.length - 1]);
+            // Add page numbers to suggestions
+            List<String> withPages = new ArrayList<>(completions);
+            withPages.add("1");
+            withPages.add("2");
+            withPages.add("3");
+            return filterCompletions(withPages, args[args.length - 1]);
         }
         return super.tabComplete(sender, args);
     }
