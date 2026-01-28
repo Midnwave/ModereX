@@ -4355,29 +4355,86 @@
     lastPongTime = Date.now();
   }
 
-  // ===== LOADING LINE BAR =====
+  // ===== LOADING LINE BAR (Progress-based) =====
   let loadingLineCount = 0;
   let loadingLineTimeout = null;
+  let loadingLineFadeTimeout = null;
+  let loadingProgress = 0;
+  let loadingTotal = 0;
+  let loadingCompleted = 0;
+
+  function getLoadingElements() {
+    return {
+      line: document.getElementById('loadingLine'),
+      fill: document.getElementById('loadingLineFill')
+    };
+  }
+
+  function updateLoadingProgress(progress) {
+    const { fill } = getLoadingElements();
+    if (fill) {
+      fill.style.width = Math.min(100, Math.max(0, progress)) + '%';
+    }
+  }
 
   function showLoadingLine() {
     loadingLineCount++;
-    const line = document.getElementById('loadingLine');
-    if (line) line.classList.add('active');
+    loadingTotal++;
+    const { line, fill } = getLoadingElements();
+
+    // Clear any pending fade-out
+    if (loadingLineFadeTimeout) {
+      clearTimeout(loadingLineFadeTimeout);
+      loadingLineFadeTimeout = null;
+    }
+
+    if (line) {
+      line.classList.remove('fade-out', 'complete');
+      line.classList.add('active');
+    }
+
+    // Update progress based on pending requests
+    const progress = loadingTotal > 0 ? (loadingCompleted / loadingTotal) * 100 : 0;
+    updateLoadingProgress(progress);
 
     // Auto-hide after 30 seconds as a safety measure
     if (loadingLineTimeout) clearTimeout(loadingLineTimeout);
     loadingLineTimeout = setTimeout(() => {
-      loadingLineCount = 0;
-      const l = document.getElementById('loadingLine');
-      if (l) l.classList.remove('active');
+      forceHideLoadingLine();
     }, 30000);
   }
 
   function hideLoadingLine() {
     loadingLineCount = Math.max(0, loadingLineCount - 1);
+    loadingCompleted++;
+
+    // Update progress
+    const progress = loadingTotal > 0 ? (loadingCompleted / loadingTotal) * 100 : 100;
+    updateLoadingProgress(progress);
+
     if (loadingLineCount === 0) {
-      const line = document.getElementById('loadingLine');
-      if (line) line.classList.remove('active');
+      // All requests complete - show 100% and wait 0.75s before fading
+      updateLoadingProgress(100);
+      const { line } = getLoadingElements();
+      if (line) {
+        line.classList.add('complete');
+      }
+
+      // Wait 0.75 seconds then fade out
+      loadingLineFadeTimeout = setTimeout(() => {
+        const { line, fill } = getLoadingElements();
+        if (line) {
+          line.classList.add('fade-out');
+          // After fade animation, reset everything
+          setTimeout(() => {
+            line.classList.remove('active', 'fade-out', 'complete');
+            if (fill) fill.style.width = '0%';
+            loadingTotal = 0;
+            loadingCompleted = 0;
+          }, 300);
+        }
+      }, 750);
+
       if (loadingLineTimeout) {
         clearTimeout(loadingLineTimeout);
         loadingLineTimeout = null;
@@ -4385,11 +4442,34 @@
     }
   }
 
+  // Set progress directly (0-100)
+  function setLoadingProgress(progress) {
+    const { line } = getLoadingElements();
+    if (line && !line.classList.contains('active')) {
+      line.classList.remove('fade-out', 'complete');
+      line.classList.add('active');
+    }
+    updateLoadingProgress(progress);
+  }
+
   // Force hide regardless of count (for page transitions)
   function forceHideLoadingLine() {
     loadingLineCount = 0;
-    const line = document.getElementById('loadingLine');
-    if (line) line.classList.remove('active');
+    loadingTotal = 0;
+    loadingCompleted = 0;
+
+    if (loadingLineFadeTimeout) {
+      clearTimeout(loadingLineFadeTimeout);
+      loadingLineFadeTimeout = null;
+    }
+
+    const { line, fill } = getLoadingElements();
+    if (line) {
+      line.classList.remove('active', 'fade-out', 'complete');
+    }
+    if (fill) {
+      fill.style.width = '0%';
+    }
     if (loadingLineTimeout) {
       clearTimeout(loadingLineTimeout);
       loadingLineTimeout = null;
@@ -4399,8 +4479,14 @@
   // Expose loading line functions globally
   window.showLoadingLine = showLoadingLine;
   window.hideLoadingLine = hideLoadingLine;
+  window.setLoadingProgress = setLoadingProgress;
   window.forceHideLoadingLine = forceHideLoadingLine;
-  window.MX.loadingLine = { show: showLoadingLine, hide: hideLoadingLine, forceHide: forceHideLoadingLine };
+  window.MX.loadingLine = {
+    show: showLoadingLine,
+    hide: hideLoadingLine,
+    setProgress: setLoadingProgress,
+    forceHide: forceHideLoadingLine
+  };
 
   // ===== SIDEBAR TOGGLE (Mobile) =====
   function toggleSidebar() {

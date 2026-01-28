@@ -612,35 +612,36 @@ body {
   left: 0;
   right: 0;
   height: 3px;
-  background: transparent;
+  background: rgba(var(--primary-rgb), 0.15);
   overflow: hidden;
   z-index: 1000;
   opacity: 0;
-  transition: opacity 0.2s ease;
+  transition: opacity 0.3s ease;
 }
 
 .loading-line.active {
   opacity: 1;
 }
 
-.loading-line::before {
-  content: '';
-  position: absolute;
-  top: 0;
-  left: -100%;
-  width: 50%;
-  height: 100%;
-  background: linear-gradient(90deg, transparent, var(--primary-light), var(--accent-light), transparent);
-  animation: loading-slide 1.2s ease-in-out infinite;
+.loading-line.fade-out {
+  opacity: 0;
+  transition: opacity 0.3s ease 0.75s; /* 0.75s delay before fade */
 }
 
-@keyframes loading-slide {
-  0% {
-    left: -50%;
-  }
-  100% {
-    left: 100%;
-  }
+.loading-line-fill {
+  position: absolute;
+  top: 0;
+  left: 0;
+  height: 100%;
+  width: 0%;
+  background: linear-gradient(90deg, var(--primary), var(--primary-light), var(--accent-light));
+  box-shadow: 0 0 10px var(--primary-glow), 0 0 5px var(--primary-light);
+  transition: width 0.15s ease-out;
+  border-radius: 0 2px 2px 0;
+}
+
+.loading-line.complete .loading-line-fill {
+  width: 100%;
 }
 
 /* ===== TOPBAR ===== */
