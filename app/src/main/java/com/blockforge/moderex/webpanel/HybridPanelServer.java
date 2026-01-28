@@ -4878,6 +4878,7 @@ public class HybridPanelServer {
         // Create a wrapper to send responses
         SamePortConnectionWrapper wrapper = new SamePortConnectionWrapper(handler);
 
+        try {
         // Reuse existing handlers by wrapping the connection
         switch (type) {
             case "GET_PLAYERS" -> sendPlayerList(wrapper);
@@ -4918,6 +4919,13 @@ public class HybridPanelServer {
             case "SET_CHAT_LOCK" -> setChatLock(wrapper, data, session);
             case "SET_SLOWMODE" -> setSlowmode(wrapper, data, session);
             default -> sendError(wrapper, "UNKNOWN_TYPE", "Unknown message type: " + type);
+        }
+        } catch (Exception e) {
+            // Catch all exceptions to prevent them from propagating and closing the connection
+            plugin.logError("[SamePort] Error handling request type " + type + ": " + e.getMessage(), e);
+            try {
+                sendError(wrapper, "INTERNAL_ERROR", "An error occurred: " + e.getMessage());
+            } catch (Exception ignored) {}
         }
     }
 

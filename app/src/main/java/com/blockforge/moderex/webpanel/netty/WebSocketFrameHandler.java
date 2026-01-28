@@ -244,7 +244,12 @@ public class WebSocketFrameHandler extends ChannelInboundHandlerAdapter {
     @Override
     public void exceptionCaught(ChannelHandlerContext ctx, Throwable cause) {
         plugin.logDebug("[SamePort WS] Error: " + cause.getMessage());
-        unregister();
-        ctx.close();
+        // Only close for fatal errors (IO exceptions, broken pipe, etc.)
+        // Don't close for application-level exceptions that were already handled
+        if (cause instanceof java.io.IOException || cause instanceof io.netty.channel.ChannelException) {
+            unregister();
+            ctx.close();
+        }
+        // For other exceptions, just log them - they've already been handled by the message processor
     }
 }
