@@ -398,10 +398,6 @@ public class DatabaseManager {
         }
     }
 
-    public boolean isMySQL() {
-        return isMySQL;
-    }
-
     public String generateCaseId() {
         java.util.Random random = new java.util.Random();
         int maxAttempts = 100;
