@@ -4878,6 +4878,17 @@ public class HybridPanelServer {
                 plugin.getStaffChatManager().broadcastFromWebPanel(session.playerName, msg);
                 sendSuccess(wrapper, "Message sent");
             }
+            case "UPDATE_AUTOMOD_RULE" -> updateAutomodRule(wrapper, data, session);
+            case "CREATE_AUTOMOD_RULE" -> createAutomodRule(wrapper, data, session);
+            case "DELETE_AUTOMOD_RULE" -> deleteAutomodRule(wrapper, data, session);
+            case "CREATE_PUNISHMENT" -> createPunishment(wrapper, data, session);
+            case "REVOKE_PUNISHMENT" -> revokePunishment(wrapper, data, session);
+            case "ADD_TO_WATCHLIST" -> addToWatchlist(wrapper, data, session);
+            case "REMOVE_FROM_WATCHLIST" -> removeFromWatchlist(wrapper, data);
+            case "DELETE_TEMPLATE" -> deleteTemplate(wrapper, data, session);
+            case "UPDATE_USER_SETTINGS" -> updateUserSettings(wrapper, data, session);
+            case "SET_CHAT_LOCK" -> setChatLock(wrapper, data, session);
+            case "SET_SLOWMODE" -> setSlowmode(wrapper, data, session);
             default -> sendError(wrapper, "UNKNOWN_TYPE", "Unknown message type: " + type);
         }
     }

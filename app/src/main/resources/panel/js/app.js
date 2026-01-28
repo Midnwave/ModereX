@@ -1758,33 +1758,107 @@
     }
 
     const hits = [];
+    const normalizedMsg = normalizeMessage(msg);
+
     for (const r of enabledRules) {
-      for (const c of r.conditions) {
-        let triggered = false;
-        if (c.kind === 'contains' && c.value) {
-          const m = normalizeMessage(msg);
-          const parts = String(c.value).split(',').map(s => s.trim().toLowerCase()).filter(Boolean);
-          triggered = parts.some(part => c.match === 'exact' ? m === part : m.includes(part));
+      let triggered = false;
+      let triggerReason = '';
+
+      // Check blacklisted words/phrases (main filter)
+      const blacklist = r.blacklistedWords || r.blacklistedPhrases || [];
+      if (blacklist.length > 0) {
+        for (const word of blacklist) {
+          const w = word.toLowerCase().trim();
+          if (w && (r.exactMatch ? normalizedMsg === w : normalizedMsg.includes(w))) {
+            // Check if in exceptions/whitelist
+            const exceptions = r.exceptions || r.exclusionWords || r.whitelist || [];
+            const isExcepted = exceptions.some(e => normalizedMsg.includes(e.toLowerCase()));
+            if (!isExcepted) {
+              triggered = true;
+              triggerReason = `Blacklisted: "${word}"`;
+              break;
+            }
+          }
         }
-        if (c.kind === 'caps' && c.value) {
-          const upper = (msg.match(/[A-Z]/g) || []).length;
-          const total = msg.replace(/\s/g, '').length;
-          if (total > 0 && (upper / total) * 100 >= parseInt(c.value)) triggered = true;
+      }
+
+      // Check conditions array
+      if (!triggered) {
+        for (const c of (r.conditions || [])) {
+          if (c.kind === 'contains' && c.value) {
+            const parts = String(c.value).split(',').map(s => s.trim().toLowerCase()).filter(Boolean);
+            const match = parts.find(part => c.match === 'exact' ? normalizedMsg === part : normalizedMsg.includes(part));
+            if (match) { triggered = true; triggerReason = `Contains: "${match}"`; break; }
+          }
+          if (c.kind === 'regex' && c.value) {
+            try {
+              if (new RegExp(c.value, 'i').test(msg)) {
+                triggered = true; triggerReason = `Regex: ${c.value}`; break;
+              }
+            } catch {}
+          }
         }
-        if (c.kind === 'link' && /https?:\/\//i.test(msg)) triggered = true;
-        if (c.kind === 'regex' && c.value) {
-          try { if (new RegExp(c.value, 'i').test(msg)) triggered = true; } catch {}
+      }
+
+      // Check caps filter (rule type or condition)
+      if (!triggered && (r.type === 'CAPS_FILTER' || r.id === 'caps_filter')) {
+        const upper = (msg.match(/[A-Z]/g) || []).length;
+        const total = msg.replace(/\s/g, '').length;
+        const capsMinLen = r.capsMinLength || 5;
+        const capsMaxPct = r.capsMaxPercentage || 50;
+        if (total >= capsMinLen && (upper / total) * 100 >= capsMaxPct) {
+          triggered = true;
+          triggerReason = `Caps: ${Math.round((upper / total) * 100)}% (max ${capsMaxPct}%)`;
         }
-        if (c.kind === 'repeat') {
-          triggered = checkRepeat(r, msg, 'test');
+      }
+
+      // Check link filter
+      if (!triggered && (r.type === 'LINK_FILTER' || r.id === 'link_filter')) {
+        if (/https?:\/\/|www\./i.test(msg)) {
+          triggered = true;
+          triggerReason = 'Contains link';
         }
-        if (triggered) { hits.push(r); break; }
+      }
+
+      // Check spam (simplified - would need message history for real check)
+      if (!triggered && (r.type === 'SPAM_PROTECTION' || r.id === 'spam_protection')) {
+        // Can't fully test spam without message history, show note
+        triggerReason = '(Spam detection requires message history)';
+      }
+
+      if (triggered) {
+        hits.push({ rule: r, reason: triggerReason });
       }
     }
 
-    dom().testResult.innerHTML = hits.length ?
-      `<span class="badge red"><i class="fa-solid fa-circle-xmark"></i> TRIGGERED</span><div style="margin-top:10px">${hits.map(h => `<div><b>${escapeHtml(h.name)}</b> - Action: ${escapeHtml(h.action.kind)}</div>`).join('')}</div>` :
-      `<span class="badge green"><i class="fa-solid fa-check"></i> PASSED</span><div style="margin-top:10px">No rules triggered (tested ${enabledRules.length} rules).</div>`;
+    if (hits.length) {
+      const hitsList = hits.map(h => `
+        <div class="drawer-row" style="margin-top:8px">
+          <div class="meta" style="flex:1">
+            <b style="color:var(--bad)">${escapeHtml(h.rule.name)}</b>
+            <small>${escapeHtml(h.reason)}</small>
+          </div>
+          <div style="display:flex;gap:8px;align-items:center">
+            <span class="badge ${h.rule.block !== false ? 'red' : 'yellow'}">${h.rule.block !== false ? 'BLOCKED' : 'FLAGGED'}</span>
+            ${h.rule.action?.kind && h.rule.action.kind !== 'none' ? `<span class="badge gray">${escapeHtml(h.rule.action.kind.toUpperCase())}</span>` : ''}
+          </div>
+        </div>
+      `).join('');
+      dom().testResult.innerHTML = `
+        <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px">
+          <span class="badge red"><i class="fa-solid fa-shield-halved"></i> TRIGGERED</span>
+          <small style="color:var(--text-muted)">${hits.length} rule${hits.length > 1 ? 's' : ''} matched</small>
+        </div>
+        ${hitsList}
+      `;
+    } else {
+      dom().testResult.innerHTML = `
+        <div style="display:flex;align-items:center;gap:10px">
+          <span class="badge green"><i class="fa-solid fa-check"></i> PASSED</span>
+          <small style="color:var(--text-muted)">Tested against ${enabledRules.length} enabled rules</small>
+        </div>
+      `;
+    }
   };
 
   // ===== WATCHLIST =====
