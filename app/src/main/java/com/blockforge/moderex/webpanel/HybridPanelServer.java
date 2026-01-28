@@ -1319,6 +1319,8 @@ public class HybridPanelServer {
             case "GET_PLAYERS" -> sendPlayerList(conn);
             case "GET_PLAYER_DETAILS" -> sendPlayerDetails(conn, data);
             case "GET_PUNISHMENTS" -> sendPunishments(conn, data);
+            case "GET_COMMAND_HISTORY" -> sendCommandHistory(conn, data);
+            case "GET_AUTOMOD_LOGS" -> sendAutomodLogs(conn, data);
             case "GET_AUTOMOD_RULES" -> sendAutomodRules(conn);
             case "UPDATE_AUTOMOD_RULE" -> updateAutomodRule(conn, data, session);
             case "CREATE_AUTOMOD_RULE" -> createAutomodRule(conn, data, session);
@@ -1437,6 +1439,16 @@ public class HybridPanelServer {
             details.addProperty("firstPlayed", offlinePlayer.getFirstPlayed());
             details.addProperty("lastPlayed", offlinePlayer.getLastPlayed());
             details.addProperty("watched", plugin.getWatchlistManager().isWatched(playerUuid));
+
+            // Get nickname if player is online and has one
+            if (offlinePlayer.isOnline() && offlinePlayer.getPlayer() != null) {
+                Player onlinePlayer = offlinePlayer.getPlayer();
+                String displayName = net.kyori.adventure.text.serializer.plain.PlainTextComponentSerializer.plainText()
+                        .serialize(onlinePlayer.displayName());
+                if (!displayName.equals(onlinePlayer.getName())) {
+                    details.addProperty("nickname", displayName);
+                }
+            }
 
             // Check for Geyser/Bedrock player
             boolean isBedrockPlayer = isFloodgatePlayer(playerUuid);
@@ -1587,6 +1599,164 @@ public class HybridPanelServer {
         });
     }
 
+    private void sendCommandHistory(WebSocketConnection conn, JsonObject filters) {
+        String uuidStr = filters.has("uuid") ? filters.get("uuid").getAsString() : "";
+        int page = filters.has("page") ? filters.get("page").getAsInt() : 1;
+        int limit = filters.has("limit") ? filters.get("limit").getAsInt() : 50;
+        String search = filters.has("search") ? filters.get("search").getAsString() : "";
+
+        if (uuidStr.isEmpty()) {
+            sendError(conn, "MISSING_UUID", "Player UUID is required");
+            return;
+        }
+
+        plugin.getServer().getScheduler().runTaskAsynchronously(plugin, () -> {
+            try {
+                UUID playerUuid = UUID.fromString(uuidStr);
+                int offset = (page - 1) * limit;
+
+                // Build query with optional search filter
+                String searchClause = search.isEmpty() ? "" : " AND command LIKE ?";
+                String countQuery = "SELECT COUNT(*) FROM moderex_command_history WHERE player_uuid = ?" + searchClause;
+                String dataQuery = "SELECT command, executed_at, server FROM moderex_command_history WHERE player_uuid = ?" +
+                        searchClause + " ORDER BY executed_at DESC LIMIT ? OFFSET ?";
+
+                // Get total count
+                int total = plugin.getDatabaseManager().query(countQuery, rs -> {
+                    if (rs.next()) return rs.getInt(1);
+                    return 0;
+                }, search.isEmpty() ? new Object[]{uuidStr} : new Object[]{uuidStr, "%" + search + "%"});
+
+                // Get paginated data
+                List<JsonObject> commands = plugin.getDatabaseManager().query(dataQuery, rs -> {
+                    List<JsonObject> list = new java.util.ArrayList<>();
+                    while (rs.next()) {
+                        JsonObject cmd = new JsonObject();
+                        cmd.addProperty("cmd", rs.getString("command"));
+                        cmd.addProperty("t", rs.getLong("executed_at"));
+                        String server = rs.getString("server");
+                        if (server != null) cmd.addProperty("server", server);
+                        list.add(cmd);
+                    }
+                    return list;
+                }, search.isEmpty() ?
+                        new Object[]{uuidStr, limit, offset} :
+                        new Object[]{uuidStr, "%" + search + "%", limit, offset});
+
+                JsonObject response = new JsonObject();
+                response.addProperty("type", "COMMAND_HISTORY_DATA");
+
+                JsonObject data = new JsonObject();
+                JsonArray cmdArray = new JsonArray();
+                for (JsonObject cmd : commands) {
+                    cmdArray.add(cmd);
+                }
+                data.add("commands", cmdArray);
+                data.addProperty("page", page);
+                data.addProperty("limit", limit);
+                data.addProperty("total", total);
+                data.addProperty("totalPages", (int) Math.ceil((double) total / limit));
+                data.addProperty("uuid", uuidStr);
+
+                response.add("data", data);
+                conn.send(GSON.toJson(response));
+            } catch (Exception e) {
+                plugin.getLogger().warning("Failed to fetch command history: " + e.getMessage());
+                sendError(conn, "DATABASE_ERROR", "Failed to fetch command history");
+            }
+        });
+    }
+
+    private void sendAutomodLogs(WebSocketConnection conn, JsonObject filters) {
+        String uuidStr = filters.has("uuid") ? filters.get("uuid").getAsString() : "";
+        int page = filters.has("page") ? filters.get("page").getAsInt() : 1;
+        int limit = filters.has("limit") ? filters.get("limit").getAsInt() : 50;
+        String search = filters.has("search") ? filters.get("search").getAsString() : "";
+
+        plugin.getServer().getScheduler().runTaskAsynchronously(plugin, () -> {
+            try {
+                if (plugin.getActivityLogManager() == null || !plugin.getActivityLogManager().isEnabled()) {
+                    JsonObject response = new JsonObject();
+                    response.addProperty("type", "AUTOMOD_LOGS_DATA");
+                    JsonObject data = new JsonObject();
+                    data.add("logs", new JsonArray());
+                    data.addProperty("total", 0);
+                    data.addProperty("page", 1);
+                    response.add("data", data);
+                    conn.send(GSON.toJson(response));
+                    return;
+                }
+
+                int offset = (page - 1) * limit;
+
+                // Build query - optionally filter by player UUID
+                String whereClause = "WHERE type = 'AUTOMOD_TRIGGER'";
+                List<Object> params = new java.util.ArrayList<>();
+
+                if (!uuidStr.isEmpty()) {
+                    whereClause += " AND player_uuid = ?";
+                    params.add(uuidStr);
+                }
+
+                if (!search.isEmpty()) {
+                    whereClause += " AND (content LIKE ? OR extra LIKE ?)";
+                    params.add("%" + search + "%");
+                    params.add("%" + search + "%");
+                }
+
+                String countQuery = "SELECT COUNT(*) FROM moderex_activity_log " + whereClause;
+                String dataQuery = "SELECT * FROM moderex_activity_log " + whereClause +
+                        " ORDER BY timestamp DESC LIMIT ? OFFSET ?";
+
+                // Get total count
+                int total = plugin.getDatabaseManager().query(countQuery, rs -> {
+                    if (rs.next()) return rs.getInt(1);
+                    return 0;
+                }, params.toArray());
+
+                // Add pagination params
+                params.add(limit);
+                params.add(offset);
+
+                // Get paginated data
+                List<JsonObject> logs = plugin.getDatabaseManager().query(dataQuery, rs -> {
+                    List<JsonObject> list = new java.util.ArrayList<>();
+                    while (rs.next()) {
+                        JsonObject log = new JsonObject();
+                        log.addProperty("t", rs.getLong("timestamp"));
+                        log.addProperty("playerUuid", rs.getString("player_uuid"));
+                        log.addProperty("playerName", rs.getString("player_name"));
+                        log.addProperty("rule", rs.getString("extra")); // Rule name in extra field
+                        log.addProperty("content", rs.getString("content"));
+                        log.addProperty("server", rs.getString("server"));
+                        list.add(log);
+                    }
+                    return list;
+                }, params.toArray());
+
+                JsonObject response = new JsonObject();
+                response.addProperty("type", "AUTOMOD_LOGS_DATA");
+
+                JsonObject data = new JsonObject();
+                JsonArray logsArray = new JsonArray();
+                for (JsonObject log : logs) {
+                    logsArray.add(log);
+                }
+                data.add("logs", logsArray);
+                data.addProperty("page", page);
+                data.addProperty("limit", limit);
+                data.addProperty("total", total);
+                data.addProperty("totalPages", (int) Math.ceil((double) total / limit));
+
+                response.add("data", data);
+                conn.send(GSON.toJson(response));
+            } catch (Exception e) {
+                plugin.getLogger().warning("Failed to fetch automod logs: " + e.getMessage());
+                sendError(conn, "DATABASE_ERROR", "Failed to fetch automod logs");
+            }
+        });
+    }
+
     private void sendAutomodRules(WebSocketConnection conn) {
         JsonObject response = new JsonObject();
         response.addProperty("type", "AUTOMOD_RULES_DATA");
@@ -1710,6 +1880,61 @@ public class HybridPanelServer {
                 }
             }
 
+            // Handle frontend 'exceptions' array (string array of exception phrases)
+            if (ruleData.has("exceptions") && ruleData.get("exceptions").isJsonArray()) {
+                List<String> exceptions = new ArrayList<>();
+                ruleData.getAsJsonArray("exceptions").forEach(e -> exceptions.add(e.getAsString()));
+                rule.setExclusionPhrases(exceptions);
+            }
+
+            // Handle frontend 'conditions' array format
+            // Conditions format: [{ kind: 'contains', value: 'phrase1, phrase2' }, { kind: 'regex', value: '...' }]
+            if (ruleData.has("conditions") && ruleData.get("conditions").isJsonArray()) {
+                JsonArray conditions = ruleData.getAsJsonArray("conditions");
+                List<String> blacklistedPhrases = new ArrayList<>();
+
+                for (int i = 0; i < conditions.size(); i++) {
+                    JsonObject cond = conditions.get(i).getAsJsonObject();
+                    String kind = cond.has("kind") ? cond.get("kind").getAsString() : "contains";
+                    String value = cond.has("value") ? cond.get("value").getAsString() : "";
+
+                    if ("contains".equals(kind) && !value.isEmpty()) {
+                        // Split by comma for comma-separated phrases
+                        for (String phrase : value.split(",")) {
+                            String trimmed = phrase.trim();
+                            if (!trimmed.isEmpty()) {
+                                blacklistedPhrases.add(trimmed);
+                            }
+                        }
+                    } else if ("regex".equals(kind) && !value.isEmpty()) {
+                        // For regex conditions, store as-is with a prefix
+                        blacklistedPhrases.add(value);
+                        // Also set filter mode to REGEX if this is the primary mode
+                        rule.setFilterMode(AutomodRule.FilterMode.REGEX);
+                    }
+                }
+
+                if (!blacklistedPhrases.isEmpty()) {
+                    rule.setBlacklistedPhrases(blacklistedPhrases);
+                }
+            }
+
+            // Update rule name
+            if (ruleData.has("name") && !ruleData.get("name").isJsonNull()) {
+                String newName = ruleData.get("name").getAsString().trim();
+                if (!newName.isEmpty() && !rule.isBuiltIn()) {
+                    rule.setName(newName);
+                }
+            }
+
+            // Update applies to settings (chat/nicknames/both)
+            if (ruleData.has("applyToNicknames")) {
+                rule.setApplyToNicknames(ruleData.get("applyToNicknames").getAsBoolean());
+            }
+            if (ruleData.has("nicknameOnly")) {
+                rule.setNicknameOnly(ruleData.get("nicknameOnly").getAsBoolean());
+            }
+
             // Update block flag (maps to FlagAction.BLOCK)
             if (ruleData.has("block")) {
                 boolean shouldBlock = ruleData.get("block").getAsBoolean();
@@ -1761,7 +1986,8 @@ public class HybridPanelServer {
                     rule.getAutoPunishment().setTriggerCount(thrObj.get("hits").getAsInt());
                 }
                 if (thrObj.has("windowMins")) {
-                    rule.getAutoPunishment().setTimeWindow(thrObj.get("windowMins").getAsInt() * 60);
+                    // Convert minutes to milliseconds for storage (timeWindow is stored in ms)
+                    rule.getAutoPunishment().setTimeWindow(thrObj.get("windowMins").getAsInt() * 60000L);
                 }
             }
 
@@ -1911,6 +2137,10 @@ public class HybridPanelServer {
             // Block flag for frontend - true if flagAction is BLOCK
             r.addProperty("block", rule.getFlagAction() == AutomodRule.FlagAction.BLOCK);
 
+            // Applies to settings (chat/nicknames/both)
+            r.addProperty("applyToNicknames", rule.isApplyToNicknames());
+            r.addProperty("nicknameOnly", rule.isNicknameOnly());
+
             // Blacklisted words/phrases
             com.google.gson.JsonArray blacklist = new com.google.gson.JsonArray();
             for (String word : rule.getBlacklistedWords()) {
@@ -1927,6 +2157,35 @@ public class HybridPanelServer {
             r.add("exclusionWords", whitelist);
             r.add("exclusionPhrases", whitelist);
             r.add("whitelist", whitelist);
+
+            // Exceptions array (string array for frontend)
+            com.google.gson.JsonArray exceptionsArray = new com.google.gson.JsonArray();
+            for (String exception : rule.getExclusionPhrases()) {
+                exceptionsArray.add(exception);
+            }
+            r.add("exceptions", exceptionsArray);
+
+            // Conditions array for frontend (convert blacklisted phrases to conditions format)
+            com.google.gson.JsonArray conditionsArray = new com.google.gson.JsonArray();
+            List<String> phrases = rule.getBlacklistedPhrases();
+            if (phrases != null && !phrases.isEmpty()) {
+                // Check filter mode - if REGEX, each phrase is a separate regex condition
+                if (rule.getFilterMode() == AutomodRule.FilterMode.REGEX) {
+                    for (String phrase : phrases) {
+                        JsonObject cond = new JsonObject();
+                        cond.addProperty("kind", "regex");
+                        cond.addProperty("value", phrase);
+                        conditionsArray.add(cond);
+                    }
+                } else {
+                    // CONTAINS_PHRASE mode - combine all phrases into one condition
+                    JsonObject cond = new JsonObject();
+                    cond.addProperty("kind", "contains");
+                    cond.addProperty("value", String.join(", ", phrases));
+                    conditionsArray.add(cond);
+                }
+            }
+            r.add("conditions", conditionsArray);
 
             // Auto punishment
             if (rule.getAutoPunishment() != null) {
@@ -1965,8 +2224,9 @@ public class HybridPanelServer {
             JsonObject threshold = new JsonObject();
             threshold.addProperty("hits", rule.getAutoPunishment() != null ?
                     rule.getAutoPunishment().getTriggerCount() : 3);
+            // Convert milliseconds to minutes for frontend (timeWindow is stored in ms)
             threshold.addProperty("windowMins", rule.getAutoPunishment() != null ?
-                    (rule.getAutoPunishment().getTimeWindow() / 60) : 5);
+                    (rule.getAutoPunishment().getTimeWindow() / 60000) : 5);
             r.add("threshold", threshold);
 
             rules.add(r);
@@ -2415,6 +2675,13 @@ public class HybridPanelServer {
             data.addProperty("actionBarAlerts", staffSettings.isActionBarAlerts());
             data.addProperty("inGameChatAlerts", staffSettings.isChatAlerts());
             data.addProperty("bossBarAlerts", staffSettings.isBossBarAlerts());
+
+            // Web panel notification modes
+            data.addProperty("webNotifyPunishments", staffSettings.getWebNotifyPunishments().name().toLowerCase());
+            data.addProperty("webNotifyAutomod", staffSettings.getWebNotifyAutomod().name().toLowerCase());
+            data.addProperty("webNotifyAnticheat", staffSettings.getWebNotifyAnticheat().name().toLowerCase());
+            data.addProperty("webNotifyWatchlist", staffSettings.getWebNotifyWatchlist().name().toLowerCase());
+            data.addProperty("webNotifyStaffChat", staffSettings.getWebNotifyStaffChat().name().toLowerCase());
         }
 
         response.add("data", data);
@@ -2813,6 +3080,34 @@ public class HybridPanelServer {
                 staffSettings.setBossBarAlerts(data.get("bossBarAlerts").getAsBoolean());
                 changed = true;
             }
+
+            // Web panel notification modes
+            if (data.has("webNotifyPunishments")) {
+                staffSettings.setWebNotifyPunishments(
+                    com.blockforge.moderex.staff.StaffSettings.WebNotifyMode.fromString(data.get("webNotifyPunishments").getAsString()));
+                changed = true;
+            }
+            if (data.has("webNotifyAutomod")) {
+                staffSettings.setWebNotifyAutomod(
+                    com.blockforge.moderex.staff.StaffSettings.WebNotifyMode.fromString(data.get("webNotifyAutomod").getAsString()));
+                changed = true;
+            }
+            if (data.has("webNotifyAnticheat")) {
+                staffSettings.setWebNotifyAnticheat(
+                    com.blockforge.moderex.staff.StaffSettings.WebNotifyMode.fromString(data.get("webNotifyAnticheat").getAsString()));
+                changed = true;
+            }
+            if (data.has("webNotifyWatchlist")) {
+                staffSettings.setWebNotifyWatchlist(
+                    com.blockforge.moderex.staff.StaffSettings.WebNotifyMode.fromString(data.get("webNotifyWatchlist").getAsString()));
+                changed = true;
+            }
+            if (data.has("webNotifyStaffChat")) {
+                staffSettings.setWebNotifyStaffChat(
+                    com.blockforge.moderex.staff.StaffSettings.WebNotifyMode.fromString(data.get("webNotifyStaffChat").getAsString()));
+                changed = true;
+            }
+
             if (changed) {
                 plugin.getStaffSettingsManager().saveSettings(staffSettings);
             }
@@ -4545,6 +4840,8 @@ public class HybridPanelServer {
             case "GET_PLAYERS" -> sendPlayerList(wrapper);
             case "GET_PLAYER_DETAILS" -> sendPlayerDetails(wrapper, data);
             case "GET_PUNISHMENTS" -> sendPunishments(wrapper, data);
+            case "GET_COMMAND_HISTORY" -> sendCommandHistory(wrapper, data);
+            case "GET_AUTOMOD_LOGS" -> sendAutomodLogs(wrapper, data);
             case "GET_AUTOMOD_RULES" -> sendAutomodRules(wrapper);
             case "GET_USER_SETTINGS" -> sendUserSettingsForSamePort(wrapper, session);
             case "GET_TEMPLATES" -> sendTemplates(wrapper);
@@ -4579,6 +4876,13 @@ public class HybridPanelServer {
             data.addProperty("actionBarAlerts", staffSettings.isActionBarAlerts());
             data.addProperty("inGameChatAlerts", staffSettings.isChatAlerts());
             data.addProperty("bossBarAlerts", staffSettings.isBossBarAlerts());
+
+            // Web panel notification modes
+            data.addProperty("webNotifyPunishments", staffSettings.getWebNotifyPunishments().name().toLowerCase());
+            data.addProperty("webNotifyAutomod", staffSettings.getWebNotifyAutomod().name().toLowerCase());
+            data.addProperty("webNotifyAnticheat", staffSettings.getWebNotifyAnticheat().name().toLowerCase());
+            data.addProperty("webNotifyWatchlist", staffSettings.getWebNotifyWatchlist().name().toLowerCase());
+            data.addProperty("webNotifyStaffChat", staffSettings.getWebNotifyStaffChat().name().toLowerCase());
         }
 
         response.add("data", data);

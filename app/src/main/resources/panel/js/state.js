@@ -97,24 +97,25 @@
     },
     // Staff notification settings (synced with in-game)
     staffSettings: {
-      commandAlerts: 'WATCHLIST_ONLY',
-      privateMessageAlerts: 'OFF',
-      showBlacklistedCommands: true,
+      // Alert levels (who to receive alerts for)
+      banAlertsLevel: 'EVERYONE',
+      automodAlertsLevel: 'WATCHLIST_ONLY',
       anticheatAlertsLevel: 'EVERYONE',
       anticheatMinVL: 10,
-      automodAlertsLevel: 'WATCHLIST_ONLY',
-      spamAlertsLevel: 'WATCHLIST_ONLY',
-      filterAlertsLevel: 'WATCHLIST_ONLY',
+      commandAlerts: 'WATCHLIST_ONLY',
+      // Watchlist toggles
       watchlistJoinAlerts: true,
       watchlistQuitAlerts: true,
       watchlistActivityAlerts: true,
-      // joinLeaveMessages removed - now a global config setting
+      // Staff chat
       staffChatEnabled: true,
       staffChatSound: true,
-      banAlertsLevel: 'EVERYONE',
-      muteAlertsLevel: 'EVERYONE',
-      kickAlertsLevel: 'EVERYONE',
-      warnAlertsLevel: 'EVERYONE'
+      // Web panel notification mode (toast/browser/off)
+      webNotifyPunishments: 'toast',
+      webNotifyAutomod: 'toast',
+      webNotifyAnticheat: 'toast',
+      webNotifyWatchlist: 'toast',
+      webNotifyStaffChat: 'toast'
     }
   };
 

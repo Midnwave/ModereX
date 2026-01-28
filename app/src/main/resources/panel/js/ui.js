@@ -755,22 +755,18 @@
     // Auto punishment section (not for AFK)
     const showPunishment = r.id !== 'afk_kick';
     const punishSection = showPunishment ? `
-      <div style="margin-top:12px" class="grid cols-2">
-        <div class="block">
+      <div style="margin-top:12px">
+        <div class="block" style="gap:10px;flex-wrap:wrap">
           <b style="font-size:12px">Auto Punish</b>
           <select class="input" style="width:140px" onchange="setRuleAction('${r.id}', this.value)">
             ${['none', 'warn', 'mute', 'kick', 'ban'].map(k => `<option value="${k}" ${r.action?.kind === k ? 'selected' : ''}>${k}</option>`).join('')}
           </select>
-          ${r.action?.kind && r.action.kind !== 'none' ? `<input class="input" style="flex:1" value="${escapeHtml(r.action?.extra || '')}" oninput="setRuleActionExtra('${r.id}', this.value)" placeholder="Reason"/>` : ''}
-          ${['warn','mute','ban'].includes(r.action?.kind) ? `<input class="input" style="max-width:120px" value="${escapeHtml(r.action?.duration || '')}" oninput="setRuleActionDuration('${r.id}', this.value)" placeholder="Duration"/>` : ''}
-        </div>
-        <div class="block">
-          <b style="font-size:12px">Block Message</b>
-          <button class="toggle ${r.block ? 'on' : ''}" onclick="toggleRuleBlock('${r.id}')"><span class="toggle-thumb"></span></button>
+          ${r.action?.kind && r.action.kind !== 'none' ? `<input class="input" style="flex:1;min-width:150px" value="${escapeHtml(r.action?.extra || '')}" oninput="setRuleActionExtra('${r.id}', this.value)" placeholder="Reason"/>` : ''}
+          ${['warn','mute','ban'].includes(r.action?.kind) ? `<input class="input" style="width:120px" value="${escapeHtml(r.action?.duration || '')}" oninput="setRuleActionDuration('${r.id}', this.value)" placeholder="Duration"/>` : ''}
         </div>
       </div>
       <div class="block" style="margin-top:12px">
-        <span class="badge gray">Flag threshold:</span>
+        <span class="badge gray">Punish after:</span>
         <input class="input" type="number" min="1" value="${thr.hits || 3}" style="width:70px" oninput="setRuleThreshold('${r.id}', 'hits', this.value)">
         <span class="badge gray">violations in</span>
         <input class="input" type="number" min="1" value="${thr.windowMins || 5}" style="width:70px" oninput="setRuleThreshold('${r.id}', 'windowMins', this.value)">
@@ -815,102 +811,212 @@
     return descriptions[ruleId] || 'Built-in automod filter.';
   }
 
-  // Render a custom rule card with full condition editing
+  // Render a custom rule card - simplified, click to edit
   function renderCustomRuleCard(r, thr, ruleIcon, iconColor) {
-    const descMap = {
-      contains: 'Flags when a phrase appears in a message (comma separated).',
-      regex: 'Uses a regular expression to detect a match.',
-      caps: 'Flags messages with caps above the set percentage.',
-      repeat: 'Detects repeated or similar messages across a window.',
-      link: 'Detects external links in chat.'
-    };
+    // Build a summary of what the rule filters
+    const conditions = r.conditions || [];
+    const phrases = conditions
+      .filter(c => c.kind === 'contains' || c.kind === 'regex')
+      .map(c => c.value || '')
+      .filter(v => v)
+      .join(', ');
+    const phraseSummary = phrases ? phrases.slice(0, 80) + (phrases.length > 80 ? '...' : '') : 'No filters configured';
 
-    const conds = (r.conditions || []).map((c, idx) => {
-      const exactToggle = c.kind === 'contains' ? `
-        <div class="toggle-wrap">
-          <button class="toggle tiny ${c.match === 'exact' ? 'on' : ''}" onclick="toggleConditionExact('${r.id}', ${idx})"><span class="toggle-thumb"></span></button>
-          <div class="toggle-meta"><div class="toggle-title">Exact only</div></div>
-        </div>
-      ` : '';
-      const similarToggle = c.kind === 'repeat' ? `
-        <div class="toggle-wrap spacer">
-          <button class="toggle tiny ${c.similar ? 'on' : ''}" onclick="toggleConditionSimilar('${r.id}', ${idx})"><span class="toggle-thumb"></span></button>
-          <div class="toggle-meta"><div class="toggle-title">Include similar</div></div>
-        </div>
-      ` : '';
-      const inputField = c.kind === 'caps'
-        ? `<input class="input" type="number" min="1" max="100" step="1" value="${escapeHtml(c.value || '65')}" oninput="setConditionValue('${r.id}', ${idx}, this.value)" style="max-width:140px"/>`
-        : c.kind === 'repeat'
-          ? `<span class="badge gray">Applies to all messages</span>`
-          : `<input class="input" style="flex:1;min-width:220px" value="${escapeHtml(c.value || '')}" oninput="setConditionValue('${r.id}', ${idx}, this.value)" placeholder="Phrase(s), comma separated" ${c.kind === 'link' ? 'disabled' : ''}/>`;
-      return `
-        <div class="card" style="margin:0">
-          <div class="condition-row" style="margin-top:0">
-            <span class="badge blue"><i class="fa-solid fa-code-branch"></i> IF</span>
-            <select class="input" style="width:160px" onchange="setConditionKind('${r.id}', ${idx}, this.value)">
-              ${[['contains', 'Contains Phrase'], ['regex', 'Regex']].map(([k, l]) => `<option value="${k}" ${c.kind === k ? 'selected' : ''}>${l}</option>`).join('')}
-            </select>
-            ${inputField}
-            ${exactToggle}
-            ${similarToggle}
-            <button class="mini bad delete" onclick="removeCondition('${r.id}', ${idx})"><i class="fa-solid fa-trash"></i></button>
-          </div>
-          <div class="hintline" style="margin-top:6px">${escapeHtml(descMap[c.kind] || 'Rule condition')}</div>
-        </div>
-      `;
-    }).join('');
+    // Action summary
+    const action = r.action?.kind && r.action.kind !== 'none'
+      ? `<span class="badge ${r.action.kind === 'ban' ? 'bad' : r.action.kind === 'kick' ? 'warn' : 'blue'}">${r.action.kind.toUpperCase()}</span>`
+      : '<span class="badge gray">No action</span>';
 
     return `
-      <div class="card" style="margin:0">
+      <div class="card rule-card-clickable" style="margin:0;cursor:pointer" onclick="openAutomodRuleEditor('${r.id}')">
         <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:10px">
-          <div>
-            <div style="display:flex;align-items:center;gap:10px">
+          <div style="flex:1;min-width:0">
+            <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
               <i class="${ruleIcon}" style="font-size:18px;color:${iconColor}"></i>
-              <input class="input" style="max-width:240px" value="${escapeHtml(r.name)}" oninput="setRuleName('${r.id}', this.value)"/>
+              <b style="font-size:14px">${escapeHtml(r.name)}</b>
               ${r.enabled ? `<span class="badge green"><i class="fa-solid fa-check"></i> Active</span>` : `<span class="badge gray"><i class="fa-solid fa-pause"></i> Inactive</span>`}
+              ${action}
             </div>
-            <div class="hintline">${escapeHtml(r.notes || 'Custom word filter rule.')}</div>
+            <div class="hintline" style="margin-top:6px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">
+              <i class="fa-solid fa-filter" style="margin-right:6px;color:var(--muted)"></i>${escapeHtml(phraseSummary)}
+            </div>
+            <div class="hintline" style="margin-top:4px">
+              <span class="badge gray" style="font-size:10px">${thr.hits} trigger${thr.hits !== 1 ? 's' : ''} in ${thr.windowMins} min</span>
+              ${(r.exceptions || []).length > 0 ? `<span class="badge gray" style="font-size:10px">${r.exceptions.length} exception${r.exceptions.length !== 1 ? 's' : ''}</span>` : ''}
+            </div>
           </div>
-          <div style="display:flex;gap:10px;align-items:center">
+          <div style="display:flex;gap:10px;align-items:center" onclick="event.stopPropagation()">
             <button class="toggle ${r.enabled ? 'on' : ''}" onclick="toggleRule('${r.id}')"><span class="toggle-thumb"></span></button>
-            <button class="mini bad delete" onclick="deleteRule('${r.id}')"><i class="fa-solid fa-trash"></i></button>
+            <button class="mini bad delete" onclick="deleteRule('${r.id}')" title="Delete rule"><i class="fa-solid fa-trash"></i></button>
           </div>
-        </div>
-        <div style="margin-top:12px" class="grid cols-2">
-          <div class="block">
-            <b style="font-size:12px">Auto Punish</b>
-            <select class="input" style="width:140px" onchange="setRuleAction('${r.id}', this.value)">
-              ${['none', 'warn', 'mute', 'kick', 'ban'].map(k => `<option value="${k}" ${r.action?.kind === k ? 'selected' : ''}>${k}</option>`).join('')}
-            </select>
-            ${r.action?.kind && r.action.kind !== 'none' ? `<input class="input" style="flex:1" value="${escapeHtml(r.action?.extra || '')}" oninput="setRuleActionExtra('${r.id}', this.value)" placeholder="Reason"/>` : ''}
-            ${['warn','mute','ban'].includes(r.action?.kind) ? `<input class="input" style="max-width:120px" value="${escapeHtml(r.action?.duration || '')}" oninput="setRuleActionDuration('${r.id}', this.value)" placeholder="Duration"/>` : ''}
-          </div>
-          <div class="block">
-            <b style="font-size:12px">Block Message</b>
-            <button class="toggle ${r.block ? 'on' : ''}" onclick="toggleRuleBlock('${r.id}')"><span class="toggle-thumb"></span></button>
-          </div>
-        </div>
-        <div style="margin-top:12px">
-          <div class="hintline" style="margin-top:0"><b>Conditions</b> <span style="color:var(--text-secondary);font-weight:normal">(word/phrase filters)</span></div>
-          <div style="margin-top:8px;display:flex;flex-direction:column;gap:10px">
-            ${conds || `<div class="hintline">No conditions. Add words or phrases to filter.</div>`}
-            <button class="mini primary" onclick="addCondition('${r.id}')"><i class="fa-solid fa-plus"></i> Add Condition</button>
-          </div>
-        </div>
-        <div style="margin-top:12px">
-          <div class="hintline" style="margin-top:0"><b>Exceptions</b> <span style="color:var(--text-secondary);font-weight:normal">(words/phrases to ignore)</span></div>
-          <textarea class="input" style="margin-top:8px;min-height:60px;font-family:var(--font-mono);font-size:12px" placeholder="Enter words or phrases that won't trigger this rule (one per line)" oninput="setRuleExceptions('${r.id}', this.value)">${escapeHtml((r.exceptions || []).join('\n'))}</textarea>
-        </div>
-        <div class="block" style="margin-top:12px">
-          <span class="badge gray">Threshold:</span>
-          <input class="input" type="number" min="1" value="${thr.hits}" style="width:70px" oninput="setRuleThreshold('${r.id}', 'hits', this.value)">
-          <span class="badge gray">trigger in</span>
-          <input class="input" type="number" min="1" value="${thr.windowMins}" style="width:70px" oninput="setRuleThreshold('${r.id}', 'windowMins', this.value)">
-          <span class="badge gray">minutes</span>
         </div>
       </div>
     `;
   }
+
+  // Open the automod rule editor popup
+  function openAutomodRuleEditor(ruleId) {
+    const r = state.rules.find(rule => rule.id === ruleId);
+    if (!r) return;
+
+    const thr = r.threshold || { hits: 1, windowMins: 10 };
+    const conditions = r.conditions || [];
+
+    // Get phrases from conditions
+    const phrases = conditions
+      .filter(c => c.kind === 'contains')
+      .map(c => c.value || '')
+      .filter(v => v)
+      .join('\n');
+
+    const regexPatterns = conditions
+      .filter(c => c.kind === 'regex')
+      .map(c => c.value || '')
+      .filter(v => v)
+      .join('\n');
+
+    const exceptions = (r.exceptions || []).join('\n');
+
+    // Create modal
+    const modal = document.createElement('div');
+    modal.className = 'overlay';
+    modal.id = 'automodRuleEditorOverlay';
+    modal.style.display = 'flex';
+    modal.innerHTML = `
+      <div class="modal" style="max-width:600px;max-height:90vh;overflow-y:auto" onclick="event.stopPropagation()">
+        <div class="modal-top">
+          <b><i class="fa-solid fa-filter" style="margin-right:8px"></i>Edit Filter Rule</b>
+          <button class="mini" onclick="closeAutomodRuleEditor()"><i class="fa-solid fa-xmark"></i></button>
+        </div>
+        <div class="modal-body">
+          <div class="hintline" style="margin-top:0">Rule Name</div>
+          <input type="text" class="input" id="automodRuleName" value="${escapeHtml(r.name)}" placeholder="Rule name..." style="width:100%">
+
+          <div class="hintline">Blocked Phrases <span style="color:var(--text-secondary);font-weight:normal">(one per line)</span></div>
+          <textarea class="input" id="automodRulePhrases" rows="4" placeholder="Enter words or phrases to block (one per line)..." style="font-family:var(--font-mono);font-size:12px">${escapeHtml(phrases)}</textarea>
+
+          <div class="hintline">Regex Patterns <span style="color:var(--text-secondary);font-weight:normal">(advanced, one per line)</span></div>
+          <textarea class="input" id="automodRuleRegex" rows="2" placeholder="Enter regex patterns (one per line)..." style="font-family:var(--font-mono);font-size:12px">${escapeHtml(regexPatterns)}</textarea>
+
+          <div class="hintline">Exceptions <span style="color:var(--text-secondary);font-weight:normal">(words/phrases that won't trigger, one per line)</span></div>
+          <textarea class="input" id="automodRuleExceptions" rows="2" placeholder="Enter exceptions (one per line)..." style="font-family:var(--font-mono);font-size:12px">${escapeHtml(exceptions)}</textarea>
+
+          <div class="hintline">Applies To</div>
+          <div class="block" style="gap:10px">
+            <select class="input" id="automodRuleAppliesTo" style="width:200px">
+              <option value="chat" ${!r.applyToNicknames && !r.nicknameOnly ? 'selected' : ''}>Chat Only</option>
+              <option value="nicknames" ${r.nicknameOnly ? 'selected' : ''}>Nicknames Only</option>
+              <option value="both" ${r.applyToNicknames && !r.nicknameOnly ? 'selected' : ''}>Both Chat & Nicknames</option>
+            </select>
+            <span class="badge gray" style="font-size:11px">Where this filter applies</span>
+          </div>
+
+          <div class="hintline">Auto Punishment</div>
+          <div class="block" style="gap:10px;flex-wrap:wrap">
+            <select class="input" id="automodRuleActionKind" style="width:140px" onchange="updateAutomodActionFields()">
+              ${['none', 'warn', 'mute', 'kick', 'ban'].map(k => `<option value="${k}" ${r.action?.kind === k ? 'selected' : ''}>${k.charAt(0).toUpperCase() + k.slice(1)}</option>`).join('')}
+            </select>
+            <input class="input" id="automodRuleActionReason" value="${escapeHtml(r.action?.extra || '')}" placeholder="Reason for punishment..." style="flex:1;min-width:180px;display:${r.action?.kind && r.action.kind !== 'none' ? 'block' : 'none'}">
+            <input class="input" id="automodRuleActionDuration" value="${escapeHtml(r.action?.duration || '')}" placeholder="Duration (e.g., 1h, 1d)" style="width:140px;display:${['warn','mute','ban'].includes(r.action?.kind) ? 'block' : 'none'}">
+          </div>
+
+          <div class="hintline">Trigger Threshold</div>
+          <div class="block" style="gap:10px;flex-wrap:wrap;align-items:center">
+            <span class="badge gray">Punish after</span>
+            <input class="input" type="number" id="automodRuleThresholdHits" min="1" value="${thr.hits}" style="width:70px">
+            <span class="badge gray">violations in</span>
+            <input class="input" type="number" id="automodRuleThresholdWindow" min="1" value="${thr.windowMins}" style="width:70px">
+            <span class="badge gray">minutes</span>
+          </div>
+
+          <div class="block" style="margin-top:24px;gap:10px">
+            <button class="btn primary" onclick="saveAutomodRuleFromEditor('${r.id}')"><i class="fa-solid fa-check"></i> Save</button>
+            <button class="btn" onclick="closeAutomodRuleEditor()">Cancel</button>
+          </div>
+        </div>
+      </div>
+    `;
+    modal.onclick = closeAutomodRuleEditor;
+    document.body.appendChild(modal);
+  }
+
+  // Expose openAutomodRuleEditor to window
+  window.openAutomodRuleEditor = openAutomodRuleEditor;
+
+  window.closeAutomodRuleEditor = function() {
+    const overlay = document.getElementById('automodRuleEditorOverlay');
+    if (overlay) overlay.remove();
+  };
+
+  window.updateAutomodActionFields = function() {
+    const kind = document.getElementById('automodRuleActionKind')?.value;
+    const reasonInput = document.getElementById('automodRuleActionReason');
+    const durationInput = document.getElementById('automodRuleActionDuration');
+
+    if (reasonInput) {
+      reasonInput.style.display = kind && kind !== 'none' ? 'block' : 'none';
+    }
+    if (durationInput) {
+      durationInput.style.display = ['warn', 'mute', 'ban'].includes(kind) ? 'block' : 'none';
+    }
+  };
+
+  window.saveAutomodRuleFromEditor = function(ruleId) {
+    const r = state.rules.find(rule => rule.id === ruleId);
+    if (!r) return;
+
+    // Get values from form
+    const name = document.getElementById('automodRuleName')?.value?.trim() || 'Unnamed Rule';
+    const phrasesText = document.getElementById('automodRulePhrases')?.value || '';
+    const regexText = document.getElementById('automodRuleRegex')?.value || '';
+    const exceptionsText = document.getElementById('automodRuleExceptions')?.value || '';
+    const appliesTo = document.getElementById('automodRuleAppliesTo')?.value || 'chat';
+    const actionKind = document.getElementById('automodRuleActionKind')?.value || 'none';
+    const actionReason = document.getElementById('automodRuleActionReason')?.value || '';
+    const actionDuration = document.getElementById('automodRuleActionDuration')?.value || '';
+    const thresholdHits = parseInt(document.getElementById('automodRuleThresholdHits')?.value || '1', 10);
+    const thresholdWindow = parseInt(document.getElementById('automodRuleThresholdWindow')?.value || '10', 10);
+
+    // Parse phrases and regex into conditions
+    const phrases = phrasesText.split('\n').map(p => p.trim()).filter(p => p);
+    const regexes = regexText.split('\n').map(p => p.trim()).filter(p => p);
+    const exceptions = exceptionsText.split('\n').map(p => p.trim()).filter(p => p);
+
+    // Build conditions
+    const conditions = [];
+    if (phrases.length > 0) {
+      conditions.push({ kind: 'contains', value: phrases.join(', ') });
+    }
+    regexes.forEach(regex => {
+      conditions.push({ kind: 'regex', value: regex });
+    });
+
+    // Update rule
+    r.name = name;
+    r.conditions = conditions;
+    r.exceptions = exceptions;
+
+    // Set applies to flags
+    r.applyToNicknames = appliesTo === 'both';
+    r.nicknameOnly = appliesTo === 'nicknames';
+
+    r.action = {
+      kind: actionKind,
+      extra: actionReason,
+      duration: actionDuration
+    };
+    r.threshold = {
+      hits: Math.max(1, thresholdHits),
+      windowMins: Math.max(1, thresholdWindow)
+    };
+
+    // Mark unsaved and re-render
+    ui.markUnsaved('rules', true);
+    renderRules();
+    closeAutomodRuleEditor();
+
+    window.toast('info', 'Updated', 'Rule updated. Click "Save Changes" to sync.');
+  };
 
   // Helper function to determine rule type for filtering
   function getRuleType(rule) {
@@ -1064,7 +1170,14 @@
       </select>
     `;
 
-    // joinLeaveOptions removed - now a global config setting
+    // Generate web notification mode dropdown
+    const notifyModeOptions = (current, key) => `
+      <select class="input small" onchange="updateStaffSetting('${key}', this.value)">
+        <option value="toast" ${current === 'toast' ? 'selected' : ''}>Toast</option>
+        <option value="browser" ${current === 'browser' ? 'selected' : ''}>Browser Notification</option>
+        <option value="off" ${current === 'off' ? 'selected' : ''}>Off</option>
+      </select>
+    `;
 
     const toggleHtml = (key, label) => `
       <div class="check-toggle ${settings[key] ? 'on' : ''}" onclick="updateStaffSetting('${key}', ${!settings[key]})">
@@ -1075,24 +1188,25 @@
 
     container.innerHTML = `
       <div class="setting-group">
-        <h4><i class="fa-solid fa-terminal"></i> Command Monitoring</h4>
+        <h4><i class="fa-solid fa-gavel"></i> Punishment Alerts</h4>
         <div class="setting-row">
-          <span>Command Alerts</span>
-          ${levelOptions(settings.commandAlerts, 'commandAlerts')}
+          <span>Punishment Alerts</span>
+          ${levelOptions(settings.banAlertsLevel, 'banAlertsLevel')}
         </div>
+      </div>
+
+      <div class="setting-group">
+        <h4><i class="fa-solid fa-robot"></i> Automod Alerts</h4>
         <div class="setting-row">
-          <span>Private Message Alerts</span>
-          ${levelOptions(settings.privateMessageAlerts || 'OFF', 'privateMessageAlerts')}
-        </div>
-        <div class="setting-row">
-          ${toggleHtml('showBlacklistedCommands', 'Show Blacklisted Commands')}
+          <span>Automod Alerts</span>
+          ${levelOptions(settings.automodAlertsLevel, 'automodAlertsLevel')}
         </div>
       </div>
 
       <div class="setting-group">
         <h4><i class="fa-solid fa-shield-halved"></i> Anticheat Alerts</h4>
         <div class="setting-row">
-          <span>Alert Level</span>
+          <span>Anticheat Alerts</span>
           ${levelOptions(settings.anticheatAlertsLevel, 'anticheatAlertsLevel')}
         </div>
         <div class="setting-row">
@@ -1103,31 +1217,21 @@
       </div>
 
       <div class="setting-group">
-        <h4><i class="fa-solid fa-robot"></i> Automod Alerts</h4>
-        <div class="setting-row">
-          <span>Automod Alerts</span>
-          ${levelOptions(settings.automodAlertsLevel, 'automodAlertsLevel')}
-        </div>
-        <div class="setting-row">
-          <span>Spam Alerts</span>
-          ${levelOptions(settings.spamAlertsLevel, 'spamAlertsLevel')}
-        </div>
-        <div class="setting-row">
-          <span>Filter Alerts</span>
-          ${levelOptions(settings.filterAlertsLevel, 'filterAlertsLevel')}
+        <h4><i class="fa-solid fa-eye"></i> Watchlist Alerts</h4>
+        <div class="setting-row toggles-row">
+          ${toggleHtml('watchlistJoinAlerts', 'Join')}
+          ${toggleHtml('watchlistQuitAlerts', 'Quit')}
+          ${toggleHtml('watchlistActivityAlerts', 'Activity')}
         </div>
       </div>
 
       <div class="setting-group">
-        <h4><i class="fa-solid fa-eye"></i> Watchlist</h4>
-        <div class="setting-row toggles-row">
-          ${toggleHtml('watchlistJoinAlerts', 'Join Alerts')}
-          ${toggleHtml('watchlistQuitAlerts', 'Quit Alerts')}
-          ${toggleHtml('watchlistActivityAlerts', 'Activity Alerts')}
+        <h4><i class="fa-solid fa-terminal"></i> Commands</h4>
+        <div class="setting-row">
+          <span>Command Alerts</span>
+          ${levelOptions(settings.commandAlerts, 'commandAlerts')}
         </div>
       </div>
-
-      <!-- Join/Leave Messages removed - now a global config setting -->
 
       <div class="setting-group">
         <h4><i class="fa-solid fa-comments"></i> Staff Chat</h4>
@@ -1138,22 +1242,27 @@
       </div>
 
       <div class="setting-group">
-        <h4><i class="fa-solid fa-gavel"></i> Punishment Alerts</h4>
+        <h4><i class="fa-solid fa-bell"></i> Web Panel Notifications</h4>
+        <p class="hintline" style="margin-top:0;margin-bottom:12px">How alerts appear in this panel</p>
         <div class="setting-row">
-          <span>Ban Alerts</span>
-          ${levelOptions(settings.banAlertsLevel, 'banAlertsLevel')}
+          <span>Punishments</span>
+          ${notifyModeOptions(settings.webNotifyPunishments || 'toast', 'webNotifyPunishments')}
         </div>
         <div class="setting-row">
-          <span>Mute Alerts</span>
-          ${levelOptions(settings.muteAlertsLevel, 'muteAlertsLevel')}
+          <span>Automod</span>
+          ${notifyModeOptions(settings.webNotifyAutomod || 'toast', 'webNotifyAutomod')}
         </div>
         <div class="setting-row">
-          <span>Kick Alerts</span>
-          ${levelOptions(settings.kickAlertsLevel, 'kickAlertsLevel')}
+          <span>Anticheat</span>
+          ${notifyModeOptions(settings.webNotifyAnticheat || 'toast', 'webNotifyAnticheat')}
         </div>
         <div class="setting-row">
-          <span>Warn Alerts</span>
-          ${levelOptions(settings.warnAlertsLevel, 'warnAlertsLevel')}
+          <span>Watchlist</span>
+          ${notifyModeOptions(settings.webNotifyWatchlist || 'toast', 'webNotifyWatchlist')}
+        </div>
+        <div class="setting-row">
+          <span>Staff Chat</span>
+          ${notifyModeOptions(settings.webNotifyStaffChat || 'toast', 'webNotifyStaffChat')}
         </div>
       </div>
     `;

@@ -223,6 +223,8 @@ public class ConfigManager {
         settings.setActivityLogStorageType(config.getString("activity-log.storage-type", "database"));
         settings.setActivityLogEntriesPerPage(config.getInt("activity-log.entries-per-page", 10));
         settings.setActivityLogRetentionDays(config.getLong("activity-log.retention-days", 30));
+        settings.setMaxChatLogs(config.getInt("activity-log.max-chat-logs", 50));
+        settings.setMaxCommandLogs(config.getInt("activity-log.max-command-logs", 100));
         settings.setActivityLogChat(config.getBoolean("activity-log.log.chat", true));
         settings.setActivityLogCommands(config.getBoolean("activity-log.log.commands", true));
         settings.setActivityLogSigns(config.getBoolean("activity-log.log.signs", true));
@@ -230,6 +232,22 @@ public class ConfigManager {
         settings.setActivityLogAnvils(config.getBoolean("activity-log.log.anvils", true));
         settings.setActivityLogSessions(config.getBoolean("activity-log.log.sessions", true));
         settings.setActivityLogUsernames(config.getBoolean("activity-log.log.usernames", true));
+
+        // Individual retention periods (days, -1 = forever, 0 = disable)
+        settings.setRetentionChat(config.getLong("activity-log.retention.chat", 30));
+        settings.setRetentionCommands(config.getLong("activity-log.retention.commands", 30));
+        settings.setRetentionSigns(config.getLong("activity-log.retention.signs", 30));
+        settings.setRetentionSessions(config.getLong("activity-log.retention.sessions", 30));
+        settings.setRetentionItems(config.getLong("activity-log.retention.items", 30));
+        settings.setRetentionAnvils(config.getLong("activity-log.retention.anvils", 30));
+        settings.setRetentionUsernames(config.getLong("activity-log.retention.usernames", -1));
+        settings.setRetentionIpChanges(config.getLong("activity-log.retention.ip-changes", -1));
+        settings.setRetentionPunishments(config.getLong("activity-log.retention.punishments", -1));
+        settings.setRetentionPardons(config.getLong("activity-log.retention.pardons", -1));
+        settings.setRetentionAutomod(config.getLong("activity-log.retention.automod", 30));
+        settings.setRetentionAnticheat(config.getLong("activity-log.retention.anticheat", 30));
+        settings.setRetentionStaffActions(config.getLong("activity-log.retention.staff-actions", 90));
+        settings.setRetentionWatchlist(config.getLong("activity-log.retention.watchlist", 90));
 
         settings.setConfigVersion(getCurrentConfigVersion());
     }

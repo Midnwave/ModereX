@@ -306,7 +306,8 @@ public class AutomodManager {
             int violations = rule.recordViolation(uuid);
             if (violations >= 2) { // Allow one similar message
                 alertStaff(player, rule.getName(), "Similar message: " + message);
-                handleAutoPunishment(player, rule);
+                // Pass false since violation was already recorded above
+                handleAutoPunishment(player, rule, false);
                 return FilterResult.block("duplicate");
             }
         }
@@ -421,17 +422,43 @@ public class AutomodManager {
 
     /**
      * Handle auto punishment for a rule violation.
+     * Records a new violation and checks if threshold is reached.
      */
     private void handleAutoPunishment(Player player, AutomodRule rule) {
+        handleAutoPunishment(player, rule, true);
+    }
+
+    /**
+     * Handle auto punishment for a rule violation.
+     * @param recordViolation If true, records a new violation. If false, uses existing count
+     *                        (use false when violation was already recorded by the calling code).
+     */
+    private void handleAutoPunishment(Player player, AutomodRule rule, boolean recordViolation) {
         AutomodRule.AutoPunishment punishment = rule.getAutoPunishment();
         if (punishment == null || !punishment.isEnabled()) {
+            plugin.logDebug("[Automod] Auto-punishment not enabled for rule: " + rule.getName());
             return;
         }
 
-        int violations = rule.getViolationCount(player.getUniqueId());
-        if (violations < punishment.getTriggerCount()) {
+        // Record violation or get existing count
+        int violations;
+        if (recordViolation) {
+            violations = rule.recordViolation(player.getUniqueId());
+        } else {
+            violations = rule.getViolationCount(player.getUniqueId());
+        }
+        int triggerCount = punishment.getTriggerCount();
+
+        plugin.logDebug("[Automod] Auto-punishment check for " + player.getName() +
+                " on rule '" + rule.getName() + "': violations=" + violations +
+                ", trigger=" + triggerCount);
+
+        if (violations < triggerCount) {
             return;
         }
+
+        plugin.logDebug("[Automod] Threshold reached! Executing auto-punishment: " +
+                punishment.getType() + " for " + player.getName());
 
         // Reset violations
         rule.resetViolations(player.getUniqueId());
@@ -580,7 +607,8 @@ public class AutomodManager {
         // Check threshold
         if (count >= rule.getAnticheatAlertThreshold()) {
             alertStaff(player, rule.getName(), checkName + " (VL: " + (int) vlLevel + ")");
-            handleAutoPunishment(player, rule);
+            // Pass false since violation was already recorded above
+            handleAutoPunishment(player, rule, false);
             rule.resetViolations(player.getUniqueId());
         }
     }

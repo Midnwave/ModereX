@@ -57,104 +57,111 @@ public class CheckCommand extends BaseCommand {
         boolean isOnline = onlinePlayer != null && !plugin.getVanishManager().isVanished(onlinePlayer);
         boolean isWatched = plugin.getWatchlistManager().isWatched(playerUUID);
 
-        // Header with box-drawing
+        // Header with box-drawing (compact)
         sender.sendMessage(TextUtil.parse(""));
-        sender.sendMessage(TextUtil.parse("<dark_gray>┌────────────────────────────────────────────┐"));
-        sender.sendMessage(TextUtil.parse("<dark_gray>│ <white>Player Check: <yellow>" + playerName +
-                (isOnline ? " <green>[ONLINE]" : " <gray>[OFFLINE]") +
-                (isWatched ? " <red>[WATCHED]" : "")));
-        sender.sendMessage(TextUtil.parse("<dark_gray>├────────────────────────────────────────────┤"));
+        sender.sendMessage(TextUtil.parse("<dark_gray>┌───────────────────────────────┐"));
 
-        // UUID (clickable)
+        String statusTags = (isOnline ? "<green>●" : "<gray>○") + (isWatched ? " <red>⚑" : "");
+        sender.sendMessage(TextUtil.parse("<dark_gray>│ " + statusTags + " <yellow>" + playerName));
+        sender.sendMessage(TextUtil.parse("<dark_gray>├───────────────────────────────┤"));
+
+        // UUID (clickable, shortened)
+        String shortUuid = playerUUID.toString().substring(0, 8);
         if (sender instanceof Player) {
-            Component uuidLine = TextUtil.parse("<dark_gray>│ <gray>UUID: <white>" + playerUUID.toString().substring(0, 13) + "...")
+            Component uuidLine = TextUtil.parse("<dark_gray>│ <gray>ID: <white>" + shortUuid + "...")
                 .clickEvent(ClickEvent.copyToClipboard(playerUUID.toString()))
                 .hoverEvent(HoverEvent.showText(TextUtil.parse("<white>" + playerUUID + "\n<yellow>Click to copy")));
             sender.sendMessage(uuidLine);
         } else {
-            sender.sendMessage(TextUtil.parse("<dark_gray>│ <gray>UUID: <white>" + playerUUID));
+            sender.sendMessage(TextUtil.parse("<dark_gray>│ <gray>ID: <white>" + playerUUID));
         }
 
-        // Active punishments section
-        sender.sendMessage(TextUtil.parse("<dark_gray>├────────────────────────────────────────────┤"));
+        // Nickname (if player has one different from their name)
+        if (onlinePlayer != null) {
+            String displayName = net.kyori.adventure.text.serializer.plain.PlainTextComponentSerializer.plainText()
+                    .serialize(onlinePlayer.displayName());
+            if (!displayName.equals(onlinePlayer.getName())) {
+                sender.sendMessage(TextUtil.parse("<dark_gray>│ <gray>Nick: <light_purple>" + displayName));
+            }
+        }
 
         Punishment activeBan = plugin.getPunishmentManager().getActivePunishment(playerUUID, PunishmentType.BAN);
         Punishment activeIpBan = plugin.getPunishmentManager().getActivePunishment(playerUUID, PunishmentType.IPBAN);
         Punishment activeMute = plugin.getPunishmentManager().getActivePunishment(playerUUID, PunishmentType.MUTE);
         Punishment activeIpMute = plugin.getPunishmentManager().getActivePunishment(playerUUID, PunishmentType.IPMUTE);
 
-        // Ban status
+        // Ban status (compact)
         if (activeBan != null || activeIpBan != null) {
             Punishment ban = activeBan != null ? activeBan : activeIpBan;
-            String type = activeBan != null ? "BAN" : "IP-BAN";
-            String duration = ban.isPermanent() ? "Permanent" : DurationParser.formatRemaining(ban.getExpiresAt());
+            String type = activeBan != null ? "Ban" : "IP-Ban";
+            String dur = ban.isPermanent() ? "Perm" : DurationParser.formatRemaining(ban.getExpiresAt());
 
             if (sender instanceof Player) {
-                Component banLine = TextUtil.parse("<dark_gray>│ <red>✗ " + type + ": <white>" + duration)
+                Component banLine = TextUtil.parse("<dark_gray>│ <red>✗ " + type + " <dark_gray>(<white>" + dur + "<dark_gray>)")
                     .clickEvent(ClickEvent.runCommand("/viewpunishment " + ban.getCaseId()))
                     .hoverEvent(HoverEvent.showText(TextUtil.parse(
                         "<gray>Case: <white>" + ban.getCaseId() + "\n" +
                         "<gray>Reason: <white>" + ban.getReason() + "\n" +
-                        "<gray>Staff: <white>" + ban.getStaffName() + "\n" +
-                        "<yellow>Click to view details")));
+                        "<gray>By: <white>" + ban.getStaffName() + "\n" +
+                        "<yellow>Click for details")));
                 sender.sendMessage(banLine);
             } else {
-                sender.sendMessage(TextUtil.parse("<dark_gray>│ <red>✗ " + type + ": <white>" + duration + " <dark_gray>by <gray>" + ban.getStaffName()));
+                sender.sendMessage(TextUtil.parse("<dark_gray>│ <red>✗ " + type + ": " + dur));
             }
         } else {
-            sender.sendMessage(TextUtil.parse("<dark_gray>│ <green>✓ Not banned"));
+            sender.sendMessage(TextUtil.parse("<dark_gray>│ <green>✓ <gray>Not banned"));
         }
 
-        // Mute status
+        // Mute status (compact)
         if (activeMute != null || activeIpMute != null) {
             Punishment mute = activeMute != null ? activeMute : activeIpMute;
-            String type = activeMute != null ? "MUTE" : "IP-MUTE";
-            String duration = mute.isPermanent() ? "Permanent" : DurationParser.formatRemaining(mute.getExpiresAt());
+            String type = activeMute != null ? "Mute" : "IP-Mute";
+            String dur = mute.isPermanent() ? "Perm" : DurationParser.formatRemaining(mute.getExpiresAt());
 
             if (sender instanceof Player) {
-                Component muteLine = TextUtil.parse("<dark_gray>│ <gold>✗ " + type + ": <white>" + duration)
+                Component muteLine = TextUtil.parse("<dark_gray>│ <gold>✗ " + type + " <dark_gray>(<white>" + dur + "<dark_gray>)")
                     .clickEvent(ClickEvent.runCommand("/viewpunishment " + mute.getCaseId()))
                     .hoverEvent(HoverEvent.showText(TextUtil.parse(
                         "<gray>Case: <white>" + mute.getCaseId() + "\n" +
                         "<gray>Reason: <white>" + mute.getReason() + "\n" +
-                        "<gray>Staff: <white>" + mute.getStaffName() + "\n" +
-                        "<yellow>Click to view details")));
+                        "<gray>By: <white>" + mute.getStaffName() + "\n" +
+                        "<yellow>Click for details")));
                 sender.sendMessage(muteLine);
             } else {
-                sender.sendMessage(TextUtil.parse("<dark_gray>│ <gold>✗ " + type + ": <white>" + duration + " <dark_gray>by <gray>" + mute.getStaffName()));
+                sender.sendMessage(TextUtil.parse("<dark_gray>│ <gold>✗ " + type + ": " + dur));
             }
         } else {
-            sender.sendMessage(TextUtil.parse("<dark_gray>│ <green>✓ Not muted"));
+            sender.sendMessage(TextUtil.parse("<dark_gray>│ <green>✓ <gray>Not muted"));
         }
 
-        // Warnings count
+        // Warnings count (compact)
         plugin.getPunishmentManager().getActiveWarnings(playerUUID).thenAccept(activeWarnings -> {
             int warnCount = activeWarnings != null ? activeWarnings.size() : 0;
             if (warnCount > 0) {
-                sender.sendMessage(TextUtil.parse("<dark_gray>│ <aqua>⚠ Warnings: <white>" + warnCount + " active"));
+                sender.sendMessage(TextUtil.parse("<dark_gray>│ <aqua>⚠ <white>" + warnCount + " <gray>warning" + (warnCount > 1 ? "s" : "")));
             } else {
-                sender.sendMessage(TextUtil.parse("<dark_gray>│ <green>✓ No warnings"));
+                sender.sendMessage(TextUtil.parse("<dark_gray>│ <green>✓ <gray>No warnings"));
             }
         });
 
-        // IP Address (with permission)
+        // IP Address (compact, with permission)
         if (sender.hasPermission("moderex.check.ip") || sender.hasPermission("moderex.admin")) {
             if (onlinePlayer != null && onlinePlayer.getAddress() != null) {
                 String ip = onlinePlayer.getAddress().getAddress().getHostAddress();
                 if (sender instanceof Player) {
                     Component ipLine = TextUtil.parse("<dark_gray>│ <gray>IP: <white>" + ip)
                         .clickEvent(ClickEvent.copyToClipboard(ip))
-                        .hoverEvent(HoverEvent.showText(TextUtil.parse("<yellow>Click to copy IP")));
+                        .hoverEvent(HoverEvent.showText(TextUtil.parse("<yellow>Click to copy")));
                     sender.sendMessage(ipLine);
                 } else {
                     sender.sendMessage(TextUtil.parse("<dark_gray>│ <gray>IP: <white>" + ip));
                 }
             } else {
-                sender.sendMessage(TextUtil.parse("<dark_gray>│ <gray>IP: <dark_gray>Offline"));
+                sender.sendMessage(TextUtil.parse("<dark_gray>│ <gray>IP: <dark_gray>-"));
             }
         }
 
-        // Punishment history summary
+        // Punishment history summary (compact)
         plugin.getPunishmentManager().getPunishments(playerUUID).thenAccept(history -> {
             if (history != null && !history.isEmpty()) {
                 int bans = 0, mutes = 0, warns = 0, kicks = 0;
@@ -166,42 +173,41 @@ public class CheckCommand extends BaseCommand {
                         case KICK -> kicks++;
                     }
                 }
-                sender.sendMessage(TextUtil.parse("<dark_gray>│ <gray>History: <red>" + bans + " bans<dark_gray>, <gold>" +
-                        mutes + " mutes<dark_gray>, <aqua>" + warns + " warns<dark_gray>, <gray>" + kicks + " kicks"));
+                sender.sendMessage(TextUtil.parse("<dark_gray>│ <gray>Past: <red>" + bans + "<dark_gray>/<gold>" +
+                        mutes + "<dark_gray>/<aqua>" + warns + "<dark_gray>/<gray>" + kicks));
             }
         });
 
-        sender.sendMessage(TextUtil.parse("<dark_gray>└────────────────────────────────────────────┘"));
+        sender.sendMessage(TextUtil.parse("<dark_gray>└───────────────────────────────┘"));
 
-        // Quick actions for players
+        // Quick actions for players (compact)
         if (sender instanceof Player) {
-            Component actions = TextUtil.parse("<dark_gray>  ")
-                .append(TextUtil.parse("<gray>[<yellow>History<gray>]")
+            Component actions = TextUtil.parse(" ")
+                .append(TextUtil.parse("<yellow>[H]")
                     .clickEvent(ClickEvent.runCommand("/history " + playerName))
-                    .hoverEvent(HoverEvent.showText(TextUtil.parse("<gray>View punishment history"))))
+                    .hoverEvent(HoverEvent.showText(TextUtil.parse("<gray>Punishment History"))))
                 .append(TextUtil.parse(" "))
-                .append(TextUtil.parse("<gray>[<aqua>Commands<gray>]")
+                .append(TextUtil.parse("<aqua>[C]")
                     .clickEvent(ClickEvent.runCommand("/cmdhistory " + playerName))
-                    .hoverEvent(HoverEvent.showText(TextUtil.parse("<gray>View command history"))))
+                    .hoverEvent(HoverEvent.showText(TextUtil.parse("<gray>Command History"))))
                 .append(TextUtil.parse(" "))
-                .append(TextUtil.parse("<gray>[<light_purple>Activity<gray>]")
+                .append(TextUtil.parse("<light_purple>[A]")
                     .clickEvent(ClickEvent.runCommand("/activity " + playerName))
-                    .hoverEvent(HoverEvent.showText(TextUtil.parse("<gray>View activity log"))))
+                    .hoverEvent(HoverEvent.showText(TextUtil.parse("<gray>Activity Log"))))
                 .append(TextUtil.parse(" "))
-                .append(TextUtil.parse("<gray>[<green>Punish<gray>]")
+                .append(TextUtil.parse("<green>[P]")
                     .clickEvent(ClickEvent.runCommand("/punish " + playerName))
-                    .hoverEvent(HoverEvent.showText(TextUtil.parse("<gray>Open punishment menu"))));
+                    .hoverEvent(HoverEvent.showText(TextUtil.parse("<gray>Punish Menu"))));
 
             if (!isWatched) {
                 actions = actions.append(TextUtil.parse(" "))
-                    .append(TextUtil.parse("<gray>[<red>Watch<gray>]")
+                    .append(TextUtil.parse("<red>[W]")
                         .clickEvent(ClickEvent.suggestCommand("/watchlist add " + playerName + " "))
-                        .hoverEvent(HoverEvent.showText(TextUtil.parse("<gray>Add to watchlist"))));
+                        .hoverEvent(HoverEvent.showText(TextUtil.parse("<gray>Add to Watchlist"))));
             }
 
             sender.sendMessage(actions);
         }
-        sender.sendMessage(TextUtil.parse(""));
     }
 
     @Override

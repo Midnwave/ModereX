@@ -6,6 +6,7 @@ import org.bukkit.event.Listener;
 public class ListenerManager {
 
     private final ModereX plugin;
+    private NicknameListener nicknameListener;
 
     public ListenerManager(ModereX plugin) {
         this.plugin = plugin;
@@ -27,7 +28,22 @@ public class ListenerManager {
         registerListener(new EntityLogListener(plugin));
         registerListener(new ActivityLogListener(plugin));
 
+        // Nickname listener with polling
+        nicknameListener = new NicknameListener(plugin);
+        registerListener(nicknameListener);
+        nicknameListener.startPolling();
+
         plugin.getLogger().info("Registered all event listeners.");
+    }
+
+    public void shutdown() {
+        if (nicknameListener != null) {
+            nicknameListener.stopPolling();
+        }
+    }
+
+    public NicknameListener getNicknameListener() {
+        return nicknameListener;
     }
 
     private void registerListener(Listener listener) {

@@ -61,6 +61,14 @@ public class StaffSettings {
     // Private message monitoring
     private AlertLevel privateMessageAlerts = AlertLevel.OFF;
 
+    // ========== Web Panel Notification Modes ==========
+
+    private WebNotifyMode webNotifyPunishments = WebNotifyMode.TOAST;
+    private WebNotifyMode webNotifyAutomod = WebNotifyMode.TOAST;
+    private WebNotifyMode webNotifyAnticheat = WebNotifyMode.TOAST;
+    private WebNotifyMode webNotifyWatchlist = WebNotifyMode.TOAST;
+    private WebNotifyMode webNotifyStaffChat = WebNotifyMode.TOAST;
+
     // ========== UI Settings ==========
 
     private boolean compactMode = false;
@@ -96,6 +104,39 @@ public class StaffSettings {
 
     public static StaffSettings fromJson(JsonObject json) {
         return GSON.fromJson(json, StaffSettings.class);
+    }
+
+    // ========== Web Notification Mode Enum ==========
+
+    public enum WebNotifyMode {
+        TOAST("Toast", "Show in-panel toast notifications"),
+        BROWSER("Browser", "Show browser/system notifications"),
+        OFF("Off", "No notifications");
+
+        private final String displayName;
+        private final String description;
+
+        WebNotifyMode(String displayName, String description) {
+            this.displayName = displayName;
+            this.description = description;
+        }
+
+        public String getDisplayName() {
+            return displayName;
+        }
+
+        public String getDescription() {
+            return description;
+        }
+
+        public static WebNotifyMode fromString(String s) {
+            if (s == null) return TOAST;
+            return switch (s.toLowerCase()) {
+                case "browser" -> BROWSER;
+                case "off" -> OFF;
+                default -> TOAST;
+            };
+        }
     }
 
     // ========== Alert Level Enum ==========
@@ -564,6 +605,47 @@ public class StaffSettings {
 
     public void setPrivateMessageAlerts(AlertLevel privateMessageAlerts) {
         this.privateMessageAlerts = privateMessageAlerts;
+    }
+
+    // Web panel notification modes
+    public WebNotifyMode getWebNotifyPunishments() {
+        return webNotifyPunishments;
+    }
+
+    public void setWebNotifyPunishments(WebNotifyMode mode) {
+        this.webNotifyPunishments = mode;
+    }
+
+    public WebNotifyMode getWebNotifyAutomod() {
+        return webNotifyAutomod;
+    }
+
+    public void setWebNotifyAutomod(WebNotifyMode mode) {
+        this.webNotifyAutomod = mode;
+    }
+
+    public WebNotifyMode getWebNotifyAnticheat() {
+        return webNotifyAnticheat;
+    }
+
+    public void setWebNotifyAnticheat(WebNotifyMode mode) {
+        this.webNotifyAnticheat = mode;
+    }
+
+    public WebNotifyMode getWebNotifyWatchlist() {
+        return webNotifyWatchlist;
+    }
+
+    public void setWebNotifyWatchlist(WebNotifyMode mode) {
+        this.webNotifyWatchlist = mode;
+    }
+
+    public WebNotifyMode getWebNotifyStaffChat() {
+        return webNotifyStaffChat;
+    }
+
+    public void setWebNotifyStaffChat(WebNotifyMode mode) {
+        this.webNotifyStaffChat = mode;
     }
 
     // UI settings

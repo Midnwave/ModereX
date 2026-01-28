@@ -75,7 +75,7 @@ public class CommandManager {
         registerPaperCommand(commandMap, "checkmute", new CheckMuteCommand(plugin), "Checks player is muted", List.of());
         registerPaperCommand(commandMap, "checkwarn", new CheckWarnCommand(plugin), "Checks player warnings", List.of());
 
-        registerPaperCommand(commandMap, "history", new HistoryCommand(plugin), "View punishment history", List.of("hist"));
+        registerPaperCommand(commandMap, "history", new HistoryCommand(plugin), "View punishment history", List.of("hist", "punishments", "phistory"));
         registerPaperCommand(commandMap, "staffhistory", new StaffHistoryCommand(plugin), "View staff action history", List.of("staffhist"));
         registerPaperCommand(commandMap, "warnings", new WarningsCommand(plugin), "View active warnings", List.of());
         registerPaperCommand(commandMap, "banlist", new BanListCommand(plugin), "View list of bans", List.of());

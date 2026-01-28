@@ -660,15 +660,52 @@ public class GrimHook extends AnticheatHook implements Listener {
      * Try to reload Grim's configuration so the alert-interval changes take effect
      */
     private void tryReloadGrimConfig() {
+        // Try immediate reload
+        boolean reloaded = attemptReload();
+
+        if (!reloaded) {
+            // Schedule a delayed reload attempt (Grim may not be fully ready)
+            plugin.getServer().getScheduler().runTaskLater(plugin, () -> {
+                if (!attemptReload()) {
+                    // Try console command as last resort
+                    plugin.getServer().getScheduler().runTask(plugin, () -> {
+                        try {
+                            plugin.getServer().dispatchCommand(
+                                plugin.getServer().getConsoleSender(),
+                                "grim reload"
+                            );
+                            plugin.logDebug("[Grim] Dispatched '/grim reload' command");
+                        } catch (Exception e) {
+                            plugin.getLogger().info("[Grim] Please run '/grim reload' to apply alert changes");
+                        }
+                    });
+                }
+            }, 40L); // 2 second delay
+        }
+    }
+
+    private boolean attemptReload() {
         try {
             if (grimApi != null) {
-                Method reloadMethod = grimApi.getClass().getMethod("reload");
-                reloadMethod.invoke(grimApi);
-                plugin.logDebug("[Grim] Reloaded Grim config");
+                // Try reload() method
+                try {
+                    Method reloadMethod = grimApi.getClass().getMethod("reload");
+                    reloadMethod.invoke(grimApi);
+                    plugin.logDebug("[Grim] Reloaded Grim config via API");
+                    return true;
+                } catch (NoSuchMethodException e) {
+                    // Try reloadAsync()
+                    try {
+                        Method reloadAsyncMethod = grimApi.getClass().getMethod("reloadAsync");
+                        reloadAsyncMethod.invoke(grimApi);
+                        plugin.logDebug("[Grim] Reloaded Grim config via reloadAsync");
+                        return true;
+                    } catch (NoSuchMethodException ignored) {}
+                }
             }
         } catch (Exception e) {
-            plugin.logDebug("[Grim] Could not reload Grim config: " + e.getMessage());
-            plugin.getLogger().info("[Grim] Please run '/grim reload' to apply alert-interval changes");
+            plugin.logDebug("[Grim] API reload failed: " + e.getMessage());
         }
+        return false;
     }
 }

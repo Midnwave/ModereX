@@ -615,12 +615,13 @@
     const active = state.punishments.filter(x => x.playerId === p.id && x.active && !x.revoked);
     dom().drawerActivePun.innerHTML = active.length ? active.map(x => {
       const badgeClass = x.type === 'BAN' ? 'red' : x.type === 'MUTE' ? 'yellow' : x.type === 'KICK' ? 'purple' : 'blue';
+      const canRevoke = x.type !== 'KICK'; // Kicks cannot be revoked
       return `
         <div class="drawer-row" style="cursor:pointer" onclick="viewPunishmentDetails('${x.id}')">
           <div class="meta"><b>${escapeHtml(x.type)} | ${escapeHtml(x.duration || 'instant')}</b><small>${escapeHtml(truncateText(x.reason || 'No reason', 40))}<br>Case: <span style="font-family:var(--font-mono)">${escapeHtml(x.id)}</span> | by ${escapeHtml(x.staff)}</small></div>
           <div class="drawer-actions">
             <span class="badge ${badgeClass}"><i class="fa-solid fa-file-lines"></i></span>
-            <button class="mini bad" onclick="event.stopPropagation(); revokePunishmentConfirm('${x.id}')"><i class="fa-solid fa-xmark"></i></button>
+            ${canRevoke ? `<button class="mini bad" onclick="event.stopPropagation(); revokePunishmentConfirm('${x.id}')"><i class="fa-solid fa-xmark"></i></button>` : ''}
           </div>
         </div>
       `;
@@ -916,9 +917,11 @@
         <div style="margin-top:12px"><b>Trigger:</b> ${escapeHtml(ev.trigger)}<br><b>Message:</b> ${escapeHtml(ev.message)}</div></div>` : ''}
     `;
 
-    const canRevoke = !pun.revoked;
+    // Kicks cannot be revoked - they are instant actions
+    const canRevoke = !pun.revoked && pun.type !== 'KICK';
     dom().detailsActions.innerHTML = `
       ${canRevoke ? `<button class="btn bad" onclick="revokePunishmentConfirm('${pun.id}')"><i class="fa-solid fa-xmark"></i> ${pun.type === 'WARN' ? 'Remove' : 'Revoke'}</button>` : ''}
+      ${pun.type === 'KICK' && !pun.revoked ? `<span class="badge gray"><i class="fa-solid fa-info-circle"></i> Kicks cannot be revoked</span>` : ''}
       <button class="btn ghost" onclick="closeDetailsModal()"><i class="fa-solid fa-xmark"></i> Close</button>
     `;
     dom().detailsOverlay.classList.add('show', 'top');
@@ -955,6 +958,13 @@
   window.revokePunishmentConfirm = function(caseId) {
     const pun = state.punishments.find(x => x.id === caseId);
     if (!pun || pun.revoked) return;
+
+    // Kicks cannot be revoked - they are instant actions
+    if (pun.type === 'KICK') {
+      toast('warn', 'Cannot Revoke', 'Kicks are instant actions and cannot be revoked.');
+      return;
+    }
+
     const verb = pun.type === 'WARN' ? 'Remove' : 'Revoke';
     openConfirmPanel({
       title: `${verb} Punishment`,
@@ -1104,15 +1114,22 @@
     const p = state.players.find(x => x.id === playerId);
     if (!p) return;
     if (genericModalEl) genericModalEl.remove();
+
+    let currentPage = 1;
+    let totalPages = 1;
+    let totalCount = 0;
+    let searchTimeout = null;
+
     const overlay = document.createElement('div');
     overlay.className = 'overlay show';
     overlay.style.zIndex = 7000;
     overlay.innerHTML = `
-      <div class="modal" onclick="event.stopPropagation()">
+      <div class="modal" onclick="event.stopPropagation()" style="max-width:700px">
         <div class="modal-top">
           <div style="display:flex;align-items:center;gap:10px">
             <i class="fa-solid fa-terminal" style="color:var(--primary-light)"></i>
             <b>Command History</b>
+            <span class="badge gray" id="cmdCount">Loading...</span>
           </div>
           <button class="mini" id="cmdClose"><i class="fa-solid fa-xmark"></i></button>
         </div>
@@ -1121,7 +1138,10 @@
             <i class="fa-solid fa-magnifying-glass"></i>
             <input type="text" id="cmdSearch" placeholder="Search commands...">
           </div>
-          <div class="card" style="margin-top:14px;max-height:400px;overflow-y:auto" id="cmdList"></div>
+          <div class="card" style="margin-top:14px;max-height:400px;overflow-y:auto" id="cmdList">
+            <div class="drawer-row"><div class="meta"><small>Loading...</small></div></div>
+          </div>
+          <div class="pagination" style="margin-top:14px;display:flex;justify-content:center;gap:8px;align-items:center" id="cmdPagination"></div>
         </div>
         <div class="modal-foot">
           <span class="badge gray"><i class="fa-solid fa-circle-info"></i> ${escapeHtml(p.name)}</span>
@@ -1131,28 +1151,89 @@
     `;
     document.body.appendChild(overlay);
     genericModalEl = overlay;
+
     const close = () => closeOverlayAnimated(overlay);
-    $('#cmdClose', overlay).onclick = close;
-    $('#cmdCloseBtn', overlay).onclick = close;
     const listEl = $('#cmdList', overlay);
     const searchEl = $('#cmdSearch', overlay);
-    const render = () => {
-      const allCmds = (p.recentCommands || []).map(item => {
-        if (typeof item === 'string') return { cmd: item, t: p.lastSeen || now() };
-        return item;
-      }).sort((a, b) => (b.t || 0) - (a.t || 0));
-      const q = (searchEl.value || '').trim().toLowerCase();
-      const filtered = allCmds.filter(item => !q || (item.cmd || '').toLowerCase().includes(q));
-      listEl.innerHTML = filtered.length ? filtered.map(cmd => `
-        <div class="drawer-row" data-player-id="${p.id}"><div class="meta"><b>${escapeHtml(cmd.cmd)}</b><small>${escapeHtml(fmtLong(cmd.t))}</small></div></div>
-      `).join('') : `<div class="drawer-row"><div class="meta"><small>No commands found.</small></div></div>`;
+    const countEl = $('#cmdCount', overlay);
+    const paginationEl = $('#cmdPagination', overlay);
+
+    const fetchCommands = (page = 1, search = '') => {
+      currentPage = page;
+      listEl.innerHTML = '<div class="drawer-row"><div class="meta"><small>Loading...</small></div></div>';
+
+      wsSend({ type: 'GET_COMMAND_HISTORY', data: { uuid: p.id, page, limit: 50, search } });
     };
-    const refreshTimer = setInterval(render, 3000);
-    const closeWithCleanup = () => { clearInterval(refreshTimer); close(); };
+
+    const renderCommands = (data) => {
+      const commands = data.commands || [];
+      totalPages = data.totalPages || 1;
+      totalCount = data.total || 0;
+      currentPage = data.page || 1;
+
+      countEl.textContent = `${totalCount} total`;
+
+      if (commands.length === 0) {
+        listEl.innerHTML = '<div class="drawer-row"><div class="meta"><small>No commands found.</small></div></div>';
+      } else {
+        listEl.innerHTML = commands.map(cmd => `
+          <div class="drawer-row" data-player-id="${p.id}">
+            <div class="meta" style="flex:1">
+              <b style="font-family:var(--font-mono);font-size:13px">${escapeHtml(cmd.cmd)}</b>
+              <small>${escapeHtml(fmtLong(cmd.t))}${cmd.server ? ' | ' + escapeHtml(cmd.server) : ''}</small>
+            </div>
+          </div>
+        `).join('');
+      }
+
+      // Render pagination
+      if (totalPages > 1) {
+        let paginationHtml = '';
+        if (currentPage > 1) {
+          paginationHtml += `<button class="mini" onclick="window._cmdPageNav(${currentPage - 1})"><i class="fa-solid fa-chevron-left"></i></button>`;
+        }
+        paginationHtml += `<span style="color:var(--text-muted)">Page ${currentPage} of ${totalPages}</span>`;
+        if (currentPage < totalPages) {
+          paginationHtml += `<button class="mini" onclick="window._cmdPageNav(${currentPage + 1})"><i class="fa-solid fa-chevron-right"></i></button>`;
+        }
+        paginationEl.innerHTML = paginationHtml;
+        paginationEl.style.display = 'flex';
+      } else {
+        paginationEl.style.display = 'none';
+      }
+    };
+
+    // Store handler for pagination navigation
+    window._cmdPageNav = (page) => fetchCommands(page, searchEl.value.trim());
+
+    // Handle WebSocket response
+    const handleResponse = (event) => {
+      try {
+        const msg = JSON.parse(event.data);
+        if (msg.type === 'COMMAND_HISTORY_DATA' && msg.data && msg.data.uuid === p.id) {
+          renderCommands(msg.data);
+        }
+      } catch (e) {}
+    };
+
+    if (ws) ws.addEventListener('message', handleResponse);
+
+    const closeWithCleanup = () => {
+      if (ws) ws.removeEventListener('message', handleResponse);
+      delete window._cmdPageNav;
+      close();
+    };
+
     $('#cmdClose', overlay).onclick = closeWithCleanup;
     $('#cmdCloseBtn', overlay).onclick = closeWithCleanup;
-    searchEl.addEventListener('input', render);
-    render();
+
+    searchEl.addEventListener('input', () => {
+      clearTimeout(searchTimeout);
+      searchTimeout = setTimeout(() => fetchCommands(1, searchEl.value.trim()), 300);
+    });
+
+    // Initial fetch
+    fetchCommands(1, '');
   }
 
   window.openChatLogs = function(playerId) {
@@ -1231,30 +1312,34 @@
     const p = state.players.find(x => x.id === playerId);
     if (!p) return;
     if (genericModalEl) genericModalEl.remove();
+
+    let currentPage = 1;
+    let totalPages = 1;
+    let totalCount = 0;
+    let searchTimeout = null;
+
     const overlay = document.createElement('div');
     overlay.className = 'overlay show';
     overlay.style.zIndex = 7000;
     overlay.innerHTML = `
-      <div class="modal" onclick="event.stopPropagation()">
+      <div class="modal" onclick="event.stopPropagation()" style="max-width:700px">
         <div class="modal-top">
           <div style="display:flex;align-items:center;gap:10px">
             <i class="fa-solid fa-robot" style="color:var(--primary-light)"></i>
             <b>Automod Logs</b>
+            <span class="badge gray" id="autoCount">Loading...</span>
           </div>
           <button class="mini" id="autoClose"><i class="fa-solid fa-xmark"></i></button>
         </div>
         <div class="modal-body">
-          <div class="toolbar" style="margin-top:0">
-            <div class="left" style="gap:10px">
-              <div class="gsearch" style="width:100%;max-width:420px">
-                <i class="fa-solid fa-magnifying-glass"></i>
-                <input type="text" id="autoSearch" placeholder="Search automod logs...">
-              </div>
-              <input type="date" class="input" id="autoFrom" style="max-width:160px">
-              <input type="date" class="input" id="autoTo" style="max-width:160px">
-            </div>
+          <div class="gsearch" style="width:100%;max-width:520px">
+            <i class="fa-solid fa-magnifying-glass"></i>
+            <input type="text" id="autoSearch" placeholder="Search automod logs...">
           </div>
-          <div class="card" style="margin-top:14px;max-height:400px;overflow-y:auto" id="autoList"></div>
+          <div class="card" style="margin-top:14px;max-height:400px;overflow-y:auto" id="autoList">
+            <div class="drawer-row"><div class="meta"><small>Loading...</small></div></div>
+          </div>
+          <div class="pagination" style="margin-top:14px;display:flex;justify-content:center;gap:8px;align-items:center" id="autoPagination"></div>
         </div>
         <div class="modal-foot">
           <span class="badge gray"><i class="fa-solid fa-circle-info"></i> ${escapeHtml(p.name)}</span>
@@ -1264,40 +1349,92 @@
     `;
     document.body.appendChild(overlay);
     genericModalEl = overlay;
-    $('#autoClose', overlay).onclick = () => closeOverlayAnimated(overlay);
-    $('#autoCloseBtn', overlay).onclick = () => closeOverlayAnimated(overlay);
+
+    const close = () => closeOverlayAnimated(overlay);
     const listEl = $('#autoList', overlay);
     const searchEl = $('#autoSearch', overlay);
-    const fromEl = $('#autoFrom', overlay);
-    const toEl = $('#autoTo', overlay);
-    // Use fetched automod logs from player details, with fallback to state.logs
-    const fetchedAutomodLogs = (p.automodLogs || []).map(l => ({
-      t: l.t,
-      title: l.rule ? `Automod | ${l.rule}` : 'Automod',
-      detail: l.content,
-      playerId: p.id,
-      kind: 'automod'
-    }));
-    const liveAutomodLogs = state.logs.filter(l => l.kind === 'automod' && l.playerId === p.id);
-    const allLogs = fetchedAutomodLogs.length > 0 ? fetchedAutomodLogs : liveAutomodLogs;
-    const render = () => {
-      const q = (searchEl.value || '').trim().toLowerCase();
-      const fromVal = fromEl.value ? new Date(fromEl.value).getTime() : null;
-      const toVal = toEl.value ? new Date(toEl.value).getTime() + 86400000 : null;
-      const filtered = allLogs.filter(l => {
-        if (q && !`${l.title} ${l.detail}`.toLowerCase().includes(q)) return false;
-        if (fromVal && l.t < fromVal) return false;
-        if (toVal && l.t > toVal) return false;
-        return true;
-      }).slice(-200);
-      listEl.innerHTML = filtered.length ? filtered.map(l => `
-        <div class="drawer-row" data-player-id="${p.id}"><div class="meta"><b>${escapeHtml(fmtLong(l.t))}</b><small>${escapeHtml(l.title)} | ${escapeHtml(l.detail || l.content)}</small></div></div>
-      `).join('') : `<div class="drawer-row"><div class="meta"><small>No automod logs found.</small></div></div>`;
+    const countEl = $('#autoCount', overlay);
+    const paginationEl = $('#autoPagination', overlay);
+
+    const fetchLogs = (page = 1, search = '') => {
+      currentPage = page;
+      listEl.innerHTML = '<div class="drawer-row"><div class="meta"><small>Loading...</small></div></div>';
+
+      wsSend({ type: 'GET_AUTOMOD_LOGS', data: { uuid: p.id, page, limit: 50, search } });
     };
-    searchEl.addEventListener('input', render);
-    fromEl.addEventListener('change', render);
-    toEl.addEventListener('change', render);
-    render();
+
+    const renderLogs = (data) => {
+      const logs = data.logs || [];
+      totalPages = data.totalPages || 1;
+      totalCount = data.total || 0;
+      currentPage = data.page || 1;
+
+      countEl.textContent = `${totalCount} total`;
+
+      if (logs.length === 0) {
+        listEl.innerHTML = '<div class="drawer-row"><div class="meta"><small>No automod logs found.</small></div></div>';
+      } else {
+        listEl.innerHTML = logs.map(l => `
+          <div class="drawer-row" data-player-id="${p.id}">
+            <div class="meta" style="flex:1">
+              <b>${escapeHtml(l.rule || 'Automod')}</b>
+              <small>${escapeHtml(fmtLong(l.t))}${l.server ? ' | ' + escapeHtml(l.server) : ''}</small>
+            </div>
+            <div class="meta" style="flex:2">
+              <small style="color:var(--text-muted)">${escapeHtml(l.content || '')}</small>
+            </div>
+          </div>
+        `).join('');
+      }
+
+      // Render pagination
+      if (totalPages > 1) {
+        let paginationHtml = '';
+        if (currentPage > 1) {
+          paginationHtml += `<button class="mini" onclick="window._autoPageNav(${currentPage - 1})"><i class="fa-solid fa-chevron-left"></i></button>`;
+        }
+        paginationHtml += `<span style="color:var(--text-muted)">Page ${currentPage} of ${totalPages}</span>`;
+        if (currentPage < totalPages) {
+          paginationHtml += `<button class="mini" onclick="window._autoPageNav(${currentPage + 1})"><i class="fa-solid fa-chevron-right"></i></button>`;
+        }
+        paginationEl.innerHTML = paginationHtml;
+        paginationEl.style.display = 'flex';
+      } else {
+        paginationEl.style.display = 'none';
+      }
+    };
+
+    // Store handler for pagination navigation
+    window._autoPageNav = (page) => fetchLogs(page, searchEl.value.trim());
+
+    // Handle WebSocket response
+    const handleResponse = (event) => {
+      try {
+        const msg = JSON.parse(event.data);
+        if (msg.type === 'AUTOMOD_LOGS_DATA' && msg.data) {
+          renderLogs(msg.data);
+        }
+      } catch (e) {}
+    };
+
+    if (ws) ws.addEventListener('message', handleResponse);
+
+    const closeWithCleanup = () => {
+      if (ws) ws.removeEventListener('message', handleResponse);
+      delete window._autoPageNav;
+      close();
+    };
+
+    $('#autoClose', overlay).onclick = closeWithCleanup;
+    $('#autoCloseBtn', overlay).onclick = closeWithCleanup;
+
+    searchEl.addEventListener('input', () => {
+      clearTimeout(searchTimeout);
+      searchTimeout = setTimeout(() => fetchLogs(1, searchEl.value.trim()), 300);
+    });
+
+    // Initial fetch
+    fetchLogs(1, '');
   };
 
   // ===== COMMAND BLACKLIST =====
@@ -3546,6 +3683,13 @@
       state.staffSettings.kickAlertsLevel = data.kickAlertsLevel ?? 'EVERYONE';
       state.staffSettings.warnAlertsLevel = data.warnAlertsLevel ?? 'EVERYONE';
 
+      // Web panel notification modes
+      state.staffSettings.webNotifyPunishments = data.webNotifyPunishments ?? 'toast';
+      state.staffSettings.webNotifyAutomod = data.webNotifyAutomod ?? 'toast';
+      state.staffSettings.webNotifyAnticheat = data.webNotifyAnticheat ?? 'toast';
+      state.staffSettings.webNotifyWatchlist = data.webNotifyWatchlist ?? 'toast';
+      state.staffSettings.webNotifyStaffChat = data.webNotifyStaffChat ?? 'toast';
+
       // Apply sound settings globally
       if (window.MX.sounds) {
         window.MX.sounds.setEnabled(data.soundEnabled ?? true);
@@ -3625,7 +3769,7 @@
       state.activity.unshift({ t: now(), actor: data.staffName, action: `${data.type} issued`, target: data.playerName });
       ui.renderPunishments();
       ui.renderDashboard();
-      toast('info', 'Punishment', `${data.playerName} was ${data.type.toLowerCase()}ed by ${data.staffName}`);
+      showPanelAlert('punishments', 'Punishment', `${data.playerName} was ${data.type.toLowerCase()}ed by ${data.staffName}`, { playerId: data.playerUuid, playerName: data.playerName });
       window.MX.sounds?.punishment();
     });
 
@@ -3637,7 +3781,7 @@
         pun.revoked = true;
       }
       ui.renderPunishments();
-      toast('info', 'Revoked', `Punishment ${data.caseId} was revoked`);
+      showPanelAlert('punishments', 'Revoked', `Punishment ${data.caseId} was revoked`);
     });
 
     // Rate limiting state for watchlist alerts (by player/IP)
@@ -3717,7 +3861,7 @@
         showAlertBar('watchlist', alertType, details, playerData);
       }
       if (style === 'toast' || style === 'both') {
-        toast('warn', 'Watchlist', `${playerName}: ${details}`, playerData);
+        showPanelAlert('watchlist', 'Watchlist', `${playerName}: ${details}`, { playerId: playerUuid, playerName, severity: 'warn' });
       }
       window.MX.sounds?.watchlist();
     }
@@ -3736,6 +3880,7 @@
           isSelf: false,
           time: now()
         });
+        showPanelAlert('staffChat', 'Staff Chat', `${data.sender}: ${data.message}`);
         window.MX.sounds?.staffChat();
       }
     });
@@ -3828,14 +3973,14 @@
       if (!isLiveMode) return;
       const player = state.players.find(p => p.uuid === data.playerUuid);
       logEvent('WARN', 'automod', `Automod | ${data.rule}`, `${data.playerName}: ${data.message}`, { playerId: player?.id, kind: 'automod', type: 'AUTOMOD' });
-      toast('warn', 'Automod', `${data.playerName} triggered ${data.rule}`);
+      showPanelAlert('automod', 'Automod', `${data.playerName} triggered ${data.rule}`, { playerId: player?.id, playerName: data.playerName, severity: 'warn' });
     });
 
     ws.on('AUTOMOD_TRIGGERED', (data) => {
       if (!isLiveMode) return;
       const player = state.players.find(p => p.uuid === data.playerUuid);
       logEvent('WARN', 'automod', `Automod | ${data.rule}`, `${data.playerName}: ${data.message}`, { playerId: player?.id, kind: 'automod', type: 'AUTOMOD' });
-      toast('warn', 'Automod', `${data.playerName} triggered ${data.rule}`);
+      showPanelAlert('automod', 'Automod', `${data.playerName} triggered ${data.rule}`, { playerId: player?.id, playerName: data.playerName, severity: 'warn' });
     });
 
     ws.on('PRIVATE_MESSAGE', (data) => {
@@ -3883,19 +4028,10 @@
       // If watchlist only, skip non-watchlisted players
       if (alertLevel === 'WATCHLIST_ONLY' && !isWatchlisted) return;
 
-      // Show alert based on user's preferred style
-      const style = settings.watchlistStyle || 'toast';
+      // Show alert using panel notification settings
       const title = `Anticheat: ${checkName}`;
       const sub = `${data.playerName} - VL: ${data.vl || 0}`;
-      const playerData = { playerId: player?.id };
-
-      if (style === 'bar' || style === 'both') {
-        showAlertBar('anticheat', title, sub, playerData);
-      }
-      if (style === 'toast' || style === 'both') {
-        toast('warn', title, sub, playerData);
-      }
-
+      showPanelAlert('anticheat', title, sub, { playerId: player?.id, playerName: data.playerName, severity: 'warn' });
       window.MX.sounds?.anticheat();
     });
 
@@ -4134,6 +4270,43 @@
     anticheatMode: 'watchlist',
     watchlistStyle: 'bar'
   };
+
+  /**
+   * Show a panel alert based on staff notification settings.
+   * @param {string} category - 'punishments', 'automod', 'anticheat', 'watchlist', or 'staffchat'
+   * @param {string} title - Alert title
+   * @param {string} message - Alert message/subtitle
+   * @param {object} options - { playerId, playerName, severity: 'info'|'warn'|'error' }
+   */
+  function showPanelAlert(category, title, message, options = {}) {
+    const staffSettings = state.staffSettings || {};
+    const settingKey = 'webNotify' + category.charAt(0).toUpperCase() + category.slice(1);
+    const mode = staffSettings[settingKey] || 'toast';
+
+    if (mode === 'off') return;
+
+    const severity = options.severity || 'info';
+    const playerData = options.playerId ? { playerId: options.playerId, playerName: options.playerName } : null;
+
+    if (mode === 'toast') {
+      toast(severity === 'error' ? 'bad' : severity === 'warn' ? 'warn' : 'info', title, message, playerData);
+    } else if (mode === 'browser') {
+      // Request browser notification permission if not granted
+      if (Notification.permission === 'granted') {
+        new Notification(title, { body: message, icon: '/537154108207028818e303ef9465c1f66717660d_96.png' });
+      } else if (Notification.permission !== 'denied') {
+        Notification.requestPermission().then(permission => {
+          if (permission === 'granted') {
+            new Notification(title, { body: message, icon: '/537154108207028818e303ef9465c1f66717660d_96.png' });
+          }
+        });
+      }
+      // Also show toast as fallback
+      toast(severity === 'error' ? 'bad' : severity === 'warn' ? 'warn' : 'info', title, message, { ...playerData, silent: true });
+    }
+  }
+
+  window.showPanelAlert = showPanelAlert;
 
   function loadMySettings() {
     try {
@@ -5249,6 +5422,62 @@
   window.clearLocalTestData = clearLocalTestData;
   window.clearDebugLogs = clearDebugLogs;
   window.copyDebugLogs = copyDebugLogs;
+
+  // ===== NOTIFICATION TESTING =====
+  function testNotification(category) {
+    const testMessages = {
+      punishments: { title: 'Punishment', message: 'TestPlayer was banned by TestAdmin' },
+      automod: { title: 'Automod', message: 'TestPlayer triggered Spam Filter', severity: 'warn' },
+      anticheat: { title: 'Anticheat', message: 'TestPlayer flagged for Reach (VL: 15)', severity: 'warn' },
+      watchlist: { title: 'Watchlist', message: 'TestPlayer: Suspicious activity detected', severity: 'warn' },
+      staffChat: { title: 'Staff Chat', message: 'TestAdmin: This is a test message' }
+    };
+
+    const test = testMessages[category];
+    if (!test) {
+      toast('error', 'Error', `Unknown category: ${category}`);
+      return;
+    }
+
+    // Show the alert using the showPanelAlert function which respects settings
+    showPanelAlert(category, test.title, test.message, {
+      severity: test.severity || 'info',
+      playerId: 'test-player-uuid',
+      playerName: 'TestPlayer'
+    });
+
+    devtoolsLog('NOTIFY', `Tested ${category} notification (mode: ${state.staffSettings?.['webNotify' + category.charAt(0).toUpperCase() + category.slice(1)] || 'toast'})`, 'info');
+  }
+
+  function requestBrowserPermission() {
+    if (!('Notification' in window)) {
+      toast('error', 'Not Supported', 'Browser notifications are not supported in this browser.');
+      return;
+    }
+
+    if (Notification.permission === 'granted') {
+      toast('ok', 'Already Granted', 'Browser notification permission is already granted.');
+      new Notification('ModereX', { body: 'Browser notifications are working!', icon: '/537154108207028818e303ef9465c1f66717660d_96.png' });
+      return;
+    }
+
+    if (Notification.permission === 'denied') {
+      toast('error', 'Permission Denied', 'Browser notifications were previously denied. Reset in browser settings.');
+      return;
+    }
+
+    Notification.requestPermission().then(permission => {
+      if (permission === 'granted') {
+        toast('ok', 'Permission Granted', 'Browser notifications are now enabled.');
+        new Notification('ModereX', { body: 'Browser notifications are working!', icon: '/537154108207028818e303ef9465c1f66717660d_96.png' });
+      } else {
+        toast('warn', 'Permission Denied', 'Browser notifications were denied.');
+      }
+    });
+  }
+
+  window.testNotification = testNotification;
+  window.requestBrowserPermission = requestBrowserPermission;
 
   // ===== TOKEN STRESS TEST =====
   function startTokenStressTest() {

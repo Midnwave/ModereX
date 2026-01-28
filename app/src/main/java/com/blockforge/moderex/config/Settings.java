@@ -179,7 +179,7 @@ public class Settings {
     private boolean activityLogEnabled = true;
     private String activityLogStorageType = "database"; // database, h2, yml, json, text
     private int activityLogEntriesPerPage = 10;
-    private long activityLogRetentionDays = 30; // Days to keep logs, 0 for unlimited
+    private long activityLogRetentionDays = 30; // Days to keep logs, 0 for unlimited (legacy)
     private int maxChatLogs = 50; // Max chat logs to show in command output
     private int maxCommandLogs = 100; // Max commands to show in /cmdhistory output
     private boolean activityLogChat = true;
@@ -189,6 +189,22 @@ public class Settings {
     private boolean activityLogAnvils = true;
     private boolean activityLogSessions = true;
     private boolean activityLogUsernames = true;
+
+    // Individual retention periods (in days, -1 = forever, 0 = disable)
+    private long retentionChat = 30;
+    private long retentionCommands = 30;
+    private long retentionSigns = 30;
+    private long retentionSessions = 30;
+    private long retentionItems = 30;
+    private long retentionAnvils = 30;
+    private long retentionUsernames = -1; // Keep forever
+    private long retentionIpChanges = -1; // Keep forever
+    private long retentionPunishments = -1; // Keep forever
+    private long retentionPardons = -1; // Keep forever
+    private long retentionAutomod = 30;
+    private long retentionAnticheat = 30;
+    private long retentionStaffActions = 90;
+    private long retentionWatchlist = 90;
 
     // Config version for migration
     private int configVersion = 2;
@@ -900,6 +916,49 @@ public class Settings {
 
     public boolean isActivityLogUsernames() { return activityLogUsernames; }
     public void setActivityLogUsernames(boolean v) { this.activityLogUsernames = v; }
+
+    // Individual retention period getters/setters (-1 = forever, 0 = disable)
+    public long getRetentionChat() { return retentionChat; }
+    public void setRetentionChat(long v) { this.retentionChat = v; }
+
+    public long getRetentionCommands() { return retentionCommands; }
+    public void setRetentionCommands(long v) { this.retentionCommands = v; }
+
+    public long getRetentionSigns() { return retentionSigns; }
+    public void setRetentionSigns(long v) { this.retentionSigns = v; }
+
+    public long getRetentionSessions() { return retentionSessions; }
+    public void setRetentionSessions(long v) { this.retentionSessions = v; }
+
+    public long getRetentionItems() { return retentionItems; }
+    public void setRetentionItems(long v) { this.retentionItems = v; }
+
+    public long getRetentionAnvils() { return retentionAnvils; }
+    public void setRetentionAnvils(long v) { this.retentionAnvils = v; }
+
+    public long getRetentionUsernames() { return retentionUsernames; }
+    public void setRetentionUsernames(long v) { this.retentionUsernames = v; }
+
+    public long getRetentionIpChanges() { return retentionIpChanges; }
+    public void setRetentionIpChanges(long v) { this.retentionIpChanges = v; }
+
+    public long getRetentionPunishments() { return retentionPunishments; }
+    public void setRetentionPunishments(long v) { this.retentionPunishments = v; }
+
+    public long getRetentionPardons() { return retentionPardons; }
+    public void setRetentionPardons(long v) { this.retentionPardons = v; }
+
+    public long getRetentionAutomod() { return retentionAutomod; }
+    public void setRetentionAutomod(long v) { this.retentionAutomod = v; }
+
+    public long getRetentionAnticheat() { return retentionAnticheat; }
+    public void setRetentionAnticheat(long v) { this.retentionAnticheat = v; }
+
+    public long getRetentionStaffActions() { return retentionStaffActions; }
+    public void setRetentionStaffActions(long v) { this.retentionStaffActions = v; }
+
+    public long getRetentionWatchlist() { return retentionWatchlist; }
+    public void setRetentionWatchlist(long v) { this.retentionWatchlist = v; }
 
     /**
      * Get the server name (uses web panel server name).

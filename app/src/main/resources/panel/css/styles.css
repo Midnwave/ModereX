@@ -1358,11 +1358,16 @@ body {
 /* ===== GRID ===== */
 .grid {
   display: grid;
-  gap: 16px;
+  gap: 18px;
 }
 
 .grid.cols-4 {
   grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+/* Increased gap for status page grids */
+#status .grid {
+  gap: 20px;
 }
 
 .grid.cols-3 {
@@ -1504,6 +1509,23 @@ body {
   font-size: 13px;
   color: var(--text-secondary);
   line-height: 1.5;
+}
+
+/* Clickable rule cards */
+.card.rule-card-clickable {
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+
+.card.rule-card-clickable:hover {
+  border-color: var(--primary);
+  background: rgba(var(--primary-rgb), 0.05);
+  transform: translateY(-2px);
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2), 0 0 0 1px rgba(var(--primary-rgb), 0.1);
+}
+
+.card.rule-card-clickable:active {
+  transform: translateY(0);
 }
 
 /* ===== TABLES ===== */
@@ -3382,18 +3404,20 @@ textarea.input {
 .stat-card {
   display: flex;
   align-items: center;
-  gap: 16px;
-  padding: 20px;
+  gap: 18px;
+  padding: 24px 22px;
   position: relative;
+  min-height: 95px;
 }
 
 .stat-card .stat-icon {
-  width: 56px;
-  height: 56px;
+  width: 52px;
+  height: 52px;
   border-radius: var(--radius);
   display: grid;
   place-items: center;
-  font-size: 22px;
+  font-size: 20px;
+  flex-shrink: 0;
 }
 
 .stat-card .stat-icon.tps {

@@ -562,15 +562,33 @@ activity-log:
   # Number of entries per page in /log output
   entries-per-page: 10
 
-  # Days to keep logs (0 = unlimited)
-  retention-days: 30
+  # Retention periods for different log types (in days)
+  # Set to -1 for unlimited (never purge), 0 to disable logging entirely
+  # Default is 30 days for all types
+  retention:
+    # Activity logs
+    chat: 30             # Chat messages
+    commands: 30         # Commands executed
+    signs: 30            # Sign text with location
+    sessions: 30         # Login/logout with duration
+    items: 30            # Item drops, pickups, use, consume, projectiles
+    anvils: 30           # Anvil renaming of items
+    usernames: -1        # Username changes (keep forever by default)
+    ip-changes: -1       # IP address changes (keep forever by default)
 
-  # Maximum chat messages to show in command output (default: 50)
-  # GUI output has no limit - this only affects /log chat output
-  max-chat-logs: 50
+    # Moderation logs
+    punishments: -1      # Bans, mutes, warns, kicks (keep forever by default)
+    pardons: -1          # Unbans, unmutes, etc. (keep forever by default)
+    automod: 30          # Automod triggers
+    anticheat: 30        # Anticheat alerts
 
-  # Maximum commands to show in /cmdhistory command output (default: 100)
-  max-command-logs: 100
+    # Staff action logs
+    staff-actions: 90    # Staff punishment/pardon actions
+    watchlist: 90        # Watchlist add/remove/notes
+
+  # Maximum entries to show in command output
+  max-chat-logs: 50      # /log chat output
+  max-command-logs: 100  # /cmdhistory output
 
   # What to log (all enabled by default)
   log:
