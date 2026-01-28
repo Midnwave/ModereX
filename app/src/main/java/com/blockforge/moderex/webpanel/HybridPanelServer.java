@@ -1379,6 +1379,10 @@ public class HybridPanelServer {
             case "ADD_CHECKLIST_ITEM" -> addChecklistItem(conn, data, session);
             case "DELETE_CHECKLIST_ITEM" -> deleteChecklistItem(conn, data, session);
             case "TRIGGER_PLUGIN_UPDATE" -> triggerPluginUpdate(conn, session);
+            case "DEV_STRESS_CREATE_PLAYERS" -> handleDevStressCreatePlayers(conn, data);
+            case "DEV_STRESS_CREATE_PUNISHMENTS" -> handleDevStressCreatePunishments(conn, data);
+            case "DEV_STRESS_CLEANUP" -> handleDevStressCleanup(conn);
+            case "DEV_STRESS_STOP" -> handleDevStressStop(conn);
             default -> sendError(conn, "UNKNOWN_TYPE", "Unknown message type: " + type);
         }
     }
@@ -4823,6 +4827,25 @@ public class HybridPanelServer {
                 return;
             }
 
+            // Allow GET_SERVER_STATUS before authentication (for connection status display)
+            if ("GET_SERVER_STATUS".equals(type)) {
+                SamePortConnectionWrapper wrapper = new SamePortConnectionWrapper(handler);
+                sendServerStatus(wrapper);
+                return;
+            }
+
+            // Handle PING/PONG without authentication
+            if ("PING".equals(type)) {
+                JsonObject pong = new JsonObject();
+                pong.addProperty("type", "PONG");
+                pong.addProperty("timestamp", System.currentTimeMillis());
+                handler.send(GSON.toJson(pong));
+                return;
+            }
+            if ("PONG".equals(type) || "HEARTBEAT".equals(type)) {
+                return; // Just ignore, keep connection alive
+            }
+
             // Check if authenticated
             WebPanelSession session = samePortSessions.get(connectionId);
             if (session == null) {
@@ -4928,6 +4951,10 @@ public class HybridPanelServer {
             case "UPDATE_USER_SETTINGS" -> updateUserSettings(wrapper, data, session);
             case "SET_CHAT_LOCK" -> setChatLock(wrapper, data, session);
             case "SET_SLOWMODE" -> setSlowmode(wrapper, data, session);
+            case "DEV_STRESS_CREATE_PLAYERS" -> handleDevStressCreatePlayers(wrapper, data);
+            case "DEV_STRESS_CREATE_PUNISHMENTS" -> handleDevStressCreatePunishments(wrapper, data);
+            case "DEV_STRESS_CLEANUP" -> handleDevStressCleanup(wrapper);
+            case "DEV_STRESS_STOP" -> handleDevStressStop(wrapper);
             default -> sendError(wrapper, "UNKNOWN_TYPE", "Unknown message type: " + type);
         }
         } catch (Exception e) {
@@ -5203,6 +5230,196 @@ public class HybridPanelServer {
         response.addProperty("type", "PLUGIN_UPDATE_RESULT");
         response.addProperty("success", success);
         response.addProperty("message", message);
+        conn.send(GSON.toJson(response));
+    }
+
+    // ==================== Stress Test Handlers ====================
+
+    private volatile boolean stressTestRunning = false;
+    private volatile boolean stressTestCancelled = false;
+
+    private void handleDevStressCreatePlayers(WebSocketConnection conn, JsonObject data) {
+        int count = data.has("count") ? data.get("count").getAsInt() : 100;
+        count = Math.min(count, 10000); // Cap at 10k
+
+        if (stressTestRunning) {
+            sendStressError(conn, "A stress test is already running");
+            return;
+        }
+
+        stressTestRunning = true;
+        stressTestCancelled = false;
+        final int playerCount = count;
+
+        plugin.getServer().getScheduler().runTaskAsynchronously(plugin, () -> {
+            try {
+                for (int i = 0; i < playerCount && !stressTestCancelled; i++) {
+                    UUID uuid = UUID.randomUUID();
+                    String name = "StressTest_" + i;
+                    String ip = "192.168.100." + (i % 256);
+
+                    plugin.getDatabaseManager().update("""
+                        INSERT INTO moderex_players (uuid, username, ip_address, first_join, last_join)
+                        VALUES (?, ?, ?, ?, ?)
+                        ON CONFLICT(uuid) DO UPDATE SET username = excluded.username
+                        """,
+                        uuid.toString(), name, ip, System.currentTimeMillis(), System.currentTimeMillis()
+                    );
+
+                    // Send progress every 10 players
+                    if (i % 10 == 0 || i == playerCount - 1) {
+                        sendStressProgress(conn, "Creating players", i + 1, playerCount);
+                    }
+                }
+
+                if (stressTestCancelled) {
+                    sendStressComplete(conn, "Player creation cancelled", 0);
+                } else {
+                    sendStressComplete(conn, "Created " + playerCount + " test players", playerCount);
+                }
+            } catch (Exception e) {
+                plugin.logError("Stress test failed", e);
+                sendStressError(conn, "Failed: " + e.getMessage());
+            } finally {
+                stressTestRunning = false;
+            }
+        });
+    }
+
+    private void handleDevStressCreatePunishments(WebSocketConnection conn, JsonObject data) {
+        int count = data.has("count") ? data.get("count").getAsInt() : 100;
+        count = Math.min(count, 10000);
+
+        if (stressTestRunning) {
+            sendStressError(conn, "A stress test is already running");
+            return;
+        }
+
+        stressTestRunning = true;
+        stressTestCancelled = false;
+        final int punishmentCount = count;
+
+        plugin.getServer().getScheduler().runTaskAsynchronously(plugin, () -> {
+            try {
+                String[] types = {"BAN", "MUTE", "KICK", "WARN"};
+                String[] reasons = {"Stress test punishment", "Testing", "Performance test", "Automated test"};
+                Random random = new Random();
+
+                for (int i = 0; i < punishmentCount && !stressTestCancelled; i++) {
+                    UUID targetUuid = UUID.randomUUID();
+                    String targetName = "StressTarget_" + i;
+                    UUID staffUuid = UUID.randomUUID();
+                    String type = types[random.nextInt(types.length)];
+                    String reason = reasons[random.nextInt(reasons.length)];
+                    long duration = type.equals("KICK") || type.equals("WARN") ? 0 : random.nextInt(86400000);
+                    long timestamp = System.currentTimeMillis() - random.nextInt(86400000 * 30); // Random time in last 30 days
+
+                    plugin.getDatabaseManager().update("""
+                        INSERT INTO moderex_punishments
+                        (case_id, target_uuid, target_name, staff_uuid, staff_name, type, reason, duration, created_at, expires_at, active, revoked)
+                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                        """,
+                        "ST-" + System.currentTimeMillis() + "-" + i,
+                        targetUuid.toString(), targetName,
+                        staffUuid.toString(), "StressStaff",
+                        type, reason, duration, timestamp,
+                        duration > 0 ? timestamp + duration : 0,
+                        false, false
+                    );
+
+                    if (i % 10 == 0 || i == punishmentCount - 1) {
+                        sendStressProgress(conn, "Creating punishments", i + 1, punishmentCount);
+                    }
+                }
+
+                if (stressTestCancelled) {
+                    sendStressComplete(conn, "Punishment creation cancelled", 0);
+                } else {
+                    sendStressComplete(conn, "Created " + punishmentCount + " test punishments", punishmentCount);
+                }
+            } catch (Exception e) {
+                plugin.logError("Stress test failed", e);
+                sendStressError(conn, "Failed: " + e.getMessage());
+            } finally {
+                stressTestRunning = false;
+            }
+        });
+    }
+
+    private void handleDevStressCleanup(WebSocketConnection conn) {
+        if (stressTestRunning) {
+            sendStressError(conn, "A stress test is running. Stop it first.");
+            return;
+        }
+
+        stressTestRunning = true;
+        stressTestCancelled = false;
+
+        plugin.getServer().getScheduler().runTaskAsynchronously(plugin, () -> {
+            try {
+                sendStressProgress(conn, "Cleaning up test data", 0, 3);
+
+                // Delete stress test players
+                plugin.getDatabaseManager().update(
+                    "DELETE FROM moderex_players WHERE username LIKE 'StressTest_%'"
+                );
+                sendStressProgress(conn, "Cleaning up test data", 1, 3);
+
+                // Delete stress test punishments
+                plugin.getDatabaseManager().update(
+                    "DELETE FROM moderex_punishments WHERE case_id LIKE 'ST-%' OR target_name LIKE 'StressTarget_%'"
+                );
+                sendStressProgress(conn, "Cleaning up test data", 2, 3);
+
+                sendStressProgress(conn, "Cleaning up test data", 3, 3);
+
+                sendStressComplete(conn, "Stress test data cleaned up", 0);
+            } catch (Exception e) {
+                plugin.logError("Stress cleanup failed", e);
+                sendStressError(conn, "Cleanup failed: " + e.getMessage());
+            } finally {
+                stressTestRunning = false;
+            }
+        });
+    }
+
+    private void handleDevStressStop(WebSocketConnection conn) {
+        if (stressTestRunning) {
+            stressTestCancelled = true;
+            sendSuccess(conn, "Stopping stress test...");
+        } else {
+            sendError(conn, "NO_TEST_RUNNING", "No stress test is currently running");
+        }
+    }
+
+    private void sendStressProgress(WebSocketConnection conn, String stage, int current, int total) {
+        JsonObject response = new JsonObject();
+        response.addProperty("type", "DEV_STRESS_PROGRESS");
+        JsonObject data = new JsonObject();
+        data.addProperty("stage", stage);
+        data.addProperty("current", current);
+        data.addProperty("total", total);
+        data.addProperty("percent", total > 0 ? (current * 100 / total) : 0);
+        response.add("data", data);
+        conn.send(GSON.toJson(response));
+    }
+
+    private void sendStressComplete(WebSocketConnection conn, String message, int count) {
+        JsonObject response = new JsonObject();
+        response.addProperty("type", "DEV_STRESS_COMPLETE");
+        JsonObject data = new JsonObject();
+        data.addProperty("message", message);
+        data.addProperty("count", count);
+        response.add("data", data);
+        conn.send(GSON.toJson(response));
+    }
+
+    private void sendStressError(WebSocketConnection conn, String message) {
+        JsonObject response = new JsonObject();
+        response.addProperty("type", "DEV_STRESS_ERROR");
+        JsonObject data = new JsonObject();
+        data.addProperty("message", message);
+        response.add("data", data);
         conn.send(GSON.toJson(response));
     }
 

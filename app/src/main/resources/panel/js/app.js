@@ -4265,22 +4265,73 @@
 
   // ===== DISCONNECT OVERLAY =====
   let serverNameForDisconnect = 'Server';
+  let disconnectTimeout = null;
+  let reconnectCooldown = false;
+  let lastPongTime = Date.now();
 
   function showDisconnect(serverName) {
     serverNameForDisconnect = serverName || 'Server';
-    const overlay = document.getElementById('disconnectOverlay');
-    const nameEl = document.getElementById('disconnectServerName');
-    if (nameEl) nameEl.textContent = serverNameForDisconnect;
-    if (overlay) overlay.classList.add('show');
-    window.MX.sounds?.disconnect();
+
+    // Clear any existing timeout
+    if (disconnectTimeout) {
+      clearTimeout(disconnectTimeout);
+      disconnectTimeout = null;
+    }
+
+    // Delay showing disconnect overlay by 5 seconds
+    // This gives time for brief network hiccups to resolve
+    disconnectTimeout = setTimeout(() => {
+      const overlay = document.getElementById('disconnectOverlay');
+      const nameEl = document.getElementById('disconnectServerName');
+      if (nameEl) nameEl.textContent = serverNameForDisconnect;
+      if (overlay) overlay.classList.add('show');
+      window.MX.sounds?.disconnect();
+      disconnectTimeout = null;
+    }, 5000);
   }
 
   function hideDisconnect() {
+    // Clear the delayed show timeout if connection restored
+    if (disconnectTimeout) {
+      clearTimeout(disconnectTimeout);
+      disconnectTimeout = null;
+    }
     const overlay = document.getElementById('disconnectOverlay');
     if (overlay) overlay.classList.remove('show');
   }
 
   function attemptReconnect() {
+    // Check cooldown - prevent rapid reconnect attempts
+    if (reconnectCooldown) {
+      window.MX.toast?.('warn', 'Please Wait', 'Reconnect cooldown active. Try again in a few seconds.');
+      return;
+    }
+
+    // Start 5 second cooldown
+    reconnectCooldown = true;
+    const reconnectBtn = document.querySelector('#disconnectOverlay .btn-primary');
+    if (reconnectBtn) {
+      reconnectBtn.disabled = true;
+      reconnectBtn.textContent = 'Reconnecting...';
+
+      // Update button with countdown
+      let countdown = 5;
+      const countdownInterval = setInterval(() => {
+        countdown--;
+        if (countdown > 0) {
+          reconnectBtn.textContent = `Wait ${countdown}s...`;
+        } else {
+          clearInterval(countdownInterval);
+          reconnectBtn.disabled = false;
+          reconnectBtn.textContent = 'Reconnect';
+          reconnectCooldown = false;
+        }
+      }, 1000);
+    } else {
+      // Reset cooldown after 5 seconds if button not found
+      setTimeout(() => { reconnectCooldown = false; }, 5000);
+    }
+
     const overlay = document.getElementById('disconnectOverlay');
     if (overlay) overlay.classList.remove('show');
     window.MX.sounds?.reconnecting();
@@ -4289,6 +4340,11 @@
     } else {
       location.reload();
     }
+  }
+
+  // Track last pong time for disconnect detection
+  function updateLastPong() {
+    lastPongTime = Date.now();
   }
 
   // ===== SIDEBAR TOGGLE (Mobile) =====
@@ -5257,6 +5313,7 @@
   window.applyThemeFromState = applyThemeFromState;
   window.showDisconnect = showDisconnect;
   window.hideDisconnect = hideDisconnect;
+  window.updateLastPong = updateLastPong;
   window.toggleChecklistItem = toggleChecklistItem;
   window.addChecklistItem = addChecklistItem;
   window.closeChecklistModal = closeChecklistModal;

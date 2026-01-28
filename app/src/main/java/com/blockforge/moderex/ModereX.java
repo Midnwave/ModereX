@@ -388,6 +388,16 @@ public final class ModereX extends JavaPlugin {
         languageManager.load();
         automodManager.load();
 
+        // Re-register anticheat automod rules (cleared during automodManager.load())
+        if (hookManager != null && hookManager.getAnticheatManager() != null) {
+            for (String acName : hookManager.getAnticheatManager().getEnabledAnticheats()) {
+                var hook = hookManager.getAnticheatManager().getHook(acName);
+                if (hook != null) {
+                    automodManager.registerAnticheatRules(hook.getName(), hook.getVersion());
+                }
+            }
+        }
+
         // Reload vanish API whitelist
         if (vanishAPI != null) {
             vanishAPI.reload();

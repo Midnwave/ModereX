@@ -101,6 +101,7 @@
   function updateTps(tps, avgTps) {
     const tpsEl = document.getElementById('statusTps');
     const trendEl = document.getElementById('statusTpsTrend');
+    const tpsBarEl = document.getElementById('statusTpsBar');
 
     if (tpsEl) {
       tpsEl.textContent = (tps || 20.0).toFixed(1);
@@ -112,6 +113,22 @@
         tpsEl.style.color = 'var(--warn)';
       } else {
         tpsEl.style.color = 'var(--bad)';
+      }
+    }
+
+    // Update TPS progress bar
+    if (tpsBarEl) {
+      // TPS bar width: percentage of 20 TPS (capped at 100%)
+      const tpsPercent = Math.min(100, (tps / 20) * 100);
+      tpsBarEl.style.width = tpsPercent + '%';
+
+      // Color coding for the bar
+      if (tps >= 18) {
+        tpsBarEl.style.background = 'linear-gradient(90deg, var(--ok), rgba(16, 185, 129, 0.7))';
+      } else if (tps >= 15) {
+        tpsBarEl.style.background = 'linear-gradient(90deg, var(--warn), rgba(245, 158, 11, 0.7))';
+      } else {
+        tpsBarEl.style.background = 'linear-gradient(90deg, var(--bad), rgba(239, 68, 68, 0.7))';
       }
     }
 

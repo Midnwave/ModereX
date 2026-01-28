@@ -51,9 +51,13 @@
     return start + (n * mult);
   };
 
-  const avatarUrl = (player) => {
-    const n = encodeURIComponent(player?.name || 'Steve');
-    return `https://mc-heads.net/avatar/${n}/64`;
+  const avatarUrl = (player, size = 64) => {
+    // For Bedrock players (Geyser UUID format: 00000000-0000-0000-xxxx-xxxxxxxxxxxx), use UUID
+    // For Java players, use name (falls back to UUID if no name)
+    const uuid = player?.uuid || player?.playerId || '';
+    const isBedrockPlayer = uuid.startsWith('00000000-0000-0000');
+    const identifier = isBedrockPlayer ? uuid : (player?.name || uuid || 'Steve');
+    return `https://mc-heads.net/avatar/${encodeURIComponent(identifier)}/${size}`;
   };
 
   // Export to window

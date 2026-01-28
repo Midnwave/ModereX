@@ -323,6 +323,9 @@
         lastPing = Date.now() - lastPingTime;
         emit('ping_update', { ping: lastPing });
       }
+      // Update last pong time for disconnect detection and cancel pending disconnect overlay
+      if (window.updateLastPong) window.updateLastPong();
+      if (window.hideDisconnect) window.hideDisconnect();
       return;
     }
 
