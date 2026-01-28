@@ -164,6 +164,22 @@ public class ConfigManager {
         settings.setAiModel(config.getString("webpanel.ai.model", "devstral-2-123b-cloud"));
         settings.setAiApiKey(config.getString("webpanel.ai.api-key", ""));
 
+        // Rank colors for web panel
+        java.util.Map<String, String> rankColors = new java.util.HashMap<>();
+        if (config.contains("webpanel.rank-colors")) {
+            var rankSection = config.getConfigurationSection("webpanel.rank-colors");
+            if (rankSection != null) {
+                for (String key : rankSection.getKeys(false)) {
+                    rankColors.put(key.toLowerCase(), rankSection.getString(key, "#8b5cf6"));
+                }
+            }
+        }
+        // Add defaults if not configured
+        if (!rankColors.containsKey("default")) {
+            rankColors.put("default", "#8b5cf6");
+        }
+        settings.setRankColors(rankColors);
+
         // Proxy
         settings.setProxyEnabled(config.getBoolean("proxy.enabled", false));
         settings.setProxyType(config.getString("proxy.type", "bungeecord"));

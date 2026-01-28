@@ -183,6 +183,9 @@
 
   // ===== NAVIGATION =====
   window.go = function(page) {
+    // Show loading line for page transition
+    if (window.showLoadingLine) window.showLoadingLine();
+
     // Cleanup previous page if needed
     if (window.cleanupServerStatus && state.currentPage === 'status') {
       window.cleanupServerStatus();
@@ -223,6 +226,11 @@
       }
       loadDevChecklist();
     }
+
+    // Hide loading line after a short delay for smooth transition
+    setTimeout(() => {
+      if (window.hideLoadingLine) window.hideLoadingLine();
+    }, 300);
   };
 
   // ===== TEXT UTILITIES =====
@@ -4347,6 +4355,53 @@
     lastPongTime = Date.now();
   }
 
+  // ===== LOADING LINE BAR =====
+  let loadingLineCount = 0;
+  let loadingLineTimeout = null;
+
+  function showLoadingLine() {
+    loadingLineCount++;
+    const line = document.getElementById('loadingLine');
+    if (line) line.classList.add('active');
+
+    // Auto-hide after 30 seconds as a safety measure
+    if (loadingLineTimeout) clearTimeout(loadingLineTimeout);
+    loadingLineTimeout = setTimeout(() => {
+      loadingLineCount = 0;
+      const l = document.getElementById('loadingLine');
+      if (l) l.classList.remove('active');
+    }, 30000);
+  }
+
+  function hideLoadingLine() {
+    loadingLineCount = Math.max(0, loadingLineCount - 1);
+    if (loadingLineCount === 0) {
+      const line = document.getElementById('loadingLine');
+      if (line) line.classList.remove('active');
+      if (loadingLineTimeout) {
+        clearTimeout(loadingLineTimeout);
+        loadingLineTimeout = null;
+      }
+    }
+  }
+
+  // Force hide regardless of count (for page transitions)
+  function forceHideLoadingLine() {
+    loadingLineCount = 0;
+    const line = document.getElementById('loadingLine');
+    if (line) line.classList.remove('active');
+    if (loadingLineTimeout) {
+      clearTimeout(loadingLineTimeout);
+      loadingLineTimeout = null;
+    }
+  }
+
+  // Expose loading line functions globally
+  window.showLoadingLine = showLoadingLine;
+  window.hideLoadingLine = hideLoadingLine;
+  window.forceHideLoadingLine = forceHideLoadingLine;
+  window.MX.loadingLine = { show: showLoadingLine, hide: hideLoadingLine, forceHide: forceHideLoadingLine };
+
   // ===== SIDEBAR TOGGLE (Mobile) =====
   function toggleSidebar() {
     const sidebar = document.querySelector('.sidebar');
@@ -5724,7 +5779,8 @@
   let currentPluginVersion = null;
   let latestGitHubVersion = null;
   let updateCheckInterval = null;
-  let updateDismissed = false;
+  let updateDismissedUntil = 0; // Timestamp when dismiss expires
+  let currentBuildNumber = null;
 
   function loadPanelVersion() {
     // Fetch version from server API (reads from panel-version.properties)
@@ -5737,6 +5793,10 @@
         if (versionEl && data.version) {
           versionEl.textContent = data.version;
         }
+        // Store build number for comparison
+        if (data.buildNumber) {
+          currentBuildNumber = parseInt(data.buildNumber, 10);
+        }
       })
       .catch(() => {
         // Silent fail - version display is optional
@@ -5748,8 +5808,14 @@
     fetch('/api/plugin-version?_=' + Date.now())
       .then(res => res.json())
       .then(data => {
+        console.log('[Update] Plugin version response:', data);
         if (data.version) {
           currentPluginVersion = data.version;
+          // Store build number from plugin version
+          if (data.buildNumber) {
+            currentBuildNumber = parseInt(data.buildNumber, 10);
+          }
+          console.log('[Update] Current plugin version:', currentPluginVersion, 'build:', currentBuildNumber);
           // Start checking GitHub for updates
           checkGitHubForUpdates();
           // Check every 10 seconds
@@ -5758,11 +5824,14 @@
           }
         }
       })
-      .catch(() => {});
+      .catch(err => {
+        console.log('[Update] Failed to get plugin version:', err.message);
+      });
   }
 
   function checkGitHubForUpdates() {
-    if (updateDismissed) return;
+    // Check if dismissed (10 minute cooldown)
+    if (Date.now() < updateDismissedUntil) return;
 
     // Fetch build-info.txt from GitHub releases
     fetch('https://raw.githubusercontent.com/Midnwave/ModereX/main/releases/build-info.txt?_=' + Date.now())
@@ -5771,30 +5840,43 @@
         return res.text();
       })
       .then(text => {
-        // Parse build-info.txt
+        // Parse build-info.txt (format: timestamp, Version: X, Build: Y, Commit: Z)
         const lines = text.split('\n');
         let version = null;
+        let buildNumber = null;
         let buildDate = null;
 
         for (const line of lines) {
-          if (line.startsWith('version=')) {
-            version = line.substring(8).trim();
-          } else if (line.startsWith('build_date=')) {
-            buildDate = line.substring(11).trim();
+          const trimmed = line.trim();
+          // First line is timestamp
+          if (trimmed.match(/^\d{4}-\d{2}-\d{2}T/)) {
+            buildDate = trimmed;
+          } else if (trimmed.startsWith('Version:')) {
+            version = trimmed.substring(8).trim();
+          } else if (trimmed.startsWith('Build:')) {
+            buildNumber = parseInt(trimmed.substring(6).trim(), 10);
           }
         }
 
-        if (version && version !== currentPluginVersion) {
+        console.log('[Update] GitHub build info:', { version, buildNumber, buildDate });
+        console.log('[Update] Current version:', currentPluginVersion, 'Current build:', currentBuildNumber);
+
+        // Compare build numbers if available, otherwise fall back to version string
+        const hasUpdate = buildNumber && currentBuildNumber
+          ? buildNumber > currentBuildNumber
+          : (version && version !== currentPluginVersion);
+
+        if (hasUpdate) {
           latestGitHubVersion = version;
-          showPluginUpdateBanner(version, buildDate);
+          showPluginUpdateBanner(version, buildDate, buildNumber);
         }
       })
-      .catch(() => {
-        // Silent fail - update check is optional
+      .catch(err => {
+        console.log('[Update] Failed to check GitHub:', err.message);
       });
   }
 
-  function showPluginUpdateBanner(newVersion, buildDate) {
+  function showPluginUpdateBanner(newVersion, buildDate, buildNumber) {
     const banner = document.getElementById('updateBanner');
     if (!banner) return;
 
@@ -5803,8 +5885,20 @@
     const notesEl = banner.querySelector('.update-notes');
 
     if (titleEl) titleEl.textContent = 'Plugin Update Available';
-    if (versionEl) versionEl.textContent = `${newVersion}${buildDate ? ' • ' + buildDate : ''}`;
+    if (versionEl) {
+      let versionText = newVersion || 'New Version';
+      if (buildNumber) versionText += ` (Build ${buildNumber})`;
+      if (buildDate) versionText += ' • ' + buildDate.split('T')[0]; // Just the date part
+      versionEl.textContent = versionText;
+    }
     if (notesEl) notesEl.textContent = 'New version available on GitHub';
+
+    // Reset the update button in case it was disabled from a previous attempt
+    const btn = banner.querySelector('.btn.primary');
+    if (btn) {
+      btn.disabled = false;
+      btn.innerHTML = '<i class="fa-solid fa-download"></i> Update Now';
+    }
 
     banner.classList.add('show');
   }
@@ -5812,7 +5906,9 @@
   function dismissUpdateBanner() {
     const banner = document.getElementById('updateBanner');
     if (banner) banner.classList.remove('show');
-    updateDismissed = true;
+    // Dismiss for 10 minutes
+    updateDismissedUntil = Date.now() + (10 * 60 * 1000);
+    console.log('[Update] Update banner dismissed for 10 minutes');
   }
 
   function applyPanelUpdate() {

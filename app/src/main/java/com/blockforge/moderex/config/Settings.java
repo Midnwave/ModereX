@@ -209,6 +209,9 @@ public class Settings {
     // Config version for migration
     private int configVersion = 2;
 
+    // Rank colors for web panel (LuckPerms group name -> hex color)
+    private java.util.Map<String, String> rankColors = new java.util.HashMap<>();
+
     // Getters and setters
     public String getLanguage() {
         return language;
@@ -674,6 +677,14 @@ public class Settings {
 
     public void setConfigVersion(int configVersion) {
         this.configVersion = configVersion;
+    }
+
+    public java.util.Map<String, String> getRankColors() {
+        return rankColors;
+    }
+
+    public void setRankColors(java.util.Map<String, String> rankColors) {
+        this.rankColors = rankColors;
     }
 
     public boolean isReplayEnabled() {

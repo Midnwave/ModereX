@@ -605,6 +605,44 @@ body {
   min-width: 0;
 }
 
+/* ===== LOADING LINE BAR ===== */
+.loading-line {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  height: 3px;
+  background: transparent;
+  overflow: hidden;
+  z-index: 1000;
+  opacity: 0;
+  transition: opacity 0.2s ease;
+}
+
+.loading-line.active {
+  opacity: 1;
+}
+
+.loading-line::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 50%;
+  height: 100%;
+  background: linear-gradient(90deg, transparent, var(--primary-light), var(--accent-light), transparent);
+  animation: loading-slide 1.2s ease-in-out infinite;
+}
+
+@keyframes loading-slide {
+  0% {
+    left: -50%;
+  }
+  100% {
+    left: 100%;
+  }
+}
+
 /* ===== TOPBAR ===== */
 .topbar {
   position: relative;
@@ -1358,16 +1396,28 @@ body {
 /* ===== GRID ===== */
 .grid {
   display: grid;
-  gap: 18px;
+  gap: 16px;
+}
+
+/* Consistent spacing between grid sections */
+.grid + .grid {
+  margin-top: 16px;
+}
+
+.grid + .panel {
+  margin-top: 16px;
+}
+
+.panel + .grid {
+  margin-top: 16px;
+}
+
+.panel + .panel {
+  margin-top: 16px;
 }
 
 .grid.cols-4 {
   grid-template-columns: repeat(4, minmax(0, 1fr));
-}
-
-/* Increased gap for status page grids */
-#status .grid {
-  gap: 20px;
 }
 
 .grid.cols-3 {
@@ -1481,9 +1531,14 @@ body {
   background: rgba(0, 0, 0, 0.2);
   border: 1px solid var(--border);
   border-radius: var(--radius);
-  padding: 18px;
-  margin-top: 14px;
+  padding: 20px;
   transition: all var(--transition);
+  box-sizing: border-box;
+}
+
+/* Only add margin-top when card is not in a grid */
+.card:not(.grid .card) {
+  margin-top: 16px;
 }
 
 .card:hover {
@@ -3479,10 +3534,11 @@ textarea.input {
 .stat-card {
   display: flex;
   align-items: center;
-  gap: 18px;
-  padding: 24px 22px;
+  gap: 16px;
+  padding: 20px;
   position: relative;
-  min-height: 95px;
+  min-height: 100px;
+  box-sizing: border-box;
 }
 
 .stat-card .stat-icon {

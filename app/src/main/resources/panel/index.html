@@ -233,32 +233,11 @@
         <div class="topbar-left">
           <button class="sidebarToggle" id="sidebarToggle" onclick="toggleSidebar()"><i class="fa-solid fa-bars"></i></button>
           <span class="version-badge" id="versionBadge" style="display:none"><i class="fa-solid fa-code-branch"></i> <span id="versionText">DEV</span></span>
-        </div>
-        <div class="gsearch-container">
-          <div class="gsearch">
-            <i class="fa-solid fa-magnifying-glass"></i>
-            <input type="text" id="globalSearch" placeholder="Search players, cases, settings... (Ctrl+K)" autocomplete="off">
-          </div>
-          <div class="gsearch-dropdown" id="searchDropdown" style="display:none">
-            <div class="gsearch-results" id="searchResults"></div>
-            <div class="gsearch-footer">
-              <span><kbd>Enter</kbd> to select</span>
-              <span><kbd>↑</kbd> <kbd>↓</kbd> to navigate</span>
-              <span><kbd>Esc</kbd> to close</span>
-            </div>
-          </div>
-        </div>
-        
-        <div class="top-actions">
-          <span class="chip" id="timeChip"><i class="fa-regular fa-clock"></i> --:--</span>
-          <span class="chip" id="statusChip" title="Connection status"><i class="fa-solid fa-signal"></i> <span id="pingText">--</span>ms</span>
-          <span class="chip warn" id="savingChip" style="display:none"><i class="fa-solid fa-spinner fa-spin"></i> Saving...</span>
-
-          <!-- Rank Badge -->
+          <!-- Rank Badge (moved from top-actions) -->
           <div class="rank-badge-container" id="rankBadgeContainer" style="display:none">
             <div class="rank-badge" id="rankBadge">
               <i class="fa-solid fa-shield-halved"></i>
-              <span id="rankName">Admin</span>
+              <span id="rankName">ADMIN</span>
             </div>
             <!-- Custom Rank Tooltip -->
             <div class="rank-tooltip" id="rankTooltip">
@@ -282,6 +261,26 @@
               </div>
             </div>
           </div>
+        </div>
+        <div class="gsearch-container">
+          <div class="gsearch">
+            <i class="fa-solid fa-magnifying-glass"></i>
+            <input type="text" id="globalSearch" placeholder="Search players, cases, settings... (Ctrl+K)" autocomplete="off">
+          </div>
+          <div class="gsearch-dropdown" id="searchDropdown" style="display:none">
+            <div class="gsearch-results" id="searchResults"></div>
+            <div class="gsearch-footer">
+              <span><kbd>Enter</kbd> to select</span>
+              <span><kbd>↑</kbd> <kbd>↓</kbd> to navigate</span>
+              <span><kbd>Esc</kbd> to close</span>
+            </div>
+          </div>
+        </div>
+        
+        <div class="top-actions">
+          <span class="chip" id="timeChip"><i class="fa-regular fa-clock"></i> --:--</span>
+          <span class="chip" id="statusChip" title="Connection status"><i class="fa-solid fa-signal"></i> <span id="pingText">--</span>ms</span>
+          <span class="chip warn" id="savingChip" style="display:none"><i class="fa-solid fa-spinner fa-spin"></i> Saving...</span>
 
           <!-- User Profile Dropdown -->
           <div class="top-profile" id="topProfile" style="display:none">
@@ -319,8 +318,10 @@
             </div>
           </div>
         </div>
+        <!-- Loading Line Bar -->
+        <div class="loading-line" id="loadingLine"></div>
       </header>
-      
+
       <!-- Content Area -->
       <div class="content">
         

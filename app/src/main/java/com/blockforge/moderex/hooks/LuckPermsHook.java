@@ -58,6 +58,19 @@ public class LuckPermsHook {
         return user.getPrimaryGroup();
     }
 
+    public int getGroupWeight(String groupName) {
+        var group = luckPerms.getGroupManager().getGroup(groupName);
+        if (group != null) {
+            var weight = group.getWeight();
+            return weight.isPresent() ? weight.getAsInt() : 0;
+        }
+        return 0;
+    }
+
+    public boolean groupExists(String groupName) {
+        return luckPerms.getGroupManager().getGroup(groupName) != null;
+    }
+
     public String getMeta(Player player, String key) {
         return getMeta(player.getUniqueId(), key);
     }

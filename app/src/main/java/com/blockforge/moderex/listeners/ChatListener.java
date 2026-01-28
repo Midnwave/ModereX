@@ -102,9 +102,17 @@ public class ChatListener implements Listener {
         // Process through automod
         AutomodManager.FilterResult result = plugin.getAutomodManager().processMessage(player, message);
 
+        // Get server name for logging
+        String serverName = plugin.getConfigManager().getSettings().getServerName();
+
         if (result.isBlocked()) {
             event.setCancelled(true);
             player.sendMessage(plugin.getLanguageManager().getPrefixed(MessageKey.AUTOMOD_BLOCKED));
+
+            // Log blocked message to database
+            plugin.getDatabaseManager().logChatMessage(
+                uuid.toString(), player.getName(), message, "CHAT",
+                true, result.getReason(), serverName);
 
             // Notify watchlist
             if (plugin.getWatchlistManager().isWatched(uuid)) {
@@ -113,21 +121,26 @@ public class ChatListener implements Listener {
             return;
         }
 
+        String finalMessage = result.isModified() ? result.getModifiedMessage() : message;
+
         if (result.isModified()) {
             // Replace message with modified version
-            event.message(Component.text(result.getModifiedMessage()));
+            event.message(Component.text(finalMessage));
         }
+
+        // Log message to database
+        plugin.getDatabaseManager().logChatMessage(
+            uuid.toString(), player.getName(), finalMessage, "CHAT",
+            false, null, serverName);
 
         // Record to replay if active
         if (plugin.getReplayManager() != null) {
-            String chatMessage = result.isModified() ? result.getModifiedMessage() : message;
-            plugin.getReplayManager().recordAction(player, ReplaySnapshot.ActionType.CHAT, chatMessage);
+            plugin.getReplayManager().recordAction(player, ReplaySnapshot.ActionType.CHAT, finalMessage);
         }
 
         // Broadcast to web panel live logs
         if (plugin.getWebPanelServer() != null) {
-            String chatMessage = result.isModified() ? result.getModifiedMessage() : message;
-            plugin.getWebPanelServer().broadcastChatMessage(player.getName(), uuid, chatMessage);
+            plugin.getWebPanelServer().broadcastChatMessage(player.getName(), uuid, finalMessage);
         }
     }
 

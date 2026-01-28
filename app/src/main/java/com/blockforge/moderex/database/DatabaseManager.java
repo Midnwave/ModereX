@@ -2,6 +2,7 @@ package com.blockforge.moderex.database;
 
 import com.blockforge.moderex.ModereX;
 import com.blockforge.moderex.config.Settings;
+import com.google.gson.JsonObject;
 import com.zaxxer.hikari.HikariConfig;
 import com.zaxxer.hikari.HikariDataSource;
 
@@ -11,6 +12,7 @@ import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
+import java.util.List;
 
 public class DatabaseManager {
 
@@ -303,6 +305,31 @@ public class DatabaseManager {
                     )
                     """.formatted(isMySQL ? "AUTO_INCREMENT" : "AUTOINCREMENT"));
 
+            // Chat logs table
+            stmt.execute("""
+                    CREATE TABLE IF NOT EXISTS moderex_chat_logs (
+                        id INTEGER PRIMARY KEY %s,
+                        player_uuid VARCHAR(36) NOT NULL,
+                        player_name VARCHAR(16) NOT NULL,
+                        message TEXT NOT NULL,
+                        message_type VARCHAR(16) DEFAULT 'CHAT',
+                        cancelled BOOLEAN DEFAULT FALSE,
+                        cancel_reason TEXT,
+                        sent_at BIGINT NOT NULL,
+                        server VARCHAR(64)
+                    )
+                    """.formatted(isMySQL ? "AUTO_INCREMENT" : "AUTOINCREMENT"));
+
+            // Changelog views tracking table
+            stmt.execute("""
+                    CREATE TABLE IF NOT EXISTS moderex_changelog_views (
+                        player_uuid VARCHAR(36) PRIMARY KEY,
+                        last_seen_version VARCHAR(32),
+                        last_seen_build INTEGER DEFAULT 0,
+                        viewed_at BIGINT NOT NULL
+                    )
+                    """);
+
             // Create indexes for performance
             createIndexes(stmt);
         }
@@ -350,6 +377,10 @@ public class DatabaseManager {
         executeIfNotExists(stmt, "CREATE INDEX IF NOT EXISTS idx_replays_player ON moderex_replays(player_uuid)");
         executeIfNotExists(stmt, "CREATE INDEX IF NOT EXISTS idx_replays_time ON moderex_replays(start_time)");
         executeIfNotExists(stmt, "CREATE INDEX IF NOT EXISTS idx_replays_reason ON moderex_replays(recording_reason)");
+
+        // Chat logs indexes
+        executeIfNotExists(stmt, "CREATE INDEX IF NOT EXISTS idx_chat_logs_player ON moderex_chat_logs(player_uuid)");
+        executeIfNotExists(stmt, "CREATE INDEX IF NOT EXISTS idx_chat_logs_time ON moderex_chat_logs(sent_at)");
     }
 
     private void executeIfNotExists(Statement stmt, String sql) {
@@ -368,34 +399,43 @@ public class DatabaseManager {
     }
 
     /**
-     * Get the database file size in megabytes.
+     * Get the database file size in bytes.
      * For SQLite, this returns the actual file size.
      * For MySQL, this returns an estimate based on table sizes.
      */
-    public double getDatabaseSizeMb() {
+    public long getDatabaseSizeBytes() {
         if (isMySQL) {
             // For MySQL, query the information_schema
             try (Connection conn = getConnection();
                  PreparedStatement stmt = conn.prepareStatement(
-                     "SELECT SUM(data_length + index_length) / 1024 / 1024 AS size_mb " +
+                     "SELECT SUM(data_length + index_length) AS size_bytes " +
                      "FROM information_schema.tables WHERE table_schema = DATABASE() AND table_name LIKE 'moderex_%'")) {
                 try (ResultSet rs = stmt.executeQuery()) {
                     if (rs.next()) {
-                        return rs.getDouble("size_mb");
+                        return rs.getLong("size_bytes");
                     }
                 }
             } catch (SQLException e) {
                 plugin.logDebug("Failed to get MySQL database size: " + e.getMessage());
             }
-            return 0.0;
+            return 0L;
         } else {
             // For SQLite, get the file size directly
             File dbFile = new File(plugin.getDataFolder(), "database.db");
             if (dbFile.exists()) {
-                return dbFile.length() / (1024.0 * 1024.0);
+                return dbFile.length();
             }
-            return 0.0;
+            return 0L;
         }
+    }
+
+    /**
+     * Get the database file size in megabytes.
+     * For SQLite, this returns the actual file size.
+     * For MySQL, this returns an estimate based on table sizes.
+     */
+    public double getDatabaseSizeMb() {
+        return getDatabaseSizeBytes() / (1024.0 * 1024.0);
     }
 
     public String generateCaseId() {
@@ -429,6 +469,123 @@ public class DatabaseManager {
         // Fallback: use timestamp-based ID with random letters
         String timestamp = Long.toHexString(System.currentTimeMillis()).toUpperCase();
         return "MX-" + timestamp.substring(Math.max(0, timestamp.length() - 7));
+    }
+
+    // ==================== CHAT LOGS ====================
+
+    /**
+     * Log a chat message to the database asynchronously.
+     */
+    public void logChatMessage(String playerUuid, String playerName, String message, String messageType,
+                               boolean cancelled, String cancelReason, String server) {
+        plugin.logDebug("[ChatLog] Logging message from " + playerName + ": " + message.substring(0, Math.min(50, message.length())) + "...");
+        executeAsync("""
+            INSERT INTO moderex_chat_logs (player_uuid, player_name, message, message_type, cancelled, cancel_reason, sent_at, server)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            """, playerUuid, playerName, message, messageType, cancelled, cancelReason, System.currentTimeMillis(), server);
+    }
+
+    /**
+     * Get chat logs for a player.
+     */
+    public List<JsonObject> getChatLogs(String playerUuid, int limit, int offset) throws SQLException {
+        plugin.logDebug("[ChatLog] Fetching chat logs for player " + playerUuid + " (limit=" + limit + ", offset=" + offset + ")");
+        return query("""
+            SELECT * FROM moderex_chat_logs
+            WHERE player_uuid = ?
+            ORDER BY sent_at DESC
+            LIMIT ? OFFSET ?
+            """, rs -> {
+            List<JsonObject> logs = new java.util.ArrayList<>();
+            while (rs.next()) {
+                JsonObject log = new JsonObject();
+                log.addProperty("id", rs.getLong("id"));
+                log.addProperty("playerUuid", rs.getString("player_uuid"));
+                log.addProperty("playerName", rs.getString("player_name"));
+                log.addProperty("message", rs.getString("message"));
+                log.addProperty("messageType", rs.getString("message_type"));
+                log.addProperty("cancelled", rs.getBoolean("cancelled"));
+                log.addProperty("cancelReason", rs.getString("cancel_reason"));
+                log.addProperty("sentAt", rs.getLong("sent_at"));
+                log.addProperty("server", rs.getString("server"));
+                logs.add(log);
+            }
+            plugin.logDebug("[ChatLog] Found " + logs.size() + " chat logs");
+            return logs;
+        }, playerUuid, limit, offset);
+    }
+
+    /**
+     * Get all chat logs with pagination.
+     */
+    public List<JsonObject> getAllChatLogs(int limit, int offset) throws SQLException {
+        plugin.logDebug("[ChatLog] Fetching all chat logs (limit=" + limit + ", offset=" + offset + ")");
+        return query("""
+            SELECT * FROM moderex_chat_logs
+            ORDER BY sent_at DESC
+            LIMIT ? OFFSET ?
+            """, rs -> {
+            List<JsonObject> logs = new java.util.ArrayList<>();
+            while (rs.next()) {
+                JsonObject log = new JsonObject();
+                log.addProperty("id", rs.getLong("id"));
+                log.addProperty("playerUuid", rs.getString("player_uuid"));
+                log.addProperty("playerName", rs.getString("player_name"));
+                log.addProperty("message", rs.getString("message"));
+                log.addProperty("messageType", rs.getString("message_type"));
+                log.addProperty("cancelled", rs.getBoolean("cancelled"));
+                log.addProperty("cancelReason", rs.getString("cancel_reason"));
+                log.addProperty("sentAt", rs.getLong("sent_at"));
+                log.addProperty("server", rs.getString("server"));
+                logs.add(log);
+            }
+            plugin.logDebug("[ChatLog] Found " + logs.size() + " chat logs");
+            return logs;
+        }, limit, offset);
+    }
+
+    /**
+     * Get chat log count for a player.
+     */
+    public int getChatLogCount(String playerUuid) throws SQLException {
+        return query("SELECT COUNT(*) FROM moderex_chat_logs WHERE player_uuid = ?", rs -> {
+            rs.next();
+            return rs.getInt(1);
+        }, playerUuid);
+    }
+
+    /**
+     * Get total chat log count.
+     */
+    public int getTotalChatLogCount() throws SQLException {
+        return query("SELECT COUNT(*) FROM moderex_chat_logs", rs -> {
+            rs.next();
+            return rs.getInt(1);
+        });
+    }
+
+    // ==================== CHANGELOG VIEWS ====================
+
+    /**
+     * Get the last seen changelog version for a player.
+     */
+    public int getLastSeenChangelogBuild(String playerUuid) throws SQLException {
+        return query("SELECT last_seen_build FROM moderex_changelog_views WHERE player_uuid = ?", rs -> {
+            if (rs.next()) {
+                return rs.getInt("last_seen_build");
+            }
+            return 0;
+        }, playerUuid);
+    }
+
+    /**
+     * Mark changelog as seen for a player.
+     */
+    public void markChangelogSeen(String playerUuid, String version, int buildNumber) {
+        String sql = isMySQL ?
+            "INSERT INTO moderex_changelog_views (player_uuid, last_seen_version, last_seen_build, viewed_at) VALUES (?, ?, ?, ?) ON DUPLICATE KEY UPDATE last_seen_version = VALUES(last_seen_version), last_seen_build = VALUES(last_seen_build), viewed_at = VALUES(viewed_at)" :
+            "INSERT OR REPLACE INTO moderex_changelog_views (player_uuid, last_seen_version, last_seen_build, viewed_at) VALUES (?, ?, ?, ?)";
+        executeAsync(sql, playerUuid, version, buildNumber, System.currentTimeMillis());
     }
 
     public void executeAsync(String sql, Object... params) {

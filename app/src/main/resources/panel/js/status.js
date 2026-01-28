@@ -91,7 +91,7 @@
     updateLagMachines(data.lagMachines);
 
     // Update Database Size
-    updateDatabaseSize(data.databaseSize, data.databaseMaxSize);
+    updateDatabaseSize(data.databaseSize, data.databaseMaxSize, data.databaseSizeBytes, data.databaseMaxSizeBytes);
 
     // Update TPS Graph
     addTpsDataPoint(data.tps);
@@ -188,22 +188,33 @@
     }
   }
 
-  // Database size limit constants (in MB)
-  const DB_SIZE_LIMIT = 10; // 10MB limit for free tier
+  // Database size limit constants
+  const DB_SIZE_LIMIT_BYTES = 10 * 1024 * 1024; // 10MB limit for free tier
   const DB_SIZE_WARN_THRESHOLD = 0.8; // Warn at 80%
   let dbSizeAlertShown = false;
 
-  function updateDatabaseSize(sizeMb, maxSizeMb) {
+  // Format bytes to human readable (KB until 1MB, then MB)
+  function formatDatabaseSize(bytes) {
+    if (bytes < 1024) {
+      return bytes + ' B';
+    } else if (bytes < 1024 * 1024) {
+      return (bytes / 1024).toFixed(2) + ' KB';
+    } else {
+      return (bytes / (1024 * 1024)).toFixed(2) + ' MB';
+    }
+  }
+
+  function updateDatabaseSize(sizeMb, maxSizeMb, sizeBytes, maxSizeBytes) {
     const sizeEl = document.getElementById('statusDbSize');
     const barEl = document.getElementById('statusDbBar');
 
-    // Use provided max or default to DB_SIZE_LIMIT
-    const maxSize = maxSizeMb || DB_SIZE_LIMIT;
-    const size = sizeMb || 0;
-    const percent = Math.min(100, (size / maxSize) * 100);
+    // Use bytes if available, otherwise fall back to MB
+    const bytes = sizeBytes || (sizeMb ? sizeMb * 1024 * 1024 : 0);
+    const maxBytes = maxSizeBytes || (maxSizeMb ? maxSizeMb * 1024 * 1024 : DB_SIZE_LIMIT_BYTES);
+    const percent = Math.min(100, (bytes / maxBytes) * 100);
 
     if (sizeEl) {
-      sizeEl.textContent = `${size.toFixed(2)} MB`;
+      sizeEl.textContent = formatDatabaseSize(bytes);
 
       // Color based on usage
       if (percent >= 90) {
@@ -231,7 +242,8 @@
     // Show low storage alert once when crossing threshold
     if (percent >= DB_SIZE_WARN_THRESHOLD * 100 && !dbSizeAlertShown && window.toast) {
       dbSizeAlertShown = true;
-      window.toast('warn', 'Low Storage', `Database is at ${percent.toFixed(0)}% capacity (${size.toFixed(1)}/${maxSize}MB).`);
+      const maxMb = (maxBytes / (1024 * 1024)).toFixed(0);
+      window.toast('warn', 'Low Storage', `Database is at ${percent.toFixed(0)}% capacity (${formatDatabaseSize(bytes)}/${maxMb}MB).`);
     } else if (percent < DB_SIZE_WARN_THRESHOLD * 100) {
       dbSizeAlertShown = false;
     }

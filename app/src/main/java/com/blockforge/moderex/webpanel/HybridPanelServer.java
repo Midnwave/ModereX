@@ -1296,6 +1296,28 @@ public class HybridPanelServer {
             data.addProperty("sessionId", sessionId);
         }
 
+        // Add rank information from LuckPerms
+        JsonObject rankData = new JsonObject();
+        var luckPermsHook = plugin.getHookManager() != null ? plugin.getHookManager().getLuckPermsHook() : null;
+        if (luckPermsHook != null) {
+            String groupName = luckPermsHook.getPrimaryGroup(uuid);
+            rankData.addProperty("name", groupName != null && !groupName.isEmpty() ? groupName : "default");
+            rankData.addProperty("weight", luckPermsHook.getGroupWeight(groupName != null ? groupName : "default"));
+            rankData.addProperty("prefix", prefix != null ? prefix : "");
+
+            // Get rank color from config
+            var rankColors = plugin.getConfigManager().getSettings().getRankColors();
+            String color = rankColors.getOrDefault(groupName != null ? groupName.toLowerCase() : "default",
+                    rankColors.getOrDefault("default", "#8b5cf6"));
+            rankData.addProperty("color", color);
+        } else {
+            rankData.addProperty("name", "Member");
+            rankData.addProperty("weight", 0);
+            rankData.addProperty("prefix", "");
+            rankData.addProperty("color", "#8b5cf6");
+        }
+        data.add("rank", rankData);
+
         data.add("settings", settings.toJson());
 
         response.add("data", data);
@@ -1327,6 +1349,7 @@ public class HybridPanelServer {
             case "GET_PLAYER_DETAILS" -> sendPlayerDetails(conn, data);
             case "GET_PUNISHMENTS" -> sendPunishments(conn, data);
             case "GET_COMMAND_HISTORY" -> sendCommandHistory(conn, data);
+            case "GET_CHAT_LOGS" -> sendChatLogs(conn, data);
             case "GET_AUTOMOD_LOGS" -> sendAutomodLogs(conn, data);
             case "GET_AUTOMOD_RULES" -> sendAutomodRules(conn);
             case "UPDATE_AUTOMOD_RULE" -> updateAutomodRule(conn, data, session);
@@ -1674,6 +1697,58 @@ public class HybridPanelServer {
             } catch (Exception e) {
                 plugin.getLogger().warning("Failed to fetch command history: " + e.getMessage());
                 sendError(conn, "DATABASE_ERROR", "Failed to fetch command history");
+            }
+        });
+    }
+
+    private void sendChatLogs(WebSocketConnection conn, JsonObject filters) {
+        plugin.logDebug("[WebPanel] Received GET_CHAT_LOGS request");
+        String uuidStr = filters.has("uuid") ? filters.get("uuid").getAsString() : "";
+        int page = filters.has("page") ? filters.get("page").getAsInt() : 1;
+        int limit = filters.has("limit") ? filters.get("limit").getAsInt() : 50;
+        String search = filters.has("search") ? filters.get("search").getAsString() : "";
+
+        plugin.getServer().getScheduler().runTaskAsynchronously(plugin, () -> {
+            try {
+                int offset = (page - 1) * limit;
+                List<JsonObject> logs;
+                int total;
+
+                if (uuidStr.isEmpty()) {
+                    // Get all chat logs
+                    plugin.logDebug("[WebPanel] Fetching all chat logs (page=" + page + ", limit=" + limit + ")");
+                    logs = plugin.getDatabaseManager().getAllChatLogs(limit, offset);
+                    total = plugin.getDatabaseManager().getTotalChatLogCount();
+                } else {
+                    // Get chat logs for specific player
+                    plugin.logDebug("[WebPanel] Fetching chat logs for player " + uuidStr);
+                    logs = plugin.getDatabaseManager().getChatLogs(uuidStr, limit, offset);
+                    total = plugin.getDatabaseManager().getChatLogCount(uuidStr);
+                }
+
+                JsonObject response = new JsonObject();
+                response.addProperty("type", "CHAT_LOGS_DATA");
+
+                JsonObject data = new JsonObject();
+                JsonArray logsArray = new JsonArray();
+                for (JsonObject log : logs) {
+                    logsArray.add(log);
+                }
+                data.add("logs", logsArray);
+                data.addProperty("page", page);
+                data.addProperty("limit", limit);
+                data.addProperty("total", total);
+                data.addProperty("totalPages", (int) Math.ceil((double) total / limit));
+                if (!uuidStr.isEmpty()) {
+                    data.addProperty("uuid", uuidStr);
+                }
+
+                response.add("data", data);
+                conn.send(GSON.toJson(response));
+                plugin.logDebug("[WebPanel] Sent CHAT_LOGS_DATA with " + logs.size() + " logs");
+            } catch (Exception e) {
+                plugin.getLogger().warning("Failed to fetch chat logs: " + e.getMessage());
+                sendError(conn, "DATABASE_ERROR", "Failed to fetch chat logs");
             }
         });
     }
@@ -4918,6 +4993,7 @@ public class HybridPanelServer {
             case "GET_PLAYER_DETAILS" -> sendPlayerDetails(wrapper, data);
             case "GET_PUNISHMENTS" -> sendPunishments(wrapper, data);
             case "GET_COMMAND_HISTORY" -> sendCommandHistory(wrapper, data);
+            case "GET_CHAT_LOGS" -> sendChatLogs(wrapper, data);
             case "GET_AUTOMOD_LOGS" -> sendAutomodLogs(wrapper, data);
             case "GET_AUTOMOD_RULES" -> sendAutomodRules(wrapper);
             case "GET_USER_SETTINGS" -> sendUserSettingsForSamePort(wrapper, session);

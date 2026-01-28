@@ -301,10 +301,12 @@ public class ServerStatusManager {
         status.addProperty("javaVersion", System.getProperty("java.version"));
         status.addProperty("availableProcessors", runtime.availableProcessors());
 
-        // Database size
-        double dbSizeMb = plugin.getDatabaseManager().getDatabaseSizeMb();
-        status.addProperty("databaseSize", Math.round(dbSizeMb * 100) / 100.0);
+        // Database size (in bytes for frontend formatting)
+        long dbSizeBytes = plugin.getDatabaseManager().getDatabaseSizeBytes();
+        status.addProperty("databaseSizeBytes", dbSizeBytes);
+        status.addProperty("databaseSize", Math.round(dbSizeBytes / (1024.0 * 1024.0) * 100) / 100.0); // MB for backwards compat
         status.addProperty("databaseMaxSize", 10.0); // 10MB limit for free tier
+        status.addProperty("databaseMaxSizeBytes", 10L * 1024L * 1024L); // 10MB in bytes
 
         // Player ping statistics
         var onlinePlayers = Bukkit.getOnlinePlayers();

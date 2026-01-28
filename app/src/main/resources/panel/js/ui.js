@@ -1552,7 +1552,8 @@
 
     if (user.rank && rankContainer) {
       rankContainer.style.display = 'block';
-      if (rankName) rankName.textContent = user.rank.name || 'Member';
+      // Display rank name in ALL CAPS
+      if (rankName) rankName.textContent = (user.rank.name || 'Member').toUpperCase();
       if (rankTooltipRank) rankTooltipRank.textContent = user.rank.name || 'Member';
       if (rankTooltipWeight) rankTooltipWeight.textContent = user.rank.weight || '0';
       if (rankTooltipPrefix) rankTooltipPrefix.textContent = user.rank.prefix || 'None';

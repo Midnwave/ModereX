@@ -136,8 +136,22 @@ public class SamePortPanelHandler implements HttpRequestHandler {
 
     private void handlePluginVersionRequest(ChannelHandlerContext ctx) {
         JsonObject version = new JsonObject();
-        version.addProperty("version", plugin.getDescription().getVersion());
+        String versionStr = plugin.getDescription().getVersion();
+        version.addProperty("version", versionStr);
         version.addProperty("name", plugin.getDescription().getName());
+
+        // Extract build number from version string (format: X.Ydev-BUILD or X.Y-BUILD)
+        int buildNumber = 0;
+        if (versionStr.contains("-")) {
+            String[] parts = versionStr.split("-");
+            if (parts.length > 1) {
+                try {
+                    buildNumber = Integer.parseInt(parts[parts.length - 1]);
+                } catch (NumberFormatException ignored) {}
+            }
+        }
+        version.addProperty("buildNumber", buildNumber);
+
         sendJson(ctx, 200, GSON.toJson(version));
     }
 

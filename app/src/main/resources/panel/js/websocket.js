@@ -170,6 +170,9 @@
         return;
       }
 
+      // Show loading line for data requests
+      if (window.showLoadingLine) window.showLoadingLine();
+
       const requestId = ++requestIdCounter;
       const expectedResponse = responseType || `${type}_RESPONSE`;
 
@@ -178,12 +181,19 @@
 
       const timeoutId = setTimeout(() => {
         pendingRequests.delete(requestId);
+        if (window.hideLoadingLine) window.hideLoadingLine();
         reject(new Error(`Request timeout: ${type}`));
       }, timeout);
 
       pendingRequests.set(requestId, {
-        resolve,
-        reject,
+        resolve: (result) => {
+          if (window.hideLoadingLine) window.hideLoadingLine();
+          resolve(result);
+        },
+        reject: (error) => {
+          if (window.hideLoadingLine) window.hideLoadingLine();
+          reject(error);
+        },
         timeout: timeoutId,
         expectedType: expectedResponse
       });
@@ -202,7 +212,20 @@
    */
   function queueOperation(type, data = {}) {
     return new Promise((resolve, reject) => {
-      requestQueue.push({ type, data, resolve, reject });
+      // Show loading line for queued operations
+      if (window.showLoadingLine) window.showLoadingLine();
+      requestQueue.push({
+        type,
+        data,
+        resolve: (result) => {
+          if (window.hideLoadingLine) window.hideLoadingLine();
+          resolve(result);
+        },
+        reject: (error) => {
+          if (window.hideLoadingLine) window.hideLoadingLine();
+          reject(error);
+        }
+      });
       processQueue();
     });
   }
