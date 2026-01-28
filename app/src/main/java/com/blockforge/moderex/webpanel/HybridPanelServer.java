@@ -5396,7 +5396,7 @@ public class HybridPanelServer {
 
                     plugin.getDatabaseManager().update("""
                         INSERT INTO moderex_punishments
-                        (case_id, target_uuid, target_name, staff_uuid, staff_name, type, reason, duration, created_at, expires_at, active, revoked)
+                        (case_id, player_uuid, player_name, staff_uuid, staff_name, type, reason, duration, created_at, expires_at, active, revoked)
                         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                         """,
                         "ST-" + System.currentTimeMillis() + "-" + i,
@@ -5449,7 +5449,7 @@ public class HybridPanelServer {
 
                 // Delete stress test punishments
                 plugin.getDatabaseManager().update(
-                    "DELETE FROM moderex_punishments WHERE case_id LIKE 'ST-%' OR target_name LIKE 'StressTarget_%'"
+                    "DELETE FROM moderex_punishments WHERE case_id LIKE 'ST-%' OR player_name LIKE 'StressTarget_%'"
                 );
                 sendStressProgress(conn, "cleanup", 2, 3);
 
