@@ -301,6 +301,11 @@ public class ServerStatusManager {
         status.addProperty("javaVersion", System.getProperty("java.version"));
         status.addProperty("availableProcessors", runtime.availableProcessors());
 
+        // Database size
+        double dbSizeMb = plugin.getDatabaseManager().getDatabaseSizeMb();
+        status.addProperty("databaseSize", Math.round(dbSizeMb * 100) / 100.0);
+        status.addProperty("databaseMaxSize", 10.0); // 10MB limit for free tier
+
         // Player ping statistics
         var onlinePlayers = Bukkit.getOnlinePlayers();
         if (!onlinePlayers.isEmpty()) {

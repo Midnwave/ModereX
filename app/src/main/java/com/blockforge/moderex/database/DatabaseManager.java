@@ -367,6 +367,41 @@ public class DatabaseManager {
         return dataSource.getConnection();
     }
 
+    /**
+     * Get the database file size in megabytes.
+     * For SQLite, this returns the actual file size.
+     * For MySQL, this returns an estimate based on table sizes.
+     */
+    public double getDatabaseSizeMb() {
+        if (isMySQL) {
+            // For MySQL, query the information_schema
+            try (Connection conn = getConnection();
+                 PreparedStatement stmt = conn.prepareStatement(
+                     "SELECT SUM(data_length + index_length) / 1024 / 1024 AS size_mb " +
+                     "FROM information_schema.tables WHERE table_schema = DATABASE() AND table_name LIKE 'moderex_%'")) {
+                try (ResultSet rs = stmt.executeQuery()) {
+                    if (rs.next()) {
+                        return rs.getDouble("size_mb");
+                    }
+                }
+            } catch (SQLException e) {
+                plugin.logDebug("Failed to get MySQL database size: " + e.getMessage());
+            }
+            return 0.0;
+        } else {
+            // For SQLite, get the file size directly
+            File dbFile = new File(plugin.getDataFolder(), "database.db");
+            if (dbFile.exists()) {
+                return dbFile.length() / (1024.0 * 1024.0);
+            }
+            return 0.0;
+        }
+    }
+
+    public boolean isMySQL() {
+        return isMySQL;
+    }
+
     public String generateCaseId() {
         java.util.Random random = new java.util.Random();
         int maxAttempts = 100;

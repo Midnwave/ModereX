@@ -90,6 +90,9 @@
     // Update Lag Machines
     updateLagMachines(data.lagMachines);
 
+    // Update Database Size
+    updateDatabaseSize(data.databaseSize, data.databaseMaxSize);
+
     // Update TPS Graph
     addTpsDataPoint(data.tps);
     drawTpsGraph();
@@ -165,6 +168,55 @@
       } else if (usage >= 70) {
         barEl.classList.add('warn');
       }
+    }
+  }
+
+  // Database size limit constants (in MB)
+  const DB_SIZE_LIMIT = 10; // 10MB limit for free tier
+  const DB_SIZE_WARN_THRESHOLD = 0.8; // Warn at 80%
+  let dbSizeAlertShown = false;
+
+  function updateDatabaseSize(sizeMb, maxSizeMb) {
+    const sizeEl = document.getElementById('statusDbSize');
+    const barEl = document.getElementById('statusDbBar');
+
+    // Use provided max or default to DB_SIZE_LIMIT
+    const maxSize = maxSizeMb || DB_SIZE_LIMIT;
+    const size = sizeMb || 0;
+    const percent = Math.min(100, (size / maxSize) * 100);
+
+    if (sizeEl) {
+      sizeEl.textContent = `${size.toFixed(2)} MB`;
+
+      // Color based on usage
+      if (percent >= 90) {
+        sizeEl.style.color = 'var(--bad)';
+      } else if (percent >= 70) {
+        sizeEl.style.color = 'var(--warn)';
+      } else {
+        sizeEl.style.color = '';
+      }
+    }
+
+    if (barEl) {
+      barEl.style.width = `${percent}%`;
+
+      // Color the bar based on usage
+      if (percent >= 90) {
+        barEl.style.background = 'linear-gradient(90deg, #f87171, #ef4444)';
+      } else if (percent >= 70) {
+        barEl.style.background = 'linear-gradient(90deg, #fbbf24, #f59e0b)';
+      } else {
+        barEl.style.background = 'linear-gradient(90deg, #a78bfa, #8b5cf6)';
+      }
+    }
+
+    // Show low storage alert once when crossing threshold
+    if (percent >= DB_SIZE_WARN_THRESHOLD * 100 && !dbSizeAlertShown && window.toast) {
+      dbSizeAlertShown = true;
+      window.toast('warn', 'Low Storage', `Database is at ${percent.toFixed(0)}% capacity (${size.toFixed(1)}/${maxSize}MB).`);
+    } else if (percent < DB_SIZE_WARN_THRESHOLD * 100) {
+      dbSizeAlertShown = false;
     }
   }
 
