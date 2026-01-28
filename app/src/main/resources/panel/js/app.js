@@ -232,28 +232,20 @@
     return text.length > maxLen ? text.substring(0, maxLen) + '...' : text;
   }
 
-  // Create expandable reason HTML - click to show full text
-  window.expandableReason = function(text, maxLen = 20) {
+  // Create truncated reason HTML - no click interaction, just displays truncated text with tooltip
+  window.expandableReason = function(text, maxLen = 15) {
     if (!text) return '<span class="reason-text">No reason</span>';
     text = String(text);
     if (text.length <= maxLen) {
       return `<span class="reason-text">${escapeHtml(text)}</span>`;
     }
     const truncated = text.substring(0, maxLen);
-    const id = 'reason-' + Math.random().toString(36).substr(2, 9);
-    return `<span class="reason-text" id="${id}" onclick="toggleReason('${id}')" data-full="${escapeHtml(text)}" data-short="${escapeHtml(truncated)}...">${escapeHtml(truncated)}...<span class="expand-hint">(click)</span></span>`;
+    // Show truncated with ellipsis, use title attribute for full text on hover
+    return `<span class="reason-text" title="${escapeHtml(text)}">${escapeHtml(truncated)}...</span>`;
   };
 
-  window.toggleReason = function(id) {
-    const el = document.getElementById(id);
-    if (!el) return;
-    el.classList.toggle('expanded');
-    if (el.classList.contains('expanded')) {
-      el.innerHTML = escapeHtml(el.dataset.full);
-    } else {
-      el.innerHTML = escapeHtml(el.dataset.short) + '<span class="expand-hint">(click)</span>';
-    }
-  };
+  // Keep toggleReason for backwards compatibility but it's no longer used
+  window.toggleReason = function(id) {};
 
   // ===== CHARACTER COUNT =====
   window.updateCharCount = function(textarea, counterId, maxLen) {
@@ -266,6 +258,8 @@
   };
 
   // ===== TOASTS =====
+  const MAX_TOASTS = 5;
+
   window.toast = function(type, title, message, options = {}) {
     const ttl = options.ttl || 5000;
     const iconMap = { ok: 'fa-check', warn: 'fa-triangle-exclamation', bad: 'fa-xmark', info: 'fa-circle-info' };
@@ -290,6 +284,17 @@
       console.warn('[Toast] Toast container not found, skipping toast:', title);
       return;
     }
+
+    // Enforce max toast limit - remove oldest if at capacity
+    const existingToasts = container.querySelectorAll('.toast:not(.exit)');
+    if (existingToasts.length >= MAX_TOASTS) {
+      const oldest = existingToasts[0];
+      if (oldest) {
+        oldest.classList.add('exit');
+        setTimeout(() => oldest.remove(), 200);
+      }
+    }
+
     container.appendChild(el);
     setTimeout(dismiss, ttl);
 
@@ -1115,6 +1120,7 @@
     if (!p) return;
     if (genericModalEl) genericModalEl.remove();
 
+    const ws = window.MX?.ws;
     let currentPage = 1;
     let totalPages = 1;
     let totalCount = 0;
@@ -1162,7 +1168,7 @@
       currentPage = page;
       listEl.innerHTML = '<div class="drawer-row"><div class="meta"><small>Loading...</small></div></div>';
 
-      wsSend({ type: 'GET_COMMAND_HISTORY', data: { uuid: p.id, page, limit: 50, search } });
+      if (ws) ws.send(JSON.stringify({ type: 'GET_COMMAND_HISTORY', data: { uuid: p.id, page, limit: 50, search } }));
     };
 
     const renderCommands = (data) => {
@@ -1313,6 +1319,7 @@
     if (!p) return;
     if (genericModalEl) genericModalEl.remove();
 
+    const ws = window.MX?.ws;
     let currentPage = 1;
     let totalPages = 1;
     let totalCount = 0;
@@ -1360,7 +1367,7 @@
       currentPage = page;
       listEl.innerHTML = '<div class="drawer-row"><div class="meta"><small>Loading...</small></div></div>';
 
-      wsSend({ type: 'GET_AUTOMOD_LOGS', data: { uuid: p.id, page, limit: 50, search } });
+      if (ws) ws.send(JSON.stringify({ type: 'GET_AUTOMOD_LOGS', data: { uuid: p.id, page, limit: 50, search } }));
     };
 
     const renderLogs = (data) => {
