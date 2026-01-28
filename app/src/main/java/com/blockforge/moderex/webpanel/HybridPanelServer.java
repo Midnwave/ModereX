@@ -2243,11 +2243,21 @@ public class HybridPanelServer {
         broadcast.add("data", data);
         String message = GSON.toJson(broadcast);
 
+        // Broadcast to regular WebSocket connections
         for (WebSocketConnection conn : sessions.keySet()) {
             try {
                 conn.send(message);
             } catch (Exception e) {
                 plugin.logDebug("Failed to broadcast automod rules to connection: " + e.getMessage());
+            }
+        }
+
+        // Also broadcast to same-port (Netty) connections
+        for (var entry : samePortConnections.entrySet()) {
+            try {
+                entry.getValue().send(message);
+            } catch (Exception e) {
+                plugin.logDebug("Failed to broadcast automod rules to same-port connection: " + e.getMessage());
             }
         }
     }
