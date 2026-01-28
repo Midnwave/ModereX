@@ -5237,18 +5237,20 @@ public class HybridPanelServer {
 
     private volatile boolean stressTestRunning = false;
     private volatile boolean stressTestCancelled = false;
+    private volatile long stressTestStartTime = 0;
 
     private void handleDevStressCreatePlayers(WebSocketConnection conn, JsonObject data) {
         int count = data.has("count") ? data.get("count").getAsInt() : 100;
         count = Math.min(count, 10000); // Cap at 10k
 
         if (stressTestRunning) {
-            sendStressError(conn, "A stress test is already running");
+            sendStressError(conn, "players", "A stress test is already running");
             return;
         }
 
         stressTestRunning = true;
         stressTestCancelled = false;
+        stressTestStartTime = System.currentTimeMillis();
         final int playerCount = count;
 
         plugin.getServer().getScheduler().runTaskAsynchronously(plugin, () -> {
@@ -5268,18 +5270,19 @@ public class HybridPanelServer {
 
                     // Send progress every 10 players
                     if (i % 10 == 0 || i == playerCount - 1) {
-                        sendStressProgress(conn, "Creating players", i + 1, playerCount);
+                        sendStressProgress(conn, "players", i + 1, playerCount);
                     }
                 }
 
+                long duration = System.currentTimeMillis() - stressTestStartTime;
                 if (stressTestCancelled) {
-                    sendStressComplete(conn, "Player creation cancelled", 0);
+                    sendStressComplete(conn, "players", 0, duration, "Player creation cancelled");
                 } else {
-                    sendStressComplete(conn, "Created " + playerCount + " test players", playerCount);
+                    sendStressComplete(conn, "players", playerCount, duration, "Created " + playerCount + " test players");
                 }
             } catch (Exception e) {
                 plugin.logError("Stress test failed", e);
-                sendStressError(conn, "Failed: " + e.getMessage());
+                sendStressError(conn, "players", "Failed: " + e.getMessage());
             } finally {
                 stressTestRunning = false;
             }
@@ -5291,12 +5294,13 @@ public class HybridPanelServer {
         count = Math.min(count, 10000);
 
         if (stressTestRunning) {
-            sendStressError(conn, "A stress test is already running");
+            sendStressError(conn, "punishments", "A stress test is already running");
             return;
         }
 
         stressTestRunning = true;
         stressTestCancelled = false;
+        stressTestStartTime = System.currentTimeMillis();
         final int punishmentCount = count;
 
         plugin.getServer().getScheduler().runTaskAsynchronously(plugin, () -> {
@@ -5328,18 +5332,19 @@ public class HybridPanelServer {
                     );
 
                     if (i % 10 == 0 || i == punishmentCount - 1) {
-                        sendStressProgress(conn, "Creating punishments", i + 1, punishmentCount);
+                        sendStressProgress(conn, "punishments", i + 1, punishmentCount);
                     }
                 }
 
+                long duration = System.currentTimeMillis() - stressTestStartTime;
                 if (stressTestCancelled) {
-                    sendStressComplete(conn, "Punishment creation cancelled", 0);
+                    sendStressComplete(conn, "punishments", 0, duration, "Punishment creation cancelled");
                 } else {
-                    sendStressComplete(conn, "Created " + punishmentCount + " test punishments", punishmentCount);
+                    sendStressComplete(conn, "punishments", punishmentCount, duration, "Created " + punishmentCount + " test punishments");
                 }
             } catch (Exception e) {
                 plugin.logError("Stress test failed", e);
-                sendStressError(conn, "Failed: " + e.getMessage());
+                sendStressError(conn, "punishments", "Failed: " + e.getMessage());
             } finally {
                 stressTestRunning = false;
             }
@@ -5348,35 +5353,37 @@ public class HybridPanelServer {
 
     private void handleDevStressCleanup(WebSocketConnection conn) {
         if (stressTestRunning) {
-            sendStressError(conn, "A stress test is running. Stop it first.");
+            sendStressError(conn, "cleanup", "A stress test is running. Stop it first.");
             return;
         }
 
         stressTestRunning = true;
         stressTestCancelled = false;
+        stressTestStartTime = System.currentTimeMillis();
 
         plugin.getServer().getScheduler().runTaskAsynchronously(plugin, () -> {
             try {
-                sendStressProgress(conn, "Cleaning up test data", 0, 3);
+                sendStressProgress(conn, "cleanup", 0, 3);
 
                 // Delete stress test players
                 plugin.getDatabaseManager().update(
                     "DELETE FROM moderex_players WHERE username LIKE 'StressTest_%'"
                 );
-                sendStressProgress(conn, "Cleaning up test data", 1, 3);
+                sendStressProgress(conn, "cleanup", 1, 3);
 
                 // Delete stress test punishments
                 plugin.getDatabaseManager().update(
                     "DELETE FROM moderex_punishments WHERE case_id LIKE 'ST-%' OR target_name LIKE 'StressTarget_%'"
                 );
-                sendStressProgress(conn, "Cleaning up test data", 2, 3);
+                sendStressProgress(conn, "cleanup", 2, 3);
 
-                sendStressProgress(conn, "Cleaning up test data", 3, 3);
+                sendStressProgress(conn, "cleanup", 3, 3);
 
-                sendStressComplete(conn, "Stress test data cleaned up", 0);
+                long duration = System.currentTimeMillis() - stressTestStartTime;
+                sendStressComplete(conn, "cleanup", 0, duration, "Stress test data cleaned up");
             } catch (Exception e) {
                 plugin.logError("Stress cleanup failed", e);
-                sendStressError(conn, "Cleanup failed: " + e.getMessage());
+                sendStressError(conn, "cleanup", "Cleanup failed: " + e.getMessage());
             } finally {
                 stressTestRunning = false;
             }
@@ -5392,32 +5399,36 @@ public class HybridPanelServer {
         }
     }
 
-    private void sendStressProgress(WebSocketConnection conn, String stage, int current, int total) {
+    private void sendStressProgress(WebSocketConnection conn, String testType, int current, int total) {
         JsonObject response = new JsonObject();
         response.addProperty("type", "DEV_STRESS_PROGRESS");
         JsonObject data = new JsonObject();
-        data.addProperty("stage", stage);
+        data.addProperty("testType", testType);
         data.addProperty("current", current);
         data.addProperty("total", total);
-        data.addProperty("percent", total > 0 ? (current * 100 / total) : 0);
         response.add("data", data);
         conn.send(GSON.toJson(response));
     }
 
-    private void sendStressComplete(WebSocketConnection conn, String message, int count) {
+    private void sendStressComplete(WebSocketConnection conn, String testType, int total, long duration, String message) {
         JsonObject response = new JsonObject();
         response.addProperty("type", "DEV_STRESS_COMPLETE");
         JsonObject data = new JsonObject();
+        data.addProperty("testType", testType);
+        data.addProperty("total", total);
+        data.addProperty("duration", duration);
+        data.addProperty("complete", true);
         data.addProperty("message", message);
-        data.addProperty("count", count);
         response.add("data", data);
         conn.send(GSON.toJson(response));
     }
 
-    private void sendStressError(WebSocketConnection conn, String message) {
+    private void sendStressError(WebSocketConnection conn, String testType, String message) {
         JsonObject response = new JsonObject();
         response.addProperty("type", "DEV_STRESS_ERROR");
         JsonObject data = new JsonObject();
+        data.addProperty("testType", testType);
+        data.addProperty("error", true);
         data.addProperty("message", message);
         response.add("data", data);
         conn.send(GSON.toJson(response));
