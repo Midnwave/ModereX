@@ -80,6 +80,7 @@ public final class ModereX extends JavaPlugin {
     private DebugWebhook debugWebhook;
     private WebPanelDebugger webPanelDebugger;
     private com.blockforge.moderex.util.GitHubAutoUpdater githubAutoUpdater;
+    private com.blockforge.moderex.alert.AlertManager alertManager;
 
     // Lockdown state
     private boolean globalLockdown = false;
@@ -188,6 +189,7 @@ public final class ModereX extends JavaPlugin {
         this.disguiseManager = new com.blockforge.moderex.disguise.DisguiseManager(this);
         this.staffModeManager = new com.blockforge.moderex.staff.StaffModeManager(this);
         this.staffSettingsManager = new StaffSettingsManager(this);
+        this.alertManager = new com.blockforge.moderex.alert.AlertManager(this);
 
         logStartup("Initializing GeoIP system...");
         this.geoIPManager = new com.blockforge.moderex.geoip.GeoIPManager(this);
@@ -654,6 +656,10 @@ public final class ModereX extends JavaPlugin {
 
     public StaffSettingsManager getStaffSettingsManager() {
         return staffSettingsManager;
+    }
+
+    public com.blockforge.moderex.alert.AlertManager getAlertManager() {
+        return alertManager;
     }
 
     public com.blockforge.moderex.resourcepack.ResourcePackManager getResourcePackManager() {

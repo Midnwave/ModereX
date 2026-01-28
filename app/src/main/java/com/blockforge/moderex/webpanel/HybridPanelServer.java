@@ -3969,6 +3969,34 @@ public class HybridPanelServer {
         broadcast(GSON.toJson(json));
     }
 
+    /**
+     * Broadcast a custom alert to the web panel.
+     * This respects each user's notification settings based on the category.
+     *
+     * @param category The alert category (anticheat, automod, punishments, watchlist, staffChat)
+     * @param playerName The name of the player causing the alert
+     * @param playerUuid The UUID of the player (can be null for offline players)
+     * @param title The alert title
+     * @param message The alert message
+     */
+    public void broadcastCustomAlert(String category, String playerName, java.util.UUID playerUuid, String title, String message) {
+        JsonObject json = new JsonObject();
+        json.addProperty("type", "CUSTOM_ALERT");
+
+        JsonObject data = new JsonObject();
+        data.addProperty("category", category);
+        data.addProperty("playerName", playerName);
+        if (playerUuid != null) {
+            data.addProperty("playerUuid", playerUuid.toString());
+        }
+        data.addProperty("title", title);
+        data.addProperty("message", message);
+        data.addProperty("timestamp", System.currentTimeMillis());
+
+        json.add("data", data);
+        broadcast(GSON.toJson(json));
+    }
+
     public void broadcastVanishUpdate(String playerName, boolean vanished) {
         JsonObject json = new JsonObject();
         json.addProperty("type", "VANISH_UPDATE");

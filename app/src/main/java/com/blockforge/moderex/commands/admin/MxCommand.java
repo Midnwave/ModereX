@@ -680,46 +680,57 @@ public class MxCommand extends BaseCommand {
         }
 
         if (args.length < 3) {
-            sendMessage(sender, "<red>Usage: /mx sendalert <player> <anticheat> <check> [vl]");
-            String examplePlayer = Bukkit.getOnlinePlayers().isEmpty() ? "PlayerName" :
-                    Bukkit.getOnlinePlayers().iterator().next().getName();
-            sendMessage(sender, "<gray>Example: /mx sendalert " + examplePlayer + " Grim KillAura 25");
+            sendMessage(sender, "<red>Usage: /mx sendalert <player> <type> <message...>");
+            sendMessage(sender, "<gray>Types: anticheat, automod, punishment, watchlist, staffchat, custom");
+            sendMessage(sender, "<gray>Example: /mx sendalert Steve anticheat Flagged for KillAura VL 25");
+            sendMessage(sender, "<gray>Example: /mx sendalert OfflinePlayer punishment Banned for hacking");
+            sendMessage(sender, "<yellow>Note: Works for offline players too!");
             return;
         }
 
-        Player target = Bukkit.getPlayer(args[0]);
+        String playerName = args[0];
+        String typeStr = args[1].toLowerCase();
+        String message = String.join(" ", java.util.Arrays.copyOfRange(args, 2, args.length));
 
-        if (target == null) {
-            if (sender instanceof Player p && (args[0].equalsIgnoreCase("CONSOLE") || args[0].equalsIgnoreCase(sender.getName()))) {
-                target = p;
-            } else {
-                String online = Bukkit.getOnlinePlayers().isEmpty() ? "No players online" :
-                        String.join(", ", Bukkit.getOnlinePlayers().stream().limit(5).map(Player::getName).toList());
-                sendMessage(sender, "<red>Player not found: " + args[0]);
-                sendMessage(sender, "<gray>Online players: " + online);
-                return;
+        // Parse alert type
+        com.blockforge.moderex.alert.AlertManager.AlertType alertType =
+                com.blockforge.moderex.alert.AlertManager.AlertType.fromString(typeStr);
+
+        // Try to find player UUID (works for offline players too)
+        java.util.UUID playerUuid = null;
+        Player onlinePlayer = Bukkit.getPlayer(playerName);
+        if (onlinePlayer != null) {
+            playerUuid = onlinePlayer.getUniqueId();
+            playerName = onlinePlayer.getName(); // Use correct case
+        } else {
+            // Try offline player lookup
+            @SuppressWarnings("deprecation")
+            org.bukkit.OfflinePlayer offline = Bukkit.getOfflinePlayer(playerName);
+            if (offline.hasPlayedBefore()) {
+                playerUuid = offline.getUniqueId();
+                if (offline.getName() != null) {
+                    playerName = offline.getName();
+                }
             }
         }
 
-        String anticheat = args[1];
-        String checkName = args[2];
-        int vl = 10;
+        // Generate title based on type
+        String title = switch (alertType) {
+            case ANTICHEAT -> "Anticheat Alert";
+            case AUTOMOD -> "Automod Violation";
+            case PUNISHMENT -> "Punishment Alert";
+            case WATCHLIST -> "Watchlist Alert";
+            case STAFFCHAT -> "Staff Notice";
+            case CUSTOM -> "Alert";
+        };
 
-        if (args.length >= 4) {
-            try {
-                vl = Integer.parseInt(args[3]);
-            } catch (NumberFormatException e) {
-                sendMessage(sender, "<red>Invalid VL number: " + args[3]);
-                return;
-            }
-        }
+        // Send the alert using the unified AlertManager
+        plugin.getAlertManager().sendAlert(playerName, playerUuid, alertType, title, message);
 
-        sendMessage(sender, "<yellow>Sending test alert: " + target.getName() + " flagged " +
-                anticheat + ":" + checkName + " x" + vl);
-
-        plugin.getAnticheatManager().notifyStaff(target, anticheat, checkName, vl);
-
-        sendMessage(sender, "<green>Test alert sent! Checks console for debug info if debug mode is enabled.");
+        sendMessage(sender, "<green>Alert sent!");
+        sendMessage(sender, "<gray>Type: " + alertType.getDisplayName());
+        sendMessage(sender, "<gray>Player: " + playerName + (playerUuid != null ? " (UUID found)" : " (offline/unknown)"));
+        sendMessage(sender, "<gray>Message: " + message);
     }
 
     private void handleChat(CommandSender sender, String[] args) {
@@ -1388,19 +1399,8 @@ public class MxCommand extends BaseCommand {
         if (args.length == 3) {
             String sub = args[0].toLowerCase();
             if (sub.equals("sendalert")) {
-                // Show enabled anticheats first, then all supported ones
-                List<String> anticheats = new java.util.ArrayList<>();
-                if (plugin.getAnticheatManager() != null) {
-                    anticheats.addAll(plugin.getAnticheatManager().getEnabledAnticheats());
-                }
-                // Add all supported anticheats as fallback suggestions
-                for (String ac : AnticheatChecks.getSupportedAnticheats()) {
-                    String properName = ac.substring(0, 1).toUpperCase() + ac.substring(1);
-                    if (!anticheats.contains(properName) && !anticheats.stream().anyMatch(a -> a.equalsIgnoreCase(properName))) {
-                        anticheats.add(properName);
-                    }
-                }
-                return filterCompletions(anticheats, args[2]);
+                // Show alert types
+                return filterCompletions(Arrays.asList("anticheat", "automod", "punishment", "watchlist", "staffchat", "custom"), args[2]);
             }
             if (sub.equals("ban") || sub.equals("mute") || sub.equals("warn") || sub.equals("ipban")) {
                 return filterCompletions(Arrays.asList("1h", "1d", "7d", "30d", "permanent"), args[2]);
@@ -1429,21 +1429,15 @@ public class MxCommand extends BaseCommand {
         if (args.length == 4) {
             String sub = args[0].toLowerCase();
             if (sub.equals("sendalert")) {
-                String anticheat = args[2];
-                List<String> checkNames = new java.util.ArrayList<>();
-                for (AnticheatChecks.CheckInfo check : AnticheatChecks.getChecks(anticheat)) {
-                    checkNames.add(check.getDisplayName());
-                }
-                if (checkNames.isEmpty()) {
-                    checkNames = Arrays.asList("KillAura", "Reach", "Speed", "Fly", "NoSlow", "Timer", "Velocity", "Scaffold", "FastBreak", "AutoClicker", "Simulation");
-                }
-                return filterCompletions(checkNames, args[3]);
-            }
-        }
-        if (args.length == 5) {
-            String sub = args[0].toLowerCase();
-            if (sub.equals("sendalert")) {
-                return filterCompletions(Arrays.asList("5", "10", "15", "20", "25", "50"), args[4]);
+                // Suggest example messages based on alert type
+                String alertType = args[2].toLowerCase();
+                return switch (alertType) {
+                    case "anticheat" -> filterCompletions(Arrays.asList("Flagged_for_KillAura", "Speed_hack_detected", "Suspicious_movement"), args[3]);
+                    case "automod" -> filterCompletions(Arrays.asList("Sent_blocked_message", "Spam_detected", "Caps_violation"), args[3]);
+                    case "punishment" -> filterCompletions(Arrays.asList("Banned_for_hacking", "Muted_for_spam", "Warned_for_toxicity"), args[3]);
+                    case "watchlist" -> filterCompletions(Arrays.asList("Suspicious_activity", "Previous_offender", "Monitor_closely"), args[3]);
+                    default -> filterCompletions(Arrays.asList("Custom_alert_message"), args[3]);
+                };
             }
         }
 

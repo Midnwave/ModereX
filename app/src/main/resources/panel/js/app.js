@@ -4110,6 +4110,34 @@
       window.MX.sounds?.anticheat();
     });
 
+    // Custom alerts from /mx sendalert command
+    ws.on('CUSTOM_ALERT', (data) => {
+      if (!isLiveMode) return;
+      const player = data.playerUuid ? state.players.find(p => p.uuid === data.playerUuid || p.id === data.playerUuid) : null;
+
+      // Log the event
+      const category = data.category || 'custom';
+      const eventType = category.toUpperCase();
+      logEvent('WARN', category, data.title || 'Alert', `${data.playerName}: ${data.message}`, { playerId: player?.id, kind: category, type: eventType });
+
+      // Show alert using panel notification settings
+      showPanelAlert(category, data.title || 'Alert', `${data.playerName}: ${data.message}`, {
+        playerId: player?.id,
+        playerName: data.playerName,
+        severity: 'warn'
+      });
+
+      // Play sound based on category
+      if (window.MX.sounds) {
+        switch (category) {
+          case 'anticheat': window.MX.sounds.anticheat(); break;
+          case 'punishments': window.MX.sounds.toastWarning(); break;
+          case 'watchlist': window.MX.sounds.toastWarning(); break;
+          default: window.MX.sounds.toastInfo(); break;
+        }
+      }
+    });
+
     ws.on('SERVER_STATUS', (data) => {
       if (!isLiveMode) return;
       const dot = dom().statusDot;
