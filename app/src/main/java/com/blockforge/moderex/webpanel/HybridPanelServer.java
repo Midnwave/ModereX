@@ -68,6 +68,7 @@ public class HybridPanelServer {
 
     private ServerSocket serverSocket;
     private ExecutorService executor;
+    private ExecutorService broadcastExecutor; // Single-threaded executor for broadcasts to prevent thread explosion
     private volatile boolean running = false;
 
     // WebSocket state
@@ -96,6 +97,8 @@ public class HybridPanelServer {
             serverSocket = new ServerSocket(port);
             serverSocket.setReuseAddress(true);
             executor = Executors.newCachedThreadPool();
+            // Single-threaded executor for broadcasts to prevent thread explosion
+            broadcastExecutor = Executors.newSingleThreadExecutor();
             running = true;
 
             executor.submit(this::acceptLoop);
@@ -131,6 +134,10 @@ public class HybridPanelServer {
 
         if (executor != null) {
             executor.shutdownNow();
+        }
+
+        if (broadcastExecutor != null) {
+            broadcastExecutor.shutdownNow();
         }
 
         plugin.getLogger().info("Web panel server stopped");
@@ -4044,17 +4051,25 @@ public class HybridPanelServer {
     }
 
     private void broadcast(String message) {
-        // Run broadcasts async to prevent main thread blocking on slow/dead connections
-        if (executor != null && !executor.isShutdown()) {
-            executor.submit(() -> {
+        // Run broadcasts on dedicated single-thread executor to prevent thread explosion
+        // Using a single thread ensures broadcasts are processed sequentially, avoiding thread buildup
+        if (broadcastExecutor != null && !broadcastExecutor.isShutdown()) {
+            broadcastExecutor.execute(() -> {
                 for (WebSocketConnection conn : connections) {
-                    if (sessions.containsKey(conn)) {
-                        if (!conn.sendAsync(message)) {
-                            // Connection failed - remove it
-                            connections.remove(conn);
-                            sessions.remove(conn);
-                            conn.close();
+                    try {
+                        if (sessions.containsKey(conn)) {
+                            if (!conn.sendAsync(message)) {
+                                // Connection failed - remove it
+                                connections.remove(conn);
+                                sessions.remove(conn);
+                                conn.close();
+                            }
                         }
+                    } catch (Exception e) {
+                        // Handle any errors during send to prevent broadcast thread from dying
+                        connections.remove(conn);
+                        sessions.remove(conn);
+                        try { conn.close(); } catch (Exception ignored) {}
                     }
                 }
             });
@@ -4847,6 +4862,17 @@ public class HybridPanelServer {
             case "GET_TEMPLATES" -> sendTemplates(wrapper);
             case "GET_STATS" -> sendStats(wrapper);
             case "GET_CHAT_STATUS" -> sendChatStatus(wrapper);
+            case "GET_SERVER_STATUS" -> sendServerStatus(wrapper);
+            case "GET_LUCKPERMS_STATUS" -> sendLuckPermsStatus(wrapper);
+            case "GET_GEYSER_STATUS" -> sendGeyserStatus(wrapper);
+            case "GET_MODERATION_PLUGINS" -> sendModerationPlugins(wrapper);
+            case "GET_SERVER_SETTINGS" -> sendServerSettings(wrapper);
+            case "GET_DEV_CHECKLIST" -> sendDevChecklist(wrapper);
+            case "GET_WATCHLIST" -> sendWatchlist(wrapper);
+            case "GET_ANTICHEAT_INFO" -> sendAnticheatInfo(wrapper);
+            case "GET_ANTICHEAT_ALERTS" -> sendAnticheatAlerts(wrapper);
+            case "GET_ANTICHEAT_CHECKS" -> sendAnticheatChecks(wrapper);
+            case "GET_ALERT_PRESETS" -> sendAlertPresets(wrapper);
             case "SEND_STAFFCHAT", "STAFFCHAT_MESSAGE" -> {
                 String msg = data.has("message") ? data.get("message").getAsString() : "";
                 plugin.getStaffChatManager().broadcastFromWebPanel(session.playerName, msg);
