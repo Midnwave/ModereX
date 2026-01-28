@@ -498,7 +498,7 @@
           <td onclick="openDrawer('${pun.playerId}','${pun.id}')"><div class="pwrap"><div class="phead"><img src="${avatarUrl(pl || { name: name })}" alt="" onerror="this.onerror=null;this.src='${avatarFallback}'"></div><div><b style="font-size:13px">${escapeHtml(pl?.name || 'Unknown')}</b></div></div></td>
           <td><span class="badge gray" style="font-family:var(--font-mono);font-size:11px">${escapeHtml(pun.id)}</span></td>
           <td>${typeBadge}</td>
-          <td class="reason-cell">${window.expandableReason ? expandableReason(pun.reason, 20) : escapeHtml(truncate(pun.reason || 'No reason', 20))}</td>
+          <td class="reason-cell">${window.expandableReason ? expandableReason(pun.reason, 15) : escapeHtml(truncate(pun.reason || 'No reason', 15))}</td>
           <td>${escapeHtml(fmtLong(pun.createdAt))}</td>
           <td><span class="badge ${durClass}" title="Time remaining">${escapeHtml(durDisplay)}</span></td>
           <td>${escapeHtml(pun.staff || 'Console')}</td>
@@ -526,7 +526,7 @@
         <td><b>${escapeHtml(t.name)}</b></td>
         <td>${escapeHtml(t.type)}</td>
         <td>${escapeHtml(t.duration || 'instant')}</td>
-        <td class="reason-cell">${window.expandableReason ? expandableReason(t.reason, 20) : escapeHtml(truncate(t.reason || 'No reason', 20))}</td>
+        <td class="reason-cell">${window.expandableReason ? expandableReason(t.reason, 15) : escapeHtml(truncate(t.reason || 'No reason', 15))}</td>
         <td style="text-align:right">
           <button class="mini primary" onclick="editTemplateUI('${t.id}')"><i class="fa-solid fa-pen-to-square"></i> Edit</button>
           <button class="mini bad" onclick="deleteTemplate('${t.id}')"><i class="fa-solid fa-trash"></i></button>
@@ -1011,8 +1011,8 @@
     };
 
     // Mark unsaved and re-render
-    ui.markUnsaved('rules', true);
-    renderRules();
+    window.MX.ui.markUnsaved('rules', true);
+    window.MX.ui.renderAutomod();
     closeAutomodRuleEditor();
 
     window.toast('info', 'Updated', 'Rule updated. Click "Save Changes" to sync.');
