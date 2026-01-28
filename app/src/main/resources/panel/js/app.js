@@ -1168,7 +1168,7 @@
       currentPage = page;
       listEl.innerHTML = '<div class="drawer-row"><div class="meta"><small>Loading...</small></div></div>';
 
-      if (ws) ws.send(JSON.stringify({ type: 'GET_COMMAND_HISTORY', data: { uuid: p.id, page, limit: 50, search } }));
+      if (ws) ws.send('GET_COMMAND_HISTORY', { uuid: p.id, page, limit: 50, search });
     };
 
     const renderCommands = (data) => {
@@ -1212,20 +1212,17 @@
     // Store handler for pagination navigation
     window._cmdPageNav = (page) => fetchCommands(page, searchEl.value.trim());
 
-    // Handle WebSocket response
-    const handleResponse = (event) => {
-      try {
-        const msg = JSON.parse(event.data);
-        if (msg.type === 'COMMAND_HISTORY_DATA' && msg.data && msg.data.uuid === p.id) {
-          renderCommands(msg.data);
-        }
-      } catch (e) {}
+    // Handle WebSocket response - ws.on receives data directly (not event)
+    const handleResponse = (data) => {
+      if (data && data.uuid === p.id) {
+        renderCommands(data);
+      }
     };
 
-    if (ws) ws.addEventListener('message', handleResponse);
+    if (ws) ws.on('COMMAND_HISTORY_DATA', handleResponse);
 
     const closeWithCleanup = () => {
-      if (ws) ws.removeEventListener('message', handleResponse);
+      if (ws) ws.off('COMMAND_HISTORY_DATA', handleResponse);
       delete window._cmdPageNav;
       close();
     };
@@ -1367,7 +1364,7 @@
       currentPage = page;
       listEl.innerHTML = '<div class="drawer-row"><div class="meta"><small>Loading...</small></div></div>';
 
-      if (ws) ws.send(JSON.stringify({ type: 'GET_AUTOMOD_LOGS', data: { uuid: p.id, page, limit: 50, search } }));
+      if (ws) ws.send('GET_AUTOMOD_LOGS', { uuid: p.id, page, limit: 50, search });
     };
 
     const renderLogs = (data) => {
@@ -1414,20 +1411,17 @@
     // Store handler for pagination navigation
     window._autoPageNav = (page) => fetchLogs(page, searchEl.value.trim());
 
-    // Handle WebSocket response
-    const handleResponse = (event) => {
-      try {
-        const msg = JSON.parse(event.data);
-        if (msg.type === 'AUTOMOD_LOGS_DATA' && msg.data) {
-          renderLogs(msg.data);
-        }
-      } catch (e) {}
+    // Handle WebSocket response - ws.on receives data directly (not event)
+    const handleResponse = (data) => {
+      if (data) {
+        renderLogs(data);
+      }
     };
 
-    if (ws) ws.addEventListener('message', handleResponse);
+    if (ws) ws.on('AUTOMOD_LOGS_DATA', handleResponse);
 
     const closeWithCleanup = () => {
-      if (ws) ws.removeEventListener('message', handleResponse);
+      if (ws) ws.off('AUTOMOD_LOGS_DATA', handleResponse);
       delete window._autoPageNav;
       close();
     };
