@@ -14,6 +14,40 @@
 
 window.MX_CHANGELOGS = [
   {
+    build: 170,
+    version: "2.0dev-170",
+    date: "2026-01-29",
+    title: "Permission-Filtered Alerts & OP Bypass",
+    sections: [
+      {
+        type: "fixed",
+        title: "Bug Fixes",
+        items: [
+          "**Permission-Filtered Alerts** - Web panel alerts now respect user permissions (users only see alerts they have permission for)",
+          "**OP Bypass Security** - OPs now properly bypass all permissions except `moderex.webpanel` (protected permission)"
+        ]
+      },
+      {
+        type: "improved",
+        title: "Improvements",
+        items: [
+          "**Changelog Modal** - Now displays ModereX logo instead of generic gift icon",
+          "**Alert Broadcasting** - Backend now checks permissions before sending alerts to each user"
+        ]
+      },
+      {
+        type: "technical",
+        title: "Technical Changes",
+        items: [
+          "Added `PermissionUtil` utility class for centralized permission checking with OP bypass",
+          "Added `broadcastWithPermission()` method for permission-filtered alert broadcasting",
+          "Added `hasAlertPermission()` method to check user permissions by UUID",
+          "Protected permissions (like `moderex.webpanel`) are never bypassed by OP status"
+        ]
+      }
+    ]
+  },
+  {
     build: 169,
     version: "2.0dev-169",
     date: "2026-01-29",
