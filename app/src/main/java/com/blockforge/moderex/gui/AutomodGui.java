@@ -196,26 +196,33 @@ public class AutomodGui extends BaseGui {
             setItem(27, createItem(Material.GRAY_STAINED_GLASS_PANE, " "));
         }
 
-        // Create new rule
-        setItem(35, createItem(Material.LIME_DYE, "<green>+ New Word Filter",
+        // Create new word filter rule
+        setItem(35, createItem(Material.LIME_DYE, "<green>+ Word Filter",
                 "<gray>Create a custom word filter rule",
+                "<gray>for blocking words in chat",
                 "",
-                "<yellow>Click to create"), this::promptCreateRule);
+                "<yellow>Click to create"), this::promptCreateWordFilter);
+
+        // Create new nickname rule
+        setItem(44, createItem(Material.MAGENTA_DYE, "<light_purple>+ Nickname Filter",
+                "<gray>Create a nickname filter rule",
+                "<gray>for blocking inappropriate names",
+                "",
+                "<yellow>Click to create"), this::promptCreateNicknameRule);
 
         // Page indicator
         setItem(36, createItem(Material.PAPER, "<white>Page " + (currentPage + 1) + "/" + totalPages,
                 "<gray>" + displayRules.size() + " rules total",
-                "<gray>" + countAnticheatRules() + " anticheat rules"));
+                "<gray>" + countAnticheatRules() + " anticheat rules",
+                "<gray>" + countNicknameRules() + " nickname rules"));
 
-        // Next page
+        // Next page (move to slot 43 since 44 is nickname button)
         if (currentPage < totalPages - 1) {
-            setItem(44, createItem(Material.ARROW, "<yellow>Next Page",
+            setItem(43, createItem(Material.ARROW, "<yellow>Next →",
                     "<gray>Page " + (currentPage + 2) + "/" + totalPages), () -> {
                 currentPage++;
                 refresh();
             });
-        } else {
-            setItem(44, createItem(Material.GRAY_STAINED_GLASS_PANE, " "));
         }
 
         // Close button
@@ -266,6 +273,14 @@ public class AutomodGui extends BaseGui {
         int count = 0;
         for (AutomodRule rule : plugin.getAutomodManager().getRules()) {
             if (rule.getType() == AutomodRule.RuleType.ANTICHEAT) count++;
+        }
+        return count;
+    }
+
+    private int countNicknameRules() {
+        int count = 0;
+        for (AutomodRule rule : plugin.getAutomodManager().getRules()) {
+            if (rule.getType() == AutomodRule.RuleType.NICKNAME) count++;
         }
         return count;
     }
@@ -375,7 +390,7 @@ public class AutomodGui extends BaseGui {
         openGui(new RuleEditorGui(plugin, rule, this));
     }
 
-    private void promptCreateRule() {
+    private void promptCreateWordFilter() {
         close();
         viewer.sendMessage(TextUtil.parse("<aqua>Enter a name for your new word filter rule:"));
         viewer.sendMessage(TextUtil.parse("<gray>Type 'cancel' to cancel"));
@@ -394,7 +409,47 @@ public class AutomodGui extends BaseGui {
                         context.getForWhom().sendRawMessage(toLegacy("<red>Cancelled."));
                     } else {
                         AutomodRule newRule = plugin.getAutomodManager().createRule(input, AutomodRule.RuleType.WORD_FILTER);
-                        context.getForWhom().sendRawMessage(toLegacy("<green>Created rule: " + input));
+                        context.getForWhom().sendRawMessage(toLegacy("<green>Created word filter rule: " + input));
+
+                        plugin.getServer().getScheduler().runTask(plugin, () -> {
+                            openGui(new RuleEditorGui(plugin, newRule, AutomodGui.this));
+                        });
+                        return Prompt.END_OF_CONVERSATION;
+                    }
+
+                    plugin.getServer().getScheduler().runTask(plugin, () -> {
+                        plugin.getGuiManager().open(viewer, AutomodGui.this);
+                    });
+                    return Prompt.END_OF_CONVERSATION;
+                }
+            })
+            .withLocalEcho(false)
+            .withTimeout(60)
+            .buildConversation(viewer)
+            .begin();
+    }
+
+    private void promptCreateNicknameRule() {
+        close();
+        viewer.sendMessage(TextUtil.parse("<light_purple>Enter a name for your new nickname filter rule:"));
+        viewer.sendMessage(TextUtil.parse("<gray>This rule will block players from using inappropriate nicknames"));
+        viewer.sendMessage(TextUtil.parse("<gray>Type 'cancel' to cancel"));
+
+        new ConversationFactory(plugin)
+            .withModality(true)
+            .withFirstPrompt(new StringPrompt() {
+                @Override
+                public String getPromptText(ConversationContext context) {
+                    return "";
+                }
+
+                @Override
+                public Prompt acceptInput(ConversationContext context, String input) {
+                    if (input.equalsIgnoreCase("cancel")) {
+                        context.getForWhom().sendRawMessage(toLegacy("<red>Cancelled."));
+                    } else {
+                        AutomodRule newRule = plugin.getAutomodManager().createRule(input, AutomodRule.RuleType.NICKNAME);
+                        context.getForWhom().sendRawMessage(toLegacy("<light_purple>Created nickname filter rule: " + input));
 
                         plugin.getServer().getScheduler().runTask(plugin, () -> {
                             openGui(new RuleEditorGui(plugin, newRule, AutomodGui.this));
