@@ -234,6 +234,8 @@ public class HybridPanelServer {
                 sendConfigResponse(out, headers);
             } else if (path.equals("/api/panel-version")) {
                 sendPanelVersionResponse(out);
+            } else if (path.equals("/api/plugin-version")) {
+                sendPluginVersionResponse(out);
             } else {
                 serveStaticFile(out, path);
             }
@@ -358,6 +360,26 @@ public class HybridPanelServer {
             version.addProperty("buildNumber", 0);
             version.addProperty("notes", "Failed to read version: " + e.getMessage());
         }
+        sendJson(out, version);
+    }
+
+    private void sendPluginVersionResponse(OutputStream out) throws IOException {
+        JsonObject version = new JsonObject();
+        String versionStr = plugin.getDescription().getVersion();
+        version.addProperty("version", versionStr);
+        version.addProperty("name", plugin.getDescription().getName());
+
+        // Extract build number from version string (format: X.Ydev-BUILD or X.Y-BUILD)
+        int buildNumber = 0;
+        if (versionStr.contains("-")) {
+            String[] parts = versionStr.split("-");
+            if (parts.length > 1) {
+                try {
+                    buildNumber = Integer.parseInt(parts[parts.length - 1]);
+                } catch (NumberFormatException ignored) {}
+            }
+        }
+        version.addProperty("buildNumber", buildNumber);
         sendJson(out, version);
     }
 
@@ -2181,75 +2203,86 @@ public class HybridPanelServer {
     }
 
     public void broadcastAutomodRules() {
-        JsonObject broadcast = new JsonObject();
-        broadcast.addProperty("type", "AUTOMOD_RULES_DATA");
-        JsonObject data = new JsonObject();
-        JsonArray rules = new JsonArray();
+        try {
+            JsonObject broadcast = new JsonObject();
+            broadcast.addProperty("type", "AUTOMOD_RULES_DATA");
+            JsonObject data = new JsonObject();
+            JsonArray rules = new JsonArray();
 
-        for (AutomodRule rule : plugin.getAutomodManager().getRules()) {
-            JsonObject r = new JsonObject();
-            r.addProperty("id", rule.getId());
-            r.addProperty("name", rule.getName());
-            r.addProperty("type", rule.getType().name());
-            r.addProperty("enabled", rule.isEnabled());
-            r.addProperty("builtIn", rule.isBuiltIn());
-            r.addProperty("priority", rule.getPriority());
-            r.addProperty("exactMatch", rule.isExactMatch());
-            r.addProperty("description", rule.getDescription() != null ? rule.getDescription() : "");
+            for (AutomodRule rule : plugin.getAutomodManager().getRules()) {
+                try {
+                    JsonObject r = new JsonObject();
+                    r.addProperty("id", rule.getId());
+                    r.addProperty("name", rule.getName() != null ? rule.getName() : "Unknown");
+                    r.addProperty("type", rule.getType() != null ? rule.getType().name() : "WORD_FILTER");
+                    r.addProperty("enabled", rule.isEnabled());
+                    r.addProperty("builtIn", rule.isBuiltIn());
+                    r.addProperty("priority", rule.getPriority());
+                    r.addProperty("exactMatch", rule.isExactMatch());
+                    r.addProperty("description", rule.getDescription() != null ? rule.getDescription() : "");
 
-            // Spam protection settings
-            r.addProperty("spamMessageCount", rule.getSpamMessageCount());
-            r.addProperty("spamTimeWindowSeconds", rule.getSpamTimeWindowSeconds());
-            r.addProperty("spamDetectSimilar", rule.isSpamDetectSimilar());
-            r.addProperty("spamSimilarityThreshold", rule.getSpamSimilarityThreshold());
+                    // Spam protection settings
+                    r.addProperty("spamMessageCount", rule.getSpamMessageCount());
+                    r.addProperty("spamTimeWindowSeconds", rule.getSpamTimeWindowSeconds());
+                    r.addProperty("spamDetectSimilar", rule.isSpamDetectSimilar());
+                    r.addProperty("spamSimilarityThreshold", rule.getSpamSimilarityThreshold());
 
-            // Caps filter settings
-            r.addProperty("capsMaxPercentage", rule.getCapsMaxPercentage());
-            r.addProperty("capsMinLength", rule.getCapsMinLength());
+                    // Caps filter settings
+                    r.addProperty("capsMaxPercentage", rule.getCapsMaxPercentage());
+                    r.addProperty("capsMinLength", rule.getCapsMinLength());
 
-            // AFK settings
-            r.addProperty("afkTimeoutMinutes", rule.getAfkTimeoutMinutes());
-            r.addProperty("afkKickEnabled", rule.isAfkKickEnabled());
+                    // AFK settings
+                    r.addProperty("afkTimeoutMinutes", rule.getAfkTimeoutMinutes());
+                    r.addProperty("afkKickEnabled", rule.isAfkKickEnabled());
 
-            // Anticheat settings
-            r.addProperty("anticheatName", rule.getAnticheatName() != null ? rule.getAnticheatName() : "");
-            r.addProperty("checkName", rule.getCheckName() != null ? rule.getCheckName() : "");
-            r.addProperty("anticheatAlertThreshold", rule.getAnticheatAlertThreshold());
-            r.addProperty("anticheatTimeWindowSeconds", rule.getAnticheatTimeWindowSeconds());
+                    // Anticheat settings
+                    r.addProperty("anticheatName", rule.getAnticheatName() != null ? rule.getAnticheatName() : "");
+                    r.addProperty("checkName", rule.getCheckName() != null ? rule.getCheckName() : "");
+                    r.addProperty("anticheatAlertThreshold", rule.getAnticheatAlertThreshold());
+                    r.addProperty("anticheatTimeWindowSeconds", rule.getAnticheatTimeWindowSeconds());
 
-            // Flag action and filter mode
-            r.addProperty("flagAction", rule.getFlagAction() != null ? rule.getFlagAction().name() : "BLOCK");
-            r.addProperty("filterMode", rule.getFilterMode() != null ? rule.getFilterMode().name() : "CONTAINS_PHRASE");
-            // Block flag for frontend - true if flagAction is BLOCK
-            r.addProperty("block", rule.getFlagAction() == AutomodRule.FlagAction.BLOCK);
+                    // Flag action and filter mode
+                    r.addProperty("flagAction", rule.getFlagAction() != null ? rule.getFlagAction().name() : "BLOCK");
+                    r.addProperty("filterMode", rule.getFilterMode() != null ? rule.getFilterMode().name() : "CONTAINS_PHRASE");
+                    // Block flag for frontend - true if flagAction is BLOCK
+                    r.addProperty("block", rule.getFlagAction() == AutomodRule.FlagAction.BLOCK);
 
-            // Applies to settings (chat/nicknames/both)
-            r.addProperty("applyToNicknames", rule.isApplyToNicknames());
-            r.addProperty("nicknameOnly", rule.isNicknameOnly());
+                    // Applies to settings (chat/nicknames/both)
+                    r.addProperty("applyToNicknames", rule.isApplyToNicknames());
+                    r.addProperty("nicknameOnly", rule.isNicknameOnly());
 
-            // Blacklisted words/phrases
-            com.google.gson.JsonArray blacklist = new com.google.gson.JsonArray();
-            for (String word : rule.getBlacklistedWords()) {
-                blacklist.add(word);
-            }
-            r.add("blacklistedWords", blacklist);
-            r.add("blacklistedPhrases", blacklist);
+                    // Blacklisted words/phrases - with null safety
+                    com.google.gson.JsonArray blacklist = new com.google.gson.JsonArray();
+                    List<String> blacklistedWords = rule.getBlacklistedWords();
+                    if (blacklistedWords != null) {
+                        for (String word : blacklistedWords) {
+                            if (word != null) blacklist.add(word);
+                        }
+                    }
+                    r.add("blacklistedWords", blacklist);
+                    r.add("blacklistedPhrases", blacklist);
 
-            // Exclusion/whitelist words
-            com.google.gson.JsonArray whitelist = new com.google.gson.JsonArray();
-            for (String word : rule.getExclusionWords()) {
-                whitelist.add(word);
-            }
-            r.add("exclusionWords", whitelist);
-            r.add("exclusionPhrases", whitelist);
-            r.add("whitelist", whitelist);
+                    // Exclusion/whitelist words - with null safety
+                    com.google.gson.JsonArray whitelist = new com.google.gson.JsonArray();
+                    List<String> exclusionWords = rule.getExclusionWords();
+                    if (exclusionWords != null) {
+                        for (String word : exclusionWords) {
+                            if (word != null) whitelist.add(word);
+                        }
+                    }
+                    r.add("exclusionWords", whitelist);
+                    r.add("exclusionPhrases", whitelist);
+                    r.add("whitelist", whitelist);
 
-            // Exceptions array (string array for frontend)
-            com.google.gson.JsonArray exceptionsArray = new com.google.gson.JsonArray();
-            for (String exception : rule.getExclusionPhrases()) {
-                exceptionsArray.add(exception);
-            }
-            r.add("exceptions", exceptionsArray);
+                    // Exceptions array (string array for frontend) - with null safety
+                    com.google.gson.JsonArray exceptionsArray = new com.google.gson.JsonArray();
+                    List<String> exclusionPhrases = rule.getExclusionPhrases();
+                    if (exclusionPhrases != null) {
+                        for (String exception : exclusionPhrases) {
+                            if (exception != null) exceptionsArray.add(exception);
+                        }
+                    }
+                    r.add("exceptions", exceptionsArray);
 
             // Conditions array for frontend (convert blacklisted phrases to conditions format)
             com.google.gson.JsonArray conditionsArray = new com.google.gson.JsonArray();
@@ -2316,28 +2349,35 @@ public class HybridPanelServer {
             r.add("threshold", threshold);
 
             rules.add(r);
-        }
-
-        data.add("rules", rules);
-        broadcast.add("data", data);
-        String message = GSON.toJson(broadcast);
-
-        // Broadcast to regular WebSocket connections
-        for (WebSocketConnection conn : sessions.keySet()) {
-            try {
-                conn.send(message);
-            } catch (Exception e) {
-                plugin.logDebug("Failed to broadcast automod rules to connection: " + e.getMessage());
+                } catch (Exception e) {
+                    // Log but continue with other rules - don't let one bad rule crash the broadcast
+                    plugin.logError("Failed to serialize automod rule " + rule.getId() + ": " + e.getMessage(), e);
+                }
             }
-        }
 
-        // Also broadcast to same-port (Netty) connections
-        for (var entry : samePortConnections.entrySet()) {
-            try {
-                entry.getValue().send(message);
-            } catch (Exception e) {
-                plugin.logDebug("Failed to broadcast automod rules to same-port connection: " + e.getMessage());
+            data.add("rules", rules);
+            broadcast.add("data", data);
+            String message = GSON.toJson(broadcast);
+
+            // Broadcast to regular WebSocket connections
+            for (WebSocketConnection conn : sessions.keySet()) {
+                try {
+                    conn.send(message);
+                } catch (Exception e) {
+                    plugin.logDebug("Failed to broadcast automod rules to connection: " + e.getMessage());
+                }
             }
+
+            // Also broadcast to same-port (Netty) connections
+            for (var entry : samePortConnections.entrySet()) {
+                try {
+                    entry.getValue().send(message);
+                } catch (Exception e) {
+                    plugin.logDebug("Failed to broadcast automod rules to same-port connection: " + e.getMessage());
+                }
+            }
+        } catch (Exception e) {
+            plugin.logError("Failed to broadcast automod rules: " + e.getMessage(), e);
         }
     }
 

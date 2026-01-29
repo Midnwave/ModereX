@@ -14,6 +14,41 @@
 
 window.MX_CHANGELOGS = [
   {
+    build: 184,
+    version: "2.0dev-184",
+    date: "2026-01-29",
+    title: "Automod Stability & API Fixes",
+    sections: [
+      {
+        type: "fixed",
+        title: "Bug Fixes",
+        items: [
+          "**WebSocket Disconnect Fix** - Fixed 1006 disconnect when saving automod rules (null safety in broadcast)",
+          "**Plugin Version API** - Fixed /api/plugin-version returning 404 error",
+          "**Broadcast Stability** - Rules broadcast now handles null values gracefully"
+        ]
+      },
+      {
+        type: "improved",
+        title: "Improvements",
+        items: [
+          "**Automod Page Load** - Now requests fresh rules from database when opening automod page",
+          "**Loading Feedback** - Loading bar appears while fetching automod rules from server"
+        ]
+      },
+      {
+        type: "technical",
+        title: "Technical Changes",
+        items: [
+          "Added null safety checks for blacklistedWords, exclusionWords, exclusionPhrases arrays",
+          "Added sendPluginVersionResponse() to HybridPanelServer",
+          "Each rule serialization now has individual error handling",
+          "Added GET_AUTOMOD_RULES request when navigating to automod page"
+        ]
+      }
+    ]
+  },
+  {
     build: 182,
     version: "2.0dev-182",
     date: "2026-01-29",

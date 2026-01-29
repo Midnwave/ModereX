@@ -859,6 +859,10 @@
     const r = state.rules.find(rule => rule.id === ruleId);
     if (!r) return;
 
+    // Debug: Log the full rule object to see what data we have
+    console.log('[Automod Editor] Opening rule:', ruleId);
+    console.log('[Automod Editor] Full rule data:', JSON.stringify(r, null, 2));
+
     const thr = r.threshold || { hits: 1, windowMins: 10 };
     const conditions = r.conditions || [];
 
@@ -867,6 +871,9 @@
 
     // First, check for direct blacklistedPhrases/blacklistedWords arrays from backend
     const directPhrases = r.blacklistedPhrases || r.blacklistedWords || [];
+    console.log('[Automod Editor] Direct phrases:', directPhrases);
+    console.log('[Automod Editor] Conditions:', conditions);
+
     if (directPhrases.length > 0) {
       phrases = directPhrases.join('\n');
     } else {
@@ -879,6 +886,7 @@
         .join('\n');
       phrases = condPhrases;
     }
+    console.log('[Automod Editor] Final phrases:', phrases);
 
     const regexPatterns = conditions
       .filter(c => c.kind === 'regex')
@@ -889,6 +897,7 @@
     // Get exceptions - check multiple possible sources
     const exceptionsArr = r.exceptions || r.exclusionPhrases || r.exclusionWords || r.whitelist || [];
     const exceptions = exceptionsArr.join('\n');
+    console.log('[Automod Editor] Exceptions:', exceptionsArr);
 
     // Create modal
     const modal = document.createElement('div');
@@ -1030,11 +1039,19 @@
     };
 
     // Sync to backend immediately
+    console.log('[Automod Save] Saving rule:', r.id);
+    console.log('[Automod Save] Rule data being sent:', JSON.stringify({
+      ruleId: r.id,
+      rule: r
+    }, null, 2));
+
     if (window.MX?.ws?.send) {
       window.MX.ws.send('UPDATE_AUTOMOD_RULE', {
         ruleId: r.id,
         rule: r
       });
+    } else {
+      console.error('[Automod Save] WebSocket not available!');
     }
 
     // Mark unsaved and re-render

@@ -209,7 +209,17 @@
     if (page === 'players') ui.renderPlayers();
     if (page === 'watchlist') ui.renderWatchlist();
     if (page === 'livelogs') ui.renderLogs();
-    if (page === 'automod') ui.renderRules();
+    if (page === 'automod') {
+      // Request fresh automod rules from server when opening automod page
+      const ws = window.MX?.ws;
+      if (ws && ws.isConnected()) {
+        console.log('[Automod] Requesting fresh rules from server...');
+        // Show loading bar (will be hidden when AUTOMOD_RULES_DATA is received)
+        if (window.showLoadingLine) window.showLoadingLine();
+        ws.send('GET_AUTOMOD_RULES', {});
+      }
+      ui.renderRules();
+    }
     if (page === 'cmdblacklist') renderCmdBlacklist();
     if (page === 'anticheat') ui.renderAnticheat();
     if (page === 'templates') ui.renderTemplates();
@@ -2240,16 +2250,21 @@
   function autoSaveRule(rule) {
     if (!rule) return;
 
+    console.log('[autoSaveRule] Called for rule:', rule.id, rule.name);
+
     // Mark as unsaved for visual feedback
     ui.markUnsaved('rules', true);
 
     // Auto-save built-in rules and anticheat rules immediately
     if (rule.builtIn || ['spam_protection', 'caps_filter', 'link_filter', 'afk_kick'].includes(rule.id) || rule.id.startsWith('ac_')) {
+      console.log('[autoSaveRule] Sending UPDATE_AUTOMOD_RULE for:', rule.id);
       MX.ws.send('UPDATE_AUTOMOD_RULE', {
         ruleId: rule.id,
         rule: rule
       });
       window.debugLog('SYNC', `Saved rule: ${rule.name}`, 'success');
+    } else {
+      console.log('[autoSaveRule] Rule not auto-saved (not built-in or anticheat):', rule.id);
     }
   }
 
@@ -4241,9 +4256,16 @@
       if (!isLiveMode) return;
       // Hide loading bar when rules data received
       if (window.hideLoadingLine) window.hideLoadingLine();
+      console.log('[Automod] Received AUTOMOD_RULES_DATA:', data);
       // Only replace rules if server sent actual rules, otherwise keep defaults
       if (data.rules && data.rules.length > 0) {
         state.rules = data.rules;
+        console.log('[Automod] Updated state.rules with', data.rules.length, 'rules');
+        // Debug: Log first custom rule to check data structure
+        const customRule = data.rules.find(r => r.type === 'WORD_FILTER');
+        if (customRule) {
+          console.log('[Automod] Sample WORD_FILTER rule:', JSON.stringify(customRule, null, 2));
+        }
       }
       ui.renderRules();
     });
@@ -4253,6 +4275,7 @@
       if (!isLiveMode) return;
       // Hide loading bar when rule update confirmed
       if (window.hideLoadingLine) window.hideLoadingLine();
+      console.log('[Automod] Received AUTOMOD_RULE_UPDATED:', data);
       const idx = state.rules.findIndex(r => r.id === data.id);
       if (idx !== -1) {
         state.rules[idx] = { ...state.rules[idx], ...data };
