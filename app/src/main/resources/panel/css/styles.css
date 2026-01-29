@@ -1990,6 +1990,73 @@ textarea.input {
 }
 
 /* ===== MODALS ===== */
+
+/* Dynamic modals (alertActionModal, alertDetailModal) */
+#alertActionModal,
+#alertDetailModal {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.6);
+  backdrop-filter: blur(12px);
+  display: none;
+  align-items: center;
+  justify-content: center;
+  z-index: 9000;
+  padding: 24px;
+}
+
+#alertActionModal.show,
+#alertDetailModal.show {
+  display: flex;
+}
+
+#alertActionModal .modal-bg,
+#alertDetailModal .modal-bg {
+  position: absolute;
+  inset: 0;
+  cursor: pointer;
+}
+
+#alertActionModal .modal-content,
+#alertDetailModal .modal-content {
+  position: relative;
+  width: 100%;
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+  border: 1px solid var(--border-light);
+  background: linear-gradient(180deg, var(--surface), var(--bg1));
+  box-shadow: var(--shadow-lg);
+  animation: modalIn 0.28s ease;
+}
+
+#alertActionModal .modal-header,
+#alertDetailModal .modal-header {
+  padding: 16px 20px;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: rgba(0, 0, 0, 0.2);
+}
+
+#alertActionModal .modal-header h2,
+#alertDetailModal .modal-header h2 {
+  font-size: 16px;
+  font-weight: 600;
+  margin: 0;
+}
+
+#alertActionModal .modal-footer,
+#alertDetailModal .modal-footer {
+  padding: 16px 20px;
+  border-top: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  background: rgba(0, 0, 0, 0.1);
+}
+
 .modal {
   width: min(960px, 96vw);
   border-radius: var(--radius-lg);
