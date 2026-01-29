@@ -664,14 +664,27 @@ public class AutomodManager {
      * Save a rule to the database.
      */
     public void saveRule(AutomodRule rule) {
+        plugin.logDebug("[Automod] saveRule called for: " + rule.getId() + " (type=" + rule.getType() +
+                ", builtIn=" + rule.isBuiltIn() + ")");
+
         // Handle built-in rules
         if (rule.isBuiltIn()) {
+            plugin.logDebug("[Automod] Routing to saveBuiltInRule for: " + rule.getId());
             saveBuiltInRule(rule);
             broadcastAutomodRulesUpdate();
             return;
         }
 
+        // Handle anticheat rules (they have string IDs like ac_grim_airliquidplace)
+        if (rule.getType() == AutomodRule.RuleType.ANTICHEAT) {
+            plugin.logDebug("[Automod] Routing to saveAnticheatRule for: " + rule.getId());
+            saveAnticheatRule(rule);
+            broadcastAutomodRulesUpdate();
+            return;
+        }
+
         try {
+            plugin.logDebug("[Automod] Saving custom rule to database: " + rule.getId());
             plugin.getDatabaseManager().update("""
                     UPDATE moderex_automod_rules
                     SET name = ?, enabled = ?, config = ?, updated_at = ?
@@ -682,8 +695,12 @@ public class AutomodManager {
             );
 
             broadcastAutomodRulesUpdate();
+            plugin.logDebug("[Automod] Successfully saved rule: " + rule.getId());
         } catch (SQLException e) {
             plugin.logError("Failed to save automod rule", e);
+        } catch (NumberFormatException e) {
+            plugin.logError("Failed to parse rule ID as integer: " + rule.getId() +
+                    " (type=" + rule.getType() + ")", e);
         }
     }
 
@@ -742,15 +759,29 @@ public class AutomodManager {
         AutomodRule rule = rules.get(ruleId);
         if (rule == null || rule.isBuiltIn()) return;
 
+        plugin.logDebug("[Automod] deleteRule called for: " + ruleId + " (type=" + rule.getType() + ")");
+
         try {
-            plugin.getDatabaseManager().update(
-                    "DELETE FROM moderex_automod_rules WHERE id = ?",
-                    Integer.parseInt(ruleId)
-            );
+            // Anticheat rules use string IDs stored in rule_id column
+            if (rule.getType() == AutomodRule.RuleType.ANTICHEAT) {
+                plugin.getDatabaseManager().update(
+                        "DELETE FROM moderex_automod_rules WHERE rule_id = ?",
+                        ruleId
+                );
+            } else {
+                // Custom rules use numeric IDs stored in id column
+                plugin.getDatabaseManager().update(
+                        "DELETE FROM moderex_automod_rules WHERE id = ?",
+                        Integer.parseInt(ruleId)
+                );
+            }
             rules.remove(ruleId);
             broadcastAutomodRulesUpdate();
+            plugin.logDebug("[Automod] Successfully deleted rule: " + ruleId);
         } catch (SQLException e) {
             plugin.logError("Failed to delete automod rule", e);
+        } catch (NumberFormatException e) {
+            plugin.logError("Failed to parse rule ID as integer: " + ruleId, e);
         }
     }
 
