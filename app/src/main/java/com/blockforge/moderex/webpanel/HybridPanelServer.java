@@ -2384,6 +2384,9 @@ public class HybridPanelServer {
             broadcast.add("data", data);
             String message = GSON.toJson(broadcast);
 
+            plugin.logDebug("[WebPanel] Broadcasting automod rules: " + rules.size() + " rules, " +
+                    (message.length() / 1024) + "KB payload");
+
             // Broadcast to regular WebSocket connections
             for (WebSocketConnection conn : sessions.keySet()) {
                 try {
