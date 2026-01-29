@@ -3,7 +3,7 @@ package com.blockforge.moderex.gui;
 import com.blockforge.moderex.ModereX;
 import com.blockforge.moderex.staff.StaffSettings;
 import com.blockforge.moderex.staff.StaffSettings.AlertLevel;
-import com.blockforge.moderex.staff.StaffSettings.JoinLeaveLevel;
+import com.blockforge.moderex.staff.StaffSettings.CommandAlertLevel;
 import com.blockforge.moderex.util.TextUtil;
 import org.bukkit.Material;
 import org.bukkit.Sound;
@@ -12,19 +12,40 @@ import org.bukkit.inventory.ItemStack;
 import java.util.ArrayList;
 import java.util.List;
 
+/**
+ * Redesigned Staff Settings GUI - Single page, all settings visible.
+ *
+ * Layout (6 rows):
+ * Row 0: Header with player info
+ * Row 1: Punishment alerts (Ban, Kick, Mute, Warn, Pardon)
+ * Row 2: Other alerts (Automod, Anticheat, Commands, Join/Leave, Nickname)
+ * Row 3: Additional settings (Lag alerts, Watchlist, Staff Chat)
+ * Row 4: UI Settings (Sounds, Chat alerts, Action bar, etc.)
+ * Row 5: Navigation (Save, Close)
+ */
 public class StaffSettingsGui extends BaseGui {
 
-    private SettingsTab currentTab = SettingsTab.NOTIFICATIONS;
     private StaffSettings settings;
 
-    // Layout constants for a centered 6-row GUI
-    // Row 0: Border
-    // Row 1: Tabs (centered)
-    // Row 2-4: Content area (slots 19-25, 28-34, 37-43)
-    // Row 5: Navigation (save/close)
+    // Permission constants
+    private static final String PERM_ALERTS_BAN = "moderex.alerts.ban";
+    private static final String PERM_ALERTS_KICK = "moderex.alerts.kick";
+    private static final String PERM_ALERTS_MUTE = "moderex.alerts.mute";
+    private static final String PERM_ALERTS_WARN = "moderex.alerts.warn";
+    private static final String PERM_ALERTS_PARDON = "moderex.alerts.pardon";
+    private static final String PERM_ALERTS_AUTOMOD = "moderex.alerts.automod";
+    private static final String PERM_ALERTS_ANTICHEAT = "moderex.alerts.anticheat";
+    private static final String PERM_ALERTS_COMMANDS = "moderex.alerts.commands";
+    private static final String PERM_ALERTS_JOINLEAVE = "moderex.alerts.joinleave";
+    private static final String PERM_ALERTS_NICKNAME = "moderex.alerts.nickname";
+    private static final String PERM_ALERTS_LAG = "moderex.alerts.lag";
+    private static final String PERM_ALERTS_WATCHLIST = "moderex.alerts.watchlist";
+    private static final String PERM_ALERTS_STAFFCHAT = "moderex.alerts.staffchat";
+    private static final String PERM_ALERTS_ALL = "moderex.alerts.*";
+    private static final String PERM_STAFF = "moderex.staff";
 
     public StaffSettingsGui(ModereX plugin) {
-        super(plugin, "<gradient:#a855f7:#ec4899>Staff Settings</gradient>", 6);
+        super(plugin, "<gradient:#a855f7:#ec4899>Staff Alert Settings</gradient>", 6);
     }
 
     @Override
@@ -35,442 +56,347 @@ public class StaffSettingsGui extends BaseGui {
         // Fill with dark background
         fillEmpty(Material.BLACK_STAINED_GLASS_PANE);
 
-        // Tab row (row 1, centered) - slots 10-15 for 6 tabs
-        setItem(10, createTabButton(SettingsTab.NOTIFICATIONS, Material.BELL), () -> {
-            currentTab = SettingsTab.NOTIFICATIONS;
-            refresh();
-        });
-
-        setItem(11, createTabButton(SettingsTab.ALERTS, Material.COMPARATOR), () -> {
-            currentTab = SettingsTab.ALERTS;
-            refresh();
-        });
-
-        setItem(12, createTabButton(SettingsTab.ANTICHEAT, Material.IRON_SWORD), () -> {
-            currentTab = SettingsTab.ANTICHEAT;
-            refresh();
-        });
-
-        setItem(13, createTabButton(SettingsTab.PERSONAL, Material.ARMOR_STAND), () -> {
-            currentTab = SettingsTab.PERSONAL;
-            refresh();
-        });
-
-        setItem(14, createTabButton(SettingsTab.VANISH, Material.POTION), () -> {
-            currentTab = SettingsTab.VANISH;
-            refresh();
-        });
-
-        // Render current tab content
-        switch (currentTab) {
-            case NOTIFICATIONS -> renderNotificationSettings();
-            case ALERTS -> renderAlertSettings();
-            case ANTICHEAT -> renderAnticheatSettings();
-            case PERSONAL -> renderPersonalSettings();
-            case VANISH -> renderVanishSettings();
-        }
-
-        // Bottom row navigation
-        setItem(45, createItem(Material.ARROW, "<red>Close", "<gray>Close this menu"), this::close);
-
-        setItem(49, createItem(Material.LIME_CONCRETE, "<green>Save Settings",
-                "<gray>Save your current settings",
+        // === ROW 0: Header ===
+        setItem(4, createItem(Material.BELL, "<gradient:#a855f7:#ec4899>Alert Configuration</gradient>",
+                "<gray>Configure your personal alert settings",
                 "",
-                "<yellow>Click to save"), () -> {
-            plugin.getStaffSettingsManager().saveSettings(settings);
-            viewer.sendMessage(TextUtil.parse("<green>Settings saved successfully!"));
-            viewer.playSound(viewer.getLocation(), Sound.ENTITY_EXPERIENCE_ORB_PICKUP, 1f, 1f);
-        });
-
-        setItem(53, createItem(Material.BOOK, "<aqua>Help",
-                "<gray>Hover over items to see",
-                "<gray>what each setting does"));
-    }
-
-    private ItemStack createTabButton(SettingsTab tab, Material icon) {
-        boolean selected = (currentTab == tab);
-
-        List<String> lore = new ArrayList<>();
-        lore.add("<gray>" + tab.description);
-        lore.add("");
-        lore.add(selected ? "<green>▶ Currently viewing" : "<yellow>Click to view");
-
-        Material displayIcon = selected ? Material.LIME_STAINED_GLASS_PANE : icon;
-        String color = selected ? "<green>" : "<white>";
-
-        return createItem(displayIcon, color + tab.displayName, lore);
-    }
-
-    // ========== Notification Settings Tab ==========
-
-    private void renderNotificationSettings() {
-        // Center content area: slots 20-24, 29-33, 38-42
-
-        // Row 1 - Core notifications
-        // Note: Join/Leave visibility is now a global config setting (config.yml: join-leave.visibility)
-
-        setItem(20, createAlertLevelButton("Staff Actions",
-                settings.getPunishmentAlerts(), Material.IRON_AXE), () -> {
-            // Merged Mod Actions and Punishments into one setting
-            settings.setPunishmentAlerts(settings.getPunishmentAlerts().next());
-            settings.setModerationActionsEnabled(settings.getPunishmentAlerts() != AlertLevel.OFF);
-            refresh();
-        });
-
-        setItem(21, createToggle("Punishment Broadcasts",
-                settings.isModerationActionsEnabled(),
-                "See punishment broadcasts with case IDs",
-                Material.BARRIER), () -> {
-            settings.setModerationActionsEnabled(!settings.isModerationActionsEnabled());
-            refresh();
-        });
-
-        setItem(23, createToggle("Staff Chat",
-                settings.isStaffChatEnabled(),
-                "Receive staff chat messages",
-                Material.DIAMOND), () -> {
-            settings.setStaffChatEnabled(!settings.isStaffChatEnabled());
-            refresh();
-        });
-
-        setItem(24, createToggle("Chat Sound",
-                settings.isStaffChatSound(),
-                "Play sound on staff chat",
-                Material.BELL), () -> {
-            settings.setStaffChatSound(!settings.isStaffChatSound());
-            refresh();
-        });
-
-        // Row 2 - Watchlist settings
-        setItem(29, createToggle("WL Join Alert",
-                settings.isWatchlistJoinAlerts(),
-                "Alert when watched players join",
-                Material.LIME_DYE), () -> {
-            settings.setWatchlistJoinAlerts(!settings.isWatchlistJoinAlerts());
-            refresh();
-        });
-
-        setItem(30, createToggle("WL Quit Alert",
-                settings.isWatchlistQuitAlerts(),
-                "Alert when watched players leave",
-                Material.RED_DYE), () -> {
-            settings.setWatchlistQuitAlerts(!settings.isWatchlistQuitAlerts());
-            refresh();
-        });
-
-        setItem(31, createToggle("WL Activity",
-                settings.isWatchlistActivityAlerts(),
-                "Alert on watched player activity",
-                Material.TRIPWIRE_HOOK), () -> {
-            settings.setWatchlistActivityAlerts(!settings.isWatchlistActivityAlerts());
-            refresh();
-        });
-
-        setItem(32, createCommandAlertLevelButton("Commands",
-                settings.getCommandAlerts(), Material.COMMAND_BLOCK), () -> {
-            settings.setCommandAlerts(settings.getCommandAlerts().next());
-            refresh();
-        });
-
-        setItem(33, createAlertLevelButton("Private Msgs",
-                settings.getPrivateMessageAlerts(), Material.WRITABLE_BOOK), () -> {
-            settings.setPrivateMessageAlerts(settings.getPrivateMessageAlerts().next());
-            refresh();
-        });
-    }
-
-    // ========== Alert Settings Tab ==========
-
-    private void renderAlertSettings() {
-        // Punishment alerts - Row 1
-        setItem(19, createAlertLevelButton("Warn",
-                settings.getWarnAlerts(), Material.PAPER), () -> {
-            settings.setWarnAlerts(settings.getWarnAlerts().next());
-            refresh();
-        });
-
-        setItem(20, createAlertLevelButton("Mute",
-                settings.getMuteAlerts(), Material.BARRIER), () -> {
-            settings.setMuteAlerts(settings.getMuteAlerts().next());
-            refresh();
-        });
-
-        setItem(21, createAlertLevelButton("Ban",
-                settings.getBanAlerts(), Material.IRON_DOOR), () -> {
-            settings.setBanAlerts(settings.getBanAlerts().next());
-            refresh();
-        });
-
-        setItem(22, createAlertLevelButton("Kick",
-                settings.getKickAlerts(), Material.LEATHER_BOOTS), () -> {
-            settings.setKickAlerts(settings.getKickAlerts().next());
-            refresh();
-        });
-
-        setItem(23, createAlertLevelButton("Pardon",
-                settings.getPardonAlerts(), Material.EMERALD), () -> {
-            settings.setPardonAlerts(settings.getPardonAlerts().next());
-            refresh();
-        });
-
-        // Automod alerts - Row 2
-        setItem(29, createAlertLevelButton("Automod",
-                settings.getAutomodAlerts(), Material.COMPARATOR), () -> {
-            settings.setAutomodAlerts(settings.getAutomodAlerts().next());
-            refresh();
-        });
-
-        setItem(30, createAlertLevelButton("Spam",
-                settings.getSpamAlerts(), Material.REPEATER), () -> {
-            settings.setSpamAlerts(settings.getSpamAlerts().next());
-            refresh();
-        });
-
-        setItem(31, createAlertLevelButton("Filter",
-                settings.getFilterAlerts(), Material.HOPPER), () -> {
-            settings.setFilterAlerts(settings.getFilterAlerts().next());
-            refresh();
-        });
-
-        // Anticheat alerts - Row 2 continued
-        setItem(33, createAlertLevelButton("Anticheat",
-                settings.getAnticheatAlerts(), Material.IRON_SWORD), () -> {
-            settings.setAnticheatAlerts(settings.getAnticheatAlerts().next());
-            refresh();
-        });
-
-        // Show blacklisted commands - Row 3
-        setItem(40, createToggle("Blacklist Cmds",
-                settings.isShowBlacklistedCommands(),
-                "Show blacklisted command attempts",
-                Material.STRUCTURE_VOID), () -> {
-            settings.setShowBlacklistedCommands(!settings.isShowBlacklistedCommands());
-            refresh();
-        });
-    }
-
-    // ========== Anticheat Settings Tab ==========
-
-    private void renderAnticheatSettings() {
-        // Section header
-        setItem(2, createItem(Material.IRON_SWORD, "<gradient:#ff6b6b:#ee5a5a>Anticheat Settings",
-                "<gray>Configure alerts and rules",
-                "<gray>for anticheat detections"));
-
-        // Row 1 - Global alert setting & quick access buttons
-        setItem(19, createAlertLevelButton("AC Alerts",
-                settings.getAnticheatAlerts(), Material.IRON_SWORD), () -> {
-            settings.setAnticheatAlerts(settings.getAnticheatAlerts().next());
-            refresh();
-        });
-
-        // Personal alert preferences (per-check)
-        int configuredChecks = settings.getCheckAlertPreferences().size();
-        setItem(21, createItem(Material.BELL, "<aqua>My Alert Preferences",
-                "<gray>Configure which checks alert YOU",
+                "<white>Staff: <yellow>" + viewer.getName(),
                 "",
-                "<white>" + configuredChecks + " <gray>checks configured",
-                "",
-                "<yellow>Click to configure"), () -> {
-            plugin.getGuiManager().open(viewer, new AnticheatRulesGui(plugin));
-        });
+                "<dark_gray>Settings sync to database automatically"));
 
-        // Server-wide automod rules (admin only)
-        if (viewer.hasPermission("moderex.admin.automod")) {
-            int anticheatRules = countAnticheatAutomodRules();
-            setItem(23, createItem(Material.COMPARATOR, "<gold>Automod Rules",
-                    "<gray>Server-wide auto-punishment rules",
-                    "",
-                    "<white>" + anticheatRules + " <gray>anticheat rules active",
-                    "",
-                    "<yellow>Click to manage"), () -> {
-                plugin.getGuiManager().open(viewer, new AutomodGui(plugin));
+        // Decorative corners
+        setItem(0, createItem(Material.PURPLE_STAINED_GLASS_PANE, " "));
+        setItem(8, createItem(Material.PURPLE_STAINED_GLASS_PANE, " "));
+
+        // === ROW 1: Punishment Alerts ===
+        // Section label
+        setItem(9, createItem(Material.DIAMOND_SWORD, "<red>Punishment Alerts",
+                "<gray>Configure punishment notifications"));
+
+        // Ban alerts
+        if (hasAlertPermission(PERM_ALERTS_BAN)) {
+            setItem(10, createAlertLevelItem("Ban Alerts", settings.getBanAlerts(), Material.IRON_DOOR,
+                    "Ban and IP-Ban notifications"), () -> {
+                settings.setBanAlerts(settings.getBanAlerts().next());
+                saveAndRefresh();
             });
         } else {
-            setItem(23, createItem(Material.GRAY_DYE, "<gray>Automod Rules",
-                    "<red>Requires admin permission"));
+            setItem(10, createNoPermissionItem("Ban Alerts"));
         }
 
-        // Minimum VL threshold
-        setItem(25, createItem(Material.COMPARATOR,
-                "<gold>Min VL Threshold: <white>" + settings.getAnticheatMinVL(),
-                "<gray>Minimum violation level required",
-                "<gray>before showing alerts",
-                "",
-                "<yellow>Left: +1 | Right: -1",
-                "<yellow>Shift: +/-5"), clickType -> {
-            int delta = clickType.isShiftClick() ? 5 : 1;
-            if (clickType.isLeftClick()) {
-                settings.setAnticheatMinVL(Math.min(100, settings.getAnticheatMinVL() + delta));
-            } else if (clickType.isRightClick()) {
-                settings.setAnticheatMinVL(Math.max(1, settings.getAnticheatMinVL() - delta));
-            }
-            refresh();
-        });
-
-        // Row 2 - Per-anticheat toggles (centered)
-        List<String> enabledACs = plugin.getAnticheatManager().getEnabledAnticheats();
-        int[] slots = {29, 30, 31, 32, 33};
-        int slotIndex = 0;
-
-        for (String acName : enabledACs) {
-            if (slotIndex >= slots.length) break;
-
-            StaffSettings.AnticheatPreference pref = settings.getAnticheatPreference(acName);
-            boolean enabled = pref.isEnabled();
-
-            setItem(slots[slotIndex], createItem(
-                    enabled ? Material.LIME_DYE : Material.RED_DYE,
-                    (enabled ? "<green>" : "<red>") + acName,
-                    "<gray>Toggle alerts from " + acName,
-                    "",
-                    enabled ? "<green>✓ Enabled" : "<red>✗ Disabled",
-                    "<gray>Min VL: <white>" + pref.getMinVL(),
-                    "",
-                    "<yellow>Click to toggle",
-                    "<yellow>Shift+click: Adjust min VL"
-            ), clickType -> {
-                if (clickType.isShiftClick()) {
-                    // Adjust min VL
-                    if (clickType.isLeftClick()) {
-                        pref.setMinVL(Math.min(100, pref.getMinVL() + 5));
-                    } else {
-                        pref.setMinVL(Math.max(1, pref.getMinVL() - 5));
-                    }
-                } else {
-                    pref.setEnabled(!pref.isEnabled());
-                }
-                refresh();
+        // Kick alerts
+        if (hasAlertPermission(PERM_ALERTS_KICK)) {
+            setItem(11, createAlertLevelItem("Kick Alerts", settings.getKickAlerts(), Material.LEATHER_BOOTS,
+                    "Player kick notifications"), () -> {
+                settings.setKickAlerts(settings.getKickAlerts().next());
+                saveAndRefresh();
             });
-
-            slotIndex++;
+        } else {
+            setItem(11, createNoPermissionItem("Kick Alerts"));
         }
 
-        if (enabledACs.isEmpty()) {
-            setItem(31, createItem(Material.GRAY_DYE, "<gray>No Anticheats Detected",
-                    "<gray>Install an anticheat plugin"));
+        // Mute alerts
+        if (hasAlertPermission(PERM_ALERTS_MUTE)) {
+            setItem(12, createAlertLevelItem("Mute Alerts", settings.getMuteAlerts(), Material.BARRIER,
+                    "Mute and IP-Mute notifications"), () -> {
+                settings.setMuteAlerts(settings.getMuteAlerts().next());
+                saveAndRefresh();
+            });
+        } else {
+            setItem(12, createNoPermissionItem("Mute Alerts"));
         }
 
-        // Row 3 - Quick actions
-        setItem(38, createItem(Material.LIME_DYE, "<green>Enable All ACs",
-                "<gray>Enable alerts from all anticheats"), () -> {
-            for (String acName : enabledACs) {
-                settings.getAnticheatPreference(acName).setEnabled(true);
-            }
-            refresh();
-        });
-
-        setItem(42, createItem(Material.RED_DYE, "<red>Disable All ACs",
-                "<gray>Disable alerts from all anticheats"), () -> {
-            for (String acName : enabledACs) {
-                settings.getAnticheatPreference(acName).setEnabled(false);
-            }
-            refresh();
-        });
-
-        // Info
-        setItem(40, createItem(Material.BOOK, "<aqua>How It Works",
-                "<gray>• <white>AC Alerts: <gray>Global toggle",
-                "<gray>• <white>My Preferences: <gray>Per-check settings",
-                "<gray>• <white>Automod Rules: <gray>Auto-punishments",
-                "",
-                "<gray>Alerts respect both global toggle",
-                "<gray>and your personal per-check settings"));
-    }
-
-    private int countAnticheatAutomodRules() {
-        int count = 0;
-        for (var rule : plugin.getAutomodManager().getRules()) {
-            if (rule.getType() == com.blockforge.moderex.automod.AutomodRule.RuleType.ANTICHEAT) {
-                count++;
-            }
+        // Warn alerts
+        if (hasAlertPermission(PERM_ALERTS_WARN)) {
+            setItem(13, createAlertLevelItem("Warn Alerts", settings.getWarnAlerts(), Material.PAPER,
+                    "Warning notifications"), () -> {
+                settings.setWarnAlerts(settings.getWarnAlerts().next());
+                saveAndRefresh();
+            });
+        } else {
+            setItem(13, createNoPermissionItem("Warn Alerts"));
         }
-        return count;
-    }
 
-    // ========== Personal Settings Tab ==========
+        // Pardon alerts (unbans, unmutes, unwarns)
+        if (hasAlertPermission(PERM_ALERTS_PARDON)) {
+            setItem(14, createAlertLevelItem("Pardon Alerts", settings.getPardonAlerts(), Material.EMERALD,
+                    "Unbans, unmutes, unwarns"), () -> {
+                settings.setPardonAlerts(settings.getPardonAlerts().next());
+                saveAndRefresh();
+            });
+        } else {
+            setItem(14, createNoPermissionItem("Pardon Alerts"));
+        }
 
-    private void renderPersonalSettings() {
-        // Display settings - Row 1
-        setItem(20, createToggle("Compact Mode",
-                settings.isCompactMode(),
-                "Show alerts in compact format",
-                Material.BOOK), () -> {
-            settings.setCompactMode(!settings.isCompactMode());
-            refresh();
-        });
+        // === ROW 2: Other Alerts ===
+        // Section label
+        setItem(18, createItem(Material.COMPARATOR, "<gold>Detection Alerts",
+                "<gray>Configure detection notifications"));
 
-        setItem(21, createToggle("Alert Sounds",
-                settings.isSoundEnabled(),
-                "Play sounds for alerts",
-                Material.NOTE_BLOCK), () -> {
+        // Automod alerts
+        if (hasAlertPermission(PERM_ALERTS_AUTOMOD)) {
+            setItem(19, createAlertLevelItem("Automod Alerts", settings.getAutomodAlerts(), Material.HOPPER,
+                    "Chat filter & spam detection"), () -> {
+                settings.setAutomodAlerts(settings.getAutomodAlerts().next());
+                saveAndRefresh();
+            });
+        } else {
+            setItem(19, createNoPermissionItem("Automod Alerts"));
+        }
+
+        // Anticheat alerts (opens submenu)
+        if (hasAlertPermission(PERM_ALERTS_ANTICHEAT)) {
+            setItem(20, createItem(
+                    settings.getAnticheatAlerts() == AlertLevel.OFF ? Material.IRON_SWORD : Material.DIAMOND_SWORD,
+                    settings.getAnticheatAlerts().getColor() + "Anticheat Alerts",
+                    "<gray>Configure anticheat notifications",
+                    "",
+                    "<white>Level: " + settings.getAnticheatAlerts().getColor() + settings.getAnticheatAlerts().getDisplayName(),
+                    "<white>Min VL: <aqua>" + settings.getAnticheatMinVL(),
+                    "",
+                    "<yellow>Click to configure checks",
+                    "<yellow>Shift+click to cycle level"), clickType -> {
+                if (clickType.isShiftClick()) {
+                    settings.setAnticheatAlerts(settings.getAnticheatAlerts().next());
+                    saveAndRefresh();
+                } else {
+                    plugin.getGuiManager().open(viewer, new AnticheatRulesGui(plugin));
+                }
+            });
+        } else {
+            setItem(20, createNoPermissionItem("Anticheat Alerts"));
+        }
+
+        // Command alerts
+        if (hasAlertPermission(PERM_ALERTS_COMMANDS)) {
+            setItem(21, createCommandAlertItem("Command Alerts", settings.getCommandAlerts(), Material.COMMAND_BLOCK,
+                    "Player command monitoring"), () -> {
+                settings.setCommandAlerts(settings.getCommandAlerts().next());
+                saveAndRefresh();
+            });
+        } else {
+            setItem(21, createNoPermissionItem("Command Alerts"));
+        }
+
+        // Join/Leave alerts (in-game only)
+        if (hasAlertPermission(PERM_ALERTS_JOINLEAVE)) {
+            setItem(22, createAlertLevelItem("Join/Leave Alerts", settings.getJoinLeaveAlerts(), Material.OAK_DOOR,
+                    "Player join/leave alerts (in-game only)"), () -> {
+                settings.setJoinLeaveAlerts(settings.getJoinLeaveAlerts().next());
+                saveAndRefresh();
+            });
+        } else {
+            setItem(22, createNoPermissionItem("Join/Leave Alerts"));
+        }
+
+        // Nickname alerts
+        if (hasAlertPermission(PERM_ALERTS_NICKNAME)) {
+            setItem(23, createAlertLevelItem("Nickname Alerts", settings.getNicknameAlerts(), Material.NAME_TAG,
+                    "Inappropriate nickname detection"), () -> {
+                settings.setNicknameAlerts(settings.getNicknameAlerts().next());
+                saveAndRefresh();
+            });
+        } else {
+            setItem(23, createNoPermissionItem("Nickname Alerts"));
+        }
+
+        // === ROW 3: Additional Alerts ===
+        // Section label
+        setItem(27, createItem(Material.ENDER_EYE, "<aqua>Additional Alerts",
+                "<gray>Other notification settings"));
+
+        // Lag/Server status alerts
+        if (hasAlertPermission(PERM_ALERTS_LAG)) {
+            setItem(28, createToggleItem("Lag Alerts", settings.isLagAlerts(), Material.CLOCK,
+                    "Low TPS & server lag warnings"), () -> {
+                settings.setLagAlerts(!settings.isLagAlerts());
+                saveAndRefresh();
+            });
+        } else {
+            setItem(28, createNoPermissionItem("Lag Alerts"));
+        }
+
+        // Watchlist alerts
+        if (hasAlertPermission(PERM_ALERTS_WATCHLIST)) {
+            boolean wlEnabled = settings.isWatchlistJoinAlerts() || settings.isWatchlistActivityAlerts();
+            setItem(29, createItem(
+                    wlEnabled ? Material.LIME_DYE : Material.RED_DYE,
+                    (wlEnabled ? "<green>" : "<red>") + "Watchlist Alerts",
+                    "<gray>Alerts for watched players",
+                    "",
+                    "<white>Join: " + (settings.isWatchlistJoinAlerts() ? "<green>ON" : "<red>OFF"),
+                    "<white>Quit: " + (settings.isWatchlistQuitAlerts() ? "<green>ON" : "<red>OFF"),
+                    "<white>Activity: " + (settings.isWatchlistActivityAlerts() ? "<green>ON" : "<red>OFF"),
+                    "",
+                    "<yellow>Left-click: Toggle join",
+                    "<yellow>Right-click: Toggle activity",
+                    "<yellow>Shift+click: Toggle quit"), clickType -> {
+                if (clickType.isShiftClick()) {
+                    settings.setWatchlistQuitAlerts(!settings.isWatchlistQuitAlerts());
+                } else if (clickType.isRightClick()) {
+                    settings.setWatchlistActivityAlerts(!settings.isWatchlistActivityAlerts());
+                } else {
+                    settings.setWatchlistJoinAlerts(!settings.isWatchlistJoinAlerts());
+                }
+                saveAndRefresh();
+            });
+        } else {
+            setItem(29, createNoPermissionItem("Watchlist Alerts"));
+        }
+
+        // Staff Chat
+        if (hasAlertPermission(PERM_ALERTS_STAFFCHAT)) {
+            setItem(30, createItem(
+                    settings.isStaffChatEnabled() ? Material.LIME_DYE : Material.RED_DYE,
+                    (settings.isStaffChatEnabled() ? "<green>" : "<red>") + "Staff Chat",
+                    "<gray>Receive staff chat messages",
+                    "",
+                    "<white>Enabled: " + (settings.isStaffChatEnabled() ? "<green>ON" : "<red>OFF"),
+                    "<white>Sound: " + (settings.isStaffChatSound() ? "<green>ON" : "<red>OFF"),
+                    "",
+                    "<yellow>Left-click: Toggle chat",
+                    "<yellow>Right-click: Toggle sound"), clickType -> {
+                if (clickType.isRightClick()) {
+                    settings.setStaffChatSound(!settings.isStaffChatSound());
+                } else {
+                    settings.setStaffChatEnabled(!settings.isStaffChatEnabled());
+                }
+                saveAndRefresh();
+            });
+        } else {
+            setItem(30, createNoPermissionItem("Staff Chat"));
+        }
+
+        // === ROW 4: UI Settings ===
+        // Section label
+        setItem(36, createItem(Material.PAINTING, "<light_purple>Display Settings",
+                "<gray>How alerts are shown to you"));
+
+        // Sound toggle
+        setItem(37, createToggleItem("Alert Sounds", settings.isSoundEnabled(), Material.NOTE_BLOCK,
+                "Play sounds for alerts"), () -> {
             settings.setSoundEnabled(!settings.isSoundEnabled());
-            refresh();
+            saveAndRefresh();
         });
 
-        setItem(22, createToggle("Chat Alerts",
-                settings.isChatAlerts(),
-                "Show alerts in chat",
-                Material.PAPER), () -> {
+        // Chat alerts toggle
+        setItem(38, createToggleItem("Chat Alerts", settings.isChatAlerts(), Material.PAPER,
+                "Show alerts in chat"), () -> {
             settings.setChatAlerts(!settings.isChatAlerts());
-            refresh();
+            saveAndRefresh();
         });
 
-        setItem(23, createToggle("Action Bar",
-                settings.isActionBarAlerts(),
-                "Show alerts in action bar",
-                Material.NAME_TAG), () -> {
+        // Action bar toggle
+        setItem(39, createToggleItem("Action Bar", settings.isActionBarAlerts(), Material.NAME_TAG,
+                "Show alerts in action bar"), () -> {
             settings.setActionBarAlerts(!settings.isActionBarAlerts());
-            refresh();
+            saveAndRefresh();
         });
 
-        setItem(24, createToggle("Boss Bar",
-                settings.isBossBarAlerts(),
-                "Show alerts as boss bars",
-                Material.DRAGON_HEAD), () -> {
+        // Boss bar toggle
+        setItem(40, createToggleItem("Boss Bar", settings.isBossBarAlerts(), Material.DRAGON_HEAD,
+                "Show alerts as boss bars"), () -> {
             settings.setBossBarAlerts(!settings.isBossBarAlerts());
-            refresh();
-        });
-    }
-
-    // ========== Vanish Settings Tab ==========
-
-    private void renderVanishSettings() {
-        // Vanish settings - centered
-        setItem(20, createToggle("Auto Vanish",
-                settings.isAutoVanishOnJoin(),
-                "Auto-vanish when joining server",
-                Material.ENDER_EYE), () -> {
-            settings.setAutoVanishOnJoin(!settings.isAutoVanishOnJoin());
-            refresh();
+            saveAndRefresh();
         });
 
-        setItem(22, createToggle("Night Vision",
-                settings.isVanishNightVision(),
-                "Get night vision while vanished",
-                Material.GOLDEN_CARROT), () -> {
-            settings.setVanishNightVision(!settings.isVanishNightVision());
-            refresh();
+        // Compact mode
+        setItem(41, createToggleItem("Compact Mode", settings.isCompactMode(), Material.BOOK,
+                "Shorter alert messages"), () -> {
+            settings.setCompactMode(!settings.isCompactMode());
+            saveAndRefresh();
         });
 
-        setItem(24, createToggle("Show Particles",
-                settings.isVanishShowSelf(),
-                "Show particle effects to yourself",
-                Material.BLAZE_POWDER), () -> {
-            settings.setVanishShowSelf(!settings.isVanishShowSelf());
-            refresh();
+        // === ROW 5: Navigation ===
+        setItem(45, createItem(Material.ARROW, "<red>Close", "<gray>Close this menu"), this::close);
+
+        // Reset to defaults
+        setItem(49, createItem(Material.TNT, "<gold>Reset Defaults",
+                "<gray>Reset all settings to default",
+                "",
+                "<red>Shift+click to confirm"), clickType -> {
+            if (clickType.isShiftClick()) {
+                // Reset settings
+                settings = new StaffSettings(viewer.getUniqueId());
+                plugin.getStaffSettingsManager().saveSettings(settings);
+                viewer.sendMessage(TextUtil.parse("<yellow>Settings reset to defaults!"));
+                viewer.playSound(viewer.getLocation(), Sound.ENTITY_EXPERIENCE_ORB_PICKUP, 1f, 0.5f);
+                refresh();
+            }
         });
 
-        // Info
-        setItem(31, createItem(Material.POTION, "<aqua>Vanish Info",
-                "<gray>These settings control your",
-                "<gray>vanish behavior when using",
-                "<gray>/mx vanish or /v"));
+        // Save button
+        setItem(53, createItem(Material.LIME_CONCRETE, "<green>Save & Close",
+                "<gray>Save settings and close",
+                "",
+                "<dark_gray>Settings auto-save on change"), () -> {
+            plugin.getStaffSettingsManager().saveSettings(settings);
+            viewer.sendMessage(TextUtil.parse("<green>Settings saved!"));
+            viewer.playSound(viewer.getLocation(), Sound.ENTITY_EXPERIENCE_ORB_PICKUP, 1f, 1f);
+            close();
+        });
     }
 
     // ========== Helper Methods ==========
 
-    private ItemStack createToggle(String name, boolean enabled, String description, Material icon) {
+    private boolean hasAlertPermission(String permission) {
+        return viewer.hasPermission(PERM_STAFF) &&
+               (viewer.hasPermission(PERM_ALERTS_ALL) || viewer.hasPermission(permission));
+    }
+
+    private void saveAndRefresh() {
+        plugin.getStaffSettingsManager().saveSettings(settings);
+        viewer.playSound(viewer.getLocation(), Sound.UI_BUTTON_CLICK, 0.5f, 1.2f);
+        refresh();
+    }
+
+    private ItemStack createAlertLevelItem(String name, AlertLevel level, Material icon, String description) {
+        List<String> lore = new ArrayList<>();
+        lore.add("<gray>" + description);
+        lore.add("");
+        lore.add("<white>Level: " + level.getColor() + level.getDisplayName());
+        lore.add("");
+        lore.add("<dark_gray>Options:");
+        lore.add(level == AlertLevel.EVERYONE ? "<green>▶ " : "<gray>  " + "Everyone");
+        lore.add(level == AlertLevel.WATCHLIST_ONLY ? "<yellow>▶ " : "<gray>  " + "Watchlist Only");
+        lore.add(level == AlertLevel.OFF ? "<red>▶ " : "<gray>  " + "Off");
+        lore.add("");
+        lore.add("<yellow>Click to cycle");
+
+        Material displayIcon = switch (level) {
+            case EVERYONE -> Material.LIME_DYE;
+            case WATCHLIST_ONLY -> Material.YELLOW_DYE;
+            case OFF -> Material.RED_DYE;
+        };
+
+        return createItem(displayIcon, level.getColor() + name, lore);
+    }
+
+    private ItemStack createCommandAlertItem(String name, CommandAlertLevel level, Material icon, String description) {
+        List<String> lore = new ArrayList<>();
+        lore.add("<gray>" + description);
+        lore.add("");
+        lore.add("<white>Level: " + level.getColor() + level.getDisplayName());
+        lore.add("");
+        lore.add("<dark_gray>Options:");
+        lore.add(level == CommandAlertLevel.EVERYONE ? "<green>▶ " : "<gray>  " + "Everyone");
+        lore.add(level == CommandAlertLevel.WATCHLIST_ONLY ? "<yellow>▶ " : "<gray>  " + "Watchlist Only");
+        lore.add(level == CommandAlertLevel.BLACKLISTED_ONLY ? "<gold>▶ " : "<gray>  " + "Blacklisted Only");
+        lore.add(level == CommandAlertLevel.OFF ? "<red>▶ " : "<gray>  " + "Off");
+        lore.add("");
+        lore.add("<yellow>Click to cycle");
+
+        Material displayIcon = switch (level) {
+            case EVERYONE -> Material.LIME_DYE;
+            case WATCHLIST_ONLY -> Material.YELLOW_DYE;
+            case BLACKLISTED_ONLY -> Material.ORANGE_DYE;
+            case OFF -> Material.RED_DYE;
+        };
+
+        return createItem(displayIcon, level.getColor() + name, lore);
+    }
+
+    private ItemStack createToggleItem(String name, boolean enabled, Material icon, String description) {
         List<String> lore = new ArrayList<>();
         lore.add("<gray>" + description);
         lore.add("");
@@ -485,71 +411,11 @@ public class StaffSettingsGui extends BaseGui {
         );
     }
 
-    private ItemStack createAlertLevelButton(String name, AlertLevel level, Material icon) {
-        List<String> lore = new ArrayList<>();
-        lore.add("<gray>" + level.getDescription());
-        lore.add("");
-        lore.add("<white>Current: " + level.getColor() + level.getDisplayName());
-        lore.add("");
-        lore.add("<yellow>Click to cycle");
-
-        Material displayIcon = switch (level) {
-            case EVERYONE -> Material.LIME_DYE;
-            case WATCHLIST_ONLY -> Material.YELLOW_DYE;
-            case OFF -> Material.RED_DYE;
-        };
-
-        return createItem(displayIcon, level.getColor() + name, lore);
-    }
-
-    private ItemStack createJoinLeaveLevelButton(String name, JoinLeaveLevel level, Material icon) {
-        List<String> lore = new ArrayList<>();
-        lore.add("<gray>" + level.getDescription());
-        lore.add("");
-        lore.add("<white>Current: " + level.getColor() + level.getDisplayName());
-        lore.add("");
-        lore.add("<yellow>Click to cycle");
-
-        Material displayIcon = switch (level) {
-            case ALL -> Material.LIME_DYE;
-            case STAFF_ONLY -> Material.YELLOW_DYE;
-            case OFF -> Material.RED_DYE;
-        };
-
-        return createItem(displayIcon, level.getColor() + name, lore);
-    }
-
-    private ItemStack createCommandAlertLevelButton(String name, StaffSettings.CommandAlertLevel level, Material icon) {
-        List<String> lore = new ArrayList<>();
-        lore.add("<gray>" + level.getDescription());
-        lore.add("");
-        lore.add("<white>Current: " + level.getColor() + level.getDisplayName());
-        lore.add("");
-        lore.add("<yellow>Click to cycle");
-
-        Material displayIcon = switch (level) {
-            case EVERYONE -> Material.LIME_DYE;
-            case WATCHLIST_ONLY -> Material.YELLOW_DYE;
-            case BLACKLISTED_ONLY -> Material.ORANGE_DYE;
-            case OFF -> Material.RED_DYE;
-        };
-
-        return createItem(displayIcon, level.getColor() + name, lore);
-    }
-
-    private enum SettingsTab {
-        NOTIFICATIONS("Notifications", "Join/Leave and alert settings"),
-        ALERTS("Alert Types", "Configure which alerts to see"),
-        ANTICHEAT("Anticheat", "Anticheat alert settings"),
-        PERSONAL("Display", "Display and UI preferences"),
-        VANISH("Vanish", "Vanish behavior settings");
-
-        final String displayName;
-        final String description;
-
-        SettingsTab(String displayName, String description) {
-            this.displayName = displayName;
-            this.description = description;
-        }
+    private ItemStack createNoPermissionItem(String name) {
+        return createItem(Material.BARRIER, "<dark_gray>" + name,
+                "<red>No Permission",
+                "",
+                "<gray>You don't have permission",
+                "<gray>to configure this alert type");
     }
 }
