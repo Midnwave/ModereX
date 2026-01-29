@@ -362,11 +362,11 @@
   };
 
   /**
-   * Show an alert toast (priority notification)
+   * Show an alert toast (priority notification) - AlertBar style
    * @param {string} alertType - Type of alert (ban, kick, mute, warn, pardon, anticheat, automod, etc.)
-   * @param {string} title - Alert title (usually player name)
-   * @param {string} message - Alert message/details
-   * @param {object} options - Additional options
+   * @param {string} title - Alert title (e.g., "Player Banned")
+   * @param {string} message - Alert message/details (subtitle)
+   * @param {object} options - Additional options { playerId, playerName, silent }
    */
   window.alertToast = function(alertType, title, message, options = {}) {
     const settings = window.MX?.state?.staffSettings || {};
@@ -374,7 +374,7 @@
 
     // Check if sound should play
     const soundKey = 'webSound' + alertType.charAt(0).toUpperCase() + alertType.slice(1);
-    const shouldPlaySound = settings[soundKey] !== false; // Default true
+    const shouldPlaySound = settings[soundKey] !== false && !options.silent; // Default true
 
     if (window.MX?.debug) {
       console.log('[AlertToast] Creating alert:', alertType, title, message);
@@ -389,43 +389,79 @@
       const oldest = existingAlerts[0];
       if (oldest) {
         oldest.classList.add('exit');
-        setTimeout(() => oldest.remove(), 300);
+        setTimeout(() => oldest.remove(), 350);
       }
     }
 
     const el = document.createElement('div');
     el.className = `alert-toast ${alertType}`;
-    el.style.position = 'relative';
 
     const icon = alertIconMap[alertType] || alertIconMap.custom;
-    const typeLabel = alertType.charAt(0).toUpperCase() + alertType.slice(1).replace(/([A-Z])/g, ' $1');
-    const timeStr = new Date().toLocaleTimeString();
+    const playerId = options?.playerId;
+    const playerName = options?.playerName;
+
+    // Build left section with avatar or icon
+    let leftContent = '';
+    if (playerId) {
+      leftContent = `
+        <img class="alert-toast-avatar" src="https://mc-heads.net/avatar/${escapeHtml(playerId)}/32" alt="">
+      `;
+    } else {
+      leftContent = `
+        <div class="alert-toast-icon"><i class="fa-solid ${icon}"></i></div>
+      `;
+    }
+
+    // Build text section
+    let textContent = `<div class="alert-toast-title">${escapeHtml(title)}</div>`;
+    if (playerName) {
+      textContent += `<div class="alert-toast-player">${escapeHtml(playerName)}</div>`;
+    }
+    if (message) {
+      textContent += `<div class="alert-toast-sub">${escapeHtml(message)}</div>`;
+    }
 
     el.innerHTML = `
-      <div class="alert-toast-icon"><i class="fa-solid ${icon}"></i></div>
-      <div class="alert-toast-content">
-        <div class="alert-toast-type">${escapeHtml(typeLabel)} Alert</div>
-        <div class="alert-toast-title">${escapeHtml(title)}</div>
-        <div class="alert-toast-message">${escapeHtml(message)}</div>
-        <div class="alert-toast-time">${timeStr}</div>
+      <div class="alert-toast-left">
+        ${leftContent}
+        <div class="alert-toast-text">
+          ${textContent}
+        </div>
       </div>
-      <button class="alert-toast-close"><i class="fa-solid fa-xmark"></i></button>
+      <div class="alert-toast-actions">
+        ${playerId ? '<button class="mini" data-action="view"><i class="fa-solid fa-eye"></i></button>' : ''}
+        <button class="mini" data-action="dismiss"><i class="fa-solid fa-xmark"></i></button>
+      </div>
       <div class="alert-toast-progress" style="animation-duration: ${duration}ms"></div>
     `;
 
     const dismiss = () => {
       el.classList.add('exit');
-      setTimeout(() => el.remove(), 300);
+      setTimeout(() => el.remove(), 350);
     };
 
-    el.querySelector('.alert-toast-close').onclick = (e) => {
+    // View button handler
+    const viewBtn = el.querySelector('[data-action="view"]');
+    if (viewBtn) {
+      viewBtn.onclick = (e) => {
+        e.stopPropagation();
+        if (playerId) {
+          window.openPlayerDrawer?.(playerId);
+        }
+        dismiss();
+      };
+    }
+
+    // Dismiss button handler
+    el.querySelector('[data-action="dismiss"]').onclick = (e) => {
       e.stopPropagation();
       dismiss();
     };
 
+    // Click anywhere to view player (if playerId) or dismiss
     el.onclick = () => {
-      if (options.playerId) {
-        window.openDrawer?.(options.playerId);
+      if (playerId) {
+        window.openPlayerDrawer?.(playerId);
       }
       dismiss();
     };
@@ -433,12 +469,19 @@
     // Insert at top (newest first)
     container.insertBefore(el, container.firstChild);
 
+    // Trigger slide-in animation (need slight delay for CSS transition)
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        el.classList.add('show');
+      });
+    });
+
     // Auto-dismiss
     setTimeout(dismiss, duration);
 
     // Play sound
     if (shouldPlaySound && window.MX?.sounds) {
-      window.MX.sounds.alert?.();
+      window.MX.sounds.alertBar?.();
     }
   };
 

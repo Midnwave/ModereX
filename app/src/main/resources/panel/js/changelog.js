@@ -14,6 +14,34 @@
 
 window.MX_CHANGELOGS = [
   {
+    build: 176,
+    version: "2.0dev-176",
+    date: "2026-01-29",
+    title: "Alert Toast Visual Redesign",
+    sections: [
+      {
+        type: "improved",
+        title: "Improvements",
+        items: [
+          "**Alert Toast Redesign** - Alert toasts now match the watchlist alert bar style with smooth slide-in animations",
+          "**View & Dismiss Buttons** - Alert toasts now have dedicated View and Dismiss buttons like the alert bar",
+          "**Player Avatar Support** - Alert toasts display player avatar when player ID is available",
+          "**Type-Specific Styling** - Each alert type (ban, kick, mute, etc.) has matching border and icon colors"
+        ]
+      },
+      {
+        type: "technical",
+        title: "Technical Changes",
+        items: [
+          "Replaced bounce animation with smooth cubic-bezier slide transition matching alertBar",
+          "Updated HTML structure to use `alert-toast-left`, `alert-toast-text`, and `alert-toast-actions` layout",
+          "Added per-type CSS styling for border glow, icon background, player name color, and progress bar",
+          "Progress bar now matches alert type color for visual consistency"
+        ]
+      }
+    ]
+  },
+  {
     build: 175,
     version: "2.0dev-175",
     date: "2026-01-29",
