@@ -1169,18 +1169,34 @@
              permissions.includes('moderex.staff');
     };
 
-    // Generate alert level dropdown HTML with permission check
+    // Helper to get display text and color for alert level
+    const getLevelDisplay = (level) => {
+      const displays = {
+        'EVERYONE': { text: 'Everyone', color: 'green' },
+        'WATCHLIST_ONLY': { text: 'Watchlist', color: 'yellow' },
+        'BLACKLISTED_ONLY': { text: 'Blacklisted', color: 'orange' },
+        'OFF': { text: 'Off', color: 'gray' }
+      };
+      return displays[level] || { text: 'Not Set', color: 'gray' };
+    };
+
+    // Generate alert level dropdown HTML with permission check and current value badge
     const levelOptions = (current, key, perm) => {
       const disabled = perm && !hasPermission(perm);
       if (disabled) {
         return `<span class="badge gray" style="font-size:11px"><i class="fa-solid fa-lock"></i> No Permission</span>`;
       }
+      const display = getLevelDisplay(current);
       return `
-        <select class="input small" onchange="updateStaffSetting('${key}', this.value)">
-          <option value="EVERYONE" ${current === 'EVERYONE' ? 'selected' : ''}>Everyone</option>
-          <option value="WATCHLIST_ONLY" ${current === 'WATCHLIST_ONLY' ? 'selected' : ''}>Watchlist Only</option>
-          <option value="OFF" ${current === 'OFF' ? 'selected' : ''}>Off</option>
-        </select>
+        <div style="display:flex;align-items:center;gap:8px">
+          <span class="badge ${display.color}" style="font-size:11px;min-width:70px;text-align:center">${display.text}</span>
+          <select class="input small" onchange="updateStaffSetting('${key}', this.value)">
+            <option value="" disabled ${!current ? 'selected' : ''}>Change...</option>
+            <option value="EVERYONE" ${current === 'EVERYONE' ? 'selected' : ''}>Everyone</option>
+            <option value="WATCHLIST_ONLY" ${current === 'WATCHLIST_ONLY' ? 'selected' : ''}>Watchlist Only</option>
+            <option value="OFF" ${current === 'OFF' ? 'selected' : ''}>Off</option>
+          </select>
+        </div>
       `;
     };
 
@@ -1190,13 +1206,18 @@
       if (disabled) {
         return `<span class="badge gray" style="font-size:11px"><i class="fa-solid fa-lock"></i> No Permission</span>`;
       }
+      const display = getLevelDisplay(current);
       return `
-        <select class="input small" onchange="updateStaffSetting('${key}', this.value)">
-          <option value="EVERYONE" ${current === 'EVERYONE' ? 'selected' : ''}>Everyone</option>
-          <option value="WATCHLIST_ONLY" ${current === 'WATCHLIST_ONLY' ? 'selected' : ''}>Watchlist Only</option>
-          <option value="BLACKLISTED_ONLY" ${current === 'BLACKLISTED_ONLY' ? 'selected' : ''}>Blacklisted Only</option>
-          <option value="OFF" ${current === 'OFF' ? 'selected' : ''}>Off</option>
-        </select>
+        <div style="display:flex;align-items:center;gap:8px">
+          <span class="badge ${display.color}" style="font-size:11px;min-width:70px;text-align:center">${display.text}</span>
+          <select class="input small" onchange="updateStaffSetting('${key}', this.value)">
+            <option value="" disabled ${!current ? 'selected' : ''}>Change...</option>
+            <option value="EVERYONE" ${current === 'EVERYONE' ? 'selected' : ''}>Everyone</option>
+            <option value="WATCHLIST_ONLY" ${current === 'WATCHLIST_ONLY' ? 'selected' : ''}>Watchlist Only</option>
+            <option value="BLACKLISTED_ONLY" ${current === 'BLACKLISTED_ONLY' ? 'selected' : ''}>Blacklisted Only</option>
+            <option value="OFF" ${current === 'OFF' ? 'selected' : ''}>Off</option>
+          </select>
+        </div>
       `;
     };
 
@@ -1209,15 +1230,28 @@
       </select>
     `;
 
-    // Toast position options
-    const positionOptions = (current) => `
-      <select class="input small" onchange="updateStaffSetting('webToastPosition', this.value); window.updateAlertToastPosition(this.value.toLowerCase().replace('_', '-'))">
-        <option value="TOP_RIGHT" ${(current || 'TOP_RIGHT') === 'TOP_RIGHT' ? 'selected' : ''}>Top Right</option>
-        <option value="TOP_LEFT" ${current === 'TOP_LEFT' ? 'selected' : ''}>Top Left</option>
-        <option value="BOTTOM_RIGHT" ${current === 'BOTTOM_RIGHT' ? 'selected' : ''}>Bottom Right</option>
-        <option value="BOTTOM_LEFT" ${current === 'BOTTOM_LEFT' ? 'selected' : ''}>Bottom Left</option>
-      </select>
-    `;
+    // Toast position options with current value badge
+    const positionOptions = (current) => {
+      const positionDisplays = {
+        'TOP_RIGHT': 'Top Right',
+        'TOP_LEFT': 'Top Left',
+        'BOTTOM_RIGHT': 'Bottom Right',
+        'BOTTOM_LEFT': 'Bottom Left'
+      };
+      const displayText = positionDisplays[current] || 'Not Set';
+      return `
+        <div style="display:flex;align-items:center;gap:8px">
+          <span class="badge purple" style="font-size:11px;min-width:80px;text-align:center">${displayText}</span>
+          <select class="input small" onchange="updateStaffSetting('webToastPosition', this.value); window.updateAlertToastPosition(this.value.toLowerCase().replace('_', '-'))">
+            <option value="" disabled ${!current ? 'selected' : ''}>Change...</option>
+            <option value="TOP_RIGHT" ${current === 'TOP_RIGHT' ? 'selected' : ''}>Top Right</option>
+            <option value="TOP_LEFT" ${current === 'TOP_LEFT' ? 'selected' : ''}>Top Left</option>
+            <option value="BOTTOM_RIGHT" ${current === 'BOTTOM_RIGHT' ? 'selected' : ''}>Bottom Right</option>
+            <option value="BOTTOM_LEFT" ${current === 'BOTTOM_LEFT' ? 'selected' : ''}>Bottom Left</option>
+          </select>
+        </div>
+      `;
+    };
 
     const toggleHtml = (key, label, perm) => {
       const disabled = perm && !hasPermission(perm);
