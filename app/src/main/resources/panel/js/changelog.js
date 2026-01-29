@@ -14,6 +14,33 @@
 
 window.MX_CHANGELOGS = [
   {
+    build: 177,
+    version: "2.0dev-177",
+    date: "2026-01-29",
+    title: "Loading Bar & Alert Debug Improvements",
+    sections: [
+      {
+        type: "improved",
+        title: "Improvements",
+        items: [
+          "**Loading Bar for All Requests** - Loading bar now appears when fetching any data from the server",
+          "**Alert System Debug** - Added console logging to trace alert delivery issues",
+          "**Better Player ID Handling** - Alert toasts now correctly use player UUID for avatar display"
+        ]
+      },
+      {
+        type: "technical",
+        title: "Technical Changes",
+        items: [
+          "WebSocket `send()` now triggers loading bar for GET_ requests and data operations",
+          "Added `shouldShowLoadingBar()` and `shouldHideLoadingBar()` helpers for request/response tracking",
+          "Added debug console.log statements to `showPanelAlert`, `alertToast`, and `CUSTOM_ALERT` handlers",
+          "Fixed player ID lookup in CUSTOM_ALERT to use `data.playerUuid` directly as fallback"
+        ]
+      }
+    ]
+  },
+  {
     build: 176,
     version: "2.0dev-176",
     date: "2026-01-29",

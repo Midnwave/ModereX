@@ -134,6 +134,26 @@
     sessionData = null;
   }
 
+  // Request types that should show loading bar (data-fetching requests)
+  const LOADING_BAR_REQUESTS = new Set([
+    'GET_DATA', 'GET_PLAYERS', 'GET_PUNISHMENTS', 'GET_WATCHLIST', 'GET_RULES',
+    'GET_SETTINGS', 'GET_USER_SETTINGS', 'GET_MESSAGES', 'GET_TEMPLATES',
+    'GET_LOGS', 'GET_STATS', 'GET_ANTICHEAT_CONFIG', 'GET_ANTICHEAT_INFO',
+    'GET_ANTICHEAT_ALERTS', 'GET_STAFF_ALERT_PREFS', 'GET_ALERT_PRESETS',
+    'GET_SERVER_SETTINGS', 'GET_CHAT_STATUS', 'GET_PLAYER_DETAILS',
+    'GET_COMMAND_HISTORY', 'GET_AUTOMOD_LOGS', 'GET_CHAT_LOGS',
+    'GET_DEV_CHECKLIST', 'GET_GEYSER_STATUS', 'GET_TRUSTED_DEVICE_COUNT',
+    'SYNC_AUTOMOD_RULES', 'UPDATE_SETTINGS', 'UPDATE_USER_SETTINGS',
+    'CREATE_PUNISHMENT', 'REVOKE_PUNISHMENT'
+  ]);
+
+  // Track pending requests to auto-hide loading bar
+  let pendingLoadingRequests = 0;
+
+  function shouldShowLoadingBar(type) {
+    return LOADING_BAR_REQUESTS.has(type) || type.startsWith('GET_');
+  }
+
   /**
    * Send a message to the server
    * @param {string} type - Message type
@@ -148,9 +168,16 @@
 
     const message = JSON.stringify({ type, data });
     ws.send(message);
+
     // Only log non-heartbeat/ping messages to avoid spam
     if (type !== 'HEARTBEAT' && type !== 'PING') {
       if (window.debugLog) window.debugLog('WS', `Sent: ${type}`, 'info');
+
+      // Show loading bar for data-fetching requests
+      if (window.showLoadingLine && shouldShowLoadingBar(type)) {
+        pendingLoadingRequests++;
+        window.showLoadingLine();
+      }
     }
     return true;
   }
@@ -325,11 +352,33 @@
     }
   }
 
+  // Response types that should hide loading bar
+  const LOADING_BAR_RESPONSES = new Set([
+    'DATA', 'PLAYERS', 'PUNISHMENTS', 'WATCHLIST', 'RULES', 'SETTINGS',
+    'USER_SETTINGS_DATA', 'MESSAGES', 'TEMPLATES', 'LOGS', 'STATS',
+    'ANTICHEAT_CONFIG', 'ANTICHEAT_INFO', 'ANTICHEAT_ALERTS',
+    'STAFF_ALERT_PREFS', 'ALERT_PRESETS', 'SERVER_SETTINGS', 'CHAT_STATUS',
+    'PLAYER_DETAILS', 'COMMAND_HISTORY', 'AUTOMOD_LOGS', 'CHAT_LOGS',
+    'DEV_CHECKLIST', 'GEYSER_STATUS', 'TRUSTED_DEVICE_COUNT',
+    'PUNISHMENT_CREATED', 'PUNISHMENT_REVOKED', 'SETTINGS_UPDATED',
+    'ERROR', 'SUCCESS'
+  ]);
+
+  function shouldHideLoadingBar(type) {
+    return LOADING_BAR_RESPONSES.has(type) || type.endsWith('_DATA') || type.endsWith('_RESPONSE');
+  }
+
   /**
    * Handle incoming messages
    */
   function handleMessage(message) {
     const { type, data } = message;
+
+    // Hide loading bar for data responses
+    if (pendingLoadingRequests > 0 && shouldHideLoadingBar(type)) {
+      pendingLoadingRequests--;
+      if (window.hideLoadingLine) window.hideLoadingLine();
+    }
 
     // Check for pending request responses first
     if (handlePendingResponse(type, data)) {

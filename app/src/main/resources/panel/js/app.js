@@ -369,17 +369,17 @@
    * @param {object} options - Additional options { playerId, playerName, silent }
    */
   window.alertToast = function(alertType, title, message, options = {}) {
+    console.log('[AlertToast] Called with:', { alertType, title, message, options });
+
     const settings = window.MX?.state?.staffSettings || {};
     const duration = (settings.webAlertDurationSeconds || 10) * 1000;
 
     // Check if sound should play
     const soundKey = 'webSound' + alertType.charAt(0).toUpperCase() + alertType.slice(1);
-    const shouldPlaySound = settings[soundKey] !== false && !options.silent; // Default true
+    const shouldPlaySound = settings[soundKey] !== false && !options?.silent; // Default true
 
-    if (window.MX?.debug) {
-      console.log('[AlertToast] Creating alert:', alertType, title, message);
-      console.log('[AlertToast] Duration:', duration, 'Sound enabled:', shouldPlaySound);
-    }
+    console.log('[AlertToast] Creating alert:', alertType, title, message);
+    console.log('[AlertToast] Duration:', duration, 'Sound enabled:', shouldPlaySound);
 
     const container = getAlertContainer();
 
@@ -4341,30 +4341,33 @@
 
     // Custom alerts from /mx sendalert command
     ws.on('CUSTOM_ALERT', (data) => {
-      if (!isLiveMode) return;
+      console.log('[CUSTOM_ALERT] Received:', data);
+      console.log('[CUSTOM_ALERT] isLiveMode:', isLiveMode);
+
+      if (!isLiveMode) {
+        console.log('[CUSTOM_ALERT] Not in live mode, ignoring');
+        return;
+      }
+
+      // Try to find the player in state.players - use UUID as playerId for avatar
       const player = data.playerUuid ? state.players.find(p => p.uuid === data.playerUuid || p.id === data.playerUuid) : null;
+      const playerId = data.playerUuid || player?.uuid || player?.id;
+
+      console.log('[CUSTOM_ALERT] Player lookup:', { playerUuid: data.playerUuid, foundPlayer: player, playerId });
 
       // Log the event
       const category = data.category || 'custom';
       const eventType = category.toUpperCase();
-      logEvent('WARN', category, data.title || 'Alert', `${data.playerName}: ${data.message}`, { playerId: player?.id, kind: category, type: eventType });
+      logEvent('WARN', category, data.title || 'Alert', `${data.playerName}: ${data.message}`, { playerId: playerId, kind: category, type: eventType });
 
       // Show alert using panel notification settings
       showPanelAlert(category, data.title || 'Alert', `${data.playerName}: ${data.message}`, {
-        playerId: player?.id,
+        playerId: playerId,
         playerName: data.playerName,
         severity: 'warn'
       });
 
-      // Play sound based on category
-      if (window.MX.sounds) {
-        switch (category) {
-          case 'anticheat': window.MX.sounds.anticheat(); break;
-          case 'punishments': window.MX.sounds.toastWarning(); break;
-          case 'watchlist': window.MX.sounds.toastWarning(); break;
-          default: window.MX.sounds.toastInfo(); break;
-        }
-      }
+      // Sound is played in alertToast based on settings
     });
 
     ws.on('SERVER_STATUS', (data) => {
@@ -4836,16 +4839,26 @@
   function showPanelAlert(category, title, message, options = {}) {
     const staffSettings = state.staffSettings || {};
     const settingKey = 'webNotify' + category.charAt(0).toUpperCase() + category.slice(1);
-    const mode = staffSettings[settingKey] || 'toast';
+    const mode = staffSettings[settingKey] || 'toast'; // Default to toast if not set
 
-    if (mode === 'off') return;
+    console.log('[showPanelAlert] category:', category, 'settingKey:', settingKey, 'mode:', mode, 'staffSettings:', staffSettings);
 
-    const playerData = options.playerId ? { playerId: options.playerId, playerName: options.playerName } : null;
+    if (mode === 'off') {
+      console.log('[showPanelAlert] Mode is off, not showing alert');
+      return;
+    }
 
-    if (mode === 'toast') {
+    // Only include playerData if we have a valid playerId (not undefined/null)
+    const playerData = options.playerId ? { playerId: options.playerId, playerName: options.playerName } : { playerName: options.playerName };
+
+    console.log('[showPanelAlert] Showing alert toast:', { category, title, message, playerData });
+
+    if (mode === 'toast' || mode === 'both') {
       // Use the new alertToast for alert notifications
       window.alertToast(category, title, message, playerData);
-    } else if (mode === 'browser') {
+    }
+
+    if (mode === 'browser' || mode === 'both') {
       // Request browser notification permission if not granted
       if (Notification.permission === 'granted') {
         new Notification(title, { body: message, icon: '/537154108207028818e303ef9465c1f66717660d_96.png' });
@@ -4856,8 +4869,10 @@
           }
         });
       }
-      // Also show alert toast as fallback
-      window.alertToast(category, title, message, { ...playerData, silent: true });
+      // Also show alert toast as fallback if browser-only mode
+      if (mode === 'browser') {
+        window.alertToast(category, title, message, { ...playerData, silent: true });
+      }
     }
   }
 
