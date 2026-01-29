@@ -460,7 +460,6 @@
     el.className = `alert-toast ${alertType}`;
 
     const icon = alertIconMap[alertType] || alertIconMap.custom;
-    const playerId = options?.playerId;
     const playerName = options?.playerName;
 
     // Build left section with avatar or icon
