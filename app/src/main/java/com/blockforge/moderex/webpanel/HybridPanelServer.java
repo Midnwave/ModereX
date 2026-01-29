@@ -2077,11 +2077,8 @@ public class HybridPanelServer {
                 }
             }
 
-            // Save rule
+            // Save rule (this also broadcasts the update via AutomodManager)
             plugin.getAutomodManager().saveRule(rule);
-
-            // Broadcast update
-            broadcastAutomodRules();
 
             JsonObject response = new JsonObject();
             response.addProperty("type", "AUTOMOD_RULE_UPDATED");
@@ -2124,11 +2121,8 @@ public class HybridPanelServer {
                 rule.setExclusionWords(exclusions);
             }
 
-            // Save rule
+            // Save rule (this also broadcasts the update via AutomodManager)
             plugin.getAutomodManager().saveRule(rule);
-
-            // Broadcast update
-            broadcastAutomodRules();
 
             JsonObject response = new JsonObject();
             response.addProperty("type", "AUTOMOD_RULE_CREATED");
@@ -2160,10 +2154,8 @@ public class HybridPanelServer {
                 return;
             }
 
+            // Delete rule (this also broadcasts the update via AutomodManager)
             plugin.getAutomodManager().deleteRule(ruleId);
-
-            // Broadcast update
-            broadcastAutomodRules();
 
             JsonObject response = new JsonObject();
             response.addProperty("type", "AUTOMOD_RULE_DELETED");
@@ -5317,7 +5309,7 @@ public class HybridPanelServer {
 
     private void handleDevStressCreatePlayers(WebSocketConnection conn, JsonObject data) {
         int count = data.has("count") ? data.get("count").getAsInt() : 100;
-        count = Math.min(count, 10000); // Cap at 10k
+        count = Math.min(count, 100000); // Cap at 100k
 
         if (stressTestRunning) {
             sendStressError(conn, "players", "A stress test is already running");
@@ -5331,6 +5323,9 @@ public class HybridPanelServer {
 
         plugin.getServer().getScheduler().runTaskAsynchronously(plugin, () -> {
             try {
+                // Calculate progress update frequency based on count
+                int progressInterval = Math.max(10, playerCount / 100);
+
                 for (int i = 0; i < playerCount && !stressTestCancelled; i++) {
                     UUID uuid = UUID.randomUUID();
                     String name = "StressTest_" + i;
@@ -5344,8 +5339,8 @@ public class HybridPanelServer {
                         uuid.toString(), name, ip, System.currentTimeMillis(), System.currentTimeMillis()
                     );
 
-                    // Send progress every 10 players
-                    if (i % 10 == 0 || i == playerCount - 1) {
+                    // Send progress at intervals
+                    if (i % progressInterval == 0 || i == playerCount - 1) {
                         sendStressProgress(conn, "players", i + 1, playerCount);
                     }
                 }
@@ -5367,7 +5362,7 @@ public class HybridPanelServer {
 
     private void handleDevStressCreatePunishments(WebSocketConnection conn, JsonObject data) {
         int count = data.has("count") ? data.get("count").getAsInt() : 100;
-        count = Math.min(count, 10000);
+        count = Math.min(count, 100000); // Cap at 100k
 
         if (stressTestRunning) {
             sendStressError(conn, "punishments", "A stress test is already running");
@@ -5384,6 +5379,9 @@ public class HybridPanelServer {
                 String[] types = {"BAN", "MUTE", "KICK", "WARN"};
                 String[] reasons = {"Stress test punishment", "Testing", "Performance test", "Automated test"};
                 Random random = new Random();
+
+                // Calculate progress update frequency based on count
+                int progressInterval = Math.max(10, punishmentCount / 100);
 
                 for (int i = 0; i < punishmentCount && !stressTestCancelled; i++) {
                     UUID targetUuid = UUID.randomUUID();
@@ -5407,7 +5405,7 @@ public class HybridPanelServer {
                         false, false
                     );
 
-                    if (i % 10 == 0 || i == punishmentCount - 1) {
+                    if (i % progressInterval == 0 || i == punishmentCount - 1) {
                         sendStressProgress(conn, "punishments", i + 1, punishmentCount);
                     }
                 }

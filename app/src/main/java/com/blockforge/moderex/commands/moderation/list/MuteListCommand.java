@@ -51,9 +51,9 @@ public class MuteListCommand extends BaseCommand {
 
                 // Header with box-drawing
                 sender.sendMessage(TextUtil.parse(""));
-                sender.sendMessage(TextUtil.parse("<dark_gray>┌────────────────────────────────────────────┐"));
+                sender.sendMessage(TextUtil.parse("<dark_gray>┌──────────────────┐"));
                 sender.sendMessage(TextUtil.parse("<dark_gray>│ <gold>Active Mutes <dark_gray>(<white>" + totalMutes + " total<dark_gray>)"));
-                sender.sendMessage(TextUtil.parse("<dark_gray>├────────────────────────────────────────────┤"));
+                sender.sendMessage(TextUtil.parse("<dark_gray>├──────────────────┤"));
 
                 if (mutes.isEmpty()) {
                     sender.sendMessage(TextUtil.parse("<dark_gray>│ <gray>No active mutes."));
@@ -79,7 +79,7 @@ public class MuteListCommand extends BaseCommand {
                     }
                 }
 
-                sender.sendMessage(TextUtil.parse("<dark_gray>└────────────────────────────────────────────┘"));
+                sender.sendMessage(TextUtil.parse("<dark_gray>└──────────────────┘"));
 
                 // Navigation footer
                 if (sender instanceof Player && totalPages > 1) {

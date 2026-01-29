@@ -400,13 +400,20 @@ public class AutomodManager {
             };
 
             if (matches) {
-                // Check exclusions
+                // Check exclusions - exact word/phrase match with word boundaries
                 boolean excluded = false;
                 if (exclusions != null) {
                     for (String exclusion : exclusions) {
-                        if (exclusion != null && lowerMessage.contains(exclusion.toLowerCase())) {
-                            excluded = true;
-                            break;
+                        if (exclusion != null && !exclusion.isEmpty()) {
+                            // Use word boundary matching for exact word/phrase exclusion
+                            Pattern exclusionPattern = Pattern.compile(
+                                    "\\b" + Pattern.quote(exclusion.toLowerCase()) + "\\b",
+                                    Pattern.CASE_INSENSITIVE
+                            );
+                            if (exclusionPattern.matcher(message).find()) {
+                                excluded = true;
+                                break;
+                            }
                         }
                     }
                 }

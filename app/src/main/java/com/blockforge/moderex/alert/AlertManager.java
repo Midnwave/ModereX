@@ -113,6 +113,9 @@ public class AlertManager {
     private void broadcastToInGameStaff(String playerName, UUID playerUuid, AlertType type, String title, String message) {
         Component alertComponent = buildInGameAlert(playerName, type, title, message);
 
+        // Check if target player is on watchlist
+        boolean isOnWatchlist = playerUuid != null && plugin.getWatchlistManager().isWatched(playerUuid);
+
         for (Player staff : Bukkit.getOnlinePlayers()) {
             if (!staff.hasPermission("moderex.staff")) continue;
 
@@ -124,20 +127,38 @@ public class AlertManager {
                 continue;
             }
 
-            // Check if alerts are enabled based on type
-            boolean shouldSend = switch (type) {
-                case ANTICHEAT -> settings.isChatAlerts(); // Uses chat alerts setting
-                case AUTOMOD -> settings.isChatAlerts();
-                case PUNISHMENT -> settings.isChatAlerts();
-                case WATCHLIST -> settings.isWatchlistJoinAlerts() || settings.isWatchlistActivityAlerts();
-                case STAFFCHAT -> settings.isStaffChatEnabled();
-                case CUSTOM -> settings.isChatAlerts();
+            // Check if chat alerts are enabled globally first
+            if (!settings.isChatAlerts()) continue;
+
+            // Get the specific alert level for this type
+            StaffSettings.AlertLevel alertLevel = switch (type) {
+                case ANTICHEAT -> settings.getAnticheatAlerts();
+                case AUTOMOD -> settings.getAutomodAlerts();
+                case PUNISHMENT -> settings.getPunishmentAlerts();
+                case WATCHLIST -> StaffSettings.AlertLevel.EVERYONE; // Watchlist uses separate boolean settings
+                case STAFFCHAT -> settings.isStaffChatEnabled() ? StaffSettings.AlertLevel.EVERYONE : StaffSettings.AlertLevel.OFF;
+                case CUSTOM -> StaffSettings.AlertLevel.EVERYONE;
             };
+
+            // Check alert level - OFF means don't send
+            if (alertLevel == StaffSettings.AlertLevel.OFF) continue;
+
+            // Check watchlist requirement
+            boolean shouldSend = switch (alertLevel) {
+                case EVERYONE -> true;
+                case WATCHLIST_ONLY -> isOnWatchlist;
+                case OFF -> false;
+            };
+
+            // Special handling for watchlist type (uses separate boolean settings)
+            if (type == AlertType.WATCHLIST) {
+                shouldSend = settings.isWatchlistJoinAlerts() || settings.isWatchlistActivityAlerts();
+            }
 
             if (shouldSend) {
                 staff.sendMessage(alertComponent);
 
-                // Play sound if enabled
+                // Play sound only if sound is enabled
                 if (settings.isSoundEnabled()) {
                     staff.playSound(staff.getLocation(), org.bukkit.Sound.BLOCK_NOTE_BLOCK_PLING, 1.0f, 1.5f);
                 }

@@ -51,9 +51,9 @@ public class WarnListCommand extends BaseCommand {
 
                 // Header with box-drawing
                 sender.sendMessage(TextUtil.parse(""));
-                sender.sendMessage(TextUtil.parse("<dark_gray>┌────────────────────────────────────────────┐"));
+                sender.sendMessage(TextUtil.parse("<dark_gray>┌──────────────────┐"));
                 sender.sendMessage(TextUtil.parse("<dark_gray>│ <aqua>Active Warnings <dark_gray>(<white>" + totalWarnings + " total<dark_gray>)"));
-                sender.sendMessage(TextUtil.parse("<dark_gray>├────────────────────────────────────────────┤"));
+                sender.sendMessage(TextUtil.parse("<dark_gray>├──────────────────┤"));
 
                 if (warnings.isEmpty()) {
                     sender.sendMessage(TextUtil.parse("<dark_gray>│ <gray>No active warnings."));
@@ -79,7 +79,7 @@ public class WarnListCommand extends BaseCommand {
                     }
                 }
 
-                sender.sendMessage(TextUtil.parse("<dark_gray>└────────────────────────────────────────────┘"));
+                sender.sendMessage(TextUtil.parse("<dark_gray>└──────────────────┘"));
 
                 // Navigation footer
                 if (sender instanceof Player && totalPages > 1) {

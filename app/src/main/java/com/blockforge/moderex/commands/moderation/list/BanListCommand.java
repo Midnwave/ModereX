@@ -51,9 +51,9 @@ public class BanListCommand extends BaseCommand {
 
                 // Header with box-drawing
                 sender.sendMessage(TextUtil.parse(""));
-                sender.sendMessage(TextUtil.parse("<dark_gray>┌────────────────────────────────────────────┐"));
+                sender.sendMessage(TextUtil.parse("<dark_gray>┌──────────────────┐"));
                 sender.sendMessage(TextUtil.parse("<dark_gray>│ <red>Active Bans <dark_gray>(<white>" + totalBans + " total<dark_gray>)"));
-                sender.sendMessage(TextUtil.parse("<dark_gray>├────────────────────────────────────────────┤"));
+                sender.sendMessage(TextUtil.parse("<dark_gray>├──────────────────┤"));
 
                 if (bans.isEmpty()) {
                     sender.sendMessage(TextUtil.parse("<dark_gray>│ <gray>No active bans."));
@@ -79,7 +79,7 @@ public class BanListCommand extends BaseCommand {
                     }
                 }
 
-                sender.sendMessage(TextUtil.parse("<dark_gray>└────────────────────────────────────────────┘"));
+                sender.sendMessage(TextUtil.parse("<dark_gray>└──────────────────┘"));
 
                 // Navigation footer
                 if (sender instanceof Player && totalPages > 1) {

@@ -97,10 +97,10 @@ public class CmdHistoryCommand extends BaseCommand {
                 plugin.getServer().getScheduler().runTask(plugin, () -> {
                     // Header with box-drawing characters
                     sender.sendMessage(TextUtil.parse(""));
-                    sender.sendMessage(TextUtil.parse("<dark_gray>┌────────────────────────────────────────────┐"));
+                    sender.sendMessage(TextUtil.parse("<dark_gray>┌──────────────────┐"));
                     sender.sendMessage(TextUtil.parse("<dark_gray>│ <white>Command History: <yellow>" + displayName +
                             " <dark_gray>(<white>" + finalTotalCount + " total<dark_gray>)"));
-                    sender.sendMessage(TextUtil.parse("<dark_gray>├────────────────────────────────────────────┤"));
+                    sender.sendMessage(TextUtil.parse("<dark_gray>├──────────────────┤"));
 
                     if (entries.isEmpty()) {
                         sender.sendMessage(TextUtil.parse("<dark_gray>│ <gray>No commands found for this player."));
@@ -128,7 +128,7 @@ public class CmdHistoryCommand extends BaseCommand {
                         }
                     }
 
-                    sender.sendMessage(TextUtil.parse("<dark_gray>└────────────────────────────────────────────┘"));
+                    sender.sendMessage(TextUtil.parse("<dark_gray>└──────────────────┘"));
 
                     // Build clickable navigation footer
                     if (sender instanceof Player && finalTotalPages > 1) {

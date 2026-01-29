@@ -206,15 +206,18 @@
 
   function updateDatabaseSize(sizeMb, maxSizeMb, sizeBytes, maxSizeBytes) {
     const sizeEl = document.getElementById('statusDbSize');
+    const labelEl = document.getElementById('statusDbLabel');
     const barEl = document.getElementById('statusDbBar');
 
     // Use bytes if available, otherwise fall back to MB
     const bytes = sizeBytes || (sizeMb ? sizeMb * 1024 * 1024 : 0);
     const maxBytes = maxSizeBytes || (maxSizeMb ? maxSizeMb * 1024 * 1024 : DB_SIZE_LIMIT_BYTES);
     const percent = Math.min(100, (bytes / maxBytes) * 100);
+    const maxMb = (maxBytes / (1024 * 1024)).toFixed(0);
 
     if (sizeEl) {
-      sizeEl.textContent = formatDatabaseSize(bytes);
+      // Show "X / 10 MB" format
+      sizeEl.textContent = formatDatabaseSize(bytes) + ' / ' + maxMb + ' MB';
 
       // Color based on usage
       if (percent >= 90) {
@@ -224,6 +227,11 @@
       } else {
         sizeEl.style.color = '';
       }
+    }
+
+    // Update label with percentage
+    if (labelEl) {
+      labelEl.textContent = 'Database (' + percent.toFixed(0) + '%)';
     }
 
     if (barEl) {

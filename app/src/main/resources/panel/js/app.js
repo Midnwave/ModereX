@@ -4359,9 +4359,9 @@
   let loadingLineCount = 0;
   let loadingLineTimeout = null;
   let loadingLineFadeTimeout = null;
-  let loadingProgress = 0;
-  let loadingTotal = 0;
-  let loadingCompleted = 0;
+  let loadingAnimationFrame = null;
+  let loadingStartTime = 0;
+  let currentProgress = 0;
 
   function getLoadingElements() {
     return {
@@ -4373,14 +4373,34 @@
   function updateLoadingProgress(progress) {
     const { fill } = getLoadingElements();
     if (fill) {
-      fill.style.width = Math.min(100, Math.max(0, progress)) + '%';
+      currentProgress = Math.min(100, Math.max(0, progress));
+      fill.style.width = currentProgress + '%';
+    }
+  }
+
+  // Animate progress smoothly toward target over time
+  function animateProgress() {
+    if (loadingLineCount === 0) return;
+
+    const elapsed = Date.now() - loadingStartTime;
+    // Asymptotic progress: quickly to 60%, then slow down to max 90%
+    // Formula: 90 * (1 - e^(-elapsed/3000))
+    const targetProgress = 90 * (1 - Math.exp(-elapsed / 3000));
+
+    if (currentProgress < targetProgress) {
+      updateLoadingProgress(targetProgress);
+    }
+
+    if (loadingLineCount > 0 && currentProgress < 90) {
+      loadingAnimationFrame = requestAnimationFrame(animateProgress);
     }
   }
 
   function showLoadingLine() {
+    const wasActive = loadingLineCount > 0;
     loadingLineCount++;
-    loadingTotal++;
-    const { line, fill } = getLoadingElements();
+
+    const { line } = getLoadingElements();
 
     // Clear any pending fade-out
     if (loadingLineFadeTimeout) {
@@ -4393,9 +4413,13 @@
       line.classList.add('active');
     }
 
-    // Update progress based on pending requests
-    const progress = loadingTotal > 0 ? (loadingCompleted / loadingTotal) * 100 : 0;
-    updateLoadingProgress(progress);
+    // Start animation if this is the first request
+    if (!wasActive) {
+      loadingStartTime = Date.now();
+      currentProgress = 0;
+      updateLoadingProgress(5); // Start with small initial progress
+      animateProgress();
+    }
 
     // Auto-hide after 30 seconds as a safety measure
     if (loadingLineTimeout) clearTimeout(loadingLineTimeout);
@@ -4406,14 +4430,15 @@
 
   function hideLoadingLine() {
     loadingLineCount = Math.max(0, loadingLineCount - 1);
-    loadingCompleted++;
-
-    // Update progress
-    const progress = loadingTotal > 0 ? (loadingCompleted / loadingTotal) * 100 : 100;
-    updateLoadingProgress(progress);
 
     if (loadingLineCount === 0) {
-      // All requests complete - show 100% and wait 0.75s before fading
+      // Cancel animation
+      if (loadingAnimationFrame) {
+        cancelAnimationFrame(loadingAnimationFrame);
+        loadingAnimationFrame = null;
+      }
+
+      // All requests complete - animate to 100%
       updateLoadingProgress(100);
       const { line } = getLoadingElements();
       if (line) {
@@ -4429,8 +4454,7 @@
           setTimeout(() => {
             line.classList.remove('active', 'fade-out', 'complete');
             if (fill) fill.style.width = '0%';
-            loadingTotal = 0;
-            loadingCompleted = 0;
+            currentProgress = 0;
           }, 300);
         }
       }, 750);
@@ -4449,14 +4473,23 @@
       line.classList.remove('fade-out', 'complete');
       line.classList.add('active');
     }
+    // Cancel any animation when setting progress directly
+    if (loadingAnimationFrame) {
+      cancelAnimationFrame(loadingAnimationFrame);
+      loadingAnimationFrame = null;
+    }
     updateLoadingProgress(progress);
   }
 
   // Force hide regardless of count (for page transitions)
   function forceHideLoadingLine() {
     loadingLineCount = 0;
-    loadingTotal = 0;
-    loadingCompleted = 0;
+    currentProgress = 0;
+
+    if (loadingAnimationFrame) {
+      cancelAnimationFrame(loadingAnimationFrame);
+      loadingAnimationFrame = null;
+    }
 
     if (loadingLineFadeTimeout) {
       clearTimeout(loadingLineFadeTimeout);

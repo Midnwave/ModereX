@@ -114,14 +114,14 @@ public class ViewPunishmentCommand extends BaseCommand {
         };
 
         sender.sendMessage(TextUtil.parse(""));
-        sender.sendMessage(TextUtil.parse("<dark_gray>┌────────────────────────────────────────────┐"));
+        sender.sendMessage(TextUtil.parse("<dark_gray>┌──────────────────┐"));
         sender.sendMessage(TextUtil.parse("<dark_gray>│ <white>Punishment Details: <yellow>" + p.getCaseId() + " " + statusColor + "(" + statusText + ")"));
-        sender.sendMessage(TextUtil.parse("<dark_gray>├────────────────────────────────────────────┤"));
+        sender.sendMessage(TextUtil.parse("<dark_gray>├──────────────────┤"));
         sender.sendMessage(TextUtil.parse("<dark_gray>│ <gray>Type: " + typeColor + p.getType().name()));
         sender.sendMessage(TextUtil.parse("<dark_gray>│ <gray>Player: <white>" + p.getPlayerName() + " <dark_gray>(" + p.getPlayerUuid().toString().substring(0, 8) + "...)"));
         sender.sendMessage(TextUtil.parse("<dark_gray>│ <gray>Moderator: <white>" + p.getStaffName()));
         sender.sendMessage(TextUtil.parse("<dark_gray>│ <gray>Reason: <white>" + (p.getReason() != null ? p.getReason() : "No reason specified")));
-        sender.sendMessage(TextUtil.parse("<dark_gray>├────────────────────────────────────────────┤"));
+        sender.sendMessage(TextUtil.parse("<dark_gray>├──────────────────┤"));
         sender.sendMessage(TextUtil.parse("<dark_gray>│ <gray>Date: <white>" + TimeUtil.formatDateTime(p.getCreatedAt())));
 
         if (p.isPermanent()) {
@@ -146,7 +146,7 @@ public class ViewPunishmentCommand extends BaseCommand {
         }
 
         if (p.isRemoved()) {
-            sender.sendMessage(TextUtil.parse("<dark_gray>├────────────────────────────────────────────┤"));
+            sender.sendMessage(TextUtil.parse("<dark_gray>├──────────────────┤"));
             sender.sendMessage(TextUtil.parse("<dark_gray>│ <red>Revoked by: <white>" + p.getRemovedByName()));
             sender.sendMessage(TextUtil.parse("<dark_gray>│ <red>Revoked at: <white>" + TimeUtil.formatDateTime(p.getRemovedAt())));
             if (p.getRemovedReason() != null && !p.getRemovedReason().isEmpty()) {
@@ -154,7 +154,7 @@ public class ViewPunishmentCommand extends BaseCommand {
             }
         }
 
-        sender.sendMessage(TextUtil.parse("<dark_gray>└────────────────────────────────────────────┘"));
+        sender.sendMessage(TextUtil.parse("<dark_gray>└──────────────────┘"));
 
         // Add clickable action buttons for players
         if (sender instanceof Player && sender.hasPermission("moderex.history")) {

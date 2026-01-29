@@ -1760,6 +1760,12 @@ select.input {
   background-repeat: no-repeat;
   background-position: right 12px center;
   padding-right: 36px;
+  transition: all var(--transition);
+}
+
+select.input:hover {
+  border-color: var(--border-light);
+  background-color: rgba(255, 255, 255, 0.03);
 }
 
 select.input::-ms-expand {
@@ -1767,9 +1773,31 @@ select.input::-ms-expand {
 }
 
 select.input option {
-  background: var(--card);
+  background: var(--bg1);
   color: var(--text);
-  padding: 10px;
+  padding: 12px 16px;
+  border: none;
+}
+
+select.input option:hover,
+select.input option:focus,
+select.input option:checked {
+  background: var(--primary);
+  color: white;
+}
+
+select.input optgroup {
+  background: var(--bg0);
+  color: var(--text-secondary);
+  font-weight: 600;
+  padding: 8px;
+}
+
+/* Small select variant */
+select.input.small {
+  padding: 6px 28px 6px 10px;
+  font-size: 12px;
+  background-position: right 8px center;
 }
 
 /* Color Picker - Custom styled */

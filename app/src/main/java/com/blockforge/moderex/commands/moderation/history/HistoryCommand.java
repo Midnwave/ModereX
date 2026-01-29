@@ -133,13 +133,13 @@ public class HistoryCommand extends BaseCommand {
 
             // Display header
             sender.sendMessage(TextUtil.parse(""));
-            sender.sendMessage(TextUtil.parse("<dark_gray>┌────────────────────────────────────────────┐"));
+            sender.sendMessage(TextUtil.parse("<dark_gray>┌──────────────────┐"));
             sender.sendMessage(TextUtil.parse("<dark_gray>│ <white>Punishment History: <yellow>" + displayName +
                     " <dark_gray>(<white>" + totalItems + " total<dark_gray>)"));
             if (!finalType.equals("all")) {
                 sender.sendMessage(TextUtil.parse("<dark_gray>│ <gray>Filter: <white>" + finalType));
             }
-            sender.sendMessage(TextUtil.parse("<dark_gray>├────────────────────────────────────────────┤"));
+            sender.sendMessage(TextUtil.parse("<dark_gray>├──────────────────┤"));
 
             // Display entries for current page
             for (int i = startIndex; i < endIndex; i++) {
@@ -171,7 +171,7 @@ public class HistoryCommand extends BaseCommand {
                 }
             }
 
-            sender.sendMessage(TextUtil.parse("<dark_gray>└────────────────────────────────────────────┘"));
+            sender.sendMessage(TextUtil.parse("<dark_gray>└──────────────────┘"));
 
             // Pagination footer with clickable navigation
             if (sender instanceof Player && totalPages > 1) {

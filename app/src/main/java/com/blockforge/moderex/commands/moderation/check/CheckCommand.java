@@ -59,11 +59,11 @@ public class CheckCommand extends BaseCommand {
 
         // Header with box-drawing (compact)
         sender.sendMessage(TextUtil.parse(""));
-        sender.sendMessage(TextUtil.parse("<dark_gray>┌───────────────────────────────┐"));
+        sender.sendMessage(TextUtil.parse("<dark_gray>┌──────────────────┐"));
 
         String statusTags = (isOnline ? "<green>●" : "<gray>○") + (isWatched ? " <red>⚑" : "");
         sender.sendMessage(TextUtil.parse("<dark_gray>│ " + statusTags + " <yellow>" + playerName));
-        sender.sendMessage(TextUtil.parse("<dark_gray>├───────────────────────────────┤"));
+        sender.sendMessage(TextUtil.parse("<dark_gray>├──────────────────┤"));
 
         // UUID (clickable, shortened)
         String shortUuid = playerUUID.toString().substring(0, 8);
@@ -178,7 +178,7 @@ public class CheckCommand extends BaseCommand {
             }
         });
 
-        sender.sendMessage(TextUtil.parse("<dark_gray>└───────────────────────────────┘"));
+        sender.sendMessage(TextUtil.parse("<dark_gray>└──────────────────┘"));
 
         // Quick actions for players (compact)
         if (sender instanceof Player) {
