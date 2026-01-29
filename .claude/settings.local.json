@@ -24,7 +24,12 @@
       "Bash(git pull:*)",
       "Bash(git push)",
       "Bash(./gradlew shadowJar:*)",
-      "Bash(git rebase:*)"
+      "Bash(git rebase:*)",
+      "Bash(copy /Y \"app\\\\build\\\\libs\\\\ModereX-2.0.0.jar\" \"ModereX-latest.jar\")",
+      "Bash(git stash:*)",
+      "Bash(git stash pop:*)",
+      "Bash(git reset:*)",
+      "Bash(git push:*)"
     ]
   }
 }

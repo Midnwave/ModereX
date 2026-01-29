@@ -14,6 +14,30 @@
 
 window.MX_CHANGELOGS = [
   {
+    build: 197,
+    version: "2.0dev-197",
+    date: "2026-01-29",
+    title: "Grim Alert Hiding Fix",
+    sections: [
+      {
+        type: "fixed",
+        title: "Bug Fixes",
+        items: [
+          "**Grim Integration** - Hide Grim's native chat alerts without breaking setbacks/teleports",
+          "**No Config Modification** - ModereX no longer modifies Grim's punishments.yml"
+        ]
+      },
+      {
+        type: "technical",
+        title: "Technical Changes",
+        items: [
+          "Cancel FlagEvent to hide alerts (setbacks happen before the event fires)",
+          "Removed dependency on modifying Grim config files"
+        ]
+      }
+    ]
+  },
+  {
     build: 195,
     version: "2.0dev-195",
     date: "2026-01-29",
