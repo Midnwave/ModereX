@@ -67,6 +67,8 @@ COMMIT_LOG.txt
 FEATURES_CHANGELOG.txt
 PENDING_COMMITS.md
 .ai/
+CLAUDE.md
+.claude/
 
 # External API sources
 CitizensAPI-master/

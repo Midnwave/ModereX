@@ -1379,6 +1379,7 @@ public class HybridPanelServer {
             case "KICK_PLAYER" -> kickPlayer(conn, data, session);
             case "CLEAR_CHAT" -> clearChat(conn, session);
             case "UPDATE_USER_SETTINGS" -> updateUserSettings(conn, data, session);
+            case "MARK_CHANGELOG_READ" -> markChangelogRead(conn, data, session);
             case "SET_CHAT_LOCK" -> setChatLock(conn, data, session);
             case "SET_SLOWMODE" -> setSlowmode(conn, data, session);
             case "GET_CHAT_STATUS" -> sendChatStatus(conn);
@@ -2747,6 +2748,8 @@ public class HybridPanelServer {
         response.addProperty("type", "USER_SETTINGS_DATA");
         JsonObject data = getUserSettings(session.playerUuid).toJson();
 
+        plugin.logDebug("[WebPanel] Sending user settings to " + session.playerName);
+
         // Include in-game staff settings for synchronization
         var staffSettings = plugin.getStaffSettingsManager().getSettings(session.playerUuid);
         if (staffSettings != null) {
@@ -2764,16 +2767,150 @@ public class HybridPanelServer {
             data.addProperty("inGameChatAlerts", staffSettings.isChatAlerts());
             data.addProperty("bossBarAlerts", staffSettings.isBossBarAlerts());
 
+            // Punishment alert levels (Everyone, Watchlist Only, Off)
+            data.addProperty("banAlerts", staffSettings.getBanAlerts().name().toLowerCase());
+            data.addProperty("kickAlerts", staffSettings.getKickAlerts().name().toLowerCase());
+            data.addProperty("muteAlerts", staffSettings.getMuteAlerts().name().toLowerCase());
+            data.addProperty("warnAlerts", staffSettings.getWarnAlerts().name().toLowerCase());
+            data.addProperty("pardonAlerts", staffSettings.getPardonAlerts().name().toLowerCase());
+
+            // Other alert types
+            data.addProperty("automodAlerts", staffSettings.getAutomodAlerts().name().toLowerCase());
+            data.addProperty("anticheatAlerts", staffSettings.getAnticheatAlerts().name().toLowerCase());
+            data.addProperty("anticheatMinVL", staffSettings.getAnticheatMinVL());
+            data.addProperty("nicknameAlerts", staffSettings.getNicknameAlerts().name().toLowerCase());
+            data.addProperty("commandAlerts", staffSettings.getCommandAlerts().name().toLowerCase());
+            data.addProperty("joinLeaveAlerts", staffSettings.getJoinLeaveAlerts().name().toLowerCase());
+            data.addProperty("lagAlerts", staffSettings.isLagAlerts());
+
             // Web panel notification modes
             data.addProperty("webNotifyPunishments", staffSettings.getWebNotifyPunishments().name().toLowerCase());
             data.addProperty("webNotifyAutomod", staffSettings.getWebNotifyAutomod().name().toLowerCase());
             data.addProperty("webNotifyAnticheat", staffSettings.getWebNotifyAnticheat().name().toLowerCase());
             data.addProperty("webNotifyWatchlist", staffSettings.getWebNotifyWatchlist().name().toLowerCase());
             data.addProperty("webNotifyStaffChat", staffSettings.getWebNotifyStaffChat().name().toLowerCase());
+            data.addProperty("webNotifyCommands", staffSettings.getWebNotifyCommands().name().toLowerCase());
+            data.addProperty("webNotifyNickname", staffSettings.getWebNotifyNickname().name().toLowerCase());
+            data.addProperty("webNotifyLag", staffSettings.getWebNotifyLag().name().toLowerCase());
+
+            // Web panel display settings
+            data.addProperty("webToastPosition", staffSettings.getWebToastPosition().getCssClass());
+            data.addProperty("webAlertDurationSeconds", staffSettings.getWebAlertDurationSeconds());
+
+            // Web panel sound settings per alert type
+            data.addProperty("webSoundPunishments", staffSettings.isWebSoundPunishments());
+            data.addProperty("webSoundAutomod", staffSettings.isWebSoundAutomod());
+            data.addProperty("webSoundAnticheat", staffSettings.isWebSoundAnticheat());
+            data.addProperty("webSoundWatchlist", staffSettings.isWebSoundWatchlist());
+            data.addProperty("webSoundStaffChat", staffSettings.isWebSoundStaffChat());
+            data.addProperty("webSoundCommands", staffSettings.isWebSoundCommands());
+            data.addProperty("webSoundNickname", staffSettings.isWebSoundNickname());
+            data.addProperty("webSoundLag", staffSettings.isWebSoundLag());
+
+            plugin.logDebug("[WebPanel] Alert settings for " + session.playerName + ": " +
+                "ban=" + staffSettings.getBanAlerts() + ", " +
+                "kick=" + staffSettings.getKickAlerts() + ", " +
+                "mute=" + staffSettings.getMuteAlerts() + ", " +
+                "warn=" + staffSettings.getWarnAlerts() + ", " +
+                "command=" + staffSettings.getCommandAlerts() + ", " +
+                "toastPos=" + staffSettings.getWebToastPosition());
         }
+
+        // Include read changelog builds
+        JsonArray readChangelogs = getReadChangelogBuilds(session.playerUuid);
+        data.add("readChangelogs", readChangelogs);
 
         response.add("data", data);
         conn.send(GSON.toJson(response));
+        plugin.logDebug("[WebPanel] Sent user settings with " + readChangelogs.size() + " read changelogs to " + session.playerName);
+    }
+
+    /**
+     * Get list of changelog builds the user has read
+     */
+    private JsonArray getReadChangelogBuilds(java.util.UUID uuid) {
+        JsonArray builds = new JsonArray();
+        try {
+            plugin.getDatabaseManager().query(
+                "SELECT build_number FROM moderex_changelog_reads WHERE uuid = ?",
+                rs -> {
+                    while (rs.next()) {
+                        builds.add(rs.getInt("build_number"));
+                    }
+                    return null;
+                },
+                uuid.toString()
+            );
+        } catch (Exception e) {
+            plugin.logError("Failed to load changelog reads for " + uuid, e);
+        }
+        return builds;
+    }
+
+    /**
+     * Mark a changelog as read for a user
+     */
+    private void markChangelogRead(WebSocketConnection conn, JsonObject data, WebPanelSession session) {
+        int buildNumber = data.has("build") ? data.get("build").getAsInt() : 0;
+        if (buildNumber <= 0) {
+            sendError(conn, "INVALID_BUILD", "Invalid build number");
+            return;
+        }
+
+        try {
+            plugin.getDatabaseManager().update(
+                """
+                INSERT INTO moderex_changelog_reads (uuid, build_number, read_at)
+                VALUES (?, ?, ?)
+                ON CONFLICT(uuid, build_number) DO UPDATE SET read_at = excluded.read_at
+                """,
+                session.playerUuid.toString(),
+                buildNumber,
+                System.currentTimeMillis()
+            );
+
+            plugin.logDebug("[WebPanel] " + session.playerName + " marked changelog build " + buildNumber + " as read");
+
+            JsonObject response = new JsonObject();
+            response.addProperty("type", "CHANGELOG_MARKED_READ");
+            response.addProperty("build", buildNumber);
+            conn.send(GSON.toJson(response));
+        } catch (Exception e) {
+            plugin.logError("Failed to mark changelog read for " + session.playerName, e);
+            sendError(conn, "DATABASE_ERROR", "Failed to save changelog read status");
+        }
+    }
+
+    // Same-port wrapper overload
+    private void markChangelogRead(SamePortConnectionWrapper wrapper, JsonObject data, WebPanelSession session) {
+        int buildNumber = data.has("build") ? data.get("build").getAsInt() : 0;
+        if (buildNumber <= 0) {
+            sendError(wrapper, "INVALID_BUILD", "Invalid build number");
+            return;
+        }
+
+        try {
+            plugin.getDatabaseManager().update(
+                """
+                INSERT INTO moderex_changelog_reads (uuid, build_number, read_at)
+                VALUES (?, ?, ?)
+                ON CONFLICT(uuid, build_number) DO UPDATE SET read_at = excluded.read_at
+                """,
+                session.playerUuid.toString(),
+                buildNumber,
+                System.currentTimeMillis()
+            );
+
+            plugin.logDebug("[WebPanel] " + session.playerName + " marked changelog build " + buildNumber + " as read");
+
+            JsonObject response = new JsonObject();
+            response.addProperty("type", "CHANGELOG_MARKED_READ");
+            response.addProperty("build", buildNumber);
+            wrapper.send(GSON.toJson(response));
+        } catch (Exception e) {
+            plugin.logError("Failed to mark changelog read for " + session.playerName, e);
+            sendError(wrapper, "DATABASE_ERROR", "Failed to save changelog read status");
+        }
     }
 
     private void sendTemplates(WebSocketConnection conn) {
@@ -3169,6 +3306,58 @@ public class HybridPanelServer {
                 changed = true;
             }
 
+            // Punishment alert levels
+            if (data.has("banAlerts")) {
+                staffSettings.setBanAlerts(parseAlertLevel(data.get("banAlerts").getAsString()));
+                changed = true;
+            }
+            if (data.has("kickAlerts")) {
+                staffSettings.setKickAlerts(parseAlertLevel(data.get("kickAlerts").getAsString()));
+                changed = true;
+            }
+            if (data.has("muteAlerts")) {
+                staffSettings.setMuteAlerts(parseAlertLevel(data.get("muteAlerts").getAsString()));
+                changed = true;
+            }
+            if (data.has("warnAlerts")) {
+                staffSettings.setWarnAlerts(parseAlertLevel(data.get("warnAlerts").getAsString()));
+                changed = true;
+            }
+            if (data.has("pardonAlerts")) {
+                staffSettings.setPardonAlerts(parseAlertLevel(data.get("pardonAlerts").getAsString()));
+                changed = true;
+            }
+
+            // Other alert types
+            if (data.has("automodAlerts")) {
+                staffSettings.setAutomodAlerts(parseAlertLevel(data.get("automodAlerts").getAsString()));
+                changed = true;
+            }
+            if (data.has("anticheatAlerts")) {
+                staffSettings.setAnticheatAlerts(parseAlertLevel(data.get("anticheatAlerts").getAsString()));
+                changed = true;
+            }
+            if (data.has("anticheatMinVL")) {
+                staffSettings.setAnticheatMinVL(data.get("anticheatMinVL").getAsInt());
+                changed = true;
+            }
+            if (data.has("nicknameAlerts")) {
+                staffSettings.setNicknameAlerts(parseAlertLevel(data.get("nicknameAlerts").getAsString()));
+                changed = true;
+            }
+            if (data.has("commandAlerts")) {
+                staffSettings.setCommandAlerts(parseCommandAlertLevel(data.get("commandAlerts").getAsString()));
+                changed = true;
+            }
+            if (data.has("joinLeaveAlerts")) {
+                staffSettings.setJoinLeaveAlerts(parseAlertLevel(data.get("joinLeaveAlerts").getAsString()));
+                changed = true;
+            }
+            if (data.has("lagAlerts")) {
+                staffSettings.setLagAlerts(data.get("lagAlerts").getAsBoolean());
+                changed = true;
+            }
+
             // Web panel notification modes
             if (data.has("webNotifyPunishments")) {
                 staffSettings.setWebNotifyPunishments(
@@ -3195,13 +3384,101 @@ public class HybridPanelServer {
                     com.blockforge.moderex.staff.StaffSettings.WebNotifyMode.fromString(data.get("webNotifyStaffChat").getAsString()));
                 changed = true;
             }
+            if (data.has("webNotifyCommands")) {
+                staffSettings.setWebNotifyCommands(
+                    com.blockforge.moderex.staff.StaffSettings.WebNotifyMode.fromString(data.get("webNotifyCommands").getAsString()));
+                changed = true;
+            }
+            if (data.has("webNotifyNickname")) {
+                staffSettings.setWebNotifyNickname(
+                    com.blockforge.moderex.staff.StaffSettings.WebNotifyMode.fromString(data.get("webNotifyNickname").getAsString()));
+                changed = true;
+            }
+            if (data.has("webNotifyLag")) {
+                staffSettings.setWebNotifyLag(
+                    com.blockforge.moderex.staff.StaffSettings.WebNotifyMode.fromString(data.get("webNotifyLag").getAsString()));
+                changed = true;
+            }
+
+            // Web panel display settings
+            if (data.has("webToastPosition")) {
+                staffSettings.setWebToastPosition(
+                    com.blockforge.moderex.staff.StaffSettings.ToastPosition.fromString(data.get("webToastPosition").getAsString()));
+                changed = true;
+            }
+            if (data.has("webAlertDurationSeconds")) {
+                staffSettings.setWebAlertDurationSeconds(data.get("webAlertDurationSeconds").getAsInt());
+                changed = true;
+            }
+
+            // Web panel sound settings
+            if (data.has("webSoundPunishments")) {
+                staffSettings.setWebSoundPunishments(data.get("webSoundPunishments").getAsBoolean());
+                changed = true;
+            }
+            if (data.has("webSoundAutomod")) {
+                staffSettings.setWebSoundAutomod(data.get("webSoundAutomod").getAsBoolean());
+                changed = true;
+            }
+            if (data.has("webSoundAnticheat")) {
+                staffSettings.setWebSoundAnticheat(data.get("webSoundAnticheat").getAsBoolean());
+                changed = true;
+            }
+            if (data.has("webSoundWatchlist")) {
+                staffSettings.setWebSoundWatchlist(data.get("webSoundWatchlist").getAsBoolean());
+                changed = true;
+            }
+            if (data.has("webSoundStaffChat")) {
+                staffSettings.setWebSoundStaffChat(data.get("webSoundStaffChat").getAsBoolean());
+                changed = true;
+            }
+            if (data.has("webSoundCommands")) {
+                staffSettings.setWebSoundCommands(data.get("webSoundCommands").getAsBoolean());
+                changed = true;
+            }
+            if (data.has("webSoundNickname")) {
+                staffSettings.setWebSoundNickname(data.get("webSoundNickname").getAsBoolean());
+                changed = true;
+            }
+            if (data.has("webSoundLag")) {
+                staffSettings.setWebSoundLag(data.get("webSoundLag").getAsBoolean());
+                changed = true;
+            }
 
             if (changed) {
                 plugin.getStaffSettingsManager().saveSettings(staffSettings);
+                plugin.logDebug("[WebPanel] Saved staff settings for " + session.playerName + " to database: " +
+                    "ban=" + staffSettings.getBanAlerts() + ", " +
+                    "kick=" + staffSettings.getKickAlerts() + ", " +
+                    "mute=" + staffSettings.getMuteAlerts() + ", " +
+                    "command=" + staffSettings.getCommandAlerts() + ", " +
+                    "toastPos=" + staffSettings.getWebToastPosition() + ", " +
+                    "duration=" + staffSettings.getWebAlertDurationSeconds() + "s");
             }
         }
 
         sendSuccess(conn, "Settings saved");
+    }
+
+    // Helper method to parse AlertLevel from string
+    private com.blockforge.moderex.staff.StaffSettings.AlertLevel parseAlertLevel(String s) {
+        if (s == null) return com.blockforge.moderex.staff.StaffSettings.AlertLevel.EVERYONE;
+        return switch (s.toLowerCase()) {
+            case "watchlist_only" -> com.blockforge.moderex.staff.StaffSettings.AlertLevel.WATCHLIST_ONLY;
+            case "off" -> com.blockforge.moderex.staff.StaffSettings.AlertLevel.OFF;
+            default -> com.blockforge.moderex.staff.StaffSettings.AlertLevel.EVERYONE;
+        };
+    }
+
+    // Helper method to parse CommandAlertLevel from string
+    private com.blockforge.moderex.staff.StaffSettings.CommandAlertLevel parseCommandAlertLevel(String s) {
+        if (s == null) return com.blockforge.moderex.staff.StaffSettings.CommandAlertLevel.BLACKLISTED_ONLY;
+        return switch (s.toLowerCase()) {
+            case "everyone" -> com.blockforge.moderex.staff.StaffSettings.CommandAlertLevel.EVERYONE;
+            case "watchlist_only" -> com.blockforge.moderex.staff.StaffSettings.CommandAlertLevel.WATCHLIST_ONLY;
+            case "off" -> com.blockforge.moderex.staff.StaffSettings.CommandAlertLevel.OFF;
+            default -> com.blockforge.moderex.staff.StaffSettings.CommandAlertLevel.BLACKLISTED_ONLY;
+        };
     }
 
     private void setChatLock(WebSocketConnection conn, JsonObject data, WebPanelSession session) {
@@ -5017,6 +5294,7 @@ public class HybridPanelServer {
             case "REMOVE_FROM_WATCHLIST" -> removeFromWatchlist(wrapper, data);
             case "DELETE_TEMPLATE" -> deleteTemplate(wrapper, data, session);
             case "UPDATE_USER_SETTINGS" -> updateUserSettings(wrapper, data, session);
+            case "MARK_CHANGELOG_READ" -> markChangelogRead(wrapper, data, session);
             case "SET_CHAT_LOCK" -> setChatLock(wrapper, data, session);
             case "SET_SLOWMODE" -> setSlowmode(wrapper, data, session);
             case "DEV_STRESS_CREATE_PLAYERS" -> handleDevStressCreatePlayers(wrapper, data);
@@ -5055,16 +5333,54 @@ public class HybridPanelServer {
             data.addProperty("inGameChatAlerts", staffSettings.isChatAlerts());
             data.addProperty("bossBarAlerts", staffSettings.isBossBarAlerts());
 
+            // Punishment alert levels
+            data.addProperty("banAlerts", staffSettings.getBanAlerts().name().toLowerCase());
+            data.addProperty("kickAlerts", staffSettings.getKickAlerts().name().toLowerCase());
+            data.addProperty("muteAlerts", staffSettings.getMuteAlerts().name().toLowerCase());
+            data.addProperty("warnAlerts", staffSettings.getWarnAlerts().name().toLowerCase());
+            data.addProperty("pardonAlerts", staffSettings.getPardonAlerts().name().toLowerCase());
+
+            // Other alert types
+            data.addProperty("automodAlerts", staffSettings.getAutomodAlerts().name().toLowerCase());
+            data.addProperty("anticheatAlerts", staffSettings.getAnticheatAlerts().name().toLowerCase());
+            data.addProperty("anticheatMinVL", staffSettings.getAnticheatMinVL());
+            data.addProperty("nicknameAlerts", staffSettings.getNicknameAlerts().name().toLowerCase());
+            data.addProperty("commandAlerts", staffSettings.getCommandAlerts().name().toLowerCase());
+            data.addProperty("joinLeaveAlerts", staffSettings.getJoinLeaveAlerts().name().toLowerCase());
+            data.addProperty("lagAlerts", staffSettings.isLagAlerts());
+
             // Web panel notification modes
             data.addProperty("webNotifyPunishments", staffSettings.getWebNotifyPunishments().name().toLowerCase());
             data.addProperty("webNotifyAutomod", staffSettings.getWebNotifyAutomod().name().toLowerCase());
             data.addProperty("webNotifyAnticheat", staffSettings.getWebNotifyAnticheat().name().toLowerCase());
             data.addProperty("webNotifyWatchlist", staffSettings.getWebNotifyWatchlist().name().toLowerCase());
             data.addProperty("webNotifyStaffChat", staffSettings.getWebNotifyStaffChat().name().toLowerCase());
+            data.addProperty("webNotifyCommands", staffSettings.getWebNotifyCommands().name().toLowerCase());
+            data.addProperty("webNotifyNickname", staffSettings.getWebNotifyNickname().name().toLowerCase());
+            data.addProperty("webNotifyLag", staffSettings.getWebNotifyLag().name().toLowerCase());
+
+            // Web panel display settings
+            data.addProperty("webToastPosition", staffSettings.getWebToastPosition().getCssClass());
+            data.addProperty("webAlertDurationSeconds", staffSettings.getWebAlertDurationSeconds());
+
+            // Web panel sound settings
+            data.addProperty("webSoundPunishments", staffSettings.isWebSoundPunishments());
+            data.addProperty("webSoundAutomod", staffSettings.isWebSoundAutomod());
+            data.addProperty("webSoundAnticheat", staffSettings.isWebSoundAnticheat());
+            data.addProperty("webSoundWatchlist", staffSettings.isWebSoundWatchlist());
+            data.addProperty("webSoundStaffChat", staffSettings.isWebSoundStaffChat());
+            data.addProperty("webSoundCommands", staffSettings.isWebSoundCommands());
+            data.addProperty("webSoundNickname", staffSettings.isWebSoundNickname());
+            data.addProperty("webSoundLag", staffSettings.isWebSoundLag());
         }
+
+        // Include read changelog builds
+        JsonArray readChangelogs = getReadChangelogBuilds(session.playerUuid);
+        data.add("readChangelogs", readChangelogs);
 
         response.add("data", data);
         wrapper.send(GSON.toJson(response));
+        plugin.logDebug("[WebPanel] Sent user settings with " + readChangelogs.size() + " read changelogs to " + session.playerName);
     }
 
     private void sendToSamePort(WebSocketFrameHandler handler, String message) {

@@ -2493,6 +2493,7 @@
     // Send to server immediately
     if (ws && ws.isConnected()) {
       ws.send('UPDATE_USER_SETTINGS', { [key]: value });
+      window.debugLog('SETTINGS', `Updated setting: ${key} = ${value}`, 'info');
       toast('ok', 'Setting Saved', `${key} updated`, { silent: true });
     }
 
@@ -3889,16 +3890,60 @@
       state.staffSettings.kickAlertsLevel = data.kickAlertsLevel ?? 'EVERYONE';
       state.staffSettings.warnAlertsLevel = data.warnAlertsLevel ?? 'EVERYONE';
 
+      // Punishment alert levels (new system)
+      state.staffSettings.banAlerts = data.banAlerts ?? 'everyone';
+      state.staffSettings.kickAlerts = data.kickAlerts ?? 'everyone';
+      state.staffSettings.muteAlerts = data.muteAlerts ?? 'everyone';
+      state.staffSettings.warnAlerts = data.warnAlerts ?? 'everyone';
+      state.staffSettings.pardonAlerts = data.pardonAlerts ?? 'everyone';
+
+      // Other alert types
+      state.staffSettings.automodAlerts = data.automodAlerts ?? 'everyone';
+      state.staffSettings.anticheatAlerts = data.anticheatAlerts ?? 'everyone';
+      state.staffSettings.nicknameAlerts = data.nicknameAlerts ?? 'everyone';
+      state.staffSettings.commandAlerts = data.commandAlerts ?? 'blacklisted_only';
+      state.staffSettings.joinLeaveAlerts = data.joinLeaveAlerts ?? 'everyone';
+      state.staffSettings.lagAlerts = data.lagAlerts ?? true;
+
       // Web panel notification modes
       state.staffSettings.webNotifyPunishments = data.webNotifyPunishments ?? 'toast';
       state.staffSettings.webNotifyAutomod = data.webNotifyAutomod ?? 'toast';
       state.staffSettings.webNotifyAnticheat = data.webNotifyAnticheat ?? 'toast';
       state.staffSettings.webNotifyWatchlist = data.webNotifyWatchlist ?? 'toast';
       state.staffSettings.webNotifyStaffChat = data.webNotifyStaffChat ?? 'toast';
+      state.staffSettings.webNotifyCommands = data.webNotifyCommands ?? 'toast';
+      state.staffSettings.webNotifyNickname = data.webNotifyNickname ?? 'toast';
+      state.staffSettings.webNotifyLag = data.webNotifyLag ?? 'toast';
+
+      // Web panel display settings
+      state.staffSettings.webToastPosition = data.webToastPosition ?? 'top-right';
+      state.staffSettings.webAlertDurationSeconds = data.webAlertDurationSeconds ?? 10;
+
+      // Web panel sound settings per alert type
+      state.staffSettings.webSoundPunishments = data.webSoundPunishments ?? true;
+      state.staffSettings.webSoundAutomod = data.webSoundAutomod ?? true;
+      state.staffSettings.webSoundAnticheat = data.webSoundAnticheat ?? true;
+      state.staffSettings.webSoundWatchlist = data.webSoundWatchlist ?? true;
+      state.staffSettings.webSoundStaffChat = data.webSoundStaffChat ?? true;
+      state.staffSettings.webSoundCommands = data.webSoundCommands ?? true;
+      state.staffSettings.webSoundNickname = data.webSoundNickname ?? true;
+      state.staffSettings.webSoundLag = data.webSoundLag ?? true;
+
+      // Update toast position
+      if (window.updateAlertToastPosition) {
+        window.updateAlertToastPosition(data.webToastPosition);
+      }
 
       // Apply sound settings globally
       if (window.MX.sounds) {
         window.MX.sounds.setEnabled(data.soundEnabled ?? true);
+      }
+
+      // Handle changelog read status
+      if (data.readChangelogs) {
+        window.setReadChangelogs(data.readChangelogs);
+        // Check for unread changelogs after a brief delay
+        setTimeout(() => window.checkUnreadChangelogs(), 500);
       }
 
       // Update all UI elements that depend on these settings
@@ -6276,6 +6321,228 @@
   window.openNotificationsPanel = openNotificationsPanel;
   window.addNotification = addNotification;
   window.updateNotificationCount = updateNotificationCount;
+
+  // ===== CHANGELOG SYSTEM =====
+  let changelogState = {
+    unreadChangelogs: [],
+    currentIndex: 0,
+    readBuilds: []
+  };
+
+  /**
+   * Show the changelog modal if there are unread changelogs
+   */
+  window.showChangelogModal = function() {
+    const changelogs = window.MX_CHANGELOGS || [];
+    const readBuilds = changelogState.readBuilds || [];
+    const unread = changelogs.filter(log => !readBuilds.includes(log.build));
+
+    if (unread.length === 0) {
+      if (window.MX?.debug) console.log('[Changelog] No unread changelogs');
+      return;
+    }
+
+    changelogState.unreadChangelogs = unread;
+    changelogState.currentIndex = 0;
+    renderChangelogModal();
+  };
+
+  /**
+   * Render the changelog modal for the current changelog
+   */
+  function renderChangelogModal() {
+    const { unreadChangelogs, currentIndex } = changelogState;
+    if (!unreadChangelogs.length) return;
+
+    const log = unreadChangelogs[currentIndex];
+    const isMultiple = unreadChangelogs.length > 1;
+    const isLast = currentIndex === unreadChangelogs.length - 1;
+    const isFirst = currentIndex === 0;
+
+    // Remove existing modal
+    const existing = document.getElementById('changelogOverlay');
+    if (existing) existing.remove();
+
+    // Section icon map
+    const sectionIcons = {
+      new: 'fa-sparkles',
+      improved: 'fa-arrow-up',
+      fixed: 'fa-wrench',
+      technical: 'fa-code',
+      permissions: 'fa-key',
+      config: 'fa-sliders'
+    };
+
+    // Build sections HTML
+    const sectionsHtml = log.sections.map(section => `
+      <div class="changelog-section">
+        <div class="changelog-section-header">
+          <div class="changelog-section-icon ${section.type}">
+            <i class="fa-solid ${sectionIcons[section.type] || 'fa-circle'}"></i>
+          </div>
+          <h3>${escapeHtml(section.title)}</h3>
+        </div>
+        <ul class="changelog-items">
+          ${section.items.map(item => `<li>${parseMarkdownBold(escapeHtml(item))}</li>`).join('')}
+        </ul>
+      </div>
+    `).join('');
+
+    // Pagination dots
+    const dotsHtml = isMultiple ? `
+      <div class="changelog-pagination">
+        <span>${currentIndex + 1} of ${unreadChangelogs.length}</span>
+        <div class="changelog-pagination-dots">
+          ${unreadChangelogs.map((_, i) => `
+            <div class="changelog-pagination-dot ${i === currentIndex ? 'active' : ''}"
+                 onclick="window.goToChangelog(${i})"></div>
+          `).join('')}
+        </div>
+      </div>
+    ` : '<div></div>';
+
+    // Navigation buttons
+    const navHtml = isMultiple ? `
+      <button class="changelog-nav-btn" onclick="window.prevChangelog()" ${isFirst ? 'disabled' : ''}>
+        <i class="fa-solid fa-chevron-left"></i>
+      </button>
+      <button class="changelog-nav-btn" onclick="window.nextChangelog()" ${isLast ? 'disabled' : ''}>
+        <i class="fa-solid fa-chevron-right"></i>
+      </button>
+    ` : '';
+
+    const overlay = document.createElement('div');
+    overlay.id = 'changelogOverlay';
+    overlay.className = 'changelog-overlay';
+    overlay.innerHTML = `
+      <div class="changelog-modal">
+        <div class="changelog-header">
+          <div class="changelog-header-icon">
+            <i class="fa-solid fa-gift"></i>
+          </div>
+          <div class="changelog-header-text">
+            <h2>${escapeHtml(log.title)}</h2>
+            <div class="changelog-meta">
+              <span class="changelog-version">v${escapeHtml(log.version)}</span>
+              <span class="changelog-date">${escapeHtml(log.date)}</span>
+            </div>
+          </div>
+        </div>
+        <div class="changelog-body">
+          ${sectionsHtml}
+        </div>
+        <div class="changelog-footer">
+          ${dotsHtml}
+          <div class="changelog-actions">
+            ${navHtml}
+            <button class="changelog-btn changelog-btn-primary" onclick="window.markChangelogRead()">
+              ${isLast ? 'Got it!' : 'Mark as Read'}
+            </button>
+          </div>
+        </div>
+      </div>
+    `;
+
+    document.body.appendChild(overlay);
+  }
+
+  /**
+   * Parse markdown bold (**text**) to HTML
+   */
+  function parseMarkdownBold(text) {
+    return text.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
+               .replace(/`([^`]+)`/g, '<code>$1</code>');
+  }
+
+  /**
+   * Go to specific changelog by index
+   */
+  window.goToChangelog = function(index) {
+    changelogState.currentIndex = index;
+    renderChangelogModal();
+  };
+
+  /**
+   * Go to previous changelog
+   */
+  window.prevChangelog = function() {
+    if (changelogState.currentIndex > 0) {
+      changelogState.currentIndex--;
+      renderChangelogModal();
+    }
+  };
+
+  /**
+   * Go to next changelog
+   */
+  window.nextChangelog = function() {
+    if (changelogState.currentIndex < changelogState.unreadChangelogs.length - 1) {
+      changelogState.currentIndex++;
+      renderChangelogModal();
+    }
+  };
+
+  /**
+   * Mark current changelog as read and move to next or close
+   */
+  window.markChangelogRead = function() {
+    const { unreadChangelogs, currentIndex } = changelogState;
+    const log = unreadChangelogs[currentIndex];
+
+    // Send to server to mark as read
+    const ws = window.MX?.ws;
+    if (ws && ws.isConnected()) {
+      ws.send('MARK_CHANGELOG_READ', { build: log.build });
+      window.debugLog('CHANGELOG', `Marked build ${log.build} as read`, 'info');
+    }
+
+    // Add to local read list
+    if (!changelogState.readBuilds.includes(log.build)) {
+      changelogState.readBuilds.push(log.build);
+    }
+
+    // If last changelog, close modal
+    if (currentIndex >= unreadChangelogs.length - 1) {
+      closeChangelogModal();
+    } else {
+      // Move to next
+      changelogState.currentIndex++;
+      renderChangelogModal();
+    }
+  };
+
+  /**
+   * Close the changelog modal
+   */
+  window.closeChangelogModal = function() {
+    const overlay = document.getElementById('changelogOverlay');
+    if (overlay) {
+      overlay.style.animation = 'changelogFadeIn 0.2s ease reverse';
+      setTimeout(() => overlay.remove(), 200);
+    }
+  };
+  const closeChangelogModal = window.closeChangelogModal;
+
+  /**
+   * Set read builds from server
+   */
+  window.setReadChangelogs = function(builds) {
+    changelogState.readBuilds = builds || [];
+    if (window.MX?.debug) {
+      console.log('[Changelog] Read builds:', builds);
+    }
+  };
+
+  /**
+   * Check and show changelog after login
+   */
+  window.checkUnreadChangelogs = function() {
+    setTimeout(() => {
+      if (changelogState.readBuilds !== undefined) {
+        window.showChangelogModal();
+      }
+    }, 1500); // Delay to let UI settle
+  };
 
   // ===== INITIALIZATION =====
   document.addEventListener('DOMContentLoaded', () => {

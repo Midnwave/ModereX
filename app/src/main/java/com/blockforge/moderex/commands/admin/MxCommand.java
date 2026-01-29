@@ -681,9 +681,9 @@ public class MxCommand extends BaseCommand {
 
         if (args.length < 3) {
             sendMessage(sender, "<red>Usage: /mx sendalert <player> <type> <message...>");
-            sendMessage(sender, "<gray>Types: anticheat, automod, punishment, watchlist, staffchat, custom");
+            sendMessage(sender, "<gray>Types: ban, kick, mute, warn, pardon, anticheat, automod, command, nickname, joinleave, lag, watchlist, staffchat, custom");
             sendMessage(sender, "<gray>Example: /mx sendalert Steve anticheat Flagged for KillAura VL 25");
-            sendMessage(sender, "<gray>Example: /mx sendalert OfflinePlayer punishment Banned for hacking");
+            sendMessage(sender, "<gray>Example: /mx sendalert Player ban Permanently banned for hacking");
             sendMessage(sender, "<yellow>Note: Works for offline players too!");
             return;
         }
@@ -1409,7 +1409,7 @@ public class MxCommand extends BaseCommand {
             String sub = args[0].toLowerCase();
             if (sub.equals("sendalert")) {
                 // Show alert types
-                return filterCompletions(Arrays.asList("anticheat", "automod", "punishment", "watchlist", "staffchat", "custom"), args[2]);
+                return filterCompletions(Arrays.asList("ban", "kick", "mute", "warn", "pardon", "anticheat", "automod", "command", "nickname", "joinleave", "lag", "watchlist", "staffchat", "custom"), args[2]);
             }
             if (sub.equals("ban") || sub.equals("mute") || sub.equals("warn") || sub.equals("ipban")) {
                 return filterCompletions(Arrays.asList("1h", "1d", "7d", "30d", "permanent"), args[2]);
@@ -1441,9 +1441,17 @@ public class MxCommand extends BaseCommand {
                 // Suggest example messages based on alert type
                 String alertType = args[2].toLowerCase();
                 return switch (alertType) {
+                    case "ban" -> filterCompletions(Arrays.asList("Permanently_banned_for_hacking", "Banned_7d_for_griefing"), args[3]);
+                    case "kick" -> filterCompletions(Arrays.asList("Kicked_for_AFK", "Kicked_for_spam"), args[3]);
+                    case "mute" -> filterCompletions(Arrays.asList("Muted_for_toxicity", "Muted_for_spam"), args[3]);
+                    case "warn" -> filterCompletions(Arrays.asList("Warned_for_chat_behavior", "Warned_for_griefing"), args[3]);
+                    case "pardon" -> filterCompletions(Arrays.asList("Unbanned_after_appeal", "Unmuted_after_review"), args[3]);
                     case "anticheat" -> filterCompletions(Arrays.asList("Flagged_for_KillAura", "Speed_hack_detected", "Suspicious_movement"), args[3]);
                     case "automod" -> filterCompletions(Arrays.asList("Sent_blocked_message", "Spam_detected", "Caps_violation"), args[3]);
-                    case "punishment" -> filterCompletions(Arrays.asList("Banned_for_hacking", "Muted_for_spam", "Warned_for_toxicity"), args[3]);
+                    case "command" -> filterCompletions(Arrays.asList("Used_blacklisted_command", "Attempted_/op"), args[3]);
+                    case "nickname" -> filterCompletions(Arrays.asList("Inappropriate_nickname", "Nickname_contains_slur"), args[3]);
+                    case "joinleave" -> filterCompletions(Arrays.asList("Player_joined", "Player_left"), args[3]);
+                    case "lag" -> filterCompletions(Arrays.asList("Server_TPS_low", "Memory_warning"), args[3]);
                     case "watchlist" -> filterCompletions(Arrays.asList("Suspicious_activity", "Previous_offender", "Monitor_closely"), args[3]);
                     default -> filterCompletions(Arrays.asList("Custom_alert_message"), args[3]);
                 };

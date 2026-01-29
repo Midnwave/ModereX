@@ -1160,54 +1160,143 @@
     if (!container) return;
 
     const settings = state.staffSettings || {};
+    const permissions = state.permissions || [];
 
-    // Generate alert level dropdown HTML
-    const levelOptions = (current, key) => `
-      <select class="input small" onchange="updateStaffSetting('${key}', this.value)">
-        <option value="EVERYONE" ${current === 'EVERYONE' ? 'selected' : ''}>Everyone</option>
-        <option value="WATCHLIST_ONLY" ${current === 'WATCHLIST_ONLY' ? 'selected' : ''}>Watchlist Only</option>
-        <option value="OFF" ${current === 'OFF' ? 'selected' : ''}>Off</option>
-      </select>
-    `;
+    // Check if user has permission for an alert type
+    const hasPermission = (alertPerm) => {
+      return permissions.includes('moderex.alerts.*') ||
+             permissions.includes(alertPerm) ||
+             permissions.includes('moderex.staff');
+    };
+
+    // Generate alert level dropdown HTML with permission check
+    const levelOptions = (current, key, perm) => {
+      const disabled = perm && !hasPermission(perm);
+      if (disabled) {
+        return `<span class="badge gray" style="font-size:11px"><i class="fa-solid fa-lock"></i> No Permission</span>`;
+      }
+      return `
+        <select class="input small" onchange="updateStaffSetting('${key}', this.value)">
+          <option value="EVERYONE" ${current === 'EVERYONE' ? 'selected' : ''}>Everyone</option>
+          <option value="WATCHLIST_ONLY" ${current === 'WATCHLIST_ONLY' ? 'selected' : ''}>Watchlist Only</option>
+          <option value="OFF" ${current === 'OFF' ? 'selected' : ''}>Off</option>
+        </select>
+      `;
+    };
+
+    // Command alerts have special BLACKLISTED_ONLY option
+    const commandLevelOptions = (current, key, perm) => {
+      const disabled = perm && !hasPermission(perm);
+      if (disabled) {
+        return `<span class="badge gray" style="font-size:11px"><i class="fa-solid fa-lock"></i> No Permission</span>`;
+      }
+      return `
+        <select class="input small" onchange="updateStaffSetting('${key}', this.value)">
+          <option value="EVERYONE" ${current === 'EVERYONE' ? 'selected' : ''}>Everyone</option>
+          <option value="WATCHLIST_ONLY" ${current === 'WATCHLIST_ONLY' ? 'selected' : ''}>Watchlist Only</option>
+          <option value="BLACKLISTED_ONLY" ${current === 'BLACKLISTED_ONLY' ? 'selected' : ''}>Blacklisted Only</option>
+          <option value="OFF" ${current === 'OFF' ? 'selected' : ''}>Off</option>
+        </select>
+      `;
+    };
 
     // Generate web notification mode dropdown
     const notifyModeOptions = (current, key) => `
       <select class="input small" onchange="updateStaffSetting('${key}', this.value)">
-        <option value="toast" ${current === 'toast' ? 'selected' : ''}>Toast</option>
-        <option value="browser" ${current === 'browser' ? 'selected' : ''}>Browser Notification</option>
-        <option value="off" ${current === 'off' ? 'selected' : ''}>Off</option>
+        <option value="TOAST" ${(current || 'TOAST').toUpperCase() === 'TOAST' ? 'selected' : ''}>Toast</option>
+        <option value="BROWSER" ${(current || '').toUpperCase() === 'BROWSER' ? 'selected' : ''}>Browser</option>
+        <option value="OFF" ${(current || '').toUpperCase() === 'OFF' ? 'selected' : ''}>Off</option>
       </select>
     `;
 
-    const toggleHtml = (key, label) => `
-      <div class="check-toggle ${settings[key] ? 'on' : ''}" onclick="updateStaffSetting('${key}', ${!settings[key]})">
-        <span class="check-icon"><i class="fa-solid fa-check"></i></span>
-        <span>${escapeHtml(label)}</span>
-      </div>
+    // Toast position options
+    const positionOptions = (current) => `
+      <select class="input small" onchange="updateStaffSetting('webToastPosition', this.value); window.updateAlertToastPosition(this.value.toLowerCase().replace('_', '-'))">
+        <option value="TOP_RIGHT" ${(current || 'TOP_RIGHT') === 'TOP_RIGHT' ? 'selected' : ''}>Top Right</option>
+        <option value="TOP_LEFT" ${current === 'TOP_LEFT' ? 'selected' : ''}>Top Left</option>
+        <option value="BOTTOM_RIGHT" ${current === 'BOTTOM_RIGHT' ? 'selected' : ''}>Bottom Right</option>
+        <option value="BOTTOM_LEFT" ${current === 'BOTTOM_LEFT' ? 'selected' : ''}>Bottom Left</option>
+      </select>
     `;
+
+    const toggleHtml = (key, label, perm) => {
+      const disabled = perm && !hasPermission(perm);
+      if (disabled) {
+        return `<div class="check-toggle disabled"><span class="check-icon"><i class="fa-solid fa-lock"></i></span><span>${escapeHtml(label)}</span></div>`;
+      }
+      return `
+        <div class="check-toggle ${settings[key] ? 'on' : ''}" onclick="updateStaffSetting('${key}', ${!settings[key]})">
+          <span class="check-icon"><i class="fa-solid fa-check"></i></span>
+          <span>${escapeHtml(label)}</span>
+        </div>
+      `;
+    };
+
+    if (window.MX?.debug) {
+      console.log('[Settings] Rendering staff settings:', settings);
+      console.log('[Settings] User permissions:', permissions);
+      console.log('[Settings] Alert levels:', {
+        ban: settings.banAlerts,
+        kick: settings.kickAlerts,
+        mute: settings.muteAlerts,
+        warn: settings.warnAlerts,
+        pardon: settings.pardonAlerts,
+        automod: settings.automodAlerts,
+        nickname: settings.nicknameAlerts,
+        command: settings.commandAlerts,
+        joinLeave: settings.joinLeaveAlerts,
+        lag: settings.lagAlerts,
+        toastPosition: settings.webToastPosition,
+        alertDuration: settings.webAlertDurationSeconds
+      });
+    }
 
     container.innerHTML = `
       <div class="setting-group">
-        <h4><i class="fa-solid fa-gavel"></i> Punishment Alerts</h4>
+        <h4><i class="fa-solid fa-gavel" style="color:#ef4444"></i> Punishment Alerts</h4>
+        <p class="hintline" style="margin-top:0;margin-bottom:12px">Configure when to receive punishment notifications</p>
         <div class="setting-row">
-          <span>Punishment Alerts</span>
-          ${levelOptions(settings.banAlertsLevel, 'banAlertsLevel')}
+          <span><i class="fa-solid fa-ban" style="color:#ef4444;margin-right:6px"></i>Bans</span>
+          ${levelOptions(settings.banAlerts, 'banAlerts', 'moderex.alerts.ban')}
+        </div>
+        <div class="setting-row">
+          <span><i class="fa-solid fa-shoe-prints" style="color:#f97316;margin-right:6px"></i>Kicks</span>
+          ${levelOptions(settings.kickAlerts, 'kickAlerts', 'moderex.alerts.kick')}
+        </div>
+        <div class="setting-row">
+          <span><i class="fa-solid fa-volume-xmark" style="color:#eab308;margin-right:6px"></i>Mutes</span>
+          ${levelOptions(settings.muteAlerts, 'muteAlerts', 'moderex.alerts.mute')}
+        </div>
+        <div class="setting-row">
+          <span><i class="fa-solid fa-triangle-exclamation" style="color:#06b6d4;margin-right:6px"></i>Warns</span>
+          ${levelOptions(settings.warnAlerts, 'warnAlerts', 'moderex.alerts.warn')}
+        </div>
+        <div class="setting-row">
+          <span><i class="fa-solid fa-hand-peace" style="color:#22c55e;margin-right:6px"></i>Pardons</span>
+          ${levelOptions(settings.pardonAlerts, 'pardonAlerts', 'moderex.alerts.pardon')}
         </div>
       </div>
 
       <div class="setting-group">
-        <h4><i class="fa-solid fa-robot"></i> Automod Alerts</h4>
+        <h4><i class="fa-solid fa-robot" style="color:#f97316"></i> Automod Alerts</h4>
         <div class="setting-row">
           <span>Automod Alerts</span>
-          ${levelOptions(settings.automodAlertsLevel, 'automodAlertsLevel')}
+          ${levelOptions(settings.automodAlerts, 'automodAlerts', 'moderex.alerts.automod')}
+        </div>
+        <div class="setting-row">
+          <span><i class="fa-solid fa-id-badge" style="color:#a855f7;margin-right:6px"></i>Nickname Alerts</span>
+          ${levelOptions(settings.nicknameAlerts, 'nicknameAlerts', 'moderex.alerts.nickname')}
         </div>
       </div>
 
       <div class="setting-group">
-        <h4><i class="fa-solid fa-shield-halved"></i> Anticheat Alerts</h4>
+        <h4><i class="fa-solid fa-shield-halved" style="color:#ef4444"></i> Anticheat Alerts</h4>
+        <p class="hintline" style="margin-top:0;margin-bottom:12px">
+          <a href="#anticheat" style="color:var(--primary-light)">Configure individual checks →</a>
+        </p>
         <div class="setting-row">
           <span>Anticheat Alerts</span>
-          ${levelOptions(settings.anticheatAlertsLevel, 'anticheatAlertsLevel')}
+          ${levelOptions(settings.anticheatAlerts, 'anticheatAlerts', 'moderex.alerts.anticheat')}
         </div>
         <div class="setting-row">
           <span>Minimum VL</span>
@@ -1217,52 +1306,67 @@
       </div>
 
       <div class="setting-group">
-        <h4><i class="fa-solid fa-eye"></i> Watchlist Alerts</h4>
-        <div class="setting-row toggles-row">
-          ${toggleHtml('watchlistJoinAlerts', 'Join')}
-          ${toggleHtml('watchlistQuitAlerts', 'Quit')}
-          ${toggleHtml('watchlistActivityAlerts', 'Activity')}
-        </div>
-      </div>
-
-      <div class="setting-group">
-        <h4><i class="fa-solid fa-terminal"></i> Commands</h4>
+        <h4><i class="fa-solid fa-terminal" style="color:#6b7280"></i> Command Alerts</h4>
         <div class="setting-row">
           <span>Command Alerts</span>
-          ${levelOptions(settings.commandAlerts, 'commandAlerts')}
+          ${commandLevelOptions(settings.commandAlerts, 'commandAlerts', 'moderex.alerts.commands')}
         </div>
       </div>
 
       <div class="setting-group">
-        <h4><i class="fa-solid fa-comments"></i> Staff Chat</h4>
+        <h4><i class="fa-solid fa-eye" style="color:#eab308"></i> Watchlist Alerts</h4>
         <div class="setting-row toggles-row">
-          ${toggleHtml('staffChatEnabled', 'Enabled')}
-          ${toggleHtml('staffChatSound', 'Sound')}
+          ${toggleHtml('watchlistJoinAlerts', 'Join', 'moderex.alerts.watchlist')}
+          ${toggleHtml('watchlistQuitAlerts', 'Quit', 'moderex.alerts.watchlist')}
+          ${toggleHtml('watchlistActivityAlerts', 'Activity', 'moderex.alerts.watchlist')}
         </div>
       </div>
 
       <div class="setting-group">
-        <h4><i class="fa-solid fa-bell"></i> Web Panel Notifications</h4>
-        <p class="hintline" style="margin-top:0;margin-bottom:12px">How alerts appear in this panel</p>
+        <h4><i class="fa-solid fa-gauge-high" style="color:#ef4444"></i> Server Status</h4>
         <div class="setting-row">
-          <span>Punishments</span>
-          ${notifyModeOptions(settings.webNotifyPunishments || 'toast', 'webNotifyPunishments')}
+          <span>Lag Alerts</span>
+          ${toggleHtml('lagAlerts', 'Enabled', 'moderex.alerts.lag')}
+        </div>
+      </div>
+
+      <div class="setting-group">
+        <h4><i class="fa-solid fa-comments" style="color:#06b6d4"></i> Staff Chat</h4>
+        <div class="setting-row toggles-row">
+          ${toggleHtml('staffChatEnabled', 'Enabled', 'moderex.alerts.staffchat')}
+          ${toggleHtml('staffChatSound', 'Sound', 'moderex.alerts.staffchat')}
+        </div>
+      </div>
+
+      <div class="setting-group">
+        <h4><i class="fa-solid fa-bell" style="color:var(--primary-light)"></i> Alert Display Settings</h4>
+        <p class="hintline" style="margin-top:0;margin-bottom:12px">Configure how alerts appear in this panel</p>
+        <div class="setting-row">
+          <span>Toast Position</span>
+          ${positionOptions(settings.webToastPosition)}
         </div>
         <div class="setting-row">
-          <span>Automod</span>
-          ${notifyModeOptions(settings.webNotifyAutomod || 'toast', 'webNotifyAutomod')}
+          <span>Alert Duration</span>
+          <div style="display:flex;align-items:center;gap:8px">
+            <input type="range" min="3" max="30" value="${settings.webAlertDurationSeconds || 10}"
+              style="width:100px" onchange="updateStaffSetting('webAlertDurationSeconds', parseInt(this.value)); this.nextElementSibling.textContent = this.value + 's'">
+            <span style="font-size:12px;color:var(--muted);min-width:30px">${settings.webAlertDurationSeconds || 10}s</span>
+          </div>
         </div>
-        <div class="setting-row">
-          <span>Anticheat</span>
-          ${notifyModeOptions(settings.webNotifyAnticheat || 'toast', 'webNotifyAnticheat')}
-        </div>
-        <div class="setting-row">
-          <span>Watchlist</span>
-          ${notifyModeOptions(settings.webNotifyWatchlist || 'toast', 'webNotifyWatchlist')}
-        </div>
-        <div class="setting-row">
-          <span>Staff Chat</span>
-          ${notifyModeOptions(settings.webNotifyStaffChat || 'toast', 'webNotifyStaffChat')}
+      </div>
+
+      <div class="setting-group">
+        <h4><i class="fa-solid fa-volume-high" style="color:var(--primary-light)"></i> Alert Sounds</h4>
+        <p class="hintline" style="margin-top:0;margin-bottom:12px">Enable/disable sounds for each alert type</p>
+        <div class="setting-row toggles-row" style="flex-wrap:wrap">
+          ${toggleHtml('webSoundPunishments', 'Punish')}
+          ${toggleHtml('webSoundAutomod', 'Automod')}
+          ${toggleHtml('webSoundAnticheat', 'Anticheat')}
+          ${toggleHtml('webSoundWatchlist', 'Watchlist')}
+          ${toggleHtml('webSoundStaffChat', 'Staff Chat')}
+          ${toggleHtml('webSoundCommands', 'Commands')}
+          ${toggleHtml('webSoundNickname', 'Nickname')}
+          ${toggleHtml('webSoundLag', 'Lag')}
         </div>
       </div>
     `;

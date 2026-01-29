@@ -199,6 +199,16 @@ public class DatabaseManager {
                     )
                     """);
 
+            // Changelog reads tracking table
+            stmt.execute("""
+                    CREATE TABLE IF NOT EXISTS moderex_changelog_reads (
+                        uuid VARCHAR(36) NOT NULL,
+                        build_number INTEGER NOT NULL,
+                        read_at BIGINT NOT NULL,
+                        PRIMARY KEY (uuid, build_number)
+                    )
+                    """);
+
             // Watchlist table
             stmt.execute("""
                     CREATE TABLE IF NOT EXISTS moderex_watchlist (

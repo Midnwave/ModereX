@@ -296,6 +296,65 @@ These control which staff notifications a player receives.
 
 ---
 
+## Staff Settings & Alert Permissions
+
+### Core Staff Permission
+
+| Permission | Description | Default |
+|------------|-------------|---------|
+| `moderex.staff` | Master staff permission - required for staff settings and alert configuration. Players with this permission have their alert settings stored in the database. | op |
+
+### Alert Type Permissions
+
+These control which alert types a staff member can see. Each alert type can be configured (Everyone, Watchlist Only, Off) in the staff settings GUI if the player has the corresponding permission.
+
+| Permission | Description | Alert Type | Default |
+|------------|-------------|------------|---------|
+| `moderex.alerts.*` | Receive all alert types | All | op |
+| `moderex.alerts.ban` | See ban alerts | Ban | op |
+| `moderex.alerts.kick` | See kick alerts | Kick | op |
+| `moderex.alerts.mute` | See mute alerts | Mute | op |
+| `moderex.alerts.warn` | See warn alerts | Warn | op |
+| `moderex.alerts.pardon` | See pardon/unban/unmute alerts | Pardon | op |
+| `moderex.alerts.anticheat` | See anticheat violation alerts | Anticheat | op |
+| `moderex.alerts.automod` | See automod trigger alerts | Automod | op |
+| `moderex.alerts.commands` | See command monitoring alerts | Command | op |
+| `moderex.alerts.nickname` | See inappropriate nickname alerts | Nickname | op |
+| `moderex.alerts.joinleave` | See join/leave alerts (in-game only) | Join/Leave | op |
+| `moderex.alerts.lag` | See server lag/status alerts | Lag | op |
+| `moderex.alerts.watchlist` | See watchlist activity alerts | Watchlist | op |
+| `moderex.alerts.staffchat` | See staff chat messages | Staff Chat | op |
+| `moderex.alerts.punishments` | Legacy punishment alerts | Punishment | op |
+
+### Alert Level Options
+
+Staff members can configure each alert type with these options:
+
+| Level | Description |
+|-------|-------------|
+| **Everyone** | Receive alerts for all players (default for most alerts) |
+| **Watchlist Only** | Only receive alerts for players on the watchlist |
+| **Off** | Do not receive these alerts |
+
+### Command Alert Special Options
+
+Command alerts have additional configuration:
+
+| Level | Description |
+|-------|-------------|
+| **Everyone** | See all player commands |
+| **Watchlist Only** | Only see commands from watchlist players |
+| **Blacklisted Only** | Only see blacklisted command attempts (default) |
+| **Off** | No command alerts |
+
+### GUI Behavior
+
+- If a staff member lacks permission for an alert type, the GUI shows a barrier icon
+- The alert is still visible in the GUI but cannot be configured
+- Settings are synced to the database and web panel
+
+---
+
 ## Web Panel Permissions
 
 | Permission | Description | Default |
@@ -461,5 +520,5 @@ permissions:
 
 ---
 
-*Last updated: 2026-01-27*
-*ModereX Version: 2.0-dev*
+*Last updated: 2026-01-29*
+*ModereX Version: 2.0-dev (Build 169)*
