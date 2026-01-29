@@ -4162,6 +4162,14 @@
 
       ui.renderAll();
       hideDisconnect();
+
+      // Start update checker after authentication
+      setTimeout(() => {
+        if (window.loadCurrentPluginVersion) {
+          console.log('[Update] Starting update checker after authentication');
+          window.loadCurrentPluginVersion();
+        }
+      }, 1000);
     });
 
     // Handle disconnect
@@ -7182,8 +7190,7 @@
     // Load panel version from server
     setTimeout(loadPanelVersion, 1000);
 
-    // Start GitHub update checker after 3 seconds (to let WebSocket connect first)
-    setTimeout(loadCurrentPluginVersion, 3000);
+    // Note: Update checker is now started after authentication in mx:authenticated event handler
 
     // Setup profile dropdown click handler
     const topProfile = document.getElementById('topProfile');

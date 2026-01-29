@@ -2108,19 +2108,34 @@ public class HybridPanelServer {
             }
 
             // Save rule (this also broadcasts the update via AutomodManager)
-            plugin.getAutomodManager().saveRule(rule);
+            plugin.logDebug("[WebPanel] About to save rule: " + rule.getId());
+            try {
+                plugin.getAutomodManager().saveRule(rule);
+                plugin.logDebug("[WebPanel] saveRule completed successfully");
+            } catch (Exception saveEx) {
+                plugin.logError("[WebPanel] saveRule threw exception", saveEx);
+                throw saveEx;
+            }
 
+            plugin.logDebug("[WebPanel] Building response for rule update");
             JsonObject response = new JsonObject();
             response.addProperty("type", "AUTOMOD_RULE_UPDATED");
             response.addProperty("id", ruleId);
+
+            plugin.logDebug("[WebPanel] Sending AUTOMOD_RULE_UPDATED response");
             conn.send(GSON.toJson(response));
+            plugin.logDebug("[WebPanel] Response sent successfully");
 
             plugin.logDebug("[WebPanel] Automod rule updated: " + rule.getName() + " by " + session.playerName);
             debugSuccess(DebugCategory.AUTOMOD, "Automod rule updated",
                     "Rule: " + rule.getName() + ", By: " + session.playerName);
         } catch (Exception e) {
-            sendError(conn, "UPDATE_ERROR", "Failed to update rule: " + e.getMessage());
-            plugin.logError("Failed to update automod rule from web panel", e);
+            plugin.logError("[WebPanel] updateAutomodRule exception: " + e.getClass().getName() + " - " + e.getMessage(), e);
+            try {
+                sendError(conn, "UPDATE_ERROR", "Failed to update rule: " + e.getMessage());
+            } catch (Exception sendEx) {
+                plugin.logError("[WebPanel] Failed to send error response", sendEx);
+            }
             debugError(ErrorCode.AUTOMOD_RULE_UPDATE_FAILED, "Error: " + e.getMessage());
         }
     }

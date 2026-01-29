@@ -14,6 +14,31 @@
 
 window.MX_CHANGELOGS = [
   {
+    build: 185,
+    version: "2.0dev-185",
+    date: "2026-01-29",
+    title: "Debug Logging & Update Bar Fix",
+    sections: [
+      {
+        type: "fixed",
+        title: "Bug Fixes",
+        items: [
+          "**Update Bar Authentication** - Update notification now only appears after successful login",
+          "**Debug Tracing** - Added detailed logging to trace automod rule save disconnect"
+        ]
+      },
+      {
+        type: "technical",
+        title: "Technical Changes",
+        items: [
+          "Added step-by-step debug logging in updateAutomodRule handler",
+          "Moved loadCurrentPluginVersion() to run after mx:authenticated event",
+          "Enhanced exception logging with stack traces"
+        ]
+      }
+    ]
+  },
+  {
     build: 184,
     version: "2.0dev-184",
     date: "2026-01-29",
