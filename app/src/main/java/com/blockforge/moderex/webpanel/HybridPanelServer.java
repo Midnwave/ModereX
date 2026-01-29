@@ -1923,6 +1923,12 @@ public class HybridPanelServer {
 
     private void updateAutomodRule(WebSocketConnection conn, JsonObject data, WebPanelSession session) {
         try {
+            // Check permission
+            if (!hasAutomodPermission(session.playerUuid)) {
+                sendError(conn, "FORBIDDEN", "You do not have permission to modify automod rules (moderex.admin.automod)");
+                return;
+            }
+
             // Support multiple formats: { id: "..." } or { ruleId: "...", rule: {...} }
             String ruleId = null;
             JsonObject ruleData = data;
@@ -2145,6 +2151,12 @@ public class HybridPanelServer {
 
     private void createAutomodRule(WebSocketConnection conn, JsonObject data, WebPanelSession session) {
         try {
+            // Check permission
+            if (!hasAutomodPermission(session.playerUuid)) {
+                sendError(conn, "FORBIDDEN", "You do not have permission to create automod rules (moderex.admin.automod)");
+                return;
+            }
+
             String name = data.get("name").getAsString();
             AutomodRule rule = plugin.getAutomodManager().createRule(name);
 
@@ -2172,13 +2184,10 @@ public class HybridPanelServer {
             // Save rule (this also broadcasts the update via AutomodManager)
             plugin.getAutomodManager().saveRule(rule);
 
+            // Return full rule data so frontend can immediately use it
             JsonObject response = new JsonObject();
             response.addProperty("type", "AUTOMOD_RULE_CREATED");
-            JsonObject responseData = new JsonObject();
-            responseData.addProperty("id", rule.getId());
-            responseData.addProperty("name", rule.getName());
-            responseData.addProperty("type", rule.getType().name());
-            responseData.addProperty("enabled", rule.isEnabled());
+            JsonObject responseData = serializeRule(rule);
             response.add("data", responseData);
             conn.send(GSON.toJson(response));
 
@@ -2194,6 +2203,12 @@ public class HybridPanelServer {
 
     private void deleteAutomodRule(WebSocketConnection conn, JsonObject data, WebPanelSession session) {
         try {
+            // Check permission
+            if (!hasAutomodPermission(session.playerUuid)) {
+                sendError(conn, "FORBIDDEN", "You do not have permission to delete automod rules (moderex.admin.automod)");
+                return;
+            }
+
             String ruleId = data.get("id").getAsString();
             AutomodRule rule = plugin.getAutomodManager().getRule(ruleId);
 
@@ -3172,6 +3187,8 @@ public class HybridPanelServer {
         // List of permissions to check
         String[] alertPermissions = {
             "moderex.staff",
+            "moderex.admin",
+            "moderex.admin.automod",  // Permission for automod configuration
             "moderex.alerts.*",
             "moderex.alerts.ban",
             "moderex.alerts.kick",
@@ -3219,6 +3236,30 @@ public class HybridPanelServer {
 
         plugin.logDebug("[WebPanel] Found " + permissions.size() + " permissions for " + uuid);
         return permissions;
+    }
+
+    /**
+     * Check if user has permission to manage automod rules.
+     * Requires moderex.admin.automod or moderex.admin.* or OP status.
+     */
+    private boolean hasAutomodPermission(UUID uuid) {
+        Player player = Bukkit.getPlayer(uuid);
+        if (player != null && player.isOnline()) {
+            // Player is online - check permissions directly
+            return PermissionUtil.hasPermission(player, "moderex.admin.automod") ||
+                   PermissionUtil.hasPermission(player, "moderex.admin.*") ||
+                   PermissionUtil.hasPermission(player, "moderex.admin");
+        } else if (plugin.getHookManager().isLuckPermsEnabled()) {
+            // Player is offline - use LuckPerms
+            var lpHook = plugin.getHookManager().getLuckPermsHook();
+            return lpHook.hasPermission(uuid, "moderex.admin.automod") ||
+                   lpHook.hasPermission(uuid, "moderex.admin.*") ||
+                   lpHook.hasPermission(uuid, "moderex.admin");
+        } else {
+            // No way to check - allow by default for web panel users (they already passed auth)
+            plugin.logDebug("[WebPanel] Cannot check automod permission for offline user - allowing by default");
+            return true;
+        }
     }
 
     /**

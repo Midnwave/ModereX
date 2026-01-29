@@ -984,6 +984,12 @@
   };
 
   window.saveAutomodRuleFromEditor = function(ruleId) {
+    // Check permission
+    if (!window.hasPermission('moderex.admin.automod')) {
+      window.toast('error', 'No Permission', 'You do not have permission to modify automod rules.');
+      return;
+    }
+
     const r = state.rules.find(rule => rule.id === ruleId);
     if (!r) return;
 
@@ -1038,8 +1044,8 @@
       windowMins: Math.max(1, thresholdWindow)
     };
 
-    // Sync to backend immediately
-    console.log('[Automod Save] Saving rule:', r.id);
+    // Show loading bar while saving to database
+    if (window.showLoadingLine) window.showLoadingLine();
 
     // Check if this is a new rule (temp ID starts with 'rule_')
     const isNewRule = r.id && r.id.startsWith('rule_');
@@ -1047,8 +1053,7 @@
     if (window.MX?.ws?.send) {
       if (isNewRule) {
         // New rule - use CREATE_AUTOMOD_RULE
-        console.log('[Automod Save] Creating new rule on server');
-        // Store temp ID so we can map it to server ID later
+        if (window.debugLog) window.debugLog('DB', 'Creating new automod rule in database...', 'info');
         window._pendingRuleCreate = { tempId: r.id, rule: r };
         window.MX.ws.send('CREATE_AUTOMOD_RULE', {
           name: r.name,
@@ -1058,14 +1063,17 @@
         });
       } else {
         // Existing rule - use UPDATE_AUTOMOD_RULE
-        console.log('[Automod Save] Updating existing rule:', r.id);
+        if (window.debugLog) window.debugLog('DB', 'Updating automod rule ' + r.id + ' in database...', 'info');
         window.MX.ws.send('UPDATE_AUTOMOD_RULE', {
           ruleId: r.id,
           rule: r
         });
       }
     } else {
-      console.error('[Automod Save] WebSocket not available!');
+      if (window.hideLoadingLine) window.hideLoadingLine();
+      if (window.debugLog) window.debugLog('DB', 'WebSocket not available!', 'error');
+      window.toast('error', 'Error', 'Cannot save - not connected to server.');
+      return;
     }
 
     // Mark unsaved and re-render
@@ -1073,9 +1081,8 @@
     window.MX.ui.renderRules();
     closeAutomodRuleEditor();
 
-    // Hide loading bar will happen when server confirms (AUTOMOD_RULE_CREATED/UPDATED)
-
-    window.toast('ok', 'Saved', isNewRule ? 'Rule created and synced to server.' : 'Rule updated and synced to server.');
+    // Note: Loading bar will be hidden when server confirms via AUTOMOD_RULE_CREATED/UPDATED
+    window.toast('ok', 'Saving...', isNewRule ? 'Creating rule on server...' : 'Syncing changes to server...');
   };
 
   // Helper function to determine rule type for filtering

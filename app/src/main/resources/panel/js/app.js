@@ -27,6 +27,32 @@
     saveState();
   }
 
+  /**
+   * Check if the current user has a specific permission.
+   * @param {string} perm - Permission node to check (e.g., 'moderex.admin.automod')
+   * @returns {boolean} true if user has the permission
+   */
+  function hasPermission(perm) {
+    const permissions = state.permissions || [];
+    // Direct match
+    if (permissions.includes(perm)) return true;
+    // Check wildcard permissions (e.g., moderex.admin.* includes moderex.admin.automod)
+    const parts = perm.split('.');
+    for (let i = parts.length - 1; i >= 1; i--) {
+      const wildcard = parts.slice(0, i).join('.') + '.*';
+      if (permissions.includes(wildcard)) return true;
+    }
+    // Check parent permission (e.g., moderex.admin includes moderex.admin.automod)
+    if (parts.length > 2) {
+      const parent = parts.slice(0, -1).join('.');
+      if (permissions.includes(parent)) return true;
+    }
+    return false;
+  }
+
+  // Expose hasPermission globally
+  window.hasPermission = hasPermission;
+
   const repeatMemory = {};
 
   function normalizeMessage(msg) {
@@ -2088,14 +2114,37 @@
   };
 
   window.addRuleUI = function() {
-    state.rules.unshift({ id: uid('rule'), name: `New Rule ${state.rules.length + 1}`, enabled: true, block: true, conditions: [{ kind: 'contains', value: '', match: 'contains' }], action: { kind: 'none', extra: '' }, threshold: { hits: 1, windowMins: 10 }, notes: 'Configure conditions', type: 'WORD_FILTER' });
-    ui.markUnsaved('rules', true);
-    state.rulesPage = 1; // Go to first page to see new rule
-    ui.renderRules();
-    toast('ok', 'Created', 'New rule added.');
+    // Check permission
+    if (!hasPermission('moderex.admin.automod')) {
+      toast('error', 'No Permission', 'You do not have permission to create automod rules.');
+      return;
+    }
+
+    // Show loading bar while creating rule on server
+    if (window.showLoadingLine) window.showLoadingLine();
+    if (window.debugLog) window.debugLog('DB', 'Creating new automod rule on server...', 'info');
+
+    const ruleName = `New Rule ${state.rules.length + 1}`;
+
+    // Store callback to open editor after creation
+    window._pendingNewRuleEditor = true;
+
+    // Create rule on server first
+    MX.ws.send('CREATE_AUTOMOD_RULE', {
+      name: ruleName,
+      exactMatch: false,
+      blacklistedWords: [],
+      exclusionWords: []
+    });
   };
 
   window.deleteRule = function(ruleId) {
+    // Check permission
+    if (!hasPermission('moderex.admin.automod')) {
+      toast('error', 'No Permission', 'You do not have permission to delete automod rules.');
+      return;
+    }
+
     const r = state.rules.find(r => r.id === ruleId);
     if (r?.locked) return;
     openConfirmPanel({
@@ -2103,10 +2152,11 @@
       body: `Delete rule "${r.name}"? This cannot be undone.`,
       confirmText: 'Delete',
       onConfirm: () => {
+        if (window.showLoadingLine) window.showLoadingLine();
+        if (window.debugLog) window.debugLog('DB', 'Deleting rule ' + ruleId + ' from database...', 'info');
+        MX.ws.send('DELETE_AUTOMOD_RULE', { id: ruleId });
         state.rules = state.rules.filter(x => x.id !== ruleId);
-        ui.markUnsaved('rules', true);
         ui.renderRules();
-        toast('info', 'Deleted', 'Rule removed.');
       }
     });
   };
@@ -2230,6 +2280,12 @@
 
   // Set a specific setting on a rule (for built-in rule config)
   window.setRuleSetting = function(ruleId, setting, value) {
+    // Check permission
+    if (!hasPermission('moderex.admin.automod')) {
+      toast('error', 'No Permission', 'You do not have permission to modify automod rules.');
+      return;
+    }
+
     const r = state.rules.find(r => r.id === ruleId);
     if (!r) return;
 
@@ -2255,17 +2311,22 @@
     // Mark as unsaved for visual feedback
     ui.markUnsaved('rules', true);
 
-    // Auto-save built-in rules and anticheat rules immediately
-    if (rule.builtIn || ['spam_protection', 'caps_filter', 'link_filter', 'afk_kick'].includes(rule.id) || rule.id.startsWith('ac_')) {
-      console.log('[autoSaveRule] Sending UPDATE_AUTOMOD_RULE for:', rule.id);
-      MX.ws.send('UPDATE_AUTOMOD_RULE', {
-        ruleId: rule.id,
-        rule: rule
-      });
-      window.debugLog('SYNC', `Saved rule: ${rule.name}`, 'success');
-    } else {
-      console.log('[autoSaveRule] Rule not auto-saved (not built-in or anticheat):', rule.id);
+    // Skip rules with temp IDs (not yet created on server)
+    if (rule.id && rule.id.startsWith('rule_')) {
+      console.log('[autoSaveRule] Skipping temp rule (not yet on server):', rule.id);
+      return;
     }
+
+    // Show loading bar and debug message
+    if (window.showLoadingLine) window.showLoadingLine();
+    if (window.debugLog) window.debugLog('DB', 'Syncing rule ' + rule.id + ' to database...', 'info');
+
+    // Auto-save all rules that have a server ID
+    console.log('[autoSaveRule] Sending UPDATE_AUTOMOD_RULE for:', rule.id);
+    MX.ws.send('UPDATE_AUTOMOD_RULE', {
+      ruleId: rule.id,
+      rule: rule
+    });
   }
 
   window.setRuleExceptions = function(ruleId, value) {
@@ -4283,6 +4344,7 @@
       if (!isLiveMode) return;
       // Hide loading bar when rule update confirmed
       if (window.hideLoadingLine) window.hideLoadingLine();
+      if (window.debugLog) window.debugLog('DB', 'Rule updated in database: ' + data.id, 'success');
       console.log('[Automod] Received AUTOMOD_RULE_UPDATED:', data);
       const idx = state.rules.findIndex(r => r.id === data.id);
       if (idx !== -1) {
@@ -4291,6 +4353,7 @@
         state.rules.push(data);
       }
       ui.renderRules();
+      toast('ok', 'Saved', 'Rule synced to database.');
     });
 
     // Handle new rule created (real-time sync)
@@ -4298,13 +4361,17 @@
       if (!isLiveMode) return;
       // Hide loading bar
       if (window.hideLoadingLine) window.hideLoadingLine();
+      if (window.debugLog) window.debugLog('DB', 'Rule created in database: ' + data.id, 'success');
       console.log('[Automod] Received AUTOMOD_RULE_CREATED:', data);
 
-      // Check if we have a pending rule create with a temp ID
+      // Check if we should open editor for new rule
+      const shouldOpenEditor = window._pendingNewRuleEditor;
+      window._pendingNewRuleEditor = false;
+
+      // Check if we have a pending rule create with a temp ID (legacy path)
       if (window._pendingRuleCreate) {
         const { tempId, rule } = window._pendingRuleCreate;
         console.log('[Automod] Mapping temp ID', tempId, 'to server ID', data.id);
-        // Update the local rule's ID to match server's ID
         const localRule = state.rules.find(r => r.id === tempId);
         if (localRule) {
           localRule.id = data.id;
@@ -4315,11 +4382,41 @@
         return;
       }
 
-      // Only add if not already present (for rules created elsewhere)
+      // Build full rule object with defaults
+      const newRule = {
+        id: data.id,
+        name: data.name || 'New Rule',
+        type: data.type || 'WORD_FILTER',
+        enabled: data.enabled !== false,
+        builtIn: false,
+        priority: data.priority || 100,
+        exactMatch: false,
+        conditions: [{ kind: 'contains', value: '', match: 'contains' }],
+        action: { kind: 'none', extra: '', duration: '' },
+        threshold: { hits: 1, windowMins: 10 },
+        blacklistedPhrases: [],
+        blacklistedWords: [],
+        exclusionWords: [],
+        exceptions: [],
+        ...data
+      };
+
+      // Add to state if not already present
       if (!state.rules.find(r => r.id === data.id)) {
-        state.rules.push(data);
-        ui.renderRules();
-        toast('info', 'Automod', 'New rule created: ' + data.name);
+        state.rules.unshift(newRule); // Add to beginning
+        state.rulesPage = 1; // Go to first page to see new rule
+      }
+
+      ui.renderRules();
+
+      // Open editor if this was a new rule creation from addRuleUI
+      if (shouldOpenEditor && window.openAutomodRuleEditor) {
+        toast('ok', 'Created', 'Rule created. Configure it below.');
+        setTimeout(() => {
+          window.openAutomodRuleEditor(data.id);
+        }, 100);
+      } else {
+        toast('info', 'Automod', 'New rule created: ' + (data.name || 'Unknown'));
       }
     });
 
@@ -5145,10 +5242,17 @@
         const { line, fill } = getLoadingElements();
         if (line) {
           line.classList.add('fade-out');
-          // After fade animation, reset everything
+          // After fade animation (0.3s), reset everything
           setTimeout(() => {
             line.classList.remove('active', 'fade-out', 'complete');
-            if (fill) fill.style.width = '0%';
+            // Disable transition before resetting width to prevent slide-back animation
+            if (fill) {
+              fill.classList.add('no-transition');
+              fill.style.width = '0%';
+              // Force reflow then remove no-transition class
+              fill.offsetHeight; // Trigger reflow
+              fill.classList.remove('no-transition');
+            }
             currentProgress = 0;
           }, 300);
         }
@@ -5196,7 +5300,11 @@
       line.classList.remove('active', 'fade-out', 'complete');
     }
     if (fill) {
+      // Disable transition to prevent slide-back animation
+      fill.classList.add('no-transition');
       fill.style.width = '0%';
+      fill.offsetHeight; // Trigger reflow
+      fill.classList.remove('no-transition');
     }
     if (loadingLineTimeout) {
       clearTimeout(loadingLineTimeout);

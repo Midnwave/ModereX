@@ -644,6 +644,14 @@ body {
   width: 100%;
 }
 
+.loading-line.fade-out .loading-line-fill {
+  width: 100%; /* Keep at 100% while fading */
+}
+
+.loading-line-fill.no-transition {
+  transition: none !important;
+}
+
 /* ===== TOPBAR ===== */
 .topbar {
   position: relative;
