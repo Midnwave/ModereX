@@ -49,6 +49,9 @@ public class GrimHook extends AnticheatHook implements Listener {
     // keeps track of what checks we've seen for the web panel
     private final Set<String> discoveredChecks = ConcurrentHashMap.newKeySet();
 
+    // Whether to hide Grim's native alert messages (setbacks still work)
+    private boolean hideGrimAlerts = true;
+
     // all Grim check types from decompiled source (v2.3.72)
     private static final String[] KNOWN_CHECKS = {
         // Aim
@@ -136,15 +139,13 @@ public class GrimHook extends AnticheatHook implements Listener {
 
         // Try to use Grim's internal EventBus API (required for 2.3.72+)
         if (tryGrimInternalEventBus()) {
-            // Auto-disable Grim's native alert messages
-            disableGrimAlerts();
+            // Don't auto-disable Grim's alerts - let Grim handle setbacks/punishments normally
+            // Users can manually configure Grim's punishments.yml if they want to hide alerts
             return true;
         }
 
         // Fallback: Try Bukkit event registration for older Grim versions
         if (tryBukkitEventRegistration()) {
-            // Auto-disable Grim's native alert messages
-            disableGrimAlerts();
             return true;
         }
 
@@ -241,7 +242,7 @@ public class GrimHook extends AnticheatHook implements Listener {
             enabled = true;
             plugin.getLogger().info("[Grim] Successfully subscribed to FlagEvent via Grim's EventBus!");
             plugin.getLogger().info("[Grim] ModereX will now receive Grim alerts");
-            plugin.getLogger().info("[Grim] TIP: To hide Grim's messages, set 'alert-interval: -1' in punishments.yml");
+            plugin.getLogger().info("[Grim] Grim's native chat alerts are hidden (setbacks still work)");
             return true;
 
         } catch (IllegalStateException e) {
@@ -266,8 +267,6 @@ public class GrimHook extends AnticheatHook implements Listener {
         plugin.getLogger().info("[Grim] Retrying hook after delay...");
         if (!enabled && tryGrimInternalEventBus()) {
             plugin.getLogger().info("[Grim] Delayed hook successful!");
-            // Auto-disable Grim's native alert messages
-            disableGrimAlerts();
             // Notify AnticheatManager about this late hook
             if (plugin.getAnticheatManager() != null) {
                 plugin.getAnticheatManager().registerLateHook(this);
@@ -430,8 +429,20 @@ public class GrimHook extends AnticheatHook implements Listener {
             int violations = (int) Math.ceil(violationsDouble);
             if (violations < 1) violations = 1;
 
-            // Do NOT cancel the event - we want Grim to still do setbacks
-            // To hide Grim's messages, use disableGrimAlerts() or set alert-interval: -1 in punishments.yml
+            // Cancel the event to hide Grim's native alert messages
+            // Setbacks still work because they happen BEFORE the FlagEvent is fired
+            if (hideGrimAlerts) {
+                try {
+                    Method setCancelled = event.getClass().getMethod("setCancelled", boolean.class);
+                    setCancelled.invoke(event, true);
+                } catch (NoSuchMethodException e) {
+                    // Try cancel() method pattern
+                    try {
+                        Method cancel = event.getClass().getMethod("cancel");
+                        cancel.invoke(event);
+                    } catch (Exception ignored) {}
+                } catch (Exception ignored) {}
+            }
 
             if (player != null) {
                 handleAlert(new AnticheatAlert(
@@ -572,8 +583,11 @@ public class GrimHook extends AnticheatHook implements Listener {
             int violations = (int) Math.ceil(violationsDouble);
             if (violations < 1) violations = 1;
 
-            // Do NOT cancel the event - we want Grim to still do setbacks
-            // To hide Grim's messages, use disableGrimAlerts() or set alert-interval: -1 in punishments.yml
+            // Cancel the Bukkit event to hide Grim's native alert messages
+            // Setbacks still work because they happen BEFORE the FlagEvent is fired
+            if (hideGrimAlerts && event instanceof org.bukkit.event.Cancellable) {
+                ((org.bukkit.event.Cancellable) event).setCancelled(true);
+            }
 
             if (player != null) {
                 handleAlert(new AnticheatAlert(
