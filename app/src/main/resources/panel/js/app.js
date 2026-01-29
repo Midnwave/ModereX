@@ -369,6 +369,54 @@
     }
   };
 
+  // Rate limiting tracker for alert toasts
+  const alertRateLimiter = {
+    // Map of playerId -> { count, windowStart, timer }
+    players: new Map(),
+
+    checkAndTrack(playerId, settings) {
+      if (!playerId) return true; // No rate limiting without player ID
+
+      const cooldownSeconds = settings.alertRateLimitSeconds ?? 5;
+      const maxAlerts = settings.alertRateLimitMax ?? 3;
+
+      // Rate limiting disabled
+      if (cooldownSeconds === 0) return true;
+
+      const now = Date.now();
+      const entry = this.players.get(playerId);
+
+      if (!entry) {
+        // First alert from this player
+        this.players.set(playerId, {
+          count: 1,
+          windowStart: now,
+          timer: setTimeout(() => this.players.delete(playerId), cooldownSeconds * 1000)
+        });
+        return true;
+      }
+
+      // Check if still in cooldown window
+      if (now - entry.windowStart < cooldownSeconds * 1000) {
+        entry.count++;
+        if (entry.count > maxAlerts) {
+          console.log(`[AlertToast] Rate limited: ${playerId} (${entry.count}/${maxAlerts} in ${cooldownSeconds}s)`);
+          return false; // Rate limited
+        }
+        return true;
+      }
+
+      // Window expired, reset
+      clearTimeout(entry.timer);
+      this.players.set(playerId, {
+        count: 1,
+        windowStart: now,
+        timer: setTimeout(() => this.players.delete(playerId), cooldownSeconds * 1000)
+      });
+      return true;
+    }
+  };
+
   /**
    * Show an alert toast (priority notification) - AlertBar style
    * @param {string} alertType - Type of alert (ban, kick, mute, warn, pardon, anticheat, automod, etc.)
@@ -381,6 +429,13 @@
 
     const settings = window.MX?.state?.staffSettings || {};
     const duration = (settings.webAlertDurationSeconds || 10) * 1000;
+
+    // Rate limiting check (for alerts with playerId)
+    const playerId = options?.playerId;
+    if (playerId && !alertRateLimiter.checkAndTrack(playerId, settings)) {
+      console.log('[AlertToast] Alert suppressed due to rate limit');
+      return; // Rate limited, don't show
+    }
 
     // Check if sound should play
     const soundKey = 'webSound' + alertType.charAt(0).toUpperCase() + alertType.slice(1);
@@ -429,6 +484,24 @@
       textContent += `<div class="alert-toast-sub">${escapeHtml(message)}</div>`;
     }
 
+    // Store extra data for view action
+    const punishmentData = options?.punishmentData;
+    const caseId = options?.caseId;
+
+    // Check if this is an alert type that should have action buttons
+    const hasActionButtons = ['anticheat', 'automod', 'command', 'nickname', 'watchlist'].includes(alertType) && playerId;
+
+    // Build action buttons HTML
+    let actionsHtml = '';
+    if (hasActionButtons) {
+      actionsHtml = `
+        <button class="mini" data-action="punish" title="Punish"><i class="fa-solid fa-gavel"></i></button>
+        <button class="mini" data-action="watchlist" title="Add to Watchlist"><i class="fa-solid fa-eye"></i></button>
+      `;
+    } else if (playerId || punishmentData || caseId) {
+      actionsHtml = '<button class="mini" data-action="view" title="View Details"><i class="fa-solid fa-info-circle"></i></button>';
+    }
+
     el.innerHTML = `
       <div class="alert-toast-left">
         ${leftContent}
@@ -437,8 +510,8 @@
         </div>
       </div>
       <div class="alert-toast-actions">
-        ${playerId ? '<button class="mini" data-action="view"><i class="fa-solid fa-eye"></i></button>' : ''}
-        <button class="mini" data-action="dismiss"><i class="fa-solid fa-xmark"></i></button>
+        ${actionsHtml}
+        <button class="mini" data-action="dismiss" title="Dismiss"><i class="fa-solid fa-xmark"></i></button>
       </div>
       <div class="alert-toast-progress" style="animation-duration: ${duration}ms"></div>
     `;
@@ -448,31 +521,54 @@
       setTimeout(() => el.remove(), 350);
     };
 
-    // View button handler
+    // Punish button handler - opens punish action form
+    const punishBtn = el.querySelector('[data-action="punish"]');
+    if (punishBtn) {
+      punishBtn.onclick = (e) => {
+        e.stopPropagation();
+        showAlertActionModal('punish', alertType, playerName, playerId, message);
+        dismiss();
+      };
+    }
+
+    // Watchlist button handler - opens watchlist action form
+    const watchlistBtn = el.querySelector('[data-action="watchlist"]');
+    if (watchlistBtn) {
+      watchlistBtn.onclick = (e) => {
+        e.stopPropagation();
+        showAlertActionModal('watchlist', alertType, playerName, playerId, message);
+        dismiss();
+      };
+    }
+
+    // View button handler - opens detail modal or player drawer
     const viewBtn = el.querySelector('[data-action="view"]');
     if (viewBtn) {
       viewBtn.onclick = (e) => {
         e.stopPropagation();
-        if (playerId) {
+        // If we have punishment data, show detailed alert modal
+        if (punishmentData) {
+          showAlertDetailModal(alertType, title, message, {
+            playerId,
+            playerName,
+            punishmentData,
+            caseId: punishmentData.caseId || caseId
+          });
+        } else if (playerId) {
+          // Otherwise just open player drawer
           window.openPlayerDrawer?.(playerId);
         }
         dismiss();
       };
     }
 
-    // Dismiss button handler
+    // Dismiss button handler - ONLY way to manually dismiss
     el.querySelector('[data-action="dismiss"]').onclick = (e) => {
       e.stopPropagation();
       dismiss();
     };
 
-    // Click anywhere to view player (if playerId) or dismiss
-    el.onclick = () => {
-      if (playerId) {
-        window.openPlayerDrawer?.(playerId);
-      }
-      dismiss();
-    };
+    // Clicking the alert itself does nothing (no auto-dismiss on click)
 
     // Insert at top (newest first)
     container.insertBefore(el, container.firstChild);
@@ -494,6 +590,256 @@
   };
 
   window.MX.alertToast = window.alertToast;
+
+  /**
+   * Show detailed alert modal with punishment/player info
+   */
+  function showAlertDetailModal(alertType, title, message, options = {}) {
+    const { playerId, playerName, punishmentData, caseId } = options;
+
+    // Build modal content
+    let content = '';
+
+    if (punishmentData) {
+      // Format time
+      const createdAt = punishmentData.createdAt ? new Date(punishmentData.createdAt).toLocaleString() : 'Unknown';
+      const expiresAt = punishmentData.expiresAt === -1 ? 'Never (Permanent)' :
+                        punishmentData.expiresAt ? new Date(punishmentData.expiresAt).toLocaleString() : 'Unknown';
+
+      content = `
+        <div class="alert-detail-section">
+          <div class="alert-detail-header">
+            ${playerId ? `<img class="alert-detail-avatar" src="https://mc-heads.net/avatar/${escapeHtml(playerId)}/64" alt="">` : ''}
+            <div>
+              <h3 style="margin:0;color:var(--text)">${escapeHtml(playerName || 'Unknown')}</h3>
+              <span class="badge ${alertType}">${escapeHtml(punishmentData.type || alertType)}</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="alert-detail-section">
+          <div class="alert-detail-row">
+            <span class="alert-detail-label">Case ID</span>
+            <span class="alert-detail-value" style="font-family:var(--font-mono)">${escapeHtml(punishmentData.caseId || caseId || 'N/A')}</span>
+          </div>
+          <div class="alert-detail-row">
+            <span class="alert-detail-label">Reason</span>
+            <span class="alert-detail-value">${escapeHtml(punishmentData.reason || 'No reason provided')}</span>
+          </div>
+          <div class="alert-detail-row">
+            <span class="alert-detail-label">Duration</span>
+            <span class="alert-detail-value">${escapeHtml(punishmentData.duration || 'Unknown')}</span>
+          </div>
+          <div class="alert-detail-row">
+            <span class="alert-detail-label">Staff</span>
+            <span class="alert-detail-value">${escapeHtml(punishmentData.staffName || 'Console')}</span>
+          </div>
+          <div class="alert-detail-row">
+            <span class="alert-detail-label">Issued</span>
+            <span class="alert-detail-value">${escapeHtml(createdAt)}</span>
+          </div>
+          <div class="alert-detail-row">
+            <span class="alert-detail-label">Expires</span>
+            <span class="alert-detail-value">${escapeHtml(expiresAt)}</span>
+          </div>
+          <div class="alert-detail-row">
+            <span class="alert-detail-label">Status</span>
+            <span class="alert-detail-value">
+              <span class="badge ${punishmentData.active ? 'red' : 'green'}">${punishmentData.active ? 'Active' : 'Expired'}</span>
+            </span>
+          </div>
+        </div>
+      `;
+    } else {
+      // Generic alert detail
+      content = `
+        <div class="alert-detail-section">
+          <div class="alert-detail-header">
+            ${playerId ? `<img class="alert-detail-avatar" src="https://mc-heads.net/avatar/${escapeHtml(playerId)}/64" alt="">` : ''}
+            <div>
+              <h3 style="margin:0;color:var(--text)">${escapeHtml(title)}</h3>
+              <span class="badge ${alertType}">${escapeHtml(alertType)}</span>
+            </div>
+          </div>
+        </div>
+        <div class="alert-detail-section">
+          <p style="color:var(--text-muted);margin:0">${escapeHtml(message)}</p>
+        </div>
+      `;
+    }
+
+    // Create modal
+    const modalId = 'alertDetailModal';
+    let modal = document.getElementById(modalId);
+
+    if (!modal) {
+      modal = document.createElement('div');
+      modal.id = modalId;
+      modal.className = 'modal';
+      document.body.appendChild(modal);
+    }
+
+    modal.innerHTML = `
+      <div class="modal-bg" onclick="closeAlertDetailModal()"></div>
+      <div class="modal-content" style="max-width:450px">
+        <div class="modal-header">
+          <h2><i class="fa-solid fa-circle-info" style="margin-right:8px"></i>Alert Details</h2>
+          <button class="btn ghost" onclick="closeAlertDetailModal()"><i class="fa-solid fa-xmark"></i></button>
+        </div>
+        <div class="modal-body" style="padding:16px">
+          ${content}
+        </div>
+        <div class="modal-footer">
+          ${playerId ? `<button class="btn secondary" onclick="closeAlertDetailModal(); window.openPlayerDrawer?.('${escapeHtml(playerId)}')"><i class="fa-solid fa-user"></i> View Player</button>` : ''}
+          <button class="btn primary" onclick="closeAlertDetailModal()">Close</button>
+        </div>
+      </div>
+    `;
+
+    modal.classList.add('show');
+    window.MX?.sounds?.modal?.();
+  }
+
+  window.showAlertDetailModal = showAlertDetailModal;
+
+  function closeAlertDetailModal() {
+    const modal = document.getElementById('alertDetailModal');
+    if (modal) {
+      modal.classList.remove('show');
+    }
+  }
+
+  window.closeAlertDetailModal = closeAlertDetailModal;
+
+  /**
+   * Show alert action modal for punish/watchlist actions
+   */
+  function showAlertActionModal(action, alertType, playerName, playerId, details) {
+    const modalId = 'alertActionModal';
+    let modal = document.getElementById(modalId);
+
+    if (!modal) {
+      modal = document.createElement('div');
+      modal.id = modalId;
+      modal.className = 'modal';
+      document.body.appendChild(modal);
+    }
+
+    let content = '';
+    let title = '';
+    let footerButtons = '';
+
+    if (action === 'punish') {
+      title = '<i class="fa-solid fa-gavel" style="margin-right:8px;color:var(--bad)"></i>Punish Player';
+      content = `
+        <div class="alert-detail-section">
+          <div class="alert-detail-header">
+            ${playerId ? `<img class="alert-detail-avatar" src="https://mc-heads.net/avatar/${escapeHtml(playerId)}/64" alt="">` : ''}
+            <div>
+              <h3 style="margin:0;color:var(--text)">${escapeHtml(playerName)}</h3>
+              <span class="badge ${alertType}">${escapeHtml(alertType)} Alert</span>
+            </div>
+          </div>
+        </div>
+        <div class="alert-detail-section">
+          <p style="color:var(--muted);margin:0 0 12px 0">Select punishment type:</p>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+            <button class="btn secondary" onclick="closeAlertActionModal(); window.openPunishForm?.('${escapeHtml(playerId)}', 'warn', '${escapeHtml(details)}')">
+              <i class="fa-solid fa-triangle-exclamation" style="color:#06b6d4"></i> Warn
+            </button>
+            <button class="btn secondary" onclick="closeAlertActionModal(); window.openPunishForm?.('${escapeHtml(playerId)}', 'mute', '${escapeHtml(details)}')">
+              <i class="fa-solid fa-volume-xmark" style="color:#eab308"></i> Mute
+            </button>
+            <button class="btn secondary" onclick="closeAlertActionModal(); window.openPunishForm?.('${escapeHtml(playerId)}', 'kick', '${escapeHtml(details)}')">
+              <i class="fa-solid fa-shoe-prints" style="color:#f97316"></i> Kick
+            </button>
+            <button class="btn secondary" onclick="closeAlertActionModal(); window.openPunishForm?.('${escapeHtml(playerId)}', 'ban', '${escapeHtml(details)}')">
+              <i class="fa-solid fa-ban" style="color:#ef4444"></i> Ban
+            </button>
+          </div>
+        </div>
+      `;
+      footerButtons = `
+        <button class="btn ghost" onclick="closeAlertActionModal(); window.openPlayerDrawer?.('${escapeHtml(playerId)}')"><i class="fa-solid fa-user"></i> View Player</button>
+        <button class="btn secondary" onclick="closeAlertActionModal()">Cancel</button>
+      `;
+    } else if (action === 'watchlist') {
+      title = '<i class="fa-solid fa-eye" style="margin-right:8px;color:var(--warn)"></i>Add to Watchlist';
+      content = `
+        <div class="alert-detail-section">
+          <div class="alert-detail-header">
+            ${playerId ? `<img class="alert-detail-avatar" src="https://mc-heads.net/avatar/${escapeHtml(playerId)}/64" alt="">` : ''}
+            <div>
+              <h3 style="margin:0;color:var(--text)">${escapeHtml(playerName)}</h3>
+              <span class="badge ${alertType}">${escapeHtml(alertType)} Alert</span>
+            </div>
+          </div>
+        </div>
+        <div class="alert-detail-section">
+          <div class="form-group">
+            <label style="color:var(--muted);font-size:13px;margin-bottom:6px;display:block">Reason for watchlist:</label>
+            <input type="text" id="watchlistReason" class="input" placeholder="Enter reason..." value="${escapeHtml(alertType)} alert: ${escapeHtml(details).substring(0, 50)}" style="width:100%">
+          </div>
+        </div>
+      `;
+      footerButtons = `
+        <button class="btn ghost" onclick="closeAlertActionModal(); window.openPlayerDrawer?.('${escapeHtml(playerId)}')"><i class="fa-solid fa-user"></i> View Player</button>
+        <button class="btn secondary" onclick="closeAlertActionModal()">Cancel</button>
+        <button class="btn primary" onclick="addToWatchlistFromAlert('${escapeHtml(playerId)}', '${escapeHtml(playerName)}')"><i class="fa-solid fa-plus"></i> Add to Watchlist</button>
+      `;
+    }
+
+    modal.innerHTML = `
+      <div class="modal-bg" onclick="closeAlertActionModal()"></div>
+      <div class="modal-content" style="max-width:450px">
+        <div class="modal-header">
+          <h2>${title}</h2>
+          <button class="btn ghost" onclick="closeAlertActionModal()"><i class="fa-solid fa-xmark"></i></button>
+        </div>
+        <div class="modal-body" style="padding:16px">
+          ${content}
+        </div>
+        <div class="modal-footer">
+          ${footerButtons}
+        </div>
+      </div>
+    `;
+
+    modal.classList.add('show');
+    window.MX?.sounds?.modal?.();
+  }
+
+  window.showAlertActionModal = showAlertActionModal;
+
+  function closeAlertActionModal() {
+    const modal = document.getElementById('alertActionModal');
+    if (modal) {
+      modal.classList.remove('show');
+    }
+  }
+
+  window.closeAlertActionModal = closeAlertActionModal;
+
+  function addToWatchlistFromAlert(playerId, playerName) {
+    const reason = document.getElementById('watchlistReason')?.value || 'Alert triggered';
+
+    // Send watchlist add request
+    const ws = window.MX?.ws;
+    if (ws && ws.isConnected()) {
+      ws.send('ADD_WATCHLIST', {
+        playerUuid: playerId,
+        playerName: playerName,
+        reason: reason
+      });
+      window.toast?.('success', 'Watchlist', `Added ${playerName} to watchlist`);
+    } else {
+      window.toast?.('error', 'Error', 'Not connected to server');
+    }
+
+    closeAlertActionModal();
+  }
+
+  window.addToWatchlistFromAlert = addToWatchlistFromAlert;
 
   // ===== DEV TOOLS DEBUG CONSOLE =====
   // Always logs to the Developer Tools debug console regardless of debug mode
@@ -3289,18 +3635,28 @@
 
   // Settings that can be searched (with element IDs for auto-scroll)
   const searchableSettings = [
+    // Panel sounds & display
     { name: 'Sound Effects', page: 'mysettings', keywords: ['audio', 'notification', 'mute', 'volume'], elementId: 'soundsEnabled' },
     { name: 'Volume Control', page: 'mysettings', keywords: ['audio', 'volume', 'slider'], elementId: 'volumeSlider' },
     { name: 'Auto Sign-in', page: 'mysettings', keywords: ['device', 'trust', 'remember', 'login'], elementId: 'deviceTrustEnabled' },
     { name: 'Debug Mode', page: 'mysettings', keywords: ['developer', 'debug', 'logging', 'console'], elementId: 'debugModeEnabled' },
     { name: 'Theme Color', page: 'mysettings', keywords: ['color', 'appearance', 'theme', 'blue', 'red', 'green'], elementId: 'themePresets' },
     { name: 'Background Pattern', page: 'mysettings', keywords: ['pattern', 'background', 'aurora', 'stars', 'waves'], elementId: 'patternGrid' },
-    { name: 'Automod Alerts', page: 'mysettings', keywords: ['automod', 'filter', 'notify'], elementId: 'alertAutomod' },
-    { name: 'Command Alerts', page: 'mysettings', keywords: ['command', 'notify'], elementId: 'alertCommands' },
-    { name: 'Punishment Alerts', page: 'mysettings', keywords: ['ban', 'mute', 'kick', 'warn'], elementId: 'alertPunishments' },
-    // Join/Leave alerts removed - now a global config setting
-    { name: 'Watchlist Alerts', page: 'mysettings', keywords: ['watchlist', 'monitor', 'notify'], elementId: 'acModeWatchlist' },
-    { name: 'Anticheat Alert Mode', page: 'mysettings', keywords: ['anticheat', 'hack', 'cheat', 'mode'], elementId: 'acModeAll' },
+    // Alert configuration (staff settings)
+    { name: 'Ban Alerts', page: 'mysettings', keywords: ['ban', 'punishment', 'alert', 'notify'], elementId: 'staffSettingsContainer' },
+    { name: 'Kick Alerts', page: 'mysettings', keywords: ['kick', 'punishment', 'alert', 'notify'], elementId: 'staffSettingsContainer' },
+    { name: 'Mute Alerts', page: 'mysettings', keywords: ['mute', 'punishment', 'alert', 'notify'], elementId: 'staffSettingsContainer' },
+    { name: 'Warn Alerts', page: 'mysettings', keywords: ['warn', 'warning', 'alert', 'notify'], elementId: 'staffSettingsContainer' },
+    { name: 'Pardon Alerts', page: 'mysettings', keywords: ['pardon', 'unban', 'unmute', 'alert'], elementId: 'staffSettingsContainer' },
+    { name: 'Automod Alerts', page: 'mysettings', keywords: ['automod', 'filter', 'chat', 'alert'], elementId: 'staffSettingsContainer' },
+    { name: 'Anticheat Alerts', page: 'mysettings', keywords: ['anticheat', 'hack', 'cheat', 'alert'], elementId: 'staffSettingsContainer' },
+    { name: 'Watchlist Alerts', page: 'mysettings', keywords: ['watchlist', 'monitor', 'alert', 'join'], elementId: 'staffSettingsContainer' },
+    { name: 'Staff Chat', page: 'mysettings', keywords: ['staff', 'chat', 'message', 'team'], elementId: 'staffSettingsContainer' },
+    { name: 'Toast Position', page: 'mysettings', keywords: ['toast', 'position', 'alert', 'location'], elementId: 'staffSettingsContainer' },
+    { name: 'Alert Duration', page: 'mysettings', keywords: ['duration', 'time', 'alert', 'seconds'], elementId: 'staffSettingsContainer' },
+    { name: 'Alert Sounds', page: 'mysettings', keywords: ['sound', 'audio', 'alert', 'notification'], elementId: 'staffSettingsContainer' },
+    { name: 'Alert Rate Limiting', page: 'mysettings', keywords: ['rate', 'limit', 'spam', 'cooldown'], elementId: 'staffSettingsContainer' },
+    // Actions
     { name: 'Chat Lock', page: 'actions', keywords: ['disable', 'mute all', 'lock chat'] },
     { name: 'Slowmode', page: 'actions', keywords: ['rate limit', 'spam', 'slow'] },
     { name: 'Kick All', page: 'actions', keywords: ['clear', 'server', 'disconnect'] },
@@ -3990,6 +4346,10 @@
       state.staffSettings.webSoundNickname = data.webSoundNickname ?? true;
       state.staffSettings.webSoundLag = data.webSoundLag ?? true;
 
+      // Rate limiting settings
+      state.staffSettings.alertRateLimitSeconds = data.alertRateLimitSeconds ?? 5;
+      state.staffSettings.alertRateLimitMax = data.alertRateLimitMax ?? 3;
+
       // Update toast position (convert from DB format TOP_RIGHT to CSS format top-right)
       if (window.updateAlertToastPosition && data.webToastPosition) {
         const cssPosition = data.webToastPosition.toLowerCase().replace(/_/g, '-');
@@ -4093,7 +4453,26 @@
       state.activity.unshift({ t: now(), actor: data.staffName, action: `${data.type} issued`, target: data.playerName });
       ui.renderPunishments();
       ui.renderDashboard();
-      showPanelAlert('punishments', 'Punishment', `${data.playerName} was ${data.type.toLowerCase()}ed by ${data.staffName}`, { playerId: data.playerUuid, playerName: data.playerName });
+
+      // Format punishment type for display
+      const typeDisplay = {
+        'BAN': 'Banned',
+        'MUTE': 'Muted',
+        'KICK': 'Kicked',
+        'WARN': 'Warned',
+        'IPBAN': 'IP Banned'
+      }[data.type] || data.type;
+
+      // Build alert subtitle with reason and duration
+      const duration = data.duration && data.duration !== 'Permanent' ? ` (${data.duration})` : data.duration === 'Permanent' ? ' (Permanent)' : '';
+      const subtitle = `${data.reason || 'No reason'}${duration}`;
+
+      showPanelAlert('punishments', `Player ${typeDisplay}: ${data.playerName}`, subtitle, {
+        playerId: data.playerUuid,
+        playerName: data.playerName,
+        caseId: data.caseId,
+        punishmentData: data
+      });
       window.MX.sounds?.punishment();
     });
 
@@ -4105,7 +4484,7 @@
         pun.revoked = true;
       }
       ui.renderPunishments();
-      showPanelAlert('punishments', 'Revoked', `Punishment ${data.caseId} was revoked`);
+      showPanelAlert('punishments', `Punishment Revoked: ${data.caseId}`, `${pun?.type || 'Unknown'} for ${pun?.playerName || 'Unknown'} was revoked`, { caseId: data.caseId });
     });
 
     // Rate limiting state for watchlist alerts (by player/IP)
@@ -4185,7 +4564,7 @@
         showAlertBar('watchlist', alertType, details, playerData);
       }
       if (style === 'toast' || style === 'both') {
-        showPanelAlert('watchlist', 'Watchlist', `${playerName}: ${details}`, { playerId: playerUuid, playerName, severity: 'warn' });
+        showPanelAlert('watchlist', `Watchlist Alert: ${playerName}`, details, { playerId: playerUuid, playerName, severity: 'warn' });
       }
       window.MX.sounds?.watchlist();
     }
@@ -4204,7 +4583,7 @@
           isSelf: false,
           time: now()
         });
-        showPanelAlert('staffChat', 'Staff Chat', `${data.sender}: ${data.message}`);
+        showPanelAlert('staffChat', `Staff Chat: ${data.sender}`, data.message);
         window.MX.sounds?.staffChat();
       }
     });
@@ -4297,14 +4676,14 @@
       if (!isLiveMode) return;
       const player = state.players.find(p => p.uuid === data.playerUuid);
       logEvent('WARN', 'automod', `Automod | ${data.rule}`, `${data.playerName}: ${data.message}`, { playerId: player?.id, kind: 'automod', type: 'AUTOMOD' });
-      showPanelAlert('automod', 'Automod', `${data.playerName} triggered ${data.rule}`, { playerId: player?.id, playerName: data.playerName, severity: 'warn' });
+      showPanelAlert('automod', `Automod Alert: ${data.playerName}`, `Triggered: ${data.rule}`, { playerId: player?.id, playerName: data.playerName, severity: 'warn' });
     });
 
     ws.on('AUTOMOD_TRIGGERED', (data) => {
       if (!isLiveMode) return;
       const player = state.players.find(p => p.uuid === data.playerUuid);
       logEvent('WARN', 'automod', `Automod | ${data.rule}`, `${data.playerName}: ${data.message}`, { playerId: player?.id, kind: 'automod', type: 'AUTOMOD' });
-      showPanelAlert('automod', 'Automod', `${data.playerName} triggered ${data.rule}`, { playerId: player?.id, playerName: data.playerName, severity: 'warn' });
+      showPanelAlert('automod', `Automod Alert: ${data.playerName}`, `Triggered: ${data.rule}`, { playerId: player?.id, playerName: data.playerName, severity: 'warn' });
     });
 
     ws.on('PRIVATE_MESSAGE', (data) => {
@@ -4353,8 +4732,8 @@
       if (alertLevel === 'WATCHLIST_ONLY' && !isWatchlisted) return;
 
       // Show alert using panel notification settings
-      const title = `Anticheat: ${checkName}`;
-      const sub = `${data.playerName} - VL: ${data.vl || 0}`;
+      const title = `Anticheat Alert: ${data.playerName}`;
+      const sub = `${checkName} - VL: ${data.vl || 0}`;
       showPanelAlert('anticheat', title, sub, { playerId: player?.id, playerName: data.playerName, severity: 'warn' });
       window.MX.sounds?.anticheat();
     });
@@ -4378,10 +4757,29 @@
       // Log the event
       const category = data.category || 'custom';
       const eventType = category.toUpperCase();
-      logEvent('WARN', category, data.title || 'Alert', `${data.playerName}: ${data.message}`, { playerId: playerId, kind: category, type: eventType });
+
+      // Format title based on category
+      const categoryTitles = {
+        'ban': `Player Banned: ${data.playerName}`,
+        'kick': `Player Kicked: ${data.playerName}`,
+        'mute': `Player Muted: ${data.playerName}`,
+        'warn': `Player Warned: ${data.playerName}`,
+        'pardon': `Player Pardoned: ${data.playerName}`,
+        'anticheat': `Anticheat Alert: ${data.playerName}`,
+        'automod': `Automod Alert: ${data.playerName}`,
+        'command': `Command Alert: ${data.playerName}`,
+        'nickname': `Nickname Alert: ${data.playerName}`,
+        'watchlist': `Watchlist Alert: ${data.playerName}`,
+        'staffchat': `Staff Chat: ${data.playerName}`,
+        'lag': 'Server Lag Alert'
+      };
+
+      const alertTitle = categoryTitles[category] || data.title || `${category.charAt(0).toUpperCase() + category.slice(1)} Alert: ${data.playerName}`;
+
+      logEvent('WARN', category, alertTitle, data.message, { playerId: playerId, kind: category, type: eventType });
 
       // Show alert using panel notification settings
-      showPanelAlert(category, data.title || 'Alert', `${data.playerName}: ${data.message}`, {
+      showPanelAlert(category, alertTitle, data.message, {
         playerId: playerId,
         playerName: data.playerName,
         severity: 'warn'
@@ -4858,15 +5256,27 @@
    */
   function showPanelAlert(category, title, message, options = {}) {
     const staffSettings = state.staffSettings || {};
-    const settingKey = 'webNotify' + category.charAt(0).toUpperCase() + category.slice(1);
-    const mode = staffSettings[settingKey] || 'toast'; // Default to toast if not set
 
-    console.log('[showPanelAlert] category:', category, 'settingKey:', settingKey, 'mode:', mode, 'staffSettings:', staffSettings);
+    // Map category to alert level setting key
+    const alertLevelKey = category + 'Alerts'; // e.g., 'anticheatAlerts', 'automodAlerts'
+    const alertLevel = staffSettings[alertLevelKey] || 'everyone';
 
-    if (mode === 'off') {
-      console.log('[showPanelAlert] Mode is off, not showing alert');
+    // Check if alerts for this category are disabled by level
+    if (alertLevel === 'off' || alertLevel === 'OFF') {
+      console.log('[showPanelAlert] Alert level is off for', category);
       return;
     }
+
+    // Get notification mode - default to 'toast' if not set or 'off'
+    const notifyKey = 'webNotify' + category.charAt(0).toUpperCase() + category.slice(1);
+    let mode = staffSettings[notifyKey] || 'toast';
+
+    // If notification mode is 'off' but alert level is enabled, default to toast
+    if (mode === 'off' || mode === 'OFF') {
+      mode = 'toast';
+    }
+
+    console.log('[showPanelAlert] category:', category, 'alertLevel:', alertLevel, 'mode:', mode);
 
     // Only include playerData if we have a valid playerId (not undefined/null)
     const playerData = options.playerId ? { playerId: options.playerId, playerName: options.playerName } : { playerName: options.playerName };
@@ -4914,23 +5324,6 @@
   }
 
   function applyMySettingsUI() {
-    const settings = loadMySettings();
-
-    ['automod', 'commands', 'punishments', 'pardons', 'joins'].forEach(key => {
-      const btn = document.getElementById('alert' + key.charAt(0).toUpperCase() + key.slice(1));
-      if (btn) btn.classList.toggle('on', settings[key]);
-    });
-
-    ['Off', 'Watchlist', 'All'].forEach(mode => {
-      const btn = document.getElementById('acMode' + mode);
-      if (btn) btn.classList.toggle('active', settings.anticheatMode === mode.toLowerCase());
-    });
-
-    ['Bar', 'Toast', 'Both'].forEach(style => {
-      const btn = document.getElementById('watchStyle' + style);
-      if (btn) btn.classList.toggle('active', settings.watchlistStyle === style.toLowerCase());
-    });
-
     const soundsBtn = document.getElementById('soundsEnabled');
     if (soundsBtn) soundsBtn.classList.toggle('on', window.MX.sounds?.isEnabled() ?? true);
 
@@ -4947,37 +5340,6 @@
     if (deviceBtn) {
       deviceBtn.classList.toggle('on', state.settings.deviceTrustEnabled ?? false);
     }
-  }
-
-  function toggleMyAlert(key) {
-    const settings = loadMySettings();
-    settings[key] = !settings[key];
-    saveMySettings(settings);
-    const btn = document.getElementById('alert' + key.charAt(0).toUpperCase() + key.slice(1));
-    if (btn) btn.classList.toggle('on', settings[key]);
-    window.MX.sounds?.toggle();
-  }
-
-  function setAnticheatMode(mode) {
-    const settings = loadMySettings();
-    settings.anticheatMode = mode;
-    saveMySettings(settings);
-    ['Off', 'Watchlist', 'All'].forEach(m => {
-      const btn = document.getElementById('acMode' + m);
-      if (btn) btn.classList.toggle('active', mode === m.toLowerCase());
-    });
-    window.MX.sounds?.click();
-  }
-
-  function setWatchlistStyle(style) {
-    const settings = loadMySettings();
-    settings.watchlistStyle = style;
-    saveMySettings(settings);
-    ['Bar', 'Toast', 'Both'].forEach(s => {
-      const btn = document.getElementById('watchStyle' + s);
-      if (btn) btn.classList.toggle('active', style === s.toLowerCase());
-    });
-    window.MX.sounds?.click();
   }
 
   function togglePanelSounds() {
@@ -5572,12 +5934,12 @@
 
       for (const item of catItems) {
         const checkedClass = item.checked ? 'checked' : '';
-        html += `<div class="checklist-item ${checkedClass}" style="display:flex;align-items:flex-start;gap:10px;padding:8px 12px;background:rgba(0,0,0,.2);border-radius:6px;margin-bottom:6px;cursor:pointer" onclick="toggleChecklistItem('${item.id}', ${!item.checked})">
-          <div style="width:20px;height:20px;border:2px solid var(--border);border-radius:4px;display:flex;align-items:center;justify-content:center;flex-shrink:0;${item.checked ? 'background:var(--good);border-color:var(--good)' : ''}">
-            ${item.checked ? '<i class="fa-solid fa-check" style="color:#fff;font-size:11px"></i>' : ''}
+        html += `<div class="checklist-item ${checkedClass}" data-item-id="${item.id}" style="display:flex;align-items:flex-start;gap:10px;padding:8px 12px;background:rgba(0,0,0,.2);border-radius:6px;margin-bottom:6px;cursor:pointer" onclick="toggleChecklistItemAnimated('${item.id}', ${!item.checked}, this)">
+          <div class="checklist-checkbox" style="width:20px;height:20px;border:2px solid var(--border);border-radius:4px;display:flex;align-items:center;justify-content:center;flex-shrink:0;transition:all 0.3s ease;${item.checked ? 'background:var(--good);border-color:var(--good)' : ''}">
+            ${item.checked ? '<i class="fa-solid fa-check checklist-checkmark" style="color:#fff;font-size:11px"></i>' : ''}
           </div>
           <div style="flex:1;min-width:0">
-            <div style="color:var(--text-primary);word-wrap:break-word;overflow-wrap:break-word;${item.checked ? 'text-decoration:line-through;opacity:0.7' : ''}">${escapeHtml(item.title)}</div>
+            <div class="checklist-text" style="color:var(--text-primary);word-wrap:break-word;overflow-wrap:break-word;transition:all 0.3s ease;${item.checked ? 'text-decoration:line-through;text-decoration-color:var(--good);opacity:0.7' : ''}">${escapeHtml(item.title)}</div>
             ${item.description ? `<div style="font-size:12px;color:var(--text-secondary);margin-top:4px;white-space:pre-wrap;word-wrap:break-word;overflow-wrap:break-word">${escapeHtml(item.description)}</div>` : ''}
           </div>
           ${item.id.startsWith('custom-') ? `<button class="btn tiny danger" onclick="event.stopPropagation();deleteChecklistItem('${item.id}')" title="Delete"><i class="fa-solid fa-trash"></i></button>` : ''}
@@ -5608,6 +5970,62 @@
       toast('error', 'Error', 'Not connected to server');
     }
   }
+
+  // Animated version of toggleChecklistItem with visual feedback
+  function toggleChecklistItemAnimated(itemId, checked, element) {
+    // Add animation class
+    if (checked) {
+      element.classList.add('checking');
+      element.classList.add('checked');
+
+      // Update checkbox visually immediately for responsive feel
+      const checkbox = element.querySelector('.checklist-checkbox');
+      if (checkbox) {
+        checkbox.style.background = 'var(--good)';
+        checkbox.style.borderColor = 'var(--good)';
+        checkbox.innerHTML = '<i class="fa-solid fa-check checklist-checkmark" style="color:#fff;font-size:11px"></i>';
+      }
+
+      // Update text with strikethrough
+      const text = element.querySelector('.checklist-text');
+      if (text) {
+        text.style.textDecoration = 'line-through';
+        text.style.textDecorationColor = 'var(--good)';
+        text.style.opacity = '0.7';
+      }
+
+      // Play satisfying sound
+      window.MX?.sounds?.success?.();
+    } else {
+      element.classList.add('unchecking');
+      element.classList.remove('checked');
+
+      // Update checkbox visually
+      const checkbox = element.querySelector('.checklist-checkbox');
+      if (checkbox) {
+        checkbox.style.background = 'transparent';
+        checkbox.style.borderColor = 'var(--border)';
+        checkbox.innerHTML = '';
+      }
+
+      // Remove strikethrough
+      const text = element.querySelector('.checklist-text');
+      if (text) {
+        text.style.textDecoration = 'none';
+        text.style.opacity = '1';
+      }
+    }
+
+    // Remove animation classes after completion
+    setTimeout(() => {
+      element.classList.remove('checking', 'unchecking');
+    }, 500);
+
+    // Send to server
+    toggleChecklistItem(itemId, checked);
+  }
+
+  window.toggleChecklistItemAnimated = toggleChecklistItemAnimated;
 
   // Checklist modal state
   let pendingDeleteItemId = null;
@@ -5731,9 +6149,6 @@
   window.showAlertBar = showAlertBar;
   window.dismissAlertBar = dismissAlertBar;
   window.viewAlertPlayer = viewAlertPlayer;
-  window.toggleMyAlert = toggleMyAlert;
-  window.setAnticheatMode = setAnticheatMode;
-  window.setWatchlistStyle = setWatchlistStyle;
   window.togglePanelSounds = togglePanelSounds;
   window.toggleDeviceTrust = toggleDeviceTrust;
   window.toggleDebugMode = toggleDebugMode;

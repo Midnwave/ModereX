@@ -14,6 +14,55 @@
 
 window.MX_CHANGELOGS = [
   {
+    build: 181,
+    version: "2.0dev-181",
+    date: "2026-01-29",
+    title: "Alert System Improvements & Action Buttons",
+    sections: [
+      {
+        type: "new",
+        title: "New Features",
+        items: [
+          "**Alert Action Buttons** - Automod and anticheat alerts now have Punish and Watchlist buttons",
+          "**Alert Detail Modal** - Click View on punishments to see full details (reason, duration, staff, etc.)",
+          "**Alert Rate Limiting** - Configure cooldown to prevent alert spam from same player",
+          "**Action Forms** - Quick punish or add to watchlist directly from alert notifications"
+        ]
+      },
+      {
+        type: "improved",
+        title: "Improvements",
+        items: [
+          "**Better Alert Text** - Alerts now show 'Player Banned: PlayerName' format with reason and duration",
+          "**Alert Click Behavior** - Alerts no longer dismiss on click, only X button dismisses",
+          "**Checklist Animations** - Satisfying pop and glow animations when checking items complete",
+          "**Removed Old Settings** - Cleaned up unused alert settings from My Settings page",
+          "**Searchable Settings** - All new alert configurations now appear in global search"
+        ]
+      },
+      {
+        type: "fixed",
+        title: "Bug Fixes",
+        items: [
+          "**Anticheat Alerts** - Fixed alerts not showing when notification mode was 'off' in database",
+          "**Alert Level Check** - Now properly checks alert level (everyone/watchlist) instead of notification mode"
+        ]
+      },
+      {
+        type: "technical",
+        title: "Technical Changes",
+        items: [
+          "Added `showAlertDetailModal()` for punishment details display",
+          "Added `showAlertActionModal()` for punish/watchlist quick actions",
+          "Added `alertRateLimiter` object to track and limit alerts per player",
+          "Added rate limit settings: `alertRateLimitSeconds` and `alertRateLimitMax`",
+          "Updated all alert handlers to use new text formatting",
+          "Removed old unused settings UI and related functions"
+        ]
+      }
+    ]
+  },
+  {
     build: 180,
     version: "2.0dev-180",
     date: "2026-01-29",

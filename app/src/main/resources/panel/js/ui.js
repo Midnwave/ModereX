@@ -1369,6 +1369,28 @@
           ${toggleHtml('webSoundLag', 'Lag')}
         </div>
       </div>
+
+      <div class="setting-group">
+        <h4><i class="fa-solid fa-clock" style="color:#f97316"></i> Alert Rate Limiting</h4>
+        <p class="hintline" style="margin-top:0;margin-bottom:12px">Prevent alert spam from the same player/IP</p>
+        <div class="setting-row">
+          <span>Rate Limit Cooldown</span>
+          <div style="display:flex;align-items:center;gap:8px">
+            <input type="range" min="0" max="60" value="${settings.alertRateLimitSeconds || 5}"
+              style="width:100px" onchange="updateStaffSetting('alertRateLimitSeconds', parseInt(this.value)); this.nextElementSibling.textContent = this.value === 0 ? 'Off' : this.value + 's'">
+            <span style="font-size:12px;color:var(--muted);min-width:30px">${(settings.alertRateLimitSeconds || 5) === 0 ? 'Off' : (settings.alertRateLimitSeconds || 5) + 's'}</span>
+          </div>
+        </div>
+        <div class="setting-row">
+          <span>Max Alerts Per Player</span>
+          <div style="display:flex;align-items:center;gap:8px">
+            <input type="range" min="1" max="10" value="${settings.alertRateLimitMax || 3}"
+              style="width:100px" onchange="updateStaffSetting('alertRateLimitMax', parseInt(this.value)); this.nextElementSibling.textContent = this.value">
+            <span style="font-size:12px;color:var(--muted);min-width:20px">${settings.alertRateLimitMax || 3}</span>
+          </div>
+        </div>
+        <p class="hintline" style="margin-top:8px;font-size:11px">If a player triggers more than the max alerts within the cooldown period, additional alerts will be suppressed.</p>
+      </div>
     `;
   }
 

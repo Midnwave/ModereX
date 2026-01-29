@@ -115,7 +115,10 @@
       webNotifyAutomod: 'toast',
       webNotifyAnticheat: 'toast',
       webNotifyWatchlist: 'toast',
-      webNotifyStaffChat: 'toast'
+      webNotifyStaffChat: 'toast',
+      // Rate limiting settings
+      alertRateLimitSeconds: 5,
+      alertRateLimitMax: 3
     }
   };
 
