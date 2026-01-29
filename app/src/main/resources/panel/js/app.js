@@ -876,6 +876,46 @@
 
   window.addToWatchlistFromAlert = addToWatchlistFromAlert;
 
+  /**
+   * Open the punishment form with a player pre-selected and reason pre-filled.
+   * This is used by alert action modals.
+   * @param {string} playerId - The player's UUID
+   * @param {string} type - Punishment type (warn, mute, kick, ban)
+   * @param {string} reason - Pre-fill reason
+   */
+  function openPunishForm(playerId, type, reason) {
+    // Convert type to uppercase for the modal
+    const punishType = (type || 'warn').toUpperCase();
+
+    // Open the punishment modal with the player selected
+    if (window.openPunishModal) {
+      window.openPunishModal(punishType, playerId);
+
+      // Pre-fill the reason after a short delay to ensure modal is rendered
+      setTimeout(() => {
+        const reasonInput = document.getElementById('punReason');
+        if (reasonInput && reason) {
+          reasonInput.value = reason;
+        }
+      }, 50);
+    }
+  }
+
+  window.openPunishForm = openPunishForm;
+
+  /**
+   * Open the player drawer/profile for a specific player.
+   * This is an alias for openDrawer.
+   * @param {string} playerId - The player's UUID
+   */
+  function openPlayerDrawer(playerId) {
+    if (window.openDrawer) {
+      window.openDrawer(playerId);
+    }
+  }
+
+  window.openPlayerDrawer = openPlayerDrawer;
+
   // ===== DEV TOOLS DEBUG CONSOLE =====
   // Always logs to the Developer Tools debug console regardless of debug mode
   window.devtoolsLog = function(category, message, type = 'info') {
@@ -4488,19 +4528,22 @@
       state.staffSettings.kickAlertsLevel = data.kickAlertsLevel ?? 'EVERYONE';
       state.staffSettings.warnAlertsLevel = data.warnAlertsLevel ?? 'EVERYONE';
 
-      // Punishment alert levels (new system)
-      state.staffSettings.banAlerts = data.banAlerts ?? 'everyone';
-      state.staffSettings.kickAlerts = data.kickAlerts ?? 'everyone';
-      state.staffSettings.muteAlerts = data.muteAlerts ?? 'everyone';
-      state.staffSettings.warnAlerts = data.warnAlerts ?? 'everyone';
-      state.staffSettings.pardonAlerts = data.pardonAlerts ?? 'everyone';
+      // Helper to convert alert level to uppercase (DB may store as lowercase)
+      const toUpper = (val, def) => (val || def).toUpperCase().replace(/-/g, '_');
+
+      // Punishment alert levels (new system) - ensure uppercase for UI display
+      state.staffSettings.banAlerts = toUpper(data.banAlerts, 'EVERYONE');
+      state.staffSettings.kickAlerts = toUpper(data.kickAlerts, 'EVERYONE');
+      state.staffSettings.muteAlerts = toUpper(data.muteAlerts, 'EVERYONE');
+      state.staffSettings.warnAlerts = toUpper(data.warnAlerts, 'EVERYONE');
+      state.staffSettings.pardonAlerts = toUpper(data.pardonAlerts, 'EVERYONE');
 
       // Other alert types
-      state.staffSettings.automodAlerts = data.automodAlerts ?? 'everyone';
-      state.staffSettings.anticheatAlerts = data.anticheatAlerts ?? 'everyone';
-      state.staffSettings.nicknameAlerts = data.nicknameAlerts ?? 'everyone';
-      state.staffSettings.commandAlerts = data.commandAlerts ?? 'blacklisted_only';
-      state.staffSettings.joinLeaveAlerts = data.joinLeaveAlerts ?? 'everyone';
+      state.staffSettings.automodAlerts = toUpper(data.automodAlerts, 'EVERYONE');
+      state.staffSettings.anticheatAlerts = toUpper(data.anticheatAlerts, 'EVERYONE');
+      state.staffSettings.nicknameAlerts = toUpper(data.nicknameAlerts, 'EVERYONE');
+      state.staffSettings.commandAlerts = toUpper(data.commandAlerts, 'BLACKLISTED_ONLY');
+      state.staffSettings.joinLeaveAlerts = toUpper(data.joinLeaveAlerts, 'EVERYONE');
       state.staffSettings.lagAlerts = data.lagAlerts ?? true;
 
       // Web panel notification modes
@@ -4513,8 +4556,9 @@
       state.staffSettings.webNotifyNickname = data.webNotifyNickname ?? 'toast';
       state.staffSettings.webNotifyLag = data.webNotifyLag ?? 'toast';
 
-      // Web panel display settings
-      state.staffSettings.webToastPosition = data.webToastPosition ?? 'top-right';
+      // Web panel display settings - ensure uppercase for UI display
+      const rawPosition = data.webToastPosition || 'TOP_RIGHT';
+      state.staffSettings.webToastPosition = rawPosition.toUpperCase().replace(/-/g, '_');
       state.staffSettings.webAlertDurationSeconds = data.webAlertDurationSeconds ?? 10;
 
       // Web panel sound settings per alert type
@@ -5220,15 +5264,18 @@
   }
 
   function showLoadingLine() {
-    const wasActive = loadingLineCount > 0;
     loadingLineCount++;
 
-    const { line } = getLoadingElements();
+    const { line, fill } = getLoadingElements();
 
-    // Clear any pending fade-out
+    // Clear any pending fade-out or animation
     if (loadingLineFadeTimeout) {
       clearTimeout(loadingLineFadeTimeout);
       loadingLineFadeTimeout = null;
+    }
+    if (loadingAnimationFrame) {
+      cancelAnimationFrame(loadingAnimationFrame);
+      loadingAnimationFrame = null;
     }
 
     if (line) {
@@ -5236,13 +5283,19 @@
       line.classList.add('active');
     }
 
-    // Start animation if this is the first request
-    if (!wasActive) {
-      loadingStartTime = Date.now();
-      currentProgress = 0;
-      updateLoadingProgress(5); // Start with small initial progress
-      animateProgress();
+    // Always reset progress when a new request starts
+    // This gives visual feedback that something new is happening
+    if (fill) {
+      fill.classList.add('no-transition');
+      fill.style.width = '0%';
+      fill.offsetHeight; // Force reflow
+      fill.classList.remove('no-transition');
     }
+
+    loadingStartTime = Date.now();
+    currentProgress = 0;
+    updateLoadingProgress(5); // Start with small initial progress
+    animateProgress();
 
     // Auto-hide after 30 seconds as a safety measure
     if (loadingLineTimeout) clearTimeout(loadingLineTimeout);
@@ -5553,6 +5606,22 @@
       state.settings.soundEnabled = enabled;
     }
   }
+
+  function refreshMySettings() {
+    if (!ws.connected) {
+      toast('error', 'Not Connected', 'Cannot refresh settings while disconnected');
+      return;
+    }
+
+    toast('info', 'Refreshing', 'Fetching your settings from the server...');
+    showLoadingLine();
+
+    // Request fresh settings from server
+    ws.send('GET_USER_SETTINGS', {});
+
+    // The USER_SETTINGS_DATA handler will update the UI automatically
+  }
+  window.refreshMySettings = refreshMySettings;
 
   function toggleDeviceTrust() {
     const currentValue = state.settings.deviceTrustEnabled ?? false;

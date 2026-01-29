@@ -14,88 +14,32 @@
 
 window.MX_CHANGELOGS = [
   {
-    build: 196,
-    version: "2.0dev-196",
+    build: 194,
+    version: "2.0dev-194",
     date: "2026-01-29",
-    title: "Automod Rules Stress Test",
-    sections: [
-      {
-        type: "new",
-        title: "New Features",
-        items: [
-          "**Automod Stress Test** - Creates real automod rules via API (synced to database)",
-          "**200+ Triggers Per Rule** - Each stress test rule contains 200 unique filter phrases",
-          "**35 Exclusions Per Rule** - Each rule also includes 35 exclusion phrases",
-          "**Cleanup Button** - One-click deletion of all stress test rules"
-        ]
-      },
-      {
-        type: "technical",
-        title: "Technical Changes",
-        items: [
-          "Stress test uses CREATE_AUTOMOD_RULE WebSocket message for database persistence",
-          "Rules are created with unique timestamps to avoid conflicts",
-          "100ms delay between rule creations to prevent server overload"
-        ]
-      }
-    ]
-  },
-  {
-    build: 195,
-    version: "2.0dev-195",
-    date: "2026-01-29",
-    title: "Automod Fixes & Anticheat Name Display",
+    title: "Settings Fix & Refresh Button",
     sections: [
       {
         type: "fixed",
         title: "Bug Fixes",
         items: [
-          "**Double Update Fix** - Automod rules no longer save twice when using the editor",
-          "**Anticheat Names** - Anticheat rule names now auto-populate from rule ID on page load",
-          "**Removed Toast Spam** - Removed toast notifications when saving automod rules"
+          "**Settings 'Not Set' Fix** - Alert level settings no longer show 'Not Set' after page refresh",
+          "**Loading Bar Reset** - Loading bar now properly resets when a new request starts"
         ]
       },
-      {
-        type: "technical",
-        title: "Technical Changes",
-        items: [
-          "Removed duplicate showLoadingLine() call in saveAutomodRuleFromEditor",
-          "Removed 'Saving...' and 'Saved' toasts for automod rule updates",
-          "Added anticheatName/checkName parsing from rule ID (ac_grim_check -> Grim, check)"
-        ]
-      }
-    ]
-  },
-  {
-    build: 194,
-    version: "2.0dev-194",
-    date: "2026-01-29",
-    title: "HSL Theming & Loading Bar Flash Effect",
-    sections: [
       {
         type: "new",
         title: "New Features",
         items: [
-          "**Full HSL Theming** - Entire UI now shifts with your chosen theme color (backgrounds, borders, muted text)",
-          "**Loading Bar Flash** - Completion now shows a bright flash effect before fading out"
-        ]
-      },
-      {
-        type: "improved",
-        title: "Improvements",
-        items: [
-          "**Theme Color Consistency** - Picking green/red/purple now tints the entire panel, not just primary elements",
-          "**Loading Feedback** - More noticeable completion animation with glow pulse"
+          "**My Settings Refresh Button** - Added refresh button to re-pull settings from the database"
         ]
       },
       {
         type: "technical",
         title: "Technical Changes",
         items: [
-          "Added `--theme-h` CSS variable that controls hue for all derived colors",
-          "Backgrounds, borders, surfaces, glass effects now use `hsl(var(--theme-h), ...)` formulas",
-          "Loading bar completion animation with keyframe flash effect",
-          "Extended fade-out timing for better visibility"
+          "Alert level values converted to uppercase when received from server (DB stores lowercase)",
+          "Added toUpper() helper for consistent alert level formatting"
         ]
       }
     ]
