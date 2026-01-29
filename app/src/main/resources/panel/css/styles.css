@@ -3169,11 +3169,13 @@ textarea.input {
   transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
 }
 
-.checklist-item.checked .checklist-checkbox {
+/* Only animate checkbox when actively clicking (not on re-render) */
+.checklist-item.checking .checklist-checkbox {
   animation: checkboxPop 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
 }
 
-.checklist-item .checklist-checkmark {
+/* Only animate checkmark when actively clicking */
+.checklist-item.checking .checklist-checkmark {
   animation: checkmarkDraw 0.3s ease-out forwards;
 }
 
@@ -3181,10 +3183,7 @@ textarea.input {
   transition: all 0.3s ease;
 }
 
-.checklist-item.checked .checklist-text {
-  animation: strikethrough 0.3s ease-out forwards;
-}
-
+/* Glow animation only on active click */
 .checklist-item.checking {
   animation: itemComplete 0.5s ease-out;
 }
