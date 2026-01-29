@@ -1875,6 +1875,18 @@
                 </div>
               </div>
 
+              <!-- Debug Permissions -->
+              <div class="card" style="margin-top:16px">
+                <h3><i class="fa-solid fa-key" style="color:#ef4444;margin-right:10px"></i>Debug Permissions</h3>
+                <p style="margin-bottom:16px">Check your current permissions and debug permission issues.</p>
+                <div class="grid cols-2" style="gap:12px">
+                  <button class="btn" onclick="debugCheckPermissions()"><i class="fa-solid fa-search"></i> Check Permissions</button>
+                  <button class="btn" onclick="debugRefreshPermissions()"><i class="fa-solid fa-sync"></i> Refresh from Server</button>
+                </div>
+                <div id="debugPermissionsOutput" style="margin-top:12px;padding:12px;background:rgba(0,0,0,0.3);border-radius:var(--radius);border:1px solid var(--border);font-family:var(--font-mono);font-size:12px;max-height:200px;overflow-y:auto;display:none">
+                </div>
+              </div>
+
               <!-- Notification Test -->
               <div class="card" style="margin-top:16px">
                 <h3><i class="fa-solid fa-bell" style="color:#06b6d4;margin-right:10px"></i>Notification Test</h3>

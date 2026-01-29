@@ -14,6 +14,41 @@
 
 window.MX_CHANGELOGS = [
   {
+    build: 174,
+    version: "2.0dev-174",
+    date: "2026-01-29",
+    title: "Frontend Permission Storage Fix & Debug Tools",
+    sections: [
+      {
+        type: "fixed",
+        title: "Bug Fixes",
+        items: [
+          "**Frontend Permission Storage** - Fixed frontend not storing permissions array from backend (was the actual cause of 'No Permission' display)",
+          "**USER_SETTINGS_DATA Handler** - Now properly extracts and stores `data.permissions` to `state.permissions`"
+        ]
+      },
+      {
+        type: "new",
+        title: "New Features",
+        items: [
+          "**Debug Permissions Tool** - New button in Developer Tools to check current permission state",
+          "**Refresh Permissions** - Request fresh permissions from server with debug output",
+          "**System Message Output** - Permissions debug shows results in bottom system messages"
+        ]
+      },
+      {
+        type: "technical",
+        title: "Technical Changes",
+        items: [
+          "Added `state.permissions` storage in USER_SETTINGS_DATA handler",
+          "Added console logging for permission receive events",
+          "Added `debugCheckPermissions()` and `debugRefreshPermissions()` functions",
+          "Added Debug Permissions section to Developer Tools page"
+        ]
+      }
+    ]
+  },
+  {
     build: 171,
     version: "2.0dev-171",
     date: "2026-01-29",

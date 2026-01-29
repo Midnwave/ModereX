@@ -3946,6 +3946,16 @@
         setTimeout(() => window.checkUnreadChangelogs(), 500);
       }
 
+      // Store permissions array for UI permission checks
+      if (data.permissions) {
+        state.permissions = data.permissions;
+        console.log('[USER_SETTINGS] Received permissions:', state.permissions);
+        window.devtoolsLog('PERMISSIONS', `Received ${state.permissions.length} permissions from server`, 'success');
+      } else {
+        console.warn('[USER_SETTINGS] No permissions array received from server!');
+        window.devtoolsLog('PERMISSIONS', 'WARNING: No permissions array in USER_SETTINGS_DATA', 'warn');
+      }
+
       // Update all UI elements that depend on these settings
       updateSettingsUI();
       ui.renderWatchToastsToggle();
@@ -5981,6 +5991,89 @@
 
   window.testNotification = testNotification;
   window.requestBrowserPermission = requestBrowserPermission;
+
+  // ===== DEBUG PERMISSIONS =====
+  function debugCheckPermissions() {
+    const outputEl = document.getElementById('debugPermissionsOutput');
+    if (outputEl) {
+      outputEl.style.display = 'block';
+      outputEl.innerHTML = '<div style="color:#06b6d4">Checking permissions...</div>';
+    }
+
+    // Get current state
+    const permissions = state.permissions || [];
+    const staffSettings = state.staffSettings || {};
+    const user = state.user || {};
+
+    let html = '<div style="margin-bottom:12px;color:#22c55e;font-weight:600">Current Permissions State:</div>';
+
+    // User info
+    html += `<div style="margin-bottom:8px"><span style="color:#a78bfa">User:</span> ${user.name || 'Unknown'} (${user.uuid || 'No UUID'})</div>`;
+    html += `<div style="margin-bottom:8px"><span style="color:#a78bfa">Is OP:</span> ${user.isOp ? 'Yes' : 'No'}</div>`;
+
+    // Permissions array
+    html += '<div style="margin-bottom:8px"><span style="color:#a78bfa">Permissions Array:</span></div>';
+    if (permissions.length === 0) {
+      html += '<div style="color:#ef4444;margin-left:12px">⚠ No permissions received from server!</div>';
+      html += '<div style="color:#f59e0b;margin-left:12px;font-size:11px">This is why settings show "No Permission"</div>';
+    } else {
+      permissions.forEach(p => {
+        html += `<div style="margin-left:12px;color:#22c55e">✓ ${p}</div>`;
+      });
+    }
+
+    // Alert-related settings
+    html += '<div style="margin-top:12px;margin-bottom:8px"><span style="color:#a78bfa">Staff Settings (alert-related):</span></div>';
+    const alertKeys = ['banAlerts', 'kickAlerts', 'muteAlerts', 'warnAlerts', 'pardonAlerts', 'automodAlerts', 'anticheatAlerts', 'nicknameAlerts', 'commandAlerts'];
+    alertKeys.forEach(key => {
+      const value = staffSettings[key];
+      html += `<div style="margin-left:12px">${key}: <span style="color:${value ? '#22c55e' : '#6b7280'}">${value || 'not set'}</span></div>`;
+    });
+
+    // Show in output
+    if (outputEl) {
+      outputEl.innerHTML = html;
+    }
+
+    // Also log to system messages
+    window.systemLog(`Permissions check: ${permissions.length} permissions found`, permissions.length > 0 ? 'success' : 'error');
+    window.devtoolsLog('PERMISSIONS', `Found ${permissions.length} permissions: ${permissions.join(', ') || 'NONE'}`, permissions.length > 0 ? 'success' : 'error');
+
+    // Log any errors
+    if (permissions.length === 0) {
+      window.systemLog('ERROR: No permissions received from backend!', 'error');
+      window.devtoolsLog('PERMISSIONS', 'Backend is not sending permissions array in USER_SETTINGS_DATA response', 'error');
+    }
+  }
+
+  function debugRefreshPermissions() {
+    const outputEl = document.getElementById('debugPermissionsOutput');
+    if (outputEl) {
+      outputEl.style.display = 'block';
+      outputEl.innerHTML = '<div style="color:#f59e0b">Requesting fresh permissions from server...</div>';
+    }
+
+    window.systemLog('Requesting permissions refresh from server...', 'info');
+    window.devtoolsLog('PERMISSIONS', 'Sending GET_USER_SETTINGS request', 'info');
+
+    // Request fresh settings from server
+    if (window.MX?.ws?.send) {
+      window.MX.ws.send('GET_USER_SETTINGS', {});
+
+      // Wait a moment and check again
+      setTimeout(() => {
+        debugCheckPermissions();
+      }, 1000);
+    } else {
+      window.systemLog('ERROR: WebSocket not connected', 'error');
+      if (outputEl) {
+        outputEl.innerHTML = '<div style="color:#ef4444">WebSocket not connected!</div>';
+      }
+    }
+  }
+
+  window.debugCheckPermissions = debugCheckPermissions;
+  window.debugRefreshPermissions = debugRefreshPermissions;
 
   // ===== TOKEN STRESS TEST =====
   function startTokenStressTest() {
