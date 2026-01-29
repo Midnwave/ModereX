@@ -993,9 +993,6 @@
     const r = state.rules.find(rule => rule.id === ruleId);
     if (!r) return;
 
-    // Show loading bar
-    if (window.showLoadingLine) window.showLoadingLine();
-
     // Get values from form
     const name = document.getElementById('automodRuleName')?.value?.trim() || 'Unnamed Rule';
     const phrasesText = document.getElementById('automodRulePhrases')?.value || '';
@@ -1082,7 +1079,6 @@
     closeAutomodRuleEditor();
 
     // Note: Loading bar will be hidden when server confirms via AUTOMOD_RULE_CREATED/UPDATED
-    window.toast('ok', 'Saving...', isNewRule ? 'Creating rule on server...' : 'Syncing changes to server...');
   };
 
   // Helper function to determine rule type for filtering

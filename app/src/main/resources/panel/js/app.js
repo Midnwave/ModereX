@@ -4328,10 +4328,26 @@
       console.log('[Automod] Received AUTOMOD_RULES_DATA:', data);
       // Only replace rules if server sent actual rules, otherwise keep defaults
       if (data.rules && data.rules.length > 0) {
-        state.rules = data.rules;
-        console.log('[Automod] Updated state.rules with', data.rules.length, 'rules');
+        // Process rules to populate anticheatName and checkName for anticheat rules
+        state.rules = data.rules.map(rule => {
+          if (rule.id && rule.id.startsWith('ac_') && (!rule.anticheatName || !rule.checkName)) {
+            // Parse anticheat name and check name from ID: ac_grim_badpacketsa -> grim, badpacketsa
+            const parts = rule.id.substring(3).split('_');
+            if (parts.length >= 2) {
+              const acName = parts[0];
+              const checkName = parts.slice(1).join('_');
+              return {
+                ...rule,
+                anticheatName: rule.anticheatName || acName.charAt(0).toUpperCase() + acName.slice(1),
+                checkName: rule.checkName || checkName
+              };
+            }
+          }
+          return rule;
+        });
+        console.log('[Automod] Updated state.rules with', state.rules.length, 'rules');
         // Debug: Log first custom rule to check data structure
-        const customRule = data.rules.find(r => r.type === 'WORD_FILTER');
+        const customRule = state.rules.find(r => r.type === 'WORD_FILTER');
         if (customRule) {
           console.log('[Automod] Sample WORD_FILTER rule:', JSON.stringify(customRule, null, 2));
         }
@@ -4346,14 +4362,29 @@
       if (window.hideLoadingLine) window.hideLoadingLine();
       if (window.debugLog) window.debugLog('DB', 'Rule updated in database: ' + data.id, 'success');
       console.log('[Automod] Received AUTOMOD_RULE_UPDATED:', data);
-      const idx = state.rules.findIndex(r => r.id === data.id);
+
+      // Populate anticheatName and checkName if this is an anticheat rule
+      let updatedData = data;
+      if (data.id && data.id.startsWith('ac_') && (!data.anticheatName || !data.checkName)) {
+        const parts = data.id.substring(3).split('_');
+        if (parts.length >= 2) {
+          const acName = parts[0];
+          const checkName = parts.slice(1).join('_');
+          updatedData = {
+            ...data,
+            anticheatName: data.anticheatName || acName.charAt(0).toUpperCase() + acName.slice(1),
+            checkName: data.checkName || checkName
+          };
+        }
+      }
+
+      const idx = state.rules.findIndex(r => r.id === updatedData.id);
       if (idx !== -1) {
-        state.rules[idx] = { ...state.rules[idx], ...data };
+        state.rules[idx] = { ...state.rules[idx], ...updatedData };
       } else {
-        state.rules.push(data);
+        state.rules.push(updatedData);
       }
       ui.renderRules();
-      toast('ok', 'Saved', 'Rule synced to database.');
     });
 
     // Handle new rule created (real-time sync)

@@ -14,6 +14,32 @@
 
 window.MX_CHANGELOGS = [
   {
+    build: 195,
+    version: "2.0dev-195",
+    date: "2026-01-29",
+    title: "Automod Fixes & Anticheat Name Display",
+    sections: [
+      {
+        type: "fixed",
+        title: "Bug Fixes",
+        items: [
+          "**Double Update Fix** - Automod rules no longer save twice when using the editor",
+          "**Anticheat Names** - Anticheat rule names now auto-populate from rule ID on page load",
+          "**Removed Toast Spam** - Removed toast notifications when saving automod rules"
+        ]
+      },
+      {
+        type: "technical",
+        title: "Technical Changes",
+        items: [
+          "Removed duplicate showLoadingLine() call in saveAutomodRuleFromEditor",
+          "Removed 'Saving...' and 'Saved' toasts for automod rule updates",
+          "Added anticheatName/checkName parsing from rule ID (ac_grim_check -> Grim, check)"
+        ]
+      }
+    ]
+  },
+  {
     build: 194,
     version: "2.0dev-194",
     date: "2026-01-29",
