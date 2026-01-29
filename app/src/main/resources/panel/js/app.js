@@ -618,9 +618,11 @@
     // Auto-dismiss
     setTimeout(dismiss, duration);
 
-    // Play sound
+    // Play appropriate sound based on alert type
     if (shouldPlaySound && window.MX?.sounds) {
-      window.MX.sounds.alertBar?.();
+      // Use specific sound for alert type if available, fallback to alertBar
+      const soundFn = window.MX.sounds[alertType] || window.MX.sounds.alertBar;
+      soundFn?.();
     }
   };
 
@@ -2973,6 +2975,7 @@
     const ws = window.MX?.ws;
     state.staffSettings = state.staffSettings || {};
     state.staffSettings[key] = value;
+    console.log('[updateStaffSetting] Set', key, '=', value, 'state.staffSettings:', JSON.stringify(state.staffSettings));
 
     // Send to server immediately
     if (ws && ws.isConnected()) {
@@ -4907,32 +4910,41 @@
     ws.on('ANTICHEAT_ALERT', (data) => {
       if (!isLiveMode) return;
       const player = state.players.find(p => p.name === data.playerName || p.uuid === data.playerUuid);
-      const settings = loadMySettings();
 
       // Always log the event with explicit type for filtering
       logEvent('WARN', 'anticheat', `Anticheat | ${data.check || 'Unknown'}`, `${data.playerName} (VL: ${data.vl || 0})`, { playerId: player?.id, kind: 'anticheat', type: 'ANTICHEAT' });
 
-      // Get per-check alert preference from staff settings
-      const anticheat = (data.anticheat || 'grim').toLowerCase();
-      const checkName = data.check || 'Unknown';
-      const prefKey = `${anticheat}.${checkName}`;
-      const checkPref = state.anticheat?.alertPrefs?.[prefKey] || { alertLevel: 'EVERYONE', thresholdCount: 1, timeWindowSeconds: 60 };
-
-      // Determine if we should show this alert based on per-check preference
-      const alertLevel = checkPref.alertLevel || 'EVERYONE';
-      if (alertLevel === 'OFF') return;
+      // Check global anticheat alert setting FIRST
+      const rawSetting = state.staffSettings?.anticheatAlerts;
+      const globalAlertLevel = (rawSetting || 'EVERYONE').toUpperCase();
+      console.log('[ANTICHEAT_ALERT] raw setting:', rawSetting, 'parsed:', globalAlertLevel, 'staffSettings:', state.staffSettings);
+      if (globalAlertLevel === 'OFF') {
+        console.log('[ANTICHEAT_ALERT] Blocked - global setting is OFF');
+        return;
+      }
 
       // Check if player is on watchlist
       const isWatchlisted = player && (state.watchlist?.has(player.id) || state.watchlist?.has(player.uuid));
 
-      // If watchlist only, skip non-watchlisted players
-      if (alertLevel === 'WATCHLIST_ONLY' && !isWatchlisted) return;
+      // If global setting is watchlist only, skip non-watchlisted players
+      if (globalAlertLevel === 'WATCHLIST_ONLY' && !isWatchlisted) return;
 
-      // Show alert using panel notification settings
+      // Get per-check alert preference from staff settings (optional additional filtering)
+      const anticheat = (data.anticheat || 'grim').toLowerCase();
+      const checkName = data.check || 'Unknown';
+      const prefKey = `${anticheat}.${checkName}`;
+      const checkPref = state.anticheat?.alertPrefs?.[prefKey];
+
+      // If per-check preference exists and is OFF, skip
+      if (checkPref?.alertLevel === 'OFF') return;
+
+      // If per-check is watchlist only and player not on watchlist, skip
+      if (checkPref?.alertLevel === 'WATCHLIST_ONLY' && !isWatchlisted) return;
+
+      // Show alert using panel notification settings (handles rate limiting and sounds)
       const title = `Anticheat Alert: ${data.playerName}`;
       const sub = `${checkName} - VL: ${data.vl || 0}`;
-      showPanelAlert('anticheat', title, sub, { playerId: player?.id, playerName: data.playerName, severity: 'warn' });
-      window.MX.sounds?.anticheat();
+      showPanelAlert('anticheat', title, sub, { playerId: player?.id || data.playerUuid, playerName: data.playerName, severity: 'warn' });
     });
 
     // Custom alerts from /mx sendalert command

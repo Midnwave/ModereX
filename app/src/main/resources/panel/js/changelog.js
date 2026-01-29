@@ -14,6 +14,23 @@
 
 window.MX_CHANGELOGS = [
   {
+    build: 198,
+    version: "2.0dev-198",
+    date: "2026-01-29",
+    title: "Anticheat Alert Debug Build",
+    sections: [
+      {
+        type: "technical",
+        title: "Debug Logging",
+        items: [
+          "Added console logging to trace anticheat alert settings flow",
+          "Logs show raw setting value, parsed value, and full staffSettings state",
+          "Check browser console to diagnose alert settings issues"
+        ]
+      }
+    ]
+  },
+  {
     build: 197,
     version: "2.0dev-197",
     date: "2026-01-29",
