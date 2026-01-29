@@ -4491,13 +4491,17 @@ public class HybridPanelServer {
      * @return true if the player has permission
      */
     private boolean hasAlertPermission(UUID playerUuid, String permission) {
-        if (playerUuid == null) return false;
+        if (playerUuid == null) {
+            plugin.logDebug("[WebPanel] hasAlertPermission: playerUuid is null");
+            return false;
+        }
 
         // Check if player is online and has permission
         Player player = Bukkit.getPlayer(playerUuid);
         if (player != null && player.isOnline()) {
             // Staff permission is master permission
             if (!PermissionUtil.hasPermission(player, "moderex.staff")) {
+                plugin.logDebug("[WebPanel] hasAlertPermission: " + player.getName() + " lacks moderex.staff");
                 return false;
             }
             // Check for all-alerts permission
@@ -4505,15 +4509,34 @@ public class HybridPanelServer {
                 return true;
             }
             // Check specific permission
-            return PermissionUtil.hasPermission(player, permission);
+            boolean hasPerm = PermissionUtil.hasPermission(player, permission);
+            plugin.logDebug("[WebPanel] hasAlertPermission: " + player.getName() + " " + permission + " = " + hasPerm);
+            return hasPerm;
         }
 
-        // For offline players, we need to check stored permissions
-        // This is a fallback - if they're using the web panel, they should have web access
-        // but we can't check permissions for offline players without a permissions plugin
-        // Default to checking if they have staff permission stored in database
-        // For now, return false for offline players to be safe
-        return false;
+        // For offline players, use LuckPerms if available
+        if (plugin.getHookManager().isLuckPermsEnabled()) {
+            var lpHook = plugin.getHookManager().getLuckPermsHook();
+            // Check staff permission first
+            if (!lpHook.hasPermission(playerUuid, "moderex.staff")) {
+                plugin.logDebug("[WebPanel] hasAlertPermission (LP): " + playerUuid + " lacks moderex.staff");
+                return false;
+            }
+            // Check for all-alerts permission
+            if (lpHook.hasPermission(playerUuid, "moderex.alerts.*")) {
+                plugin.logDebug("[WebPanel] hasAlertPermission (LP): " + playerUuid + " has moderex.alerts.*");
+                return true;
+            }
+            // Check specific permission
+            boolean hasPerm = lpHook.hasPermission(playerUuid, permission);
+            plugin.logDebug("[WebPanel] hasAlertPermission (LP): " + playerUuid + " " + permission + " = " + hasPerm);
+            return hasPerm;
+        }
+
+        // Fallback: If they authenticated to the web panel, they have moderex.webpanel
+        // Grant alert permissions to authenticated users without LuckPerms
+        plugin.logDebug("[WebPanel] hasAlertPermission: Granting " + permission + " to authenticated user " + playerUuid + " (no LP)");
+        return true;
     }
 
     public void broadcastVanishUpdate(String playerName, boolean vanished) {

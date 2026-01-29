@@ -14,6 +14,32 @@
 
 window.MX_CHANGELOGS = [
   {
+    build: 178,
+    version: "2.0dev-178",
+    date: "2026-01-29",
+    title: "Fix Offline Player Alert Permissions",
+    sections: [
+      {
+        type: "fixed",
+        title: "Bug Fixes",
+        items: [
+          "**Offline Player Alerts** - Web panel users who are offline in-game now receive alerts correctly",
+          "**LuckPerms Integration** - Alert permission checks now use LuckPerms for offline players",
+          "**Fallback Permissions** - Authenticated users without LuckPerms now receive all alerts by default"
+        ]
+      },
+      {
+        type: "technical",
+        title: "Technical Changes",
+        items: [
+          "Updated `hasAlertPermission()` to check LuckPerms for offline players",
+          "Added debug logging to trace permission check flow",
+          "Added fallback to grant alert permissions to authenticated users without LuckPerms"
+        ]
+      }
+    ]
+  },
+  {
     build: 177,
     version: "2.0dev-177",
     date: "2026-01-29",
