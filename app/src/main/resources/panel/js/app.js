@@ -3275,7 +3275,8 @@
     { id: 'mysettings', name: 'My Settings', icon: 'fa-user-gear', keywords: ['preferences', 'sounds', 'notifications'] },
     { id: 'messages', name: 'Messages', icon: 'fa-language', keywords: ['lang', 'text', 'translate'] },
     { id: 'actions', name: 'Actions', icon: 'fa-bolt', keywords: ['quick', 'chat', 'kick all'] },
-    { id: 'integrations', name: 'Integrations', icon: 'fa-plug', keywords: ['luckperms', 'plugins', 'hooks'] }
+    { id: 'integrations', name: 'Integrations', icon: 'fa-plug', keywords: ['luckperms', 'plugins', 'hooks'] },
+    { id: 'devtools', name: 'Developer Tools', icon: 'fa-code', keywords: ['dev', 'debug', 'test', 'stress', 'developer'] }
   ];
 
   // Settings that can be searched (with element IDs for auto-scroll)
@@ -3294,7 +3295,16 @@
     { name: 'Anticheat Alert Mode', page: 'mysettings', keywords: ['anticheat', 'hack', 'cheat', 'mode'], elementId: 'acModeAll' },
     { name: 'Chat Lock', page: 'actions', keywords: ['disable', 'mute all', 'lock chat'] },
     { name: 'Slowmode', page: 'actions', keywords: ['rate limit', 'spam', 'slow'] },
-    { name: 'Kick All', page: 'actions', keywords: ['clear', 'server', 'disconnect'] }
+    { name: 'Kick All', page: 'actions', keywords: ['clear', 'server', 'disconnect'] },
+    // Developer Tools
+    { name: 'Debug Permissions', page: 'devtools', keywords: ['permission', 'check', 'debug', 'perms'], elementId: 'devDebugPermissions' },
+    { name: 'Test Notifications', page: 'devtools', keywords: ['test', 'alert', 'notification', 'toast'], elementId: 'devNotificationTest' },
+    { name: 'Stress Test Players', page: 'devtools', keywords: ['stress', 'test', 'spoof', 'players', 'fake'], elementId: 'devStressPlayers' },
+    { name: 'Stress Test Punishments', page: 'devtools', keywords: ['stress', 'test', 'spoof', 'punishments', 'fake'], elementId: 'devStressPunishments' },
+    { name: 'Token Stress Test', page: 'devtools', keywords: ['token', 'auth', 'stress', 'test'], elementId: 'devTokenStress' },
+    { name: 'UUID Auth', page: 'devtools', keywords: ['uuid', 'auth', 'authenticate', 'dev'], elementId: 'devUuidAuth' },
+    { name: 'Development Checklist', page: 'devtools', keywords: ['checklist', 'todo', 'tasks', 'dev'], elementId: 'devChecklist' },
+    { name: 'Debug Console', page: 'devtools', keywords: ['console', 'log', 'debug', 'messages'], elementId: 'devDebugConsole' }
   ];
 
   function performLiveSearch(query) {
@@ -3972,9 +3982,11 @@
       state.staffSettings.webSoundNickname = data.webSoundNickname ?? true;
       state.staffSettings.webSoundLag = data.webSoundLag ?? true;
 
-      // Update toast position
-      if (window.updateAlertToastPosition) {
-        window.updateAlertToastPosition(data.webToastPosition);
+      // Update toast position (convert from DB format TOP_RIGHT to CSS format top-right)
+      if (window.updateAlertToastPosition && data.webToastPosition) {
+        const cssPosition = data.webToastPosition.toLowerCase().replace(/_/g, '-');
+        window.updateAlertToastPosition(cssPosition);
+        console.log('[USER_SETTINGS] Applied toast position:', data.webToastPosition, '->', cssPosition);
       }
 
       // Apply sound settings globally

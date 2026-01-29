@@ -1726,7 +1726,7 @@
 
           <div class="panel pad">
             <!-- Development Checklist -->
-            <div class="card" style="margin:0">
+            <div class="card" id="devChecklist" style="margin:0">
               <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px">
                 <h3 style="margin:0"><i class="fa-solid fa-list-check" style="color:#a78bfa;margin-right:10px"></i>Development Checklist</h3>
                 <div style="display:flex;gap:8px">
@@ -1739,7 +1739,7 @@
             </div>
 
             <!-- Stress Testing -->
-            <div class="card">
+            <div class="card" id="devStressPlayers">
               <h3><i class="fa-solid fa-bolt" style="color:#f59e0b;margin-right:10px"></i>Stress Testing</h3>
               <p style="margin-bottom:16px">Generate fake data to test panel performance and UI.</p>
 
@@ -1787,7 +1787,7 @@
                 </div>
 
                 <!-- Spoof Punishments -->
-                <div class="stress-test-card" style="padding:16px;background:rgba(0,0,0,0.2);border-radius:var(--radius);border:1px solid var(--border)">
+                <div class="stress-test-card" id="devStressPunishments" style="padding:16px;background:rgba(0,0,0,0.2);border-radius:var(--radius);border:1px solid var(--border)">
                   <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px">
                     <div style="width:36px;height:36px;background:rgba(239,68,68,0.15);border-radius:var(--radius);display:flex;align-items:center;justify-content:center">
                       <i class="fa-solid fa-gavel" style="color:#ef4444"></i>
@@ -1829,7 +1829,7 @@
                 </div>
 
                 <!-- Token Stress Test -->
-                <div class="stress-test-card" style="padding:16px;background:rgba(0,0,0,0.2);border-radius:var(--radius);border:1px solid var(--border)">
+                <div class="stress-test-card" id="devTokenStress" style="padding:16px;background:rgba(0,0,0,0.2);border-radius:var(--radius);border:1px solid var(--border)">
                   <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px">
                     <div style="width:36px;height:36px;background:rgba(251,146,60,0.15);border-radius:var(--radius);display:flex;align-items:center;justify-content:center">
                       <i class="fa-solid fa-key" style="color:#fb923c"></i>
@@ -1854,7 +1854,7 @@
                 </div>
 
                 <!-- UUID Dev Auth -->
-                <div class="stress-test-card" style="padding:16px;background:rgba(0,0,0,0.2);border-radius:var(--radius);border:1px solid var(--border)">
+                <div class="stress-test-card" id="devUuidAuth" style="padding:16px;background:rgba(0,0,0,0.2);border-radius:var(--radius);border:1px solid var(--border)">
                   <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px">
                     <div style="width:36px;height:36px;background:rgba(168,85,247,0.15);border-radius:var(--radius);display:flex;align-items:center;justify-content:center">
                       <i class="fa-solid fa-fingerprint" style="color:#a855f7"></i>
@@ -1876,7 +1876,7 @@
               </div>
 
               <!-- Debug Permissions -->
-              <div class="card" style="margin-top:16px">
+              <div class="card" id="devDebugPermissions" style="margin-top:16px">
                 <h3><i class="fa-solid fa-key" style="color:#ef4444;margin-right:10px"></i>Debug Permissions</h3>
                 <p style="margin-bottom:16px">Check your current permissions and debug permission issues.</p>
                 <div class="grid cols-2" style="gap:12px">
@@ -1888,7 +1888,7 @@
               </div>
 
               <!-- Notification Test -->
-              <div class="card" style="margin-top:16px">
+              <div class="card" id="devNotificationTest" style="margin-top:16px">
                 <h3><i class="fa-solid fa-bell" style="color:#06b6d4;margin-right:10px"></i>Notification Test</h3>
                 <p style="margin-bottom:16px">Test different notification modes for each category.</p>
                 <div class="grid cols-2" style="gap:12px">
@@ -1922,7 +1922,7 @@
             </div>
 
             <!-- Debug Logs -->
-            <div class="card">
+            <div class="card" id="devDebugConsole">
               <h3><i class="fa-solid fa-bug" style="color:#22c55e;margin-right:10px"></i>Debug Console</h3>
               <p style="margin-bottom:12px">Real-time debug output and WebSocket messages.</p>
               <div id="devDebugLogs" style="height:250px;overflow-y:auto;font-family:var(--font-mono);font-size:12px;padding:12px;background:rgba(0,0,0,0.3);border-radius:var(--radius);border:1px solid var(--border)">

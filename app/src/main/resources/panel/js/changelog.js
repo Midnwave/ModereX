@@ -14,6 +14,40 @@
 
 window.MX_CHANGELOGS = [
   {
+    build: 179,
+    version: "2.0dev-179",
+    date: "2026-01-29",
+    title: "Settings Persistence & Developer Tools Search",
+    sections: [
+      {
+        type: "fixed",
+        title: "Bug Fixes",
+        items: [
+          "**Toast Position Persistence** - Notification position now persists correctly after page refresh",
+          "**Settings Format Conversion** - Fixed database format conversion for toast position settings"
+        ]
+      },
+      {
+        type: "new",
+        title: "New Features",
+        items: [
+          "**Developer Tools Search** - Developer Tools now appears in global search results",
+          "**Searchable Dev Features** - Search for debug permissions, test alerts, stress tests, and more"
+        ]
+      },
+      {
+        type: "technical",
+        title: "Technical Changes",
+        items: [
+          "Added Developer Tools to searchablePages array",
+          "Added 8 new searchable settings for Developer Tools sections",
+          "Added IDs to all Developer Tools cards for scroll-to functionality",
+          "Fixed toast position conversion from `TOP_RIGHT` to `top-right` on settings load"
+        ]
+      }
+    ]
+  },
+  {
     build: 178,
     version: "2.0dev-178",
     date: "2026-01-29",
