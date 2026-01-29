@@ -19,24 +19,30 @@ public class StaffSettings {
 
     // ========== Notification Settings ==========
 
-    // Join/Leave messages (all, staff only, off)
+    // Join/Leave messages visibility (all, staff only, off) - for seeing join/leave messages
     private JoinLeaveLevel joinLeaveMessages = JoinLeaveLevel.ALL;
+
+    // Join/Leave alerts (for staff alerts when players join/leave) - IN-GAME ONLY
+    private AlertLevel joinLeaveAlerts = AlertLevel.EVERYONE;
 
     // Moderation action notifications
     private boolean moderationActionsEnabled = true;
 
-    // Punishment notifications
+    // Punishment notifications - Each type has Everyone, Watchlist Only, Off
     private AlertLevel punishmentAlerts = AlertLevel.EVERYONE;
     private AlertLevel warnAlerts = AlertLevel.EVERYONE;
     private AlertLevel banAlerts = AlertLevel.EVERYONE;
     private AlertLevel muteAlerts = AlertLevel.EVERYONE;
     private AlertLevel kickAlerts = AlertLevel.EVERYONE;
-    private AlertLevel pardonAlerts = AlertLevel.EVERYONE;
+    private AlertLevel pardonAlerts = AlertLevel.EVERYONE;  // Unbans, unmutes, unwarns
 
     // Automod notifications
-    private AlertLevel automodAlerts = AlertLevel.WATCHLIST_ONLY;
-    private AlertLevel spamAlerts = AlertLevel.WATCHLIST_ONLY;
-    private AlertLevel filterAlerts = AlertLevel.WATCHLIST_ONLY;
+    private AlertLevel automodAlerts = AlertLevel.EVERYONE;
+    private AlertLevel spamAlerts = AlertLevel.EVERYONE;
+    private AlertLevel filterAlerts = AlertLevel.EVERYONE;
+
+    // Nickname alerts - for inappropriate nickname detection
+    private AlertLevel nicknameAlerts = AlertLevel.EVERYONE;
 
     // Anticheat notifications
     private AlertLevel anticheatAlerts = AlertLevel.EVERYONE;
@@ -54,20 +60,42 @@ public class StaffSettings {
     private boolean watchlistQuitAlerts = true;
     private boolean watchlistActivityAlerts = true;
 
-    // Command monitoring
-    private AlertLevel commandAlerts = AlertLevel.WATCHLIST_ONLY;
+    // Command monitoring - with Blacklisted Only option
+    private CommandAlertLevel commandAlerts = CommandAlertLevel.BLACKLISTED_ONLY;
     private boolean showBlacklistedCommands = true;
 
     // Private message monitoring
     private AlertLevel privateMessageAlerts = AlertLevel.OFF;
 
-    // ========== Web Panel Notification Modes ==========
+    // Lag/Server Status alerts - On/Off
+    private boolean lagAlerts = true;
+
+    // ========== Web Panel Notification Settings ==========
 
     private WebNotifyMode webNotifyPunishments = WebNotifyMode.TOAST;
     private WebNotifyMode webNotifyAutomod = WebNotifyMode.TOAST;
     private WebNotifyMode webNotifyAnticheat = WebNotifyMode.TOAST;
     private WebNotifyMode webNotifyWatchlist = WebNotifyMode.TOAST;
     private WebNotifyMode webNotifyStaffChat = WebNotifyMode.TOAST;
+    private WebNotifyMode webNotifyCommands = WebNotifyMode.TOAST;
+    private WebNotifyMode webNotifyNickname = WebNotifyMode.TOAST;
+    private WebNotifyMode webNotifyLag = WebNotifyMode.TOAST;
+
+    // Web panel toast position (top-right default)
+    private ToastPosition webToastPosition = ToastPosition.TOP_RIGHT;
+
+    // Web panel alert duration in seconds (default 10)
+    private int webAlertDurationSeconds = 10;
+
+    // Web panel sound settings per alert type
+    private boolean webSoundPunishments = true;
+    private boolean webSoundAutomod = true;
+    private boolean webSoundAnticheat = true;
+    private boolean webSoundWatchlist = true;
+    private boolean webSoundStaffChat = true;
+    private boolean webSoundCommands = true;
+    private boolean webSoundNickname = true;
+    private boolean webSoundLag = true;
 
     // ========== UI Settings ==========
 
@@ -209,6 +237,85 @@ public class StaffSettings {
                 case ALL -> "<green>";
                 case STAFF_ONLY -> "<yellow>";
                 case OFF -> "<red>";
+            };
+        }
+    }
+
+    // ========== Command Alert Level Enum ==========
+
+    public enum CommandAlertLevel {
+        EVERYONE("Everyone", "See all player commands"),
+        WATCHLIST_ONLY("Watchlist Only", "Only see commands from watchlist players"),
+        BLACKLISTED_ONLY("Blacklisted Only", "Only see blacklisted command attempts"),
+        OFF("Off", "No command alerts");
+
+        private final String displayName;
+        private final String description;
+
+        CommandAlertLevel(String displayName, String description) {
+            this.displayName = displayName;
+            this.description = description;
+        }
+
+        public String getDisplayName() {
+            return displayName;
+        }
+
+        public String getDescription() {
+            return description;
+        }
+
+        public CommandAlertLevel next() {
+            CommandAlertLevel[] values = values();
+            return values[(ordinal() + 1) % values.length];
+        }
+
+        public String getColor() {
+            return switch (this) {
+                case EVERYONE -> "<green>";
+                case WATCHLIST_ONLY -> "<yellow>";
+                case BLACKLISTED_ONLY -> "<gold>";
+                case OFF -> "<red>";
+            };
+        }
+    }
+
+    // ========== Toast Position Enum ==========
+
+    public enum ToastPosition {
+        TOP_RIGHT("Top Right", "top-right"),
+        BOTTOM_RIGHT("Bottom Right", "bottom-right"),
+        TOP_LEFT("Top Left", "top-left"),
+        BOTTOM_LEFT("Bottom Left", "bottom-left");
+
+        private final String displayName;
+        private final String cssClass;
+
+        ToastPosition(String displayName, String cssClass) {
+            this.displayName = displayName;
+            this.cssClass = cssClass;
+        }
+
+        public String getDisplayName() {
+            return displayName;
+        }
+
+        public String getCssClass() {
+            return cssClass;
+        }
+
+        public ToastPosition next() {
+            ToastPosition[] values = values();
+            return values[(ordinal() + 1) % values.length];
+        }
+
+        public static ToastPosition fromString(String s) {
+            if (s == null) return TOP_RIGHT;
+            return switch (s.toLowerCase().replace("-", "_").replace(" ", "_")) {
+                case "bottom_right" -> BOTTOM_RIGHT;
+                case "top_left" -> TOP_LEFT;
+                case "bottom_left" -> BOTTOM_LEFT;
+                default -> TOP_RIGHT;
             };
         }
     }
@@ -410,13 +517,22 @@ public class StaffSettings {
         this.updatedAt = updatedAt;
     }
 
-    // Join/Leave messages
+    // Join/Leave messages visibility
     public JoinLeaveLevel getJoinLeaveMessages() {
         return joinLeaveMessages;
     }
 
     public void setJoinLeaveMessages(JoinLeaveLevel joinLeaveMessages) {
         this.joinLeaveMessages = joinLeaveMessages;
+    }
+
+    // Join/Leave alerts (in-game only)
+    public AlertLevel getJoinLeaveAlerts() {
+        return joinLeaveAlerts;
+    }
+
+    public void setJoinLeaveAlerts(AlertLevel joinLeaveAlerts) {
+        this.joinLeaveAlerts = joinLeaveAlerts;
     }
 
     // Moderation actions
@@ -502,6 +618,15 @@ public class StaffSettings {
         this.filterAlerts = filterAlerts;
     }
 
+    // Nickname alerts
+    public AlertLevel getNicknameAlerts() {
+        return nicknameAlerts;
+    }
+
+    public void setNicknameAlerts(AlertLevel nicknameAlerts) {
+        this.nicknameAlerts = nicknameAlerts;
+    }
+
     // Anticheat alerts
     public AlertLevel getAnticheatAlerts() {
         return anticheatAlerts;
@@ -582,11 +707,11 @@ public class StaffSettings {
     }
 
     // Command monitoring
-    public AlertLevel getCommandAlerts() {
+    public CommandAlertLevel getCommandAlerts() {
         return commandAlerts;
     }
 
-    public void setCommandAlerts(AlertLevel commandAlerts) {
+    public void setCommandAlerts(CommandAlertLevel commandAlerts) {
         this.commandAlerts = commandAlerts;
     }
 
@@ -605,6 +730,15 @@ public class StaffSettings {
 
     public void setPrivateMessageAlerts(AlertLevel privateMessageAlerts) {
         this.privateMessageAlerts = privateMessageAlerts;
+    }
+
+    // Lag/Server status alerts
+    public boolean isLagAlerts() {
+        return lagAlerts;
+    }
+
+    public void setLagAlerts(boolean lagAlerts) {
+        this.lagAlerts = lagAlerts;
     }
 
     // Web panel notification modes
@@ -646,6 +780,113 @@ public class StaffSettings {
 
     public void setWebNotifyStaffChat(WebNotifyMode mode) {
         this.webNotifyStaffChat = mode;
+    }
+
+    public WebNotifyMode getWebNotifyCommands() {
+        return webNotifyCommands;
+    }
+
+    public void setWebNotifyCommands(WebNotifyMode mode) {
+        this.webNotifyCommands = mode;
+    }
+
+    public WebNotifyMode getWebNotifyNickname() {
+        return webNotifyNickname;
+    }
+
+    public void setWebNotifyNickname(WebNotifyMode mode) {
+        this.webNotifyNickname = mode;
+    }
+
+    public WebNotifyMode getWebNotifyLag() {
+        return webNotifyLag;
+    }
+
+    public void setWebNotifyLag(WebNotifyMode mode) {
+        this.webNotifyLag = mode;
+    }
+
+    // Web toast position
+    public ToastPosition getWebToastPosition() {
+        return webToastPosition;
+    }
+
+    public void setWebToastPosition(ToastPosition position) {
+        this.webToastPosition = position;
+    }
+
+    // Web alert duration
+    public int getWebAlertDurationSeconds() {
+        return webAlertDurationSeconds;
+    }
+
+    public void setWebAlertDurationSeconds(int seconds) {
+        this.webAlertDurationSeconds = Math.max(1, Math.min(60, seconds));
+    }
+
+    // Web sound settings
+    public boolean isWebSoundPunishments() {
+        return webSoundPunishments;
+    }
+
+    public void setWebSoundPunishments(boolean enabled) {
+        this.webSoundPunishments = enabled;
+    }
+
+    public boolean isWebSoundAutomod() {
+        return webSoundAutomod;
+    }
+
+    public void setWebSoundAutomod(boolean enabled) {
+        this.webSoundAutomod = enabled;
+    }
+
+    public boolean isWebSoundAnticheat() {
+        return webSoundAnticheat;
+    }
+
+    public void setWebSoundAnticheat(boolean enabled) {
+        this.webSoundAnticheat = enabled;
+    }
+
+    public boolean isWebSoundWatchlist() {
+        return webSoundWatchlist;
+    }
+
+    public void setWebSoundWatchlist(boolean enabled) {
+        this.webSoundWatchlist = enabled;
+    }
+
+    public boolean isWebSoundStaffChat() {
+        return webSoundStaffChat;
+    }
+
+    public void setWebSoundStaffChat(boolean enabled) {
+        this.webSoundStaffChat = enabled;
+    }
+
+    public boolean isWebSoundCommands() {
+        return webSoundCommands;
+    }
+
+    public void setWebSoundCommands(boolean enabled) {
+        this.webSoundCommands = enabled;
+    }
+
+    public boolean isWebSoundNickname() {
+        return webSoundNickname;
+    }
+
+    public void setWebSoundNickname(boolean enabled) {
+        this.webSoundNickname = enabled;
+    }
+
+    public boolean isWebSoundLag() {
+        return webSoundLag;
+    }
+
+    public void setWebSoundLag(boolean enabled) {
+        this.webSoundLag = enabled;
     }
 
     // UI settings
@@ -718,6 +959,15 @@ public class StaffSettings {
         return switch (level) {
             case EVERYONE -> true;
             case WATCHLIST_ONLY -> isOnWatchlist;
+            case OFF -> false;
+        };
+    }
+
+    public boolean shouldShowCommandAlert(CommandAlertLevel level, boolean isOnWatchlist, boolean isBlacklisted) {
+        return switch (level) {
+            case EVERYONE -> true;
+            case WATCHLIST_ONLY -> isOnWatchlist;
+            case BLACKLISTED_ONLY -> isBlacklisted;
             case OFF -> false;
         };
     }

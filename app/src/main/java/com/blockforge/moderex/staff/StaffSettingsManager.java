@@ -146,10 +146,15 @@ public class StaffSettingsManager {
         };
     }
 
-    public boolean shouldReceiveCommandAlert(Player staff, UUID targetUuid) {
+    public boolean shouldReceiveCommandAlert(Player staff, UUID targetUuid, boolean isBlacklisted) {
         StaffSettings settings = getSettings(staff);
         boolean isWatched = plugin.getWatchlistManager().isWatched(targetUuid);
-        return settings.shouldShowAlert(settings.getCommandAlerts(), isWatched);
+        return settings.shouldShowCommandAlert(settings.getCommandAlerts(), isWatched, isBlacklisted);
+    }
+
+    public boolean shouldReceiveCommandAlert(Player staff, UUID targetUuid) {
+        // Default: not blacklisted command
+        return shouldReceiveCommandAlert(staff, targetUuid, false);
     }
 
     public boolean isStaffChatEnabled(Player player) {

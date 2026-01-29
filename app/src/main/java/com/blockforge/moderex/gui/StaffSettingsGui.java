@@ -166,7 +166,7 @@ public class StaffSettingsGui extends BaseGui {
             refresh();
         });
 
-        setItem(32, createAlertLevelButton("Commands",
+        setItem(32, createCommandAlertLevelButton("Commands",
                 settings.getCommandAlerts(), Material.COMMAND_BLOCK), () -> {
             settings.setCommandAlerts(settings.getCommandAlerts().next());
             refresh();
@@ -513,6 +513,24 @@ public class StaffSettingsGui extends BaseGui {
         Material displayIcon = switch (level) {
             case ALL -> Material.LIME_DYE;
             case STAFF_ONLY -> Material.YELLOW_DYE;
+            case OFF -> Material.RED_DYE;
+        };
+
+        return createItem(displayIcon, level.getColor() + name, lore);
+    }
+
+    private ItemStack createCommandAlertLevelButton(String name, StaffSettings.CommandAlertLevel level, Material icon) {
+        List<String> lore = new ArrayList<>();
+        lore.add("<gray>" + level.getDescription());
+        lore.add("");
+        lore.add("<white>Current: " + level.getColor() + level.getDisplayName());
+        lore.add("");
+        lore.add("<yellow>Click to cycle");
+
+        Material displayIcon = switch (level) {
+            case EVERYONE -> Material.LIME_DYE;
+            case WATCHLIST_ONLY -> Material.YELLOW_DYE;
+            case BLACKLISTED_ONLY -> Material.ORANGE_DYE;
             case OFF -> Material.RED_DYE;
         };
 
