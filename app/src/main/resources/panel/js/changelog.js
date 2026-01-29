@@ -14,6 +14,32 @@
 
 window.MX_CHANGELOGS = [
   {
+    build: 192,
+    version: "2.0dev-192",
+    date: "2026-01-29",
+    title: "Delta Updates for Automod Rules",
+    sections: [
+      {
+        type: "improved",
+        title: "Improvements",
+        items: [
+          "**Delta Updates** - Rule changes now broadcast only the changed rule instead of all rules",
+          "**Scalability** - Can now handle 500+ rules without WebSocket issues",
+          "**Reduced Bandwidth** - Single rule updates are ~99% smaller than full broadcasts"
+        ]
+      },
+      {
+        type: "technical",
+        title: "Technical Changes",
+        items: [
+          "Added broadcastSingleRuleUpdate() method for efficient delta updates",
+          "Added serializeRule() helper to reuse rule serialization logic",
+          "saveRule() now uses single rule broadcast instead of full refresh"
+        ]
+      }
+    ]
+  },
+  {
     build: 190,
     version: "2.0dev-190",
     date: "2026-01-29",

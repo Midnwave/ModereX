@@ -2465,6 +2465,184 @@ public class HybridPanelServer {
         }
     }
 
+    /**
+     * Broadcast a single rule update to all connected clients.
+     * This is more efficient than broadcasting all rules when only one changed.
+     */
+    public void broadcastSingleRuleUpdate(AutomodRule rule) {
+        try {
+            JsonObject broadcast = new JsonObject();
+            broadcast.addProperty("type", "AUTOMOD_RULE_UPDATED");
+            JsonObject data = serializeRule(rule);
+            broadcast.add("data", data);
+            String message = GSON.toJson(broadcast);
+
+            plugin.logDebug("[WebPanel] Broadcasting single rule update: " + rule.getId() + " (" + (message.length() / 1024) + "KB)");
+
+            // Broadcast to regular WebSocket connections
+            for (WebSocketConnection conn : sessions.keySet()) {
+                try {
+                    conn.send(message);
+                } catch (Exception e) {
+                    plugin.logDebug("Failed to broadcast rule update to connection: " + e.getMessage());
+                }
+            }
+
+            // Also broadcast to same-port (Netty) connections
+            for (var entry : samePortConnections.entrySet()) {
+                try {
+                    entry.getValue().send(message);
+                } catch (Exception e) {
+                    plugin.logDebug("Failed to broadcast rule update to same-port connection: " + e.getMessage());
+                }
+            }
+        } catch (Exception e) {
+            plugin.logError("Failed to broadcast single rule update: " + e.getMessage(), e);
+        }
+    }
+
+    /**
+     * Serialize a single automod rule to JSON for broadcasting.
+     */
+    private JsonObject serializeRule(AutomodRule rule) {
+        JsonObject r = new JsonObject();
+        r.addProperty("id", rule.getId());
+        r.addProperty("name", rule.getName() != null ? rule.getName() : "Unknown");
+        r.addProperty("type", rule.getType() != null ? rule.getType().name() : "WORD_FILTER");
+        r.addProperty("enabled", rule.isEnabled());
+        r.addProperty("builtIn", rule.isBuiltIn());
+        r.addProperty("priority", rule.getPriority());
+        r.addProperty("description", rule.getDescription() != null ? rule.getDescription() : "");
+
+        // For ANTICHEAT rules, send minimal data
+        if (rule.getType() == AutomodRule.RuleType.ANTICHEAT) {
+            r.addProperty("anticheatName", rule.getAnticheatName() != null ? rule.getAnticheatName() : "");
+            r.addProperty("checkName", rule.getCheckName() != null ? rule.getCheckName() : "");
+            r.addProperty("anticheatAlertThreshold", rule.getAnticheatAlertThreshold());
+            r.addProperty("anticheatTimeWindowSeconds", rule.getAnticheatTimeWindowSeconds());
+            addAutoPunishmentToRule(r, rule);
+            r.add("blacklistedWords", new JsonArray());
+            r.add("blacklistedPhrases", new JsonArray());
+            r.add("exclusionWords", new JsonArray());
+            r.add("conditions", new JsonArray());
+            r.add("exceptions", new JsonArray());
+            return r;
+        }
+
+        // Full data for non-anticheat rules
+        r.addProperty("exactMatch", rule.isExactMatch());
+        r.addProperty("spamMessageCount", rule.getSpamMessageCount());
+        r.addProperty("spamTimeWindowSeconds", rule.getSpamTimeWindowSeconds());
+        r.addProperty("spamDetectSimilar", rule.isSpamDetectSimilar());
+        r.addProperty("spamSimilarityThreshold", rule.getSpamSimilarityThreshold());
+        r.addProperty("capsMaxPercentage", rule.getCapsMaxPercentage());
+        r.addProperty("capsMinLength", rule.getCapsMinLength());
+        r.addProperty("afkTimeoutMinutes", rule.getAfkTimeoutMinutes());
+        r.addProperty("afkKickEnabled", rule.isAfkKickEnabled());
+        r.addProperty("anticheatName", rule.getAnticheatName() != null ? rule.getAnticheatName() : "");
+        r.addProperty("checkName", rule.getCheckName() != null ? rule.getCheckName() : "");
+        r.addProperty("anticheatAlertThreshold", rule.getAnticheatAlertThreshold());
+        r.addProperty("anticheatTimeWindowSeconds", rule.getAnticheatTimeWindowSeconds());
+        r.addProperty("flagAction", rule.getFlagAction() != null ? rule.getFlagAction().name() : "BLOCK");
+        r.addProperty("filterMode", rule.getFilterMode() != null ? rule.getFilterMode().name() : "CONTAINS_PHRASE");
+        r.addProperty("block", rule.getFlagAction() == AutomodRule.FlagAction.BLOCK);
+        r.addProperty("applyToNicknames", rule.isApplyToNicknames());
+        r.addProperty("nicknameOnly", rule.isNicknameOnly());
+
+        // Blacklisted words/phrases
+        JsonArray blacklist = new JsonArray();
+        if (rule.getBlacklistedWords() != null) {
+            for (String word : rule.getBlacklistedWords()) {
+                if (word != null) blacklist.add(word);
+            }
+        }
+        r.add("blacklistedWords", blacklist);
+        r.add("blacklistedPhrases", blacklist);
+
+        // Exclusion words
+        JsonArray whitelist = new JsonArray();
+        if (rule.getExclusionWords() != null) {
+            for (String word : rule.getExclusionWords()) {
+                if (word != null) whitelist.add(word);
+            }
+        }
+        r.add("exclusionWords", whitelist);
+        r.add("exclusionPhrases", whitelist);
+        r.add("whitelist", whitelist);
+
+        // Exceptions
+        JsonArray exceptionsArray = new JsonArray();
+        if (rule.getExclusionPhrases() != null) {
+            for (String exception : rule.getExclusionPhrases()) {
+                if (exception != null) exceptionsArray.add(exception);
+            }
+        }
+        r.add("exceptions", exceptionsArray);
+
+        // Conditions
+        JsonArray conditionsArray = new JsonArray();
+        List<String> phrases = rule.getBlacklistedPhrases();
+        if (phrases != null && !phrases.isEmpty()) {
+            if (rule.getFilterMode() == AutomodRule.FilterMode.REGEX) {
+                for (String phrase : phrases) {
+                    JsonObject cond = new JsonObject();
+                    cond.addProperty("kind", "regex");
+                    cond.addProperty("value", phrase);
+                    conditionsArray.add(cond);
+                }
+            } else {
+                JsonObject cond = new JsonObject();
+                cond.addProperty("kind", "contains");
+                cond.addProperty("value", String.join(", ", phrases));
+                conditionsArray.add(cond);
+            }
+        }
+        r.add("conditions", conditionsArray);
+
+        addAutoPunishmentToRule(r, rule);
+        return r;
+    }
+
+    /**
+     * Helper to add auto punishment fields to a rule JSON object.
+     */
+    private void addAutoPunishmentToRule(JsonObject r, AutomodRule rule) {
+        if (rule.getAutoPunishment() != null) {
+            JsonObject ap = new JsonObject();
+            ap.addProperty("enabled", rule.getAutoPunishment().isEnabled());
+            String punishType = rule.getAutoPunishment().getType() != null ?
+                    rule.getAutoPunishment().getType().name() : "WARN";
+            ap.addProperty("type", punishType);
+            ap.addProperty("duration", rule.getAutoPunishment().getDuration());
+            ap.addProperty("triggerCount", rule.getAutoPunishment().getTriggerCount());
+            ap.addProperty("timeWindow", rule.getAutoPunishment().getTimeWindow());
+            ap.addProperty("reason", rule.getAutoPunishment().getReason() != null ? rule.getAutoPunishment().getReason() : "");
+            r.add("autoPunishment", ap);
+
+            JsonObject action = new JsonObject();
+            action.addProperty("kind", rule.getAutoPunishment().isEnabled() && rule.getAutoPunishment().getType() != null ?
+                    rule.getAutoPunishment().getType().name().toLowerCase() : "none");
+            action.addProperty("extra", rule.getAutoPunishment().getReason() != null ? rule.getAutoPunishment().getReason() : "");
+            long durationMs = rule.getAutoPunishment().getDuration();
+            String durationStr = durationMs == -1 ? "perm" : durationMs == 0 ? "" : DurationParser.format(durationMs);
+            action.addProperty("duration", durationStr);
+            r.add("action", action);
+        } else {
+            JsonObject action = new JsonObject();
+            action.addProperty("kind", "none");
+            action.addProperty("extra", "");
+            action.addProperty("duration", "");
+            r.add("action", action);
+        }
+
+        JsonObject threshold = new JsonObject();
+        threshold.addProperty("hits", rule.getAutoPunishment() != null ?
+                rule.getAutoPunishment().getTriggerCount() : 3);
+        threshold.addProperty("windowMins", rule.getAutoPunishment() != null ?
+                (rule.getAutoPunishment().getTimeWindow() / 60000) : 5);
+        r.add("threshold", threshold);
+    }
+
     private void sendAnticheatInfo(WebSocketConnection conn) {
         JsonObject response = new JsonObject();
         response.addProperty("type", "ANTICHEAT_INFO");

@@ -671,7 +671,7 @@ public class AutomodManager {
         if (rule.isBuiltIn()) {
             plugin.logDebug("[Automod] Routing to saveBuiltInRule for: " + rule.getId());
             saveBuiltInRule(rule);
-            broadcastAutomodRulesUpdate();
+            broadcastSingleRuleUpdate(rule); // Delta update - only send this rule
             return;
         }
 
@@ -679,7 +679,7 @@ public class AutomodManager {
         if (rule.getType() == AutomodRule.RuleType.ANTICHEAT) {
             plugin.logDebug("[Automod] Routing to saveAnticheatRule for: " + rule.getId());
             saveAnticheatRule(rule);
-            broadcastAutomodRulesUpdate();
+            broadcastSingleRuleUpdate(rule); // Delta update - only send this rule
             return;
         }
 
@@ -694,7 +694,7 @@ public class AutomodManager {
                     System.currentTimeMillis(), Integer.parseInt(rule.getId())
             );
 
-            broadcastAutomodRulesUpdate();
+            broadcastSingleRuleUpdate(rule); // Delta update - only send this rule
             plugin.logDebug("[Automod] Successfully saved rule: " + rule.getId());
         } catch (SQLException e) {
             plugin.logError("Failed to save automod rule", e);
@@ -916,12 +916,23 @@ public class AutomodManager {
     }
 
     /**
-     * Broadcast automod rules update to web panel clients.
+     * Broadcast automod rules update to web panel clients (full refresh - use sparingly).
      */
     public void broadcastAutomodRulesUpdate() {
         if (plugin.getWebPanelServer() != null) {
             plugin.getServer().getScheduler().runTaskAsynchronously(plugin, () -> {
                 plugin.getWebPanelServer().broadcastAutomodRules();
+            });
+        }
+    }
+
+    /**
+     * Broadcast a single rule update to web panel clients (more efficient than full refresh).
+     */
+    public void broadcastSingleRuleUpdate(AutomodRule rule) {
+        if (plugin.getWebPanelServer() != null && rule != null) {
+            plugin.getServer().getScheduler().runTaskAsynchronously(plugin, () -> {
+                plugin.getWebPanelServer().broadcastSingleRuleUpdate(rule);
             });
         }
     }
