@@ -14,6 +14,42 @@
 
 window.MX_CHANGELOGS = [
   {
+    build: 182,
+    version: "2.0dev-182",
+    date: "2026-01-29",
+    title: "Automod Rule Sync & Loading Improvements",
+    sections: [
+      {
+        type: "fixed",
+        title: "Bug Fixes",
+        items: [
+          "**Automod Rule Disconnect** - Fixed disconnect when updating anticheat rules (string ID parse error)",
+          "**Rule Data Sync** - Blacklisted phrases and exceptions now properly sync between panel and database",
+          "**Changelog Order** - Multiple changelogs now display oldest first, newest last"
+        ]
+      },
+      {
+        type: "improved",
+        title: "Improvements",
+        items: [
+          "**Loading Bar** - Progress bar now appears when saving/loading automod rules",
+          "**Rule Editor** - Edit modal now properly displays blacklisted phrases and exceptions from database"
+        ]
+      },
+      {
+        type: "technical",
+        title: "Technical Changes",
+        items: [
+          "Added debug logging for automod rule save operations",
+          "Fixed `saveRule()` to route ANTICHEAT type rules correctly",
+          "Fixed `deleteRule()` to handle both numeric and string rule IDs",
+          "Updated frontend to read `blacklistedPhrases` array directly from rule data",
+          "Added loading bar to `saveAutomodRuleFromEditor()` function"
+        ]
+      }
+    ]
+  },
+  {
     build: 181,
     version: "2.0dev-181",
     date: "2026-01-29",
