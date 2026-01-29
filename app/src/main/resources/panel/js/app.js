@@ -750,6 +750,12 @@
    * Show alert action modal for punish/watchlist actions
    */
   function showAlertActionModal(action, alertType, playerName, playerId, details) {
+    // For punish action, skip the modal and open the regular punishment form directly
+    if (action === 'punish') {
+      window.openPunishForm?.(playerId, 'warn', details);
+      return;
+    }
+
     const modalId = 'alertActionModal';
     let modal = document.getElementById(modalId);
 
@@ -764,41 +770,7 @@
     let title = '';
     let footerButtons = '';
 
-    if (action === 'punish') {
-      title = '<i class="fa-solid fa-gavel" style="margin-right:8px;color:var(--bad)"></i>Punish Player';
-      content = `
-        <div class="alert-detail-section">
-          <div class="alert-detail-header">
-            ${playerId ? `<img class="alert-detail-avatar" src="https://mc-heads.net/avatar/${escapeHtml(playerId)}/64" alt="">` : ''}
-            <div>
-              <h3 style="margin:0;color:var(--text)">${escapeHtml(playerName)}</h3>
-              <span class="badge ${alertType}">${escapeHtml(alertType)} Alert</span>
-            </div>
-          </div>
-        </div>
-        <div class="alert-detail-section">
-          <p style="color:var(--muted);margin:0 0 12px 0">Select punishment type:</p>
-          <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
-            <button class="btn secondary" onclick="closeAlertActionModal(); window.openPunishForm?.('${escapeHtml(playerId)}', 'warn', '${escapeHtml(details)}')">
-              <i class="fa-solid fa-triangle-exclamation" style="color:#06b6d4"></i> Warn
-            </button>
-            <button class="btn secondary" onclick="closeAlertActionModal(); window.openPunishForm?.('${escapeHtml(playerId)}', 'mute', '${escapeHtml(details)}')">
-              <i class="fa-solid fa-volume-xmark" style="color:#eab308"></i> Mute
-            </button>
-            <button class="btn secondary" onclick="closeAlertActionModal(); window.openPunishForm?.('${escapeHtml(playerId)}', 'kick', '${escapeHtml(details)}')">
-              <i class="fa-solid fa-shoe-prints" style="color:#f97316"></i> Kick
-            </button>
-            <button class="btn secondary" onclick="closeAlertActionModal(); window.openPunishForm?.('${escapeHtml(playerId)}', 'ban', '${escapeHtml(details)}')">
-              <i class="fa-solid fa-ban" style="color:#ef4444"></i> Ban
-            </button>
-          </div>
-        </div>
-      `;
-      footerButtons = `
-        <button class="btn ghost" onclick="closeAlertActionModal(); window.openPlayerDrawer?.('${escapeHtml(playerId)}')"><i class="fa-solid fa-user"></i> View Player</button>
-        <button class="btn secondary" onclick="closeAlertActionModal()">Cancel</button>
-      `;
-    } else if (action === 'watchlist') {
+    if (action === 'watchlist') {
       title = '<i class="fa-solid fa-eye" style="margin-right:8px;color:var(--warn)"></i>Add to Watchlist';
       content = `
         <div class="alert-detail-section">
@@ -5264,30 +5236,43 @@
   }
 
   function showLoadingLine() {
-    loadingLineCount++;
-
     const { line, fill } = getLoadingElements();
 
-    // Clear any pending fade-out or animation
+    // Clear ALL pending timeouts and animations - completely cancel previous state
     if (loadingLineFadeTimeout) {
       clearTimeout(loadingLineFadeTimeout);
       loadingLineFadeTimeout = null;
+    }
+    if (loadingCleanupTimeout) {
+      clearTimeout(loadingCleanupTimeout);
+      loadingCleanupTimeout = null;
     }
     if (loadingAnimationFrame) {
       cancelAnimationFrame(loadingAnimationFrame);
       loadingAnimationFrame = null;
     }
+    if (loadingLineTimeout) {
+      clearTimeout(loadingLineTimeout);
+      loadingLineTimeout = null;
+    }
 
+    // Reset count to 1 (not increment) - this is a fresh start
+    loadingLineCount = 1;
+
+    // Remove ALL classes and reset state completely
     if (line) {
-      line.classList.remove('fade-out', 'complete');
+      line.classList.remove('fade-out', 'complete', 'active');
+      // Force reflow to ensure class changes take effect
+      line.offsetHeight;
       line.classList.add('active');
     }
 
-    // Always reset progress when a new request starts
-    // This gives visual feedback that something new is happening
+    // Reset progress bar width without transition
     if (fill) {
       fill.classList.add('no-transition');
       fill.style.width = '0%';
+      fill.style.height = '';
+      fill.style.top = '';
       fill.offsetHeight; // Force reflow
       fill.classList.remove('no-transition');
     }
@@ -5298,11 +5283,13 @@
     animateProgress();
 
     // Auto-hide after 30 seconds as a safety measure
-    if (loadingLineTimeout) clearTimeout(loadingLineTimeout);
     loadingLineTimeout = setTimeout(() => {
       forceHideLoadingLine();
     }, 30000);
   }
+
+  // Track the cleanup timeout separately
+  let loadingCleanupTimeout = null;
 
   function hideLoadingLine() {
     loadingLineCount = Math.max(0, loadingLineCount - 1);
@@ -5314,6 +5301,12 @@
         loadingAnimationFrame = null;
       }
 
+      // Clear auto-hide timeout
+      if (loadingLineTimeout) {
+        clearTimeout(loadingLineTimeout);
+        loadingLineTimeout = null;
+      }
+
       // All requests complete - animate to 100%
       updateLoadingProgress(100);
       const { line } = getLoadingElements();
@@ -5321,33 +5314,37 @@
         line.classList.add('complete');
       }
 
-      // Wait for completion flash animation (0.5s), then trigger fade
+      // Wait for completion flash (0.5s), then add fade-out class
       loadingLineFadeTimeout = setTimeout(() => {
-        const { line, fill } = getLoadingElements();
+        // Check if a new request started - if so, abort fade
+        if (loadingLineCount > 0) return;
+
+        const { line } = getLoadingElements();
         if (line) {
           line.classList.add('fade-out');
-          // After fade animation (0.4s delay + 0.6s fade = 1s total), reset everything
-          setTimeout(() => {
-            line.classList.remove('active', 'fade-out', 'complete');
-            // Disable transition before resetting width to prevent slide-back animation
-            if (fill) {
-              fill.classList.add('no-transition');
-              fill.style.width = '0%';
-              fill.style.height = '';
-              fill.style.top = '';
-              // Force reflow then remove no-transition class
-              fill.offsetHeight; // Trigger reflow
-              fill.classList.remove('no-transition');
-            }
-            currentProgress = 0;
-          }, 1000);
         }
       }, 500);
 
-      if (loadingLineTimeout) {
-        clearTimeout(loadingLineTimeout);
-        loadingLineTimeout = null;
-      }
+      // After fade completes (1.5s total), clean up
+      if (loadingCleanupTimeout) clearTimeout(loadingCleanupTimeout);
+      loadingCleanupTimeout = setTimeout(() => {
+        // Check if a new request started - if so, abort cleanup
+        if (loadingLineCount > 0) return;
+
+        const { line, fill } = getLoadingElements();
+        if (line) {
+          line.classList.remove('active', 'fade-out', 'complete');
+        }
+        if (fill) {
+          fill.classList.add('no-transition');
+          fill.style.width = '0%';
+          fill.style.height = '';
+          fill.style.top = '';
+          fill.offsetHeight;
+          fill.classList.remove('no-transition');
+        }
+        currentProgress = 0;
+      }, 1500);
     }
   }
 
@@ -5381,6 +5378,16 @@
       loadingLineFadeTimeout = null;
     }
 
+    if (loadingCleanupTimeout) {
+      clearTimeout(loadingCleanupTimeout);
+      loadingCleanupTimeout = null;
+    }
+
+    if (loadingLineTimeout) {
+      clearTimeout(loadingLineTimeout);
+      loadingLineTimeout = null;
+    }
+
     const { line, fill } = getLoadingElements();
     if (line) {
       line.classList.remove('active', 'fade-out', 'complete');
@@ -5389,12 +5396,10 @@
       // Disable transition to prevent slide-back animation
       fill.classList.add('no-transition');
       fill.style.width = '0%';
+      fill.style.height = '';
+      fill.style.top = '';
       fill.offsetHeight; // Trigger reflow
       fill.classList.remove('no-transition');
-    }
-    if (loadingLineTimeout) {
-      clearTimeout(loadingLineTimeout);
-      loadingLineTimeout = null;
     }
   }
 

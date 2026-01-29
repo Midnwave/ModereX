@@ -14,6 +14,30 @@
 
 window.MX_CHANGELOGS = [
   {
+    build: 195,
+    version: "2.0dev-195",
+    date: "2026-01-29",
+    title: "Loading Bar & Watchlist Fixes",
+    sections: [
+      {
+        type: "fixed",
+        title: "Bug Fixes",
+        items: [
+          "**Loading Bar Duplicates** - Fixed loading bar showing duplicate/ghost bars during rapid requests",
+          "**Watchlist Punish Modal** - Removed custom modal, now uses regular punishment form with player pre-selected"
+        ]
+      },
+      {
+        type: "technical",
+        title: "Technical Changes",
+        items: [
+          "Loading bar now fully resets state (count, timeouts, classes) on new requests",
+          "Added separate cleanup timeout tracking to prevent lingering fade effects"
+        ]
+      }
+    ]
+  },
+  {
     build: 194,
     version: "2.0dev-194",
     date: "2026-01-29",
