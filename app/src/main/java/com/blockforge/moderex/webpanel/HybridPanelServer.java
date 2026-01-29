@@ -2243,8 +2243,64 @@ public class HybridPanelServer {
                     r.addProperty("enabled", rule.isEnabled());
                     r.addProperty("builtIn", rule.isBuiltIn());
                     r.addProperty("priority", rule.getPriority());
-                    r.addProperty("exactMatch", rule.isExactMatch());
                     r.addProperty("description", rule.getDescription() != null ? rule.getDescription() : "");
+
+                    // For ANTICHEAT rules, send minimal data to reduce payload size
+                    if (rule.getType() == AutomodRule.RuleType.ANTICHEAT) {
+                        r.addProperty("anticheatName", rule.getAnticheatName() != null ? rule.getAnticheatName() : "");
+                        r.addProperty("checkName", rule.getCheckName() != null ? rule.getCheckName() : "");
+                        r.addProperty("anticheatAlertThreshold", rule.getAnticheatAlertThreshold());
+                        r.addProperty("anticheatTimeWindowSeconds", rule.getAnticheatTimeWindowSeconds());
+
+                        // Include auto punishment for anticheat rules
+                        if (rule.getAutoPunishment() != null) {
+                            JsonObject ap = new JsonObject();
+                            ap.addProperty("enabled", rule.getAutoPunishment().isEnabled());
+                            String punishType = rule.getAutoPunishment().getType() != null ?
+                                    rule.getAutoPunishment().getType().name() : "WARN";
+                            ap.addProperty("type", punishType);
+                            ap.addProperty("duration", rule.getAutoPunishment().getDuration());
+                            ap.addProperty("triggerCount", rule.getAutoPunishment().getTriggerCount());
+                            ap.addProperty("reason", rule.getAutoPunishment().getReason() != null ? rule.getAutoPunishment().getReason() : "");
+                            r.add("autoPunishment", ap);
+
+                            // Frontend action format
+                            JsonObject action = new JsonObject();
+                            action.addProperty("kind", rule.getAutoPunishment().isEnabled() && rule.getAutoPunishment().getType() != null ?
+                                    rule.getAutoPunishment().getType().name().toLowerCase() : "none");
+                            action.addProperty("extra", rule.getAutoPunishment().getReason() != null ? rule.getAutoPunishment().getReason() : "");
+                            long durationMs = rule.getAutoPunishment().getDuration();
+                            String durationStr = durationMs == -1 ? "perm" : durationMs == 0 ? "" : DurationParser.format(durationMs);
+                            action.addProperty("duration", durationStr);
+                            r.add("action", action);
+                        } else {
+                            JsonObject action = new JsonObject();
+                            action.addProperty("kind", "none");
+                            action.addProperty("extra", "");
+                            action.addProperty("duration", "");
+                            r.add("action", action);
+                        }
+
+                        // Threshold for frontend
+                        JsonObject threshold = new JsonObject();
+                        threshold.addProperty("hits", rule.getAutoPunishment() != null ?
+                                rule.getAutoPunishment().getTriggerCount() : 3);
+                        threshold.addProperty("windowMins", rule.getAutoPunishment() != null ?
+                                (rule.getAutoPunishment().getTimeWindow() / 60000) : 5);
+                        r.add("threshold", threshold);
+
+                        // Empty arrays for frontend compatibility
+                        r.add("blacklistedWords", new com.google.gson.JsonArray());
+                        r.add("blacklistedPhrases", new com.google.gson.JsonArray());
+                        r.add("exclusionWords", new com.google.gson.JsonArray());
+                        r.add("conditions", new com.google.gson.JsonArray());
+                        r.add("exceptions", new com.google.gson.JsonArray());
+
+                        rules.add(r);
+                        continue; // Skip full serialization for anticheat rules
+                    }
+
+                    r.addProperty("exactMatch", rule.isExactMatch());
 
                     // Spam protection settings
                     r.addProperty("spamMessageCount", rule.getSpamMessageCount());
@@ -2260,7 +2316,7 @@ public class HybridPanelServer {
                     r.addProperty("afkTimeoutMinutes", rule.getAfkTimeoutMinutes());
                     r.addProperty("afkKickEnabled", rule.isAfkKickEnabled());
 
-                    // Anticheat settings
+                    // Anticheat settings (for non-anticheat rules, these will be empty)
                     r.addProperty("anticheatName", rule.getAnticheatName() != null ? rule.getAnticheatName() : "");
                     r.addProperty("checkName", rule.getCheckName() != null ? rule.getCheckName() : "");
                     r.addProperty("anticheatAlertThreshold", rule.getAnticheatAlertThreshold());

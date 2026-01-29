@@ -14,6 +14,37 @@
 
 window.MX_CHANGELOGS = [
   {
+    build: 190,
+    version: "2.0dev-190",
+    date: "2026-01-29",
+    title: "Anticheat Rules Broadcast Optimization",
+    sections: [
+      {
+        type: "improved",
+        title: "Improvements",
+        items: [
+          "**Broadcast Optimization** - Significantly reduced automod rules payload when anticheat plugins (Grim, etc.) are enabled",
+          "**Faster Sync** - Anticheat rules now send only essential fields, reducing JSON size by ~70%"
+        ]
+      },
+      {
+        type: "fixed",
+        title: "Bug Fixes",
+        items: [
+          "**Disconnect with Grim** - Fixed WebSocket disconnects when updating automod rules while Grim is enabled"
+        ]
+      },
+      {
+        type: "technical",
+        title: "Technical Changes",
+        items: [
+          "Anticheat rules skip full serialization, only include essential fields",
+          "Non-anticheat rules continue to include all fields for full editing support"
+        ]
+      }
+    ]
+  },
+  {
     build: 189,
     version: "2.0dev-189",
     date: "2026-01-29",
