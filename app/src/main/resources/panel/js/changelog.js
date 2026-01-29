@@ -14,6 +14,32 @@
 
 window.MX_CHANGELOGS = [
   {
+    build: 175,
+    version: "2.0dev-175",
+    date: "2026-01-29",
+    title: "Offline Player Permission Check via LuckPerms",
+    sections: [
+      {
+        type: "fixed",
+        title: "Bug Fixes",
+        items: [
+          "**Offline Permission Check** - Web panel users no longer need to be online in-game to have permissions checked",
+          "**LuckPerms Integration** - Uses LuckPerms API to check permissions for offline players",
+          "**Debug Tool Fix** - Debug permissions now correctly shows user info from `state.currentUser`"
+        ]
+      },
+      {
+        type: "technical",
+        title: "Technical Changes",
+        items: [
+          "Backend `getUserPermissions()` now checks online players via Bukkit, offline via LuckPerms",
+          "Falls back to granting all permissions if LuckPerms not available (web panel users already authenticated)",
+          "Fixed debug tool to use `state.currentUser` instead of `state.user`"
+        ]
+      }
+    ]
+  },
+  {
     build: 174,
     version: "2.0dev-174",
     date: "2026-01-29",

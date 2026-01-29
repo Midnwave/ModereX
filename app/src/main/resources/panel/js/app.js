@@ -6003,13 +6003,13 @@
     // Get current state
     const permissions = state.permissions || [];
     const staffSettings = state.staffSettings || {};
-    const user = state.user || {};
+    const user = state.currentUser || {};
 
     let html = '<div style="margin-bottom:12px;color:#22c55e;font-weight:600">Current Permissions State:</div>';
 
     // User info
     html += `<div style="margin-bottom:8px"><span style="color:#a78bfa">User:</span> ${user.name || 'Unknown'} (${user.uuid || 'No UUID'})</div>`;
-    html += `<div style="margin-bottom:8px"><span style="color:#a78bfa">Is OP:</span> ${user.isOp ? 'Yes' : 'No'}</div>`;
+    html += `<div style="margin-bottom:8px"><span style="color:#a78bfa">Authenticated:</span> ${user.name ? 'Yes' : 'No'}</div>`;
 
     // Permissions array
     html += '<div style="margin-bottom:8px"><span style="color:#a78bfa">Permissions Array:</span></div>';

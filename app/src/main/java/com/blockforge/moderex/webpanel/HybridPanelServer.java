@@ -2862,15 +2862,10 @@ public class HybridPanelServer {
     /**
      * Get the user's ModereX permissions for the frontend.
      * Checks all alert-related permissions for the user.
+     * Works for both online players (Bukkit) and offline players (LuckPerms).
      */
     private JsonArray getUserPermissions(UUID uuid) {
         JsonArray permissions = new JsonArray();
-
-        Player player = Bukkit.getPlayer(uuid);
-        if (player == null || !player.isOnline()) {
-            plugin.logDebug("[WebPanel] Player " + uuid + " is offline, cannot check permissions");
-            return permissions;
-        }
 
         // List of permissions to check
         String[] alertPermissions = {
@@ -2892,12 +2887,35 @@ public class HybridPanelServer {
             "moderex.alerts.punishments"
         };
 
-        for (String perm : alertPermissions) {
-            if (PermissionUtil.hasPermission(player, perm)) {
+        Player player = Bukkit.getPlayer(uuid);
+        if (player != null && player.isOnline()) {
+            // Player is online - use PermissionUtil (which handles OP bypass)
+            plugin.logDebug("[WebPanel] Checking permissions for online player " + player.getName());
+            for (String perm : alertPermissions) {
+                if (PermissionUtil.hasPermission(player, perm)) {
+                    permissions.add(perm);
+                }
+            }
+        } else if (plugin.getHookManager().isLuckPermsEnabled()) {
+            // Player is offline - use LuckPerms for permission check
+            plugin.logDebug("[WebPanel] Checking permissions via LuckPerms for offline player " + uuid);
+            var lpHook = plugin.getHookManager().getLuckPermsHook();
+            for (String perm : alertPermissions) {
+                if (lpHook.hasPermission(uuid, perm)) {
+                    permissions.add(perm);
+                }
+            }
+        } else {
+            // No way to check permissions for offline player without LuckPerms
+            plugin.logDebug("[WebPanel] Cannot check permissions for offline player " + uuid + " - LuckPerms not available");
+            // Grant all permissions as fallback for web panel users (they already have webpanel permission)
+            plugin.logDebug("[WebPanel] Granting all alert permissions as fallback");
+            for (String perm : alertPermissions) {
                 permissions.add(perm);
             }
         }
 
+        plugin.logDebug("[WebPanel] Found " + permissions.size() + " permissions for " + uuid);
         return permissions;
     }
 
