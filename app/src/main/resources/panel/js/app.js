@@ -4296,7 +4296,26 @@
     // Handle new rule created (real-time sync)
     ws.on('AUTOMOD_RULE_CREATED', (data) => {
       if (!isLiveMode) return;
-      // Only add if not already present
+      // Hide loading bar
+      if (window.hideLoadingLine) window.hideLoadingLine();
+      console.log('[Automod] Received AUTOMOD_RULE_CREATED:', data);
+
+      // Check if we have a pending rule create with a temp ID
+      if (window._pendingRuleCreate) {
+        const { tempId, rule } = window._pendingRuleCreate;
+        console.log('[Automod] Mapping temp ID', tempId, 'to server ID', data.id);
+        // Update the local rule's ID to match server's ID
+        const localRule = state.rules.find(r => r.id === tempId);
+        if (localRule) {
+          localRule.id = data.id;
+          console.log('[Automod] Updated local rule ID from', tempId, 'to', data.id);
+        }
+        window._pendingRuleCreate = null;
+        ui.renderRules();
+        return;
+      }
+
+      // Only add if not already present (for rules created elsewhere)
       if (!state.rules.find(r => r.id === data.id)) {
         state.rules.push(data);
         ui.renderRules();

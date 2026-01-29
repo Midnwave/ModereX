@@ -2176,10 +2176,13 @@ public class HybridPanelServer {
             response.addProperty("type", "AUTOMOD_RULE_CREATED");
             JsonObject responseData = new JsonObject();
             responseData.addProperty("id", rule.getId());
+            responseData.addProperty("name", rule.getName());
+            responseData.addProperty("type", rule.getType().name());
+            responseData.addProperty("enabled", rule.isEnabled());
             response.add("data", responseData);
             conn.send(GSON.toJson(response));
 
-            plugin.logDebug("[WebPanel] Automod rule created: " + name + " by " + session.playerName);
+            plugin.logDebug("[WebPanel] Automod rule created: " + name + " (id=" + rule.getId() + ") by " + session.playerName);
             debugSuccess(DebugCategory.AUTOMOD, "Automod rule created",
                     "Rule: " + name + ", By: " + session.playerName);
         } catch (Exception e) {

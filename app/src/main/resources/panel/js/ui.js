@@ -1040,16 +1040,30 @@
 
     // Sync to backend immediately
     console.log('[Automod Save] Saving rule:', r.id);
-    console.log('[Automod Save] Rule data being sent:', JSON.stringify({
-      ruleId: r.id,
-      rule: r
-    }, null, 2));
+
+    // Check if this is a new rule (temp ID starts with 'rule_')
+    const isNewRule = r.id && r.id.startsWith('rule_');
 
     if (window.MX?.ws?.send) {
-      window.MX.ws.send('UPDATE_AUTOMOD_RULE', {
-        ruleId: r.id,
-        rule: r
-      });
+      if (isNewRule) {
+        // New rule - use CREATE_AUTOMOD_RULE
+        console.log('[Automod Save] Creating new rule on server');
+        // Store temp ID so we can map it to server ID later
+        window._pendingRuleCreate = { tempId: r.id, rule: r };
+        window.MX.ws.send('CREATE_AUTOMOD_RULE', {
+          name: r.name,
+          exactMatch: r.exactMatch || false,
+          blacklistedWords: r.blacklistedPhrases || r.blacklistedWords || [],
+          exclusionWords: r.exclusionPhrases || r.exceptions || []
+        });
+      } else {
+        // Existing rule - use UPDATE_AUTOMOD_RULE
+        console.log('[Automod Save] Updating existing rule:', r.id);
+        window.MX.ws.send('UPDATE_AUTOMOD_RULE', {
+          ruleId: r.id,
+          rule: r
+        });
+      }
     } else {
       console.error('[Automod Save] WebSocket not available!');
     }
@@ -1059,10 +1073,9 @@
     window.MX.ui.renderAutomod();
     closeAutomodRuleEditor();
 
-    // Hide loading bar
-    if (window.hideLoadingLine) window.hideLoadingLine();
+    // Hide loading bar will happen when server confirms (AUTOMOD_RULE_CREATED/UPDATED)
 
-    window.toast('ok', 'Saved', 'Rule updated and synced to server.');
+    window.toast('ok', 'Saved', isNewRule ? 'Rule created and synced to server.' : 'Rule updated and synced to server.');
   };
 
   // Helper function to determine rule type for filtering

@@ -14,6 +14,30 @@
 
 window.MX_CHANGELOGS = [
   {
+    build: 188,
+    version: "2.0dev-188",
+    date: "2026-01-29",
+    title: "New Rule Creation Fix",
+    sections: [
+      {
+        type: "fixed",
+        title: "Bug Fixes",
+        items: [
+          "**New Rule Not Found** - Fixed 'Rule not found' error when updating newly created automod rules",
+          "**CREATE vs UPDATE** - New rules now correctly use CREATE_AUTOMOD_RULE instead of UPDATE"
+        ]
+      },
+      {
+        type: "technical",
+        title: "Technical Changes",
+        items: [
+          "Frontend now detects new rules by temp ID prefix and uses appropriate endpoint",
+          "Temp rule IDs are mapped to server IDs after creation for future updates"
+        ]
+      }
+    ]
+  },
+  {
     build: 187,
     version: "2.0dev-187",
     date: "2026-01-29",
