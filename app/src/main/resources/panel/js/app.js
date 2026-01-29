@@ -215,7 +215,15 @@
     if (page === 'templates') ui.renderTemplates();
     if (page === 'messages') ui.renderMessages();
     if (page === 'settings') ui.renderChatToggles();
-    if (page === 'mysettings' && window.loadDevChecklist) window.loadDevChecklist();
+    if (page === 'mysettings') {
+      // Refresh user settings from server when opening My Settings page
+      const ws = window.MX?.ws;
+      if (ws && ws.isConnected()) {
+        console.log('[MySettings] Refreshing settings from server...');
+        ws.send('GET_USER_SETTINGS', {});
+      }
+      if (window.loadDevChecklist) window.loadDevChecklist();
+    }
     if (page === 'status' && window.initServerStatus) window.initServerStatus();
     if (page === 'replay' && window.initReplayViewer) window.initReplayViewer();
     if (page === 'devtools') {

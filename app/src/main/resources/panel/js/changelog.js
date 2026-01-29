@@ -14,6 +14,30 @@
 
 window.MX_CHANGELOGS = [
   {
+    build: 180,
+    version: "2.0dev-180",
+    date: "2026-01-29",
+    title: "Auto-Refresh Settings on Page Open",
+    sections: [
+      {
+        type: "improved",
+        title: "Improvements",
+        items: [
+          "**Settings Sync** - My Settings page now refreshes settings from database when opened",
+          "**Visual Sync** - Settings UI always reflects the actual database values"
+        ]
+      },
+      {
+        type: "technical",
+        title: "Technical Changes",
+        items: [
+          "Added `GET_USER_SETTINGS` request when navigating to My Settings page",
+          "Ensures frontend state matches backend database on every page visit"
+        ]
+      }
+    ]
+  },
+  {
     build: 179,
     version: "2.0dev-179",
     date: "2026-01-29",
