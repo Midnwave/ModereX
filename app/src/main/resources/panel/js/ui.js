@@ -862,12 +862,23 @@
     const thr = r.threshold || { hits: 1, windowMins: 10 };
     const conditions = r.conditions || [];
 
-    // Get phrases from conditions
-    const phrases = conditions
-      .filter(c => c.kind === 'contains')
-      .map(c => c.value || '')
-      .filter(v => v)
-      .join('\n');
+    // Get phrases - check multiple possible sources
+    let phrases = '';
+
+    // First, check for direct blacklistedPhrases/blacklistedWords arrays from backend
+    const directPhrases = r.blacklistedPhrases || r.blacklistedWords || [];
+    if (directPhrases.length > 0) {
+      phrases = directPhrases.join('\n');
+    } else {
+      // Fall back to conditions format
+      const condPhrases = conditions
+        .filter(c => c.kind === 'contains')
+        .map(c => c.value || '')
+        .filter(v => v)
+        .flatMap(v => v.split(',').map(p => p.trim()).filter(p => p))
+        .join('\n');
+      phrases = condPhrases;
+    }
 
     const regexPatterns = conditions
       .filter(c => c.kind === 'regex')
@@ -875,7 +886,9 @@
       .filter(v => v)
       .join('\n');
 
-    const exceptions = (r.exceptions || []).join('\n');
+    // Get exceptions - check multiple possible sources
+    const exceptionsArr = r.exceptions || r.exclusionPhrases || r.exclusionWords || r.whitelist || [];
+    const exceptions = exceptionsArr.join('\n');
 
     // Create modal
     const modal = document.createElement('div');
@@ -965,6 +978,9 @@
     const r = state.rules.find(rule => rule.id === ruleId);
     if (!r) return;
 
+    // Show loading bar
+    if (window.showLoadingLine) window.showLoadingLine();
+
     // Get values from form
     const name = document.getElementById('automodRuleName')?.value?.trim() || 'Unnamed Rule';
     const phrasesText = document.getElementById('automodRulePhrases')?.value || '';
@@ -977,12 +993,12 @@
     const thresholdHits = parseInt(document.getElementById('automodRuleThresholdHits')?.value || '1', 10);
     const thresholdWindow = parseInt(document.getElementById('automodRuleThresholdWindow')?.value || '10', 10);
 
-    // Parse phrases and regex into conditions
+    // Parse phrases and regex - store as arrays
     const phrases = phrasesText.split('\n').map(p => p.trim()).filter(p => p);
     const regexes = regexText.split('\n').map(p => p.trim()).filter(p => p);
     const exceptions = exceptionsText.split('\n').map(p => p.trim()).filter(p => p);
 
-    // Build conditions
+    // Build conditions for frontend display
     const conditions = [];
     if (phrases.length > 0) {
       conditions.push({ kind: 'contains', value: phrases.join(', ') });
@@ -991,10 +1007,13 @@
       conditions.push({ kind: 'regex', value: regex });
     });
 
-    // Update rule
+    // Update rule - store both formats for compatibility
     r.name = name;
     r.conditions = conditions;
+    r.blacklistedPhrases = phrases;  // Direct array for backend
+    r.blacklistedWords = phrases;    // Alias for compatibility
     r.exceptions = exceptions;
+    r.exclusionPhrases = exceptions; // Alias for backend
 
     // Set applies to flags
     r.applyToNicknames = appliesTo === 'both';
@@ -1010,12 +1029,23 @@
       windowMins: Math.max(1, thresholdWindow)
     };
 
+    // Sync to backend immediately
+    if (window.MX?.ws?.send) {
+      window.MX.ws.send('UPDATE_AUTOMOD_RULE', {
+        ruleId: r.id,
+        rule: r
+      });
+    }
+
     // Mark unsaved and re-render
     window.MX.ui.markUnsaved('rules', true);
     window.MX.ui.renderAutomod();
     closeAutomodRuleEditor();
 
-    window.toast('info', 'Updated', 'Rule updated. Click "Save Changes" to sync.');
+    // Hide loading bar
+    if (window.hideLoadingLine) window.hideLoadingLine();
+
+    window.toast('ok', 'Saved', 'Rule updated and synced to server.');
   };
 
   // Helper function to determine rule type for filtering

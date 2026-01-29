@@ -4239,6 +4239,8 @@
     // Handle automod rules
     ws.on('AUTOMOD_RULES_DATA', (data) => {
       if (!isLiveMode) return;
+      // Hide loading bar when rules data received
+      if (window.hideLoadingLine) window.hideLoadingLine();
       // Only replace rules if server sent actual rules, otherwise keep defaults
       if (data.rules && data.rules.length > 0) {
         state.rules = data.rules;
@@ -4249,6 +4251,8 @@
     // Handle single rule update (real-time sync)
     ws.on('AUTOMOD_RULE_UPDATED', (data) => {
       if (!isLiveMode) return;
+      // Hide loading bar when rule update confirmed
+      if (window.hideLoadingLine) window.hideLoadingLine();
       const idx = state.rules.findIndex(r => r.id === data.id);
       if (idx !== -1) {
         state.rules[idx] = { ...state.rules[idx], ...data };
@@ -6927,6 +6931,9 @@
       if (window.MX?.debug) console.log('[Changelog] No unread changelogs');
       return;
     }
+
+    // Sort by build number ascending (earliest/oldest versions first)
+    unread.sort((a, b) => a.build - b.build);
 
     changelogState.unreadChangelogs = unread;
     changelogState.currentIndex = 0;
