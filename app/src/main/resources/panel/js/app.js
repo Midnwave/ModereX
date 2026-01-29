@@ -321,6 +321,129 @@
   window.MX = window.MX || {};
   window.MX.toast = window.toast;
 
+  // ===== ALERT TOASTS (Priority Notifications) =====
+  const MAX_ALERT_TOASTS = 5;
+  const alertIconMap = {
+    ban: 'fa-gavel',
+    kick: 'fa-shoe-prints',
+    mute: 'fa-volume-xmark',
+    warn: 'fa-triangle-exclamation',
+    pardon: 'fa-hand-peace',
+    anticheat: 'fa-shield-halved',
+    automod: 'fa-robot',
+    command: 'fa-terminal',
+    nickname: 'fa-id-badge',
+    watchlist: 'fa-eye',
+    staffchat: 'fa-comments',
+    lag: 'fa-gauge-high',
+    punishments: 'fa-gavel',
+    custom: 'fa-bell'
+  };
+
+  // Create alert toast container if not exists
+  function getAlertContainer() {
+    let container = document.getElementById('alertToastContainer');
+    if (!container) {
+      container = document.createElement('div');
+      container.id = 'alertToastContainer';
+      container.className = 'top-right'; // Default position
+      document.body.appendChild(container);
+    }
+    return container;
+  }
+
+  // Update alert toast position based on settings
+  window.updateAlertToastPosition = function(position) {
+    const container = getAlertContainer();
+    container.className = position || 'top-right';
+    if (window.MX?.debug) {
+      console.log('[AlertToast] Position updated to:', position);
+    }
+  };
+
+  /**
+   * Show an alert toast (priority notification)
+   * @param {string} alertType - Type of alert (ban, kick, mute, warn, pardon, anticheat, automod, etc.)
+   * @param {string} title - Alert title (usually player name)
+   * @param {string} message - Alert message/details
+   * @param {object} options - Additional options
+   */
+  window.alertToast = function(alertType, title, message, options = {}) {
+    const settings = window.MX?.state?.staffSettings || {};
+    const duration = (settings.webAlertDurationSeconds || 10) * 1000;
+
+    // Check if sound should play
+    const soundKey = 'webSound' + alertType.charAt(0).toUpperCase() + alertType.slice(1);
+    const shouldPlaySound = settings[soundKey] !== false; // Default true
+
+    if (window.MX?.debug) {
+      console.log('[AlertToast] Creating alert:', alertType, title, message);
+      console.log('[AlertToast] Duration:', duration, 'Sound enabled:', shouldPlaySound);
+    }
+
+    const container = getAlertContainer();
+
+    // Enforce max alert limit
+    const existingAlerts = container.querySelectorAll('.alert-toast:not(.exit)');
+    if (existingAlerts.length >= MAX_ALERT_TOASTS) {
+      const oldest = existingAlerts[0];
+      if (oldest) {
+        oldest.classList.add('exit');
+        setTimeout(() => oldest.remove(), 300);
+      }
+    }
+
+    const el = document.createElement('div');
+    el.className = `alert-toast ${alertType}`;
+    el.style.position = 'relative';
+
+    const icon = alertIconMap[alertType] || alertIconMap.custom;
+    const typeLabel = alertType.charAt(0).toUpperCase() + alertType.slice(1).replace(/([A-Z])/g, ' $1');
+    const timeStr = new Date().toLocaleTimeString();
+
+    el.innerHTML = `
+      <div class="alert-toast-icon"><i class="fa-solid ${icon}"></i></div>
+      <div class="alert-toast-content">
+        <div class="alert-toast-type">${escapeHtml(typeLabel)} Alert</div>
+        <div class="alert-toast-title">${escapeHtml(title)}</div>
+        <div class="alert-toast-message">${escapeHtml(message)}</div>
+        <div class="alert-toast-time">${timeStr}</div>
+      </div>
+      <button class="alert-toast-close"><i class="fa-solid fa-xmark"></i></button>
+      <div class="alert-toast-progress" style="animation-duration: ${duration}ms"></div>
+    `;
+
+    const dismiss = () => {
+      el.classList.add('exit');
+      setTimeout(() => el.remove(), 300);
+    };
+
+    el.querySelector('.alert-toast-close').onclick = (e) => {
+      e.stopPropagation();
+      dismiss();
+    };
+
+    el.onclick = () => {
+      if (options.playerId) {
+        window.openDrawer?.(options.playerId);
+      }
+      dismiss();
+    };
+
+    // Insert at top (newest first)
+    container.insertBefore(el, container.firstChild);
+
+    // Auto-dismiss
+    setTimeout(dismiss, duration);
+
+    // Play sound
+    if (shouldPlaySound && window.MX?.sounds) {
+      window.MX.sounds.alert?.();
+    }
+  };
+
+  window.MX.alertToast = window.alertToast;
+
   // ===== DEV TOOLS DEBUG CONSOLE =====
   // Always logs to the Developer Tools debug console regardless of debug mode
   window.devtoolsLog = function(category, message, type = 'info') {
