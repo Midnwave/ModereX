@@ -192,6 +192,88 @@ permissions:
   moderex.admin:
     description: Access admin features
     default: op
+
+  # Staff & Alert Permissions
+  moderex.staff:
+    description: Master staff permission - enables staff settings storage and alert configuration
+    default: op
+
+  moderex.alerts.*:
+    description: Receive all alert types
+    default: op
+    children:
+      - moderex.alerts.ban
+      - moderex.alerts.kick
+      - moderex.alerts.mute
+      - moderex.alerts.warn
+      - moderex.alerts.pardon
+      - moderex.alerts.anticheat
+      - moderex.alerts.automod
+      - moderex.alerts.commands
+      - moderex.alerts.nickname
+      - moderex.alerts.joinleave
+      - moderex.alerts.lag
+      - moderex.alerts.watchlist
+      - moderex.alerts.staffchat
+      - moderex.alerts.punishments
+
+  moderex.alerts.ban:
+    description: See ban alerts
+    default: op
+
+  moderex.alerts.kick:
+    description: See kick alerts
+    default: op
+
+  moderex.alerts.mute:
+    description: See mute alerts
+    default: op
+
+  moderex.alerts.warn:
+    description: See warn alerts
+    default: op
+
+  moderex.alerts.pardon:
+    description: See pardon/unban/unmute alerts
+    default: op
+
+  moderex.alerts.anticheat:
+    description: See anticheat violation alerts
+    default: op
+
+  moderex.alerts.automod:
+    description: See automod trigger alerts
+    default: op
+
+  moderex.alerts.commands:
+    description: See command monitoring alerts
+    default: op
+
+  moderex.alerts.nickname:
+    description: See inappropriate nickname alerts
+    default: op
+
+  moderex.alerts.joinleave:
+    description: See join/leave alerts (in-game only)
+    default: op
+
+  moderex.alerts.lag:
+    description: See server lag/status alerts
+    default: op
+
+  moderex.alerts.watchlist:
+    description: See watchlist activity alerts
+    default: op
+
+  moderex.alerts.staffchat:
+    description: See staff chat messages
+    default: op
+
+  moderex.alerts.punishments:
+    description: Legacy punishment alerts
+    default: op
+
+  # Web Panel Permission (Protected - OPs don't bypass this)
   moderex.webpanel:
-    description: Connect to web panel
+    description: Connect to web panel (protected - must be explicitly granted)
     default: op

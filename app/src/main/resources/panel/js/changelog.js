@@ -14,6 +14,42 @@
 
 window.MX_CHANGELOGS = [
   {
+    build: 171,
+    version: "2.0dev-171",
+    date: "2026-01-29",
+    title: "Web Panel Permission Sync Fix",
+    sections: [
+      {
+        type: "fixed",
+        title: "Bug Fixes",
+        items: [
+          "**Settings Permission Display** - Fixed settings page showing 'No Permission' for all users by sending permissions array to frontend",
+          "**Permission Check** - Backend now properly sends user's alert permissions when loading settings"
+        ]
+      },
+      {
+        type: "technical",
+        title: "Technical Changes",
+        items: [
+          "Added `getUserPermissions()` method to fetch and send user permissions to web panel",
+          "Added all staff and alert permissions to `plugin.yml` and `paper-plugin.yml`",
+          "Permissions are now sent in USER_SETTINGS_DATA response for frontend permission checks"
+        ]
+      },
+      {
+        type: "permissions",
+        title: "Permissions Added to Plugin",
+        items: [
+          "`moderex.staff` - Master staff permission for settings storage",
+          "`moderex.alerts.*` - Wildcard for all alert permissions",
+          "`moderex.alerts.ban`, `kick`, `mute`, `warn`, `pardon` - Punishment alerts",
+          "`moderex.alerts.anticheat`, `automod`, `commands`, `nickname` - Detection alerts",
+          "`moderex.alerts.joinleave`, `lag`, `watchlist`, `staffchat` - Other alerts"
+        ]
+      }
+    ]
+  },
+  {
     build: 170,
     version: "2.0dev-170",
     date: "2026-01-29",

@@ -2827,6 +2827,11 @@ public class HybridPanelServer {
         JsonArray readChangelogs = getReadChangelogBuilds(session.playerUuid);
         data.add("readChangelogs", readChangelogs);
 
+        // Include user permissions for alert type checks
+        JsonArray permissions = getUserPermissions(session.playerUuid);
+        data.add("permissions", permissions);
+        plugin.logDebug("[WebPanel] User " + session.playerName + " permissions: " + permissions);
+
         response.add("data", data);
         conn.send(GSON.toJson(response));
         plugin.logDebug("[WebPanel] Sent user settings with " + readChangelogs.size() + " read changelogs to " + session.playerName);
@@ -2852,6 +2857,48 @@ public class HybridPanelServer {
             plugin.logError("Failed to load changelog reads for " + uuid, e);
         }
         return builds;
+    }
+
+    /**
+     * Get the user's ModereX permissions for the frontend.
+     * Checks all alert-related permissions for the user.
+     */
+    private JsonArray getUserPermissions(UUID uuid) {
+        JsonArray permissions = new JsonArray();
+
+        Player player = Bukkit.getPlayer(uuid);
+        if (player == null || !player.isOnline()) {
+            plugin.logDebug("[WebPanel] Player " + uuid + " is offline, cannot check permissions");
+            return permissions;
+        }
+
+        // List of permissions to check
+        String[] alertPermissions = {
+            "moderex.staff",
+            "moderex.alerts.*",
+            "moderex.alerts.ban",
+            "moderex.alerts.kick",
+            "moderex.alerts.mute",
+            "moderex.alerts.warn",
+            "moderex.alerts.pardon",
+            "moderex.alerts.anticheat",
+            "moderex.alerts.automod",
+            "moderex.alerts.commands",
+            "moderex.alerts.nickname",
+            "moderex.alerts.joinleave",
+            "moderex.alerts.lag",
+            "moderex.alerts.watchlist",
+            "moderex.alerts.staffchat",
+            "moderex.alerts.punishments"
+        };
+
+        for (String perm : alertPermissions) {
+            if (PermissionUtil.hasPermission(player, perm)) {
+                permissions.add(perm);
+            }
+        }
+
+        return permissions;
     }
 
     /**
@@ -5473,6 +5520,11 @@ public class HybridPanelServer {
         // Include read changelog builds
         JsonArray readChangelogs = getReadChangelogBuilds(session.playerUuid);
         data.add("readChangelogs", readChangelogs);
+
+        // Include user permissions for alert type checks
+        JsonArray permissions = getUserPermissions(session.playerUuid);
+        data.add("permissions", permissions);
+        plugin.logDebug("[WebPanel] User " + session.playerName + " permissions: " + permissions);
 
         response.add("data", data);
         wrapper.send(GSON.toJson(response));
