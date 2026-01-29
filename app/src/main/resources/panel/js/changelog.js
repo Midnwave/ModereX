@@ -14,6 +14,28 @@
 
 window.MX_CHANGELOGS = [
   {
+    build: 189,
+    version: "2.0dev-189",
+    date: "2026-01-29",
+    title: "Function Reference Fix",
+    sections: [
+      {
+        type: "fixed",
+        title: "Bug Fixes",
+        items: [
+          "**Disconnect on Save** - Fixed undefined renderAutomod function causing WebSocket disconnect"
+        ]
+      },
+      {
+        type: "technical",
+        title: "Technical Changes",
+        items: [
+          "Changed renderAutomod() call to correct renderRules() function"
+        ]
+      }
+    ]
+  },
+  {
     build: 188,
     version: "2.0dev-188",
     date: "2026-01-29",

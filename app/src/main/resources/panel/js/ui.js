@@ -1070,7 +1070,7 @@
 
     // Mark unsaved and re-render
     window.MX.ui.markUnsaved('rules', true);
-    window.MX.ui.renderAutomod();
+    window.MX.ui.renderRules();
     closeAutomodRuleEditor();
 
     // Hide loading bar will happen when server confirms (AUTOMOD_RULE_CREATED/UPDATED)
