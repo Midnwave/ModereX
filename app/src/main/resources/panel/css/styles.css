@@ -7145,14 +7145,19 @@ html {
 .changelog-header-icon {
   width: 48px;
   height: 48px;
-  background: linear-gradient(135deg, var(--primary), var(--accent));
   border-radius: 12px;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 22px;
-  color: white;
   flex-shrink: 0;
+  overflow: hidden;
+}
+
+.changelog-header-icon .changelog-logo {
+  width: 48px;
+  height: 48px;
+  object-fit: contain;
+  border-radius: 8px;
 }
 
 .changelog-header-text {

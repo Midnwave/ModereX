@@ -4774,7 +4774,8 @@
 
   /**
    * Show a panel alert based on staff notification settings.
-   * @param {string} category - 'punishments', 'automod', 'anticheat', 'watchlist', or 'staffchat'
+   * Uses the new alertToast system for better visuals and animations.
+   * @param {string} category - 'punishments', 'automod', 'anticheat', 'watchlist', 'staffchat', 'ban', 'kick', etc.
    * @param {string} title - Alert title
    * @param {string} message - Alert message/subtitle
    * @param {object} options - { playerId, playerName, severity: 'info'|'warn'|'error' }
@@ -4786,11 +4787,11 @@
 
     if (mode === 'off') return;
 
-    const severity = options.severity || 'info';
     const playerData = options.playerId ? { playerId: options.playerId, playerName: options.playerName } : null;
 
     if (mode === 'toast') {
-      toast(severity === 'error' ? 'bad' : severity === 'warn' ? 'warn' : 'info', title, message, playerData);
+      // Use the new alertToast for alert notifications
+      window.alertToast(category, title, message, playerData);
     } else if (mode === 'browser') {
       // Request browser notification permission if not granted
       if (Notification.permission === 'granted') {
@@ -4802,8 +4803,8 @@
           }
         });
       }
-      // Also show toast as fallback
-      toast(severity === 'error' ? 'bad' : severity === 'warn' ? 'warn' : 'info', title, message, { ...playerData, silent: true });
+      // Also show alert toast as fallback
+      window.alertToast(category, title, message, { ...playerData, silent: true });
     }
   }
 
@@ -6418,7 +6419,7 @@
       <div class="changelog-modal">
         <div class="changelog-header">
           <div class="changelog-header-icon">
-            <i class="fa-solid fa-gift"></i>
+            <img src="537154108207028818e303ef9465c1f66717660d_96.png" alt="ModereX" class="changelog-logo">
           </div>
           <div class="changelog-header-text">
             <h2>${escapeHtml(log.title)}</h2>

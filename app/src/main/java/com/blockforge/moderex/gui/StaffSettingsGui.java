@@ -4,6 +4,7 @@ import com.blockforge.moderex.ModereX;
 import com.blockforge.moderex.staff.StaffSettings;
 import com.blockforge.moderex.staff.StaffSettings.AlertLevel;
 import com.blockforge.moderex.staff.StaffSettings.CommandAlertLevel;
+import com.blockforge.moderex.util.PermissionUtil;
 import com.blockforge.moderex.util.TextUtil;
 import org.bukkit.Material;
 import org.bukkit.Sound;
@@ -340,8 +341,9 @@ public class StaffSettingsGui extends BaseGui {
     // ========== Helper Methods ==========
 
     private boolean hasAlertPermission(String permission) {
-        return viewer.hasPermission(PERM_STAFF) &&
-               (viewer.hasPermission(PERM_ALERTS_ALL) || viewer.hasPermission(permission));
+        // Use PermissionUtil for OP bypass (except moderex.webpanel)
+        return PermissionUtil.hasPermission(viewer, PERM_STAFF) &&
+               (PermissionUtil.hasPermission(viewer, PERM_ALERTS_ALL) || PermissionUtil.hasPermission(viewer, permission));
     }
 
     private void saveAndRefresh() {

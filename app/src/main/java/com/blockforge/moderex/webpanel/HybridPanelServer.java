@@ -1,12 +1,14 @@
 package com.blockforge.moderex.webpanel;
 
 import com.blockforge.moderex.ModereX;
+import com.blockforge.moderex.alert.AlertManager;
 import com.blockforge.moderex.automod.AutomodRule;
 import com.blockforge.moderex.log.ActivityLogEntry;
 import com.blockforge.moderex.log.ActivityLogEntry.ActivityType;
 import com.blockforge.moderex.punishment.Punishment;
 import com.blockforge.moderex.punishment.PunishmentType;
 import com.blockforge.moderex.util.DurationParser;
+import com.blockforge.moderex.util.PermissionUtil;
 import com.blockforge.moderex.util.TextUtil;
 import com.blockforge.moderex.hooks.anticheat.AnticheatChecks;
 import com.blockforge.moderex.web.WebAuthManager;
@@ -657,7 +659,8 @@ public class HybridPanelServer {
         pending.playerUuid = player.getUniqueId();
         pending.playerName = player.getName();
         pending.createdAt = System.currentTimeMillis();
-        pending.hasPermission = player.hasPermission("moderex.webpanel") || player.isOp();
+        // Note: moderex.webpanel is a protected permission - OPs do NOT automatically get it
+        pending.hasPermission = player.hasPermission("moderex.webpanel");
 
         if (plugin.getHookManager().isLuckPermsEnabled()) {
             pending.prefix = plugin.getHookManager().getLuckPermsHook().getPrefix(player);
@@ -822,7 +825,7 @@ public class HybridPanelServer {
             return;
         }
 
-        // Check permission
+        // Check permission - moderex.webpanel is protected, OPs do NOT automatically get it
         OfflinePlayer offlinePlayer = Bukkit.getOfflinePlayer(playerUuid);
         boolean hasPermission = false;
         String prefix = "", suffix = "";
@@ -830,7 +833,7 @@ public class HybridPanelServer {
 
         if (offlinePlayer.isOnline()) {
             Player onlinePlayer = offlinePlayer.getPlayer();
-            hasPermission = onlinePlayer.hasPermission("moderex.webpanel") || onlinePlayer.isOp();
+            hasPermission = onlinePlayer.hasPermission("moderex.webpanel");
             if (plugin.getHookManager().isLuckPermsEnabled()) {
                 prefix = plugin.getHookManager().getLuckPermsHook().getPrefix(onlinePlayer);
                 suffix = plugin.getHookManager().getLuckPermsHook().getSuffix(onlinePlayer);
@@ -841,7 +844,8 @@ public class HybridPanelServer {
             prefix = plugin.getHookManager().getLuckPermsHook().getPrefix(playerUuid);
             suffix = plugin.getHookManager().getLuckPermsHook().getSuffix(playerUuid);
         } else {
-            hasPermission = offlinePlayer.isOp();
+            // Without LuckPerms, we can't check offline permissions
+            hasPermission = false;
         }
 
         if (!hasPermission) {
@@ -950,6 +954,7 @@ public class HybridPanelServer {
         }
 
         // Check player permission
+        // moderex.webpanel is protected - OPs do NOT automatically get it
         OfflinePlayer offlinePlayer = Bukkit.getOfflinePlayer(trustedDevice.playerUuid);
         boolean hasPermission = false;
         String prefix = "", suffix = "";
@@ -957,7 +962,7 @@ public class HybridPanelServer {
 
         if (offlinePlayer.isOnline()) {
             Player onlinePlayer = offlinePlayer.getPlayer();
-            hasPermission = onlinePlayer.hasPermission("moderex.webpanel") || onlinePlayer.isOp();
+            hasPermission = onlinePlayer.hasPermission("moderex.webpanel");
             if (plugin.getHookManager().isLuckPermsEnabled()) {
                 prefix = plugin.getHookManager().getLuckPermsHook().getPrefix(onlinePlayer);
                 suffix = plugin.getHookManager().getLuckPermsHook().getSuffix(onlinePlayer);
@@ -968,7 +973,8 @@ public class HybridPanelServer {
             prefix = plugin.getHookManager().getLuckPermsHook().getPrefix(trustedDevice.playerUuid);
             suffix = plugin.getHookManager().getLuckPermsHook().getSuffix(trustedDevice.playerUuid);
         } else {
-            hasPermission = offlinePlayer.isOp();
+            // Without LuckPerms, we can't check offline permissions
+            hasPermission = false;
         }
 
         if (!hasPermission) {
@@ -1072,13 +1078,13 @@ public class HybridPanelServer {
             return;
         }
 
-        // Check if player has webpanel permission
+        // Check if player has webpanel permission - OPs do NOT automatically get it
         boolean hasPermission = false;
         String prefix = "", suffix = "";
 
         if (offlinePlayer.isOnline()) {
             Player onlinePlayer = offlinePlayer.getPlayer();
-            hasPermission = onlinePlayer.hasPermission("moderex.webpanel") || onlinePlayer.isOp();
+            hasPermission = onlinePlayer.hasPermission("moderex.webpanel");
             if (plugin.getHookManager().isLuckPermsEnabled()) {
                 prefix = plugin.getHookManager().getLuckPermsHook().getPrefix(onlinePlayer);
                 suffix = plugin.getHookManager().getLuckPermsHook().getSuffix(onlinePlayer);
@@ -1089,7 +1095,8 @@ public class HybridPanelServer {
             prefix = plugin.getHookManager().getLuckPermsHook().getPrefix(playerUuid);
             suffix = plugin.getHookManager().getLuckPermsHook().getSuffix(playerUuid);
         } else {
-            hasPermission = offlinePlayer.isOp();
+            // Without LuckPerms, we can't check offline permissions
+            hasPermission = false;
         }
 
         if (!hasPermission) {
@@ -3799,7 +3806,7 @@ public class HybridPanelServer {
             );
 
             for (org.bukkit.entity.Player staff : plugin.getServer().getOnlinePlayers()) {
-                if (staff.hasPermission("moderex.notify.punishments")) {
+                if (PermissionUtil.hasPermission(staff, "moderex.notify.punishments")) {
                     staff.sendMessage(staffNotification);
                 }
             }
@@ -4329,7 +4336,7 @@ public class HybridPanelServer {
 
     /**
      * Broadcast a custom alert to the web panel.
-     * This respects each user's notification settings based on the category.
+     * This respects each user's permissions and notification settings based on the category.
      *
      * @param category The alert category (anticheat, automod, punishments, watchlist, staffChat)
      * @param playerName The name of the player causing the alert
@@ -4338,6 +4345,10 @@ public class HybridPanelServer {
      * @param message The alert message
      */
     public void broadcastCustomAlert(String category, String playerName, java.util.UUID playerUuid, String title, String message) {
+        // Get the AlertType from the category to check permissions
+        AlertManager.AlertType alertType = AlertManager.AlertType.fromString(category);
+        String requiredPermission = alertType.getPermission();
+
         JsonObject json = new JsonObject();
         json.addProperty("type", "CUSTOM_ALERT");
 
@@ -4352,7 +4363,92 @@ public class HybridPanelServer {
         data.addProperty("timestamp", System.currentTimeMillis());
 
         json.add("data", data);
-        broadcast(GSON.toJson(json));
+        String jsonMessage = GSON.toJson(json);
+
+        // Use permission-filtered broadcast
+        broadcastWithPermission(jsonMessage, requiredPermission);
+    }
+
+    /**
+     * Broadcast a message only to users who have the specified permission.
+     *
+     * @param message The JSON message to broadcast
+     * @param permission The permission required to receive this message
+     */
+    private void broadcastWithPermission(String message, String permission) {
+        if (broadcastExecutor != null && !broadcastExecutor.isShutdown()) {
+            broadcastExecutor.execute(() -> {
+                // WebSocket connections
+                for (WebSocketConnection conn : connections) {
+                    try {
+                        WebPanelSession session = sessions.get(conn);
+                        if (session != null) {
+                            // Check if this user has permission to see this alert
+                            if (hasAlertPermission(session.playerUuid, permission)) {
+                                if (!conn.sendAsync(message)) {
+                                    connections.remove(conn);
+                                    sessions.remove(conn);
+                                    conn.close();
+                                }
+                            }
+                        }
+                    } catch (Exception e) {
+                        plugin.logDebug("[WebPanel] Error broadcasting with permission: " + e.getMessage());
+                    }
+                }
+
+                // Same-port HTTP WebSocket connections
+                for (Map.Entry<String, WebPanelSession> entry : samePortSessions.entrySet()) {
+                    try {
+                        WebPanelSession session = entry.getValue();
+                        if (session != null) {
+                            // Check if this user has permission to see this alert
+                            if (hasAlertPermission(session.playerUuid, permission)) {
+                                WebSocketFrameHandler handler = samePortConnections.get(entry.getKey());
+                                if (handler != null) {
+                                    handler.send(message);
+                                }
+                            }
+                        }
+                    } catch (Exception e) {
+                        plugin.logDebug("[WebPanel] Error broadcasting to same-port with permission: " + e.getMessage());
+                    }
+                }
+            });
+        }
+    }
+
+    /**
+     * Check if a player has permission to see an alert type.
+     *
+     * @param playerUuid The UUID of the player
+     * @param permission The permission to check
+     * @return true if the player has permission
+     */
+    private boolean hasAlertPermission(UUID playerUuid, String permission) {
+        if (playerUuid == null) return false;
+
+        // Check if player is online and has permission
+        Player player = Bukkit.getPlayer(playerUuid);
+        if (player != null && player.isOnline()) {
+            // Staff permission is master permission
+            if (!PermissionUtil.hasPermission(player, "moderex.staff")) {
+                return false;
+            }
+            // Check for all-alerts permission
+            if (PermissionUtil.hasPermission(player, "moderex.alerts.*")) {
+                return true;
+            }
+            // Check specific permission
+            return PermissionUtil.hasPermission(player, permission);
+        }
+
+        // For offline players, we need to check stored permissions
+        // This is a fallback - if they're using the web panel, they should have web access
+        // but we can't check permissions for offline players without a permissions plugin
+        // Default to checking if they have staff permission stored in database
+        // For now, return false for offline players to be safe
+        return false;
     }
 
     public void broadcastVanishUpdate(String playerName, boolean vanished) {

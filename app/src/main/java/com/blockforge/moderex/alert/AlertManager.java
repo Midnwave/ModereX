@@ -4,6 +4,7 @@ import com.blockforge.moderex.ModereX;
 import com.blockforge.moderex.staff.StaffSettings;
 import com.blockforge.moderex.staff.StaffSettings.AlertLevel;
 import com.blockforge.moderex.staff.StaffSettings.CommandAlertLevel;
+import com.blockforge.moderex.util.PermissionUtil;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
 import net.kyori.adventure.text.format.TextDecoration;
@@ -261,18 +262,18 @@ public class AlertManager {
     }
 
     private boolean hasAlertPermission(Player player, AlertType type) {
-        // Staff permission is the master permission
-        if (!player.hasPermission("moderex.staff")) {
+        // Staff permission is the master permission (OPs bypass)
+        if (!PermissionUtil.hasPermission(player, "moderex.staff")) {
             return false;
         }
 
-        // Check for all-alerts permission
-        if (player.hasPermission("moderex.alerts.*")) {
+        // Check for all-alerts permission (OPs bypass)
+        if (PermissionUtil.hasPermission(player, "moderex.alerts.*")) {
             return true;
         }
 
-        // Check specific permission
-        return player.hasPermission(type.getPermission());
+        // Check specific permission (OPs bypass)
+        return PermissionUtil.hasPermission(player, type.getPermission());
     }
 
     private void broadcastToWebPanel(String playerName, UUID playerUuid, AlertType type, String title, String message) {
