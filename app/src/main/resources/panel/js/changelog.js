@@ -14,26 +14,25 @@
 
 window.MX_CHANGELOGS = [
   {
-    build: 185,
-    version: "2.0dev-185",
+    build: 187,
+    version: "2.0dev-187",
     date: "2026-01-29",
-    title: "Debug Logging & Update Bar Fix",
+    title: "Automod Rule Response Format Fix",
     sections: [
       {
         type: "fixed",
         title: "Bug Fixes",
         items: [
-          "**Update Bar Authentication** - Update notification now only appears after successful login",
-          "**Debug Tracing** - Added detailed logging to trace automod rule save disconnect"
+          "**Automod Rule Disconnect** - Fixed WebSocket disconnect when saving automod rules",
+          "**Response Format** - AUTOMOD_RULE_UPDATED/CREATED/DELETED now use correct data structure"
         ]
       },
       {
         type: "technical",
         title: "Technical Changes",
         items: [
-          "Added step-by-step debug logging in updateAutomodRule handler",
-          "Moved loadCurrentPluginVersion() to run after mx:authenticated event",
-          "Enhanced exception logging with stack traces"
+          "Fixed backend to nest response data under 'data' property as expected by frontend",
+          "Applied fix to UPDATE, CREATE, and DELETE automod rule handlers"
         ]
       }
     ]

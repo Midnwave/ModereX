@@ -2120,7 +2120,10 @@ public class HybridPanelServer {
             plugin.logDebug("[WebPanel] Building response for rule update");
             JsonObject response = new JsonObject();
             response.addProperty("type", "AUTOMOD_RULE_UPDATED");
-            response.addProperty("id", ruleId);
+            // Data must be nested under "data" property for frontend WebSocket handler
+            JsonObject responseData = new JsonObject();
+            responseData.addProperty("id", ruleId);
+            response.add("data", responseData);
 
             plugin.logDebug("[WebPanel] Sending AUTOMOD_RULE_UPDATED response");
             conn.send(GSON.toJson(response));
@@ -2171,7 +2174,9 @@ public class HybridPanelServer {
 
             JsonObject response = new JsonObject();
             response.addProperty("type", "AUTOMOD_RULE_CREATED");
-            response.addProperty("id", rule.getId());
+            JsonObject responseData = new JsonObject();
+            responseData.addProperty("id", rule.getId());
+            response.add("data", responseData);
             conn.send(GSON.toJson(response));
 
             plugin.logDebug("[WebPanel] Automod rule created: " + name + " by " + session.playerName);
@@ -2204,7 +2209,9 @@ public class HybridPanelServer {
 
             JsonObject response = new JsonObject();
             response.addProperty("type", "AUTOMOD_RULE_DELETED");
-            response.addProperty("id", ruleId);
+            JsonObject responseData = new JsonObject();
+            responseData.addProperty("id", ruleId);
+            response.add("data", responseData);
             conn.send(GSON.toJson(response));
 
             plugin.logDebug("[WebPanel] Automod rule deleted: " + rule.getName() + " by " + session.playerName);
