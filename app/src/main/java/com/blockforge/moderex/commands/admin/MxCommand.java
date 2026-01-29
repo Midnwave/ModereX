@@ -716,8 +716,17 @@ public class MxCommand extends BaseCommand {
 
         // Generate title based on type
         String title = switch (alertType) {
+            case BAN -> "Ban Alert";
+            case KICK -> "Kick Alert";
+            case MUTE -> "Mute Alert";
+            case WARN -> "Warn Alert";
+            case PARDON -> "Pardon Alert";
             case ANTICHEAT -> "Anticheat Alert";
             case AUTOMOD -> "Automod Violation";
+            case COMMAND -> "Command Alert";
+            case NICKNAME -> "Nickname Alert";
+            case JOINLEAVE -> "Join/Leave Alert";
+            case LAG -> "Server Lag Alert";
             case PUNISHMENT -> "Punishment Alert";
             case WATCHLIST -> "Watchlist Alert";
             case STAFFCHAT -> "Staff Notice";

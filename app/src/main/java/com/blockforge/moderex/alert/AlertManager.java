@@ -2,8 +2,8 @@ package com.blockforge.moderex.alert;
 
 import com.blockforge.moderex.ModereX;
 import com.blockforge.moderex.staff.StaffSettings;
-import com.blockforge.moderex.staff.StaffSettings.WebNotifyMode;
-import com.google.gson.JsonObject;
+import com.blockforge.moderex.staff.StaffSettings.AlertLevel;
+import com.blockforge.moderex.staff.StaffSettings.CommandAlertLevel;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
 import net.kyori.adventure.text.format.TextDecoration;
@@ -16,7 +16,7 @@ import java.util.UUID;
 /**
  * Unified alert system for ModereX.
  * Handles sending alerts to both in-game staff and web panel,
- * respecting each staff member's notification settings.
+ * respecting each staff member's notification settings and permissions.
  */
 public class AlertManager {
 
@@ -30,26 +30,45 @@ public class AlertManager {
      * Alert types supported by the system.
      */
     public enum AlertType {
-        ANTICHEAT("Anticheat", "anticheat", NamedTextColor.RED),
-        AUTOMOD("Automod", "automod", NamedTextColor.GOLD),
-        PUNISHMENT("Punishment", "punishments", NamedTextColor.RED),
-        WATCHLIST("Watchlist", "watchlist", NamedTextColor.YELLOW),
-        STAFFCHAT("Staff Chat", "staffChat", NamedTextColor.AQUA),
-        CUSTOM("Alert", "custom", NamedTextColor.LIGHT_PURPLE);
+        // Punishment alerts
+        BAN("Ban", "ban", NamedTextColor.RED, "moderex.alerts.ban"),
+        KICK("Kick", "kick", NamedTextColor.GOLD, "moderex.alerts.kick"),
+        MUTE("Mute", "mute", NamedTextColor.YELLOW, "moderex.alerts.mute"),
+        WARN("Warn", "warn", NamedTextColor.AQUA, "moderex.alerts.warn"),
+        PARDON("Pardon", "pardon", NamedTextColor.GREEN, "moderex.alerts.pardon"),
+
+        // Detection alerts
+        ANTICHEAT("Anticheat", "anticheat", NamedTextColor.RED, "moderex.alerts.anticheat"),
+        AUTOMOD("Automod", "automod", NamedTextColor.GOLD, "moderex.alerts.automod"),
+        COMMAND("Command", "command", NamedTextColor.GRAY, "moderex.alerts.commands"),
+        NICKNAME("Nickname", "nickname", NamedTextColor.LIGHT_PURPLE, "moderex.alerts.nickname"),
+
+        // Other alerts
+        JOINLEAVE("Join/Leave", "joinleave", NamedTextColor.GREEN, "moderex.alerts.joinleave"),
+        LAG("Server Lag", "lag", NamedTextColor.RED, "moderex.alerts.lag"),
+        WATCHLIST("Watchlist", "watchlist", NamedTextColor.YELLOW, "moderex.alerts.watchlist"),
+        STAFFCHAT("Staff Chat", "staffchat", NamedTextColor.AQUA, "moderex.alerts.staffchat"),
+
+        // Legacy/generic
+        PUNISHMENT("Punishment", "punishments", NamedTextColor.RED, "moderex.alerts.punishments"),
+        CUSTOM("Alert", "custom", NamedTextColor.LIGHT_PURPLE, "moderex.alerts.*");
 
         private final String displayName;
         private final String settingKey;
         private final NamedTextColor color;
+        private final String permission;
 
-        AlertType(String displayName, String settingKey, NamedTextColor color) {
+        AlertType(String displayName, String settingKey, NamedTextColor color, String permission) {
             this.displayName = displayName;
             this.settingKey = settingKey;
             this.color = color;
+            this.permission = permission;
         }
 
         public String getDisplayName() { return displayName; }
         public String getSettingKey() { return settingKey; }
         public NamedTextColor getColor() { return color; }
+        public String getPermission() { return permission; }
 
         public static AlertType fromString(String s) {
             if (s == null) return CUSTOM;
@@ -72,13 +91,15 @@ public class AlertManager {
      * @param message The alert message/details
      */
     public void sendAlert(String playerName, UUID playerUuid, AlertType type, String title, String message) {
+        plugin.logDebug("[AlertManager] Sending " + type.name() + " alert for " + playerName + ": " + message);
+
         // Broadcast to in-game staff
         broadcastToInGameStaff(playerName, playerUuid, type, title, message);
 
-        // Broadcast to web panel
-        broadcastToWebPanel(playerName, playerUuid, type, title, message);
-
-        plugin.logDebug("[Alert] Sent " + type.name() + " alert: " + playerName + " - " + message);
+        // Broadcast to web panel (skip join/leave as per requirements)
+        if (type != AlertType.JOINLEAVE) {
+            broadcastToWebPanel(playerName, playerUuid, type, title, message);
+        }
     }
 
     /**
@@ -110,6 +131,36 @@ public class AlertManager {
         sendAlert(player.getName(), player.getUniqueId(), type, title, message);
     }
 
+    /**
+     * Send a command alert with blacklist flag.
+     */
+    public void sendCommandAlert(String playerName, UUID playerUuid, String command, boolean isBlacklisted) {
+        plugin.logDebug("[AlertManager] Sending command alert for " + playerName + ": " + command + " (blacklisted: " + isBlacklisted + ")");
+
+        boolean isOnWatchlist = playerUuid != null && plugin.getWatchlistManager().isWatched(playerUuid);
+        Component alertComponent = buildInGameAlert(playerName, AlertType.COMMAND, "Command", command);
+
+        for (Player staff : Bukkit.getOnlinePlayers()) {
+            if (!hasAlertPermission(staff, AlertType.COMMAND)) continue;
+
+            StaffSettings settings = plugin.getStaffSettingsManager().getSettings(staff.getUniqueId());
+            if (settings == null || !settings.isChatAlerts()) continue;
+
+            CommandAlertLevel level = settings.getCommandAlerts();
+            boolean shouldSend = settings.shouldShowCommandAlert(level, isOnWatchlist, isBlacklisted);
+
+            plugin.logDebug("[AlertManager] Staff " + staff.getName() + " command alert check: level=" + level +
+                    ", watchlist=" + isOnWatchlist + ", blacklisted=" + isBlacklisted + ", shouldSend=" + shouldSend);
+
+            if (shouldSend) {
+                sendAlertToStaff(staff, settings, alertComponent, AlertType.COMMAND, playerName, command);
+            }
+        }
+
+        // Broadcast to web panel
+        broadcastToWebPanel(playerName, playerUuid, AlertType.COMMAND, "Command", command);
+    }
+
     private void broadcastToInGameStaff(String playerName, UUID playerUuid, AlertType type, String title, String message) {
         Component alertComponent = buildInGameAlert(playerName, type, title, message);
 
@@ -117,7 +168,11 @@ public class AlertManager {
         boolean isOnWatchlist = playerUuid != null && plugin.getWatchlistManager().isWatched(playerUuid);
 
         for (Player staff : Bukkit.getOnlinePlayers()) {
-            if (!staff.hasPermission("moderex.staff")) continue;
+            // Check permission for this alert type
+            if (!hasAlertPermission(staff, type)) {
+                plugin.logDebug("[AlertManager] Staff " + staff.getName() + " lacks permission for " + type.name());
+                continue;
+            }
 
             // Check staff settings
             StaffSettings settings = plugin.getStaffSettingsManager().getSettings(staff.getUniqueId());
@@ -128,69 +183,102 @@ public class AlertManager {
             }
 
             // Check if chat alerts are enabled globally first
-            if (!settings.isChatAlerts()) continue;
+            if (!settings.isChatAlerts()) {
+                plugin.logDebug("[AlertManager] Staff " + staff.getName() + " has chat alerts disabled");
+                continue;
+            }
 
             // Get the specific alert level for this type
-            StaffSettings.AlertLevel alertLevel = switch (type) {
-                case ANTICHEAT -> settings.getAnticheatAlerts();
-                case AUTOMOD -> settings.getAutomodAlerts();
-                case PUNISHMENT -> settings.getPunishmentAlerts();
-                case WATCHLIST -> StaffSettings.AlertLevel.EVERYONE; // Watchlist uses separate boolean settings
-                case STAFFCHAT -> settings.isStaffChatEnabled() ? StaffSettings.AlertLevel.EVERYONE : StaffSettings.AlertLevel.OFF;
-                case CUSTOM -> StaffSettings.AlertLevel.EVERYONE;
-            };
+            AlertLevel alertLevel = getAlertLevelForType(settings, type);
+            plugin.logDebug("[AlertManager] Staff " + staff.getName() + " alert level for " + type.name() + ": " + alertLevel);
 
             // Check alert level - OFF means don't send
-            if (alertLevel == StaffSettings.AlertLevel.OFF) continue;
+            if (alertLevel == AlertLevel.OFF) continue;
 
             // Check watchlist requirement
-            boolean shouldSend = switch (alertLevel) {
-                case EVERYONE -> true;
-                case WATCHLIST_ONLY -> isOnWatchlist;
-                case OFF -> false;
-            };
+            boolean shouldSend = settings.shouldShowAlert(alertLevel, isOnWatchlist);
 
             // Special handling for watchlist type (uses separate boolean settings)
             if (type == AlertType.WATCHLIST) {
                 shouldSend = settings.isWatchlistJoinAlerts() || settings.isWatchlistActivityAlerts();
             }
 
+            // Special handling for staff chat
+            if (type == AlertType.STAFFCHAT) {
+                shouldSend = settings.isStaffChatEnabled();
+            }
+
+            // Special handling for lag alerts (boolean)
+            if (type == AlertType.LAG) {
+                shouldSend = settings.isLagAlerts();
+            }
+
+            plugin.logDebug("[AlertManager] Staff " + staff.getName() + " shouldSend=" + shouldSend +
+                    " (watchlist=" + isOnWatchlist + ")");
+
             if (shouldSend) {
-                staff.sendMessage(alertComponent);
-
-                // Play sound only if sound is enabled
-                if (settings.isSoundEnabled()) {
-                    staff.playSound(staff.getLocation(), org.bukkit.Sound.BLOCK_NOTE_BLOCK_PLING, 1.0f, 1.5f);
-                }
-
-                // Show action bar if enabled
-                if (settings.isActionBarAlerts()) {
-                    staff.sendActionBar(Component.text("[" + type.getDisplayName() + "] ")
-                            .color(type.getColor())
-                            .append(Component.text(playerName + ": " + truncate(message, 40)).color(NamedTextColor.WHITE)));
-                }
+                sendAlertToStaff(staff, settings, alertComponent, type, playerName, message);
             }
         }
+    }
+
+    private void sendAlertToStaff(Player staff, StaffSettings settings, Component alertComponent,
+                                   AlertType type, String playerName, String message) {
+        // Send chat message
+        staff.sendMessage(alertComponent);
+
+        // Play sound only if sound is enabled
+        if (settings.isSoundEnabled()) {
+            staff.playSound(staff.getLocation(), org.bukkit.Sound.BLOCK_NOTE_BLOCK_PLING, 1.0f, 1.5f);
+        }
+
+        // Show action bar if enabled
+        if (settings.isActionBarAlerts()) {
+            staff.sendActionBar(Component.text("[" + type.getDisplayName() + "] ")
+                    .color(type.getColor())
+                    .append(Component.text(playerName + ": " + truncate(message, 40)).color(NamedTextColor.WHITE)));
+        }
+    }
+
+    private AlertLevel getAlertLevelForType(StaffSettings settings, AlertType type) {
+        return switch (type) {
+            case BAN -> settings.getBanAlerts();
+            case KICK -> settings.getKickAlerts();
+            case MUTE -> settings.getMuteAlerts();
+            case WARN -> settings.getWarnAlerts();
+            case PARDON -> settings.getPardonAlerts();
+            case ANTICHEAT -> settings.getAnticheatAlerts();
+            case AUTOMOD -> settings.getAutomodAlerts();
+            case NICKNAME -> settings.getNicknameAlerts();
+            case JOINLEAVE -> settings.getJoinLeaveAlerts();
+            case WATCHLIST -> AlertLevel.EVERYONE; // Uses separate boolean settings
+            case STAFFCHAT -> settings.isStaffChatEnabled() ? AlertLevel.EVERYONE : AlertLevel.OFF;
+            case LAG -> settings.isLagAlerts() ? AlertLevel.EVERYONE : AlertLevel.OFF;
+            case PUNISHMENT -> settings.getPunishmentAlerts();
+            case COMMAND -> AlertLevel.EVERYONE; // Uses CommandAlertLevel separately
+            case CUSTOM -> AlertLevel.EVERYONE;
+        };
+    }
+
+    private boolean hasAlertPermission(Player player, AlertType type) {
+        // Staff permission is the master permission
+        if (!player.hasPermission("moderex.staff")) {
+            return false;
+        }
+
+        // Check for all-alerts permission
+        if (player.hasPermission("moderex.alerts.*")) {
+            return true;
+        }
+
+        // Check specific permission
+        return player.hasPermission(type.getPermission());
     }
 
     private void broadcastToWebPanel(String playerName, UUID playerUuid, AlertType type, String title, String message) {
         if (plugin.getWebPanelServer() == null) return;
 
-        JsonObject json = new JsonObject();
-        json.addProperty("type", "CUSTOM_ALERT");
-
-        JsonObject data = new JsonObject();
-        data.addProperty("alertType", type.name().toLowerCase());
-        data.addProperty("category", type.getSettingKey());
-        data.addProperty("playerName", playerName);
-        if (playerUuid != null) {
-            data.addProperty("playerUuid", playerUuid.toString());
-        }
-        data.addProperty("title", title);
-        data.addProperty("message", message);
-        data.addProperty("timestamp", System.currentTimeMillis());
-
-        json.add("data", data);
+        plugin.logDebug("[AlertManager] Broadcasting to web panel: " + type.name() + " - " + playerName);
 
         // Use the HybridPanelServer's broadcast method
         plugin.getWebPanelServer().broadcastCustomAlert(type.getSettingKey(), playerName, playerUuid, title, message);
