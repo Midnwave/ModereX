@@ -14,6 +14,33 @@
 
 window.MX_CHANGELOGS = [
   {
+    build: 196,
+    version: "2.0dev-196",
+    date: "2026-01-29",
+    title: "Automod Rules Stress Test",
+    sections: [
+      {
+        type: "new",
+        title: "New Features",
+        items: [
+          "**Automod Stress Test** - Creates real automod rules via API (synced to database)",
+          "**200+ Triggers Per Rule** - Each stress test rule contains 200 unique filter phrases",
+          "**35 Exclusions Per Rule** - Each rule also includes 35 exclusion phrases",
+          "**Cleanup Button** - One-click deletion of all stress test rules"
+        ]
+      },
+      {
+        type: "technical",
+        title: "Technical Changes",
+        items: [
+          "Stress test uses CREATE_AUTOMOD_RULE WebSocket message for database persistence",
+          "Rules are created with unique timestamps to avoid conflicts",
+          "100ms delay between rule creations to prevent server overload"
+        ]
+      }
+    ]
+  },
+  {
     build: 195,
     version: "2.0dev-195",
     date: "2026-01-29",

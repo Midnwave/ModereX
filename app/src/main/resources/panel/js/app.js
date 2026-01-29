@@ -6567,25 +6567,134 @@
     toast('ok', 'Complete', `Added ${count} test staff to local display.`);
   }
 
-  // Automod alerts are local-only (temporary events)
-  function startSpoofAutomod() {
-    toast('info', 'Info', 'Automod stress testing only affects local UI display.');
-    const count = Math.min(5000, Math.max(1, parseInt(document.getElementById('spoofAutomodCount')?.value || '200', 10)));
-    const triggers = ['Spam detected', 'Caps lock', 'Advertising', 'Swearing', 'Repeating messages'];
+  // Automod Rules Stress Test - Creates actual rules via API
+  let automodStressTestActive = false;
+  let automodStressTestCreated = [];
+
+  function generateUniqueWords(count, prefix) {
+    const words = [];
+    const adjectives = ['bad', 'toxic', 'spam', 'evil', 'mean', 'rude', 'awful', 'nasty', 'vile', 'crude'];
+    const nouns = ['word', 'phrase', 'term', 'text', 'msg', 'chat', 'speak', 'talk', 'say', 'type'];
+    const suffixes = ['er', 'ing', 'ed', 'ly', 'ish', 'ness', 'ment', 'tion', 'able', 'ful'];
 
     for (let i = 0; i < count; i++) {
-      state.watchAlerts.push({
-        type: 'Automod',
-        details: triggers[Math.floor(Math.random() * triggers.length)],
-        playerName: `TestPlayer${Math.floor(Math.random() * 1000)}`,
-        playerUuid: `00000000-0000-0000-0000-${String(Math.floor(Math.random() * 1000)).padStart(12, '0')}`,
-        t: now() - Math.floor(Math.random() * 3600000),
-        _test: true
-      });
+      const adj = adjectives[Math.floor(Math.random() * adjectives.length)];
+      const noun = nouns[Math.floor(Math.random() * nouns.length)];
+      const suffix = suffixes[Math.floor(Math.random() * suffixes.length)];
+      const num = Math.floor(Math.random() * 9999);
+      words.push(`${prefix}_${adj}${noun}${suffix}${num}`);
     }
-    ui.renderDashboard();
-    toast('ok', 'Complete', `Added ${count} test automod alerts to local display.`);
+    return words;
   }
+
+  function generateExclusions(count) {
+    const words = [];
+    const safePrefixes = ['admin', 'mod', 'helper', 'staff', 'owner', 'vip', 'donor', 'member', 'player', 'user'];
+    const safeWords = ['allowed', 'safe', 'ok', 'fine', 'good', 'nice', 'cool', 'great', 'awesome', 'valid'];
+
+    for (let i = 0; i < count; i++) {
+      const prefix = safePrefixes[Math.floor(Math.random() * safePrefixes.length)];
+      const word = safeWords[Math.floor(Math.random() * safeWords.length)];
+      const num = Math.floor(Math.random() * 999);
+      words.push(`${prefix}_${word}_${num}`);
+    }
+    return words;
+  }
+
+  async function startAutomodRulesStressTest() {
+    if (!window.MX?.ws?.isConnected()) {
+      toast('warn', 'Not Connected', 'Must be connected to server for stress testing');
+      return;
+    }
+
+    if (automodStressTestActive) {
+      toast('warn', 'In Progress', 'Stress test already running');
+      return;
+    }
+
+    const ruleCount = Math.min(100, Math.max(1, parseInt(document.getElementById('stressAutomodRuleCount')?.value || '10', 10)));
+    const triggersPerRule = 200;
+    const exclusionsPerRule = 35;
+
+    automodStressTestActive = true;
+    automodStressTestCreated = [];
+
+    const progressEl = document.getElementById('stressAutomodProgress');
+    const fillEl = document.getElementById('stressAutomodFill');
+    const logEl = document.getElementById('stressAutomodLog');
+
+    if (progressEl) progressEl.style.display = 'block';
+    if (fillEl) fillEl.style.width = '0%';
+    if (logEl) logEl.innerHTML = `<div class="stress-log-entry">Creating ${ruleCount} rules with ${triggersPerRule} triggers and ${exclusionsPerRule} exclusions each...</div>`;
+
+    toast('info', 'Stress Test', `Creating ${ruleCount} automod rules...`);
+
+    for (let i = 0; i < ruleCount; i++) {
+      if (!automodStressTestActive) break;
+
+      const ruleName = `StressTest_Rule_${Date.now()}_${i}`;
+      const triggers = generateUniqueWords(triggersPerRule, `trig${i}`);
+      const exclusions = generateExclusions(exclusionsPerRule);
+
+      // Create rule via API
+      window.MX.ws.send('CREATE_AUTOMOD_RULE', {
+        name: ruleName,
+        exactMatch: false,
+        blacklistedWords: triggers,
+        exclusionWords: exclusions,
+        _stressTest: true
+      });
+
+      automodStressTestCreated.push(ruleName);
+
+      // Update progress
+      const progress = Math.round(((i + 1) / ruleCount) * 100);
+      if (fillEl) fillEl.style.width = `${progress}%`;
+      if (logEl) logEl.innerHTML = `<div class="stress-log-entry">Created rule ${i + 1}/${ruleCount}: ${ruleName}</div>`;
+
+      // Small delay to prevent overwhelming the server
+      await new Promise(resolve => setTimeout(resolve, 100));
+    }
+
+    automodStressTestActive = false;
+    if (fillEl) fillEl.style.width = '100%';
+    if (logEl) logEl.innerHTML += `<div class="stress-log-entry" style="color:var(--ok)">Complete! Created ${automodStressTestCreated.length} rules.</div>`;
+    toast('ok', 'Complete', `Created ${automodStressTestCreated.length} automod rules with ${triggersPerRule * automodStressTestCreated.length} total triggers.`);
+  }
+
+  function cleanupAutomodStressTest() {
+    if (!window.MX?.ws?.isConnected()) {
+      toast('warn', 'Not Connected', 'Must be connected to server');
+      return;
+    }
+
+    // Find all stress test rules in state
+    const stressRules = state.rules.filter(r => r.name && r.name.startsWith('StressTest_Rule_'));
+
+    if (stressRules.length === 0) {
+      toast('info', 'No Rules', 'No stress test rules found to delete.');
+      return;
+    }
+
+    if (!confirm(`This will delete ${stressRules.length} stress test rules. Continue?`)) {
+      return;
+    }
+
+    const logEl = document.getElementById('stressAutomodLog');
+    if (logEl) logEl.innerHTML = `<div class="stress-log-entry">Deleting ${stressRules.length} stress test rules...</div>`;
+
+    let deleted = 0;
+    stressRules.forEach(rule => {
+      window.MX.ws.send('DELETE_AUTOMOD_RULE', { id: rule.id });
+      deleted++;
+    });
+
+    toast('ok', 'Cleanup', `Sent delete requests for ${deleted} stress test rules.`);
+    automodStressTestCreated = [];
+  }
+
+  window.startAutomodRulesStressTest = startAutomodRulesStressTest;
+  window.cleanupAutomodStressTest = cleanupAutomodStressTest;
 
   // Clear local test data (for staff and automod which are local-only)
   function clearLocalTestData() {
@@ -6613,7 +6722,6 @@
   window.startSpoofPlayers = startSpoofPlayers;
   window.startSpoofStaff = startSpoofStaff;
   window.startSpoofPunishments = startSpoofPunishments;
-  window.startSpoofAutomod = startSpoofAutomod;
   window.startCreateTestPlayers = startCreateTestPlayers;
   window.startCreateTestPunishments = startCreateTestPunishments;
   window.stopAllStressTests = stopAllStressTests;

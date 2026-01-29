@@ -1703,24 +1703,25 @@
                   </div>
                 </div>
 
-                <!-- Spoof Automod -->
-                <div class="stress-test-card" style="padding:16px;background:rgba(0,0,0,0.2);border-radius:var(--radius);border:1px solid var(--border)">
+                <!-- Automod Rules Stress Test -->
+                <div class="stress-test-card" id="devStressAutomod" style="padding:16px;background:rgba(0,0,0,0.2);border-radius:var(--radius);border:1px solid var(--border)">
                   <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px">
                     <div style="width:36px;height:36px;background:rgba(16,185,129,0.15);border-radius:var(--radius);display:flex;align-items:center;justify-content:center">
                       <i class="fa-solid fa-robot" style="color:#10b981"></i>
                     </div>
                     <div>
-                      <div style="font-weight:600">Spoof Automod</div>
-                      <div style="font-size:11px;color:var(--text-secondary)">Random automod triggers</div>
+                      <div style="font-weight:600">Automod Rules Stress Test</div>
+                      <div style="font-size:11px;color:var(--text-secondary)">Creates real rules via API (200+ triggers, 30+ exclusions each)</div>
                     </div>
                   </div>
                   <div style="display:flex;gap:8px;align-items:center;margin-bottom:10px">
-                    <input type="number" class="input" id="spoofAutomodCount" placeholder="Count" value="200" min="1" max="5000" style="flex:1">
-                    <button class="btn primary" onclick="startSpoofAutomod()"><i class="fa-solid fa-play"></i> Start</button>
+                    <input type="number" class="input" id="stressAutomodRuleCount" placeholder="Rules" value="10" min="1" max="100" style="flex:1">
+                    <button class="btn primary" onclick="startAutomodRulesStressTest()"><i class="fa-solid fa-play"></i> Create</button>
+                    <button class="btn bad" onclick="cleanupAutomodStressTest()"><i class="fa-solid fa-trash"></i> Cleanup</button>
                   </div>
-                  <div class="stress-progress" id="spoofAutomodProgress" style="display:none">
-                    <div class="stress-bar"><div class="stress-fill" id="spoofAutomodFill"></div></div>
-                    <div class="stress-log" id="spoofAutomodLog"></div>
+                  <div class="stress-progress" id="stressAutomodProgress" style="display:none">
+                    <div class="stress-bar"><div class="stress-fill" id="stressAutomodFill"></div></div>
+                    <div class="stress-log" id="stressAutomodLog"></div>
                   </div>
                 </div>
 
