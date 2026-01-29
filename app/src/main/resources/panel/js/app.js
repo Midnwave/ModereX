@@ -5237,26 +5237,28 @@
         line.classList.add('complete');
       }
 
-      // Wait 0.75 seconds then fade out
+      // Wait for completion flash animation (0.5s), then trigger fade
       loadingLineFadeTimeout = setTimeout(() => {
         const { line, fill } = getLoadingElements();
         if (line) {
           line.classList.add('fade-out');
-          // After fade animation (0.3s), reset everything
+          // After fade animation (0.4s delay + 0.6s fade = 1s total), reset everything
           setTimeout(() => {
             line.classList.remove('active', 'fade-out', 'complete');
             // Disable transition before resetting width to prevent slide-back animation
             if (fill) {
               fill.classList.add('no-transition');
               fill.style.width = '0%';
+              fill.style.height = '';
+              fill.style.top = '';
               // Force reflow then remove no-transition class
               fill.offsetHeight; // Trigger reflow
               fill.classList.remove('no-transition');
             }
             currentProgress = 0;
-          }, 300);
+          }, 1000);
         }
-      }, 750);
+      }, 500);
 
       if (loadingLineTimeout) {
         clearTimeout(loadingLineTimeout);

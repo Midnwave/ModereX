@@ -14,6 +14,40 @@
 
 window.MX_CHANGELOGS = [
   {
+    build: 194,
+    version: "2.0dev-194",
+    date: "2026-01-29",
+    title: "HSL Theming & Loading Bar Flash Effect",
+    sections: [
+      {
+        type: "new",
+        title: "New Features",
+        items: [
+          "**Full HSL Theming** - Entire UI now shifts with your chosen theme color (backgrounds, borders, muted text)",
+          "**Loading Bar Flash** - Completion now shows a bright flash effect before fading out"
+        ]
+      },
+      {
+        type: "improved",
+        title: "Improvements",
+        items: [
+          "**Theme Color Consistency** - Picking green/red/purple now tints the entire panel, not just primary elements",
+          "**Loading Feedback** - More noticeable completion animation with glow pulse"
+        ]
+      },
+      {
+        type: "technical",
+        title: "Technical Changes",
+        items: [
+          "Added `--theme-h` CSS variable that controls hue for all derived colors",
+          "Backgrounds, borders, surfaces, glass effects now use `hsl(var(--theme-h), ...)` formulas",
+          "Loading bar completion animation with keyframe flash effect",
+          "Extended fade-out timing for better visibility"
+        ]
+      }
+    ]
+  },
+  {
     build: 192,
     version: "2.0dev-192",
     date: "2026-01-29",
