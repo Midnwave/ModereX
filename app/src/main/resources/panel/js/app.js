@@ -7978,6 +7978,10 @@
     }
 
     function draw() {
+      if (window._bgAnimationPaused) {
+        requestAnimationFrame(draw);
+        return;
+      }
       ctx.clearRect(0, 0, w, h);
       const theme = getThemeRGB();
 
@@ -9629,6 +9633,15 @@
         window.devtoolsLog('PERMISSIONS', 'WARNING: No permissions array in USER_SETTINGS_DATA', 'warn');
       }
 
+      // Apply theme/color/pattern from server if present
+      if (data.theme || data.themeColor || data.backgroundPattern) {
+        if (!state.userSettings) state.userSettings = {};
+        if (data.theme) state.userSettings.theme = data.theme;
+        if (data.themeColor) state.userSettings.themeColor = data.themeColor;
+        if (data.backgroundPattern) state.userSettings.backgroundPattern = data.backgroundPattern;
+        applyThemeFromState();
+      }
+
       // Update all UI elements that depend on these settings
       updateSettingsUI();
       ui.renderWatchToastsToggle();
@@ -11222,6 +11235,47 @@
   }
 
   /**
+   * Set the panel theme (default, apple-light, apple-dark, operagx, oldschool)
+   */
+  function setTheme(theme) {
+    const root = document.documentElement;
+
+    // Apply or remove data-theme attribute
+    if (theme && theme !== 'default') {
+      root.setAttribute('data-theme', theme);
+    } else {
+      root.removeAttribute('data-theme');
+      theme = 'default';
+    }
+
+    // Update theme card active states
+    document.querySelectorAll('.theme-card').forEach(card => {
+      card.classList.toggle('active', card.dataset.themeId === theme);
+    });
+
+    // Pause/resume canvas animation for themes that hide it
+    const hidesBg = ['apple-light', 'oldschool'].includes(theme);
+    window._bgAnimationPaused = hidesBg;
+
+    // Save to state
+    if (!state.userSettings) state.userSettings = {};
+    state.userSettings.theme = theme;
+    saveState();
+
+    // Sync to server
+    const ws = window.MX?.ws;
+    if (ws && ws.isConnected()) {
+      ws.send('UPDATE_USER_SETTINGS', { theme: theme });
+    }
+
+    // Re-apply theme color to ensure accent works within new theme
+    const color = state.userSettings?.themeColor || '#2d7aed';
+    setThemeColor(color);
+
+    window.MX.sounds?.click();
+  }
+
+  /**
    * Set the background pattern
    */
   function setBackgroundPattern(pattern) {
@@ -11424,11 +11478,25 @@
    * Apply theme settings from saved state on page load
    */
   function applyThemeFromState() {
+    const theme = state.userSettings?.theme || 'default';
     const color = state.userSettings?.themeColor || '#2d7aed';
     const pattern = state.userSettings?.backgroundPattern || 'aurora';
 
-    // Apply color without triggering save
+    // Apply theme without triggering save
     const root = document.documentElement;
+    if (theme && theme !== 'default') {
+      root.setAttribute('data-theme', theme);
+    } else {
+      root.removeAttribute('data-theme');
+    }
+
+    // Update theme card active states
+    document.querySelectorAll('.theme-card').forEach(card => {
+      card.classList.toggle('active', card.dataset.themeId === (theme || 'default'));
+    });
+
+    // Pause canvas for themes that hide backgrounds
+    window._bgAnimationPaused = ['apple-light', 'oldschool'].includes(theme);
     const hsl = hexToHSL(color);
     const colorLight = hslToHex(hsl.h, Math.min(hsl.s + 15, 100), Math.min(hsl.l + 15, 85));
     const colorDark = hslToHex(hsl.h, hsl.s, Math.max(hsl.l - 15, 15));
@@ -11749,6 +11817,7 @@
   window.toggleDebugMode = toggleDebugMode;
   window.toggleWatchlistAlerts = toggleWatchlistAlerts;
   window.setVolume = setVolume;
+  window.setTheme = setTheme;
   window.setThemeColor = setThemeColor;
   window.setBackgroundPattern = setBackgroundPattern;
   window.applyThemeFromState = applyThemeFromState;
