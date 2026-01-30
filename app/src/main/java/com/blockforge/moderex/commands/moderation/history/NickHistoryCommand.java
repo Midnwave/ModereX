@@ -61,7 +61,7 @@ public class NickHistoryCommand extends BaseCommand {
 
         // Open GUI if requested and sender is a player
         if (useGui && sender instanceof Player player) {
-            plugin.getGuiManager().openGui(player, new NickHistoryGui(plugin, target));
+            plugin.getGuiManager().open(player, new NickHistoryGui(plugin, target));
             return;
         }
 

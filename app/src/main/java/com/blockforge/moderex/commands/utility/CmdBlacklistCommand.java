@@ -12,12 +12,29 @@ import org.bukkit.entity.Player;
 import java.sql.SQLException;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Set;
 import java.util.UUID;
 
 public class CmdBlacklistCommand extends BaseCommand {
 
+    // ModereX commands that should be protected when config option is false
+    private static final Set<String> MODEREX_COMMANDS = Set.of(
+        "moderex", "mx", "ban", "mute", "warn", "kick", "tempban", "tempmute",
+        "ipban", "ipmute", "unban", "unmute", "unwarn", "check", "checkban",
+        "checkmute", "checkwarn", "history", "staffhistory", "warnings",
+        "banlist", "mutelist", "warnlist", "viewpunishment", "dupeip",
+        "iphistory", "ipreport", "geoip", "lastuuid", "namehistory",
+        "automodhistory", "amhistory", "automodlog", "nickhistory",
+        "nicknamehistory", "nicklog", "lockdown", "prunehistory",
+        "staffrollback", "clearwarnings", "punish", "modlog", "staffchat",
+        "sc", "staffhelp", "watchlist", "wl", "vanish", "v", "cmdblacklist",
+        "cmdunblacklist", "cmdhistory", "log", "seen", "disguise", "disguisename",
+        "disguiseskin", "rules", "replay", "mban", "munban", "mmute", "munmute",
+        "mwarn", "munwarn", "mkick"
+    );
+
     public CmdBlacklistCommand(ModereX plugin) {
-        super(plugin, "moderex.command.cmdblacklist", false);
+        super(plugin, "moderex.cmdblacklist", false);
     }
 
     @Override
@@ -38,9 +55,25 @@ public class CmdBlacklistCommand extends BaseCommand {
         UUID targetUuid = target.getUniqueId();
         String displayName = target.getName() != null ? target.getName() : targetName;
 
-        String command = args[1].toLowerCase();
-        if (command.startsWith("/")) {
-            command = command.substring(1);
+        String cmdArg = args[1].toLowerCase();
+        if (cmdArg.startsWith("/")) {
+            cmdArg = cmdArg.substring(1);
+        }
+        final String command = cmdArg;
+
+        // Check if command is protected (core server commands)
+        List<String> protectedCommands = plugin.getConfigManager().getSettings().getCmdBlacklistProtectedCommands();
+        if (protectedCommands.stream().anyMatch(c -> c.equalsIgnoreCase(command))) {
+            sendMessage(sender, "<red>The command <yellow>/" + command + "<red> is a protected system command and cannot be blacklisted.");
+            return;
+        }
+
+        // Check if command is a ModereX command and if that's allowed (OPs bypass this check)
+        boolean isOp = sender.isOp();
+        if (!isOp && MODEREX_COMMANDS.contains(command) && !plugin.getConfigManager().getSettings().isCmdBlacklistAllowModerexCommands()) {
+            sendMessage(sender, "<red>Blacklisting ModereX commands is disabled by server configuration.");
+            sendMessage(sender, "<gray>This restriction is in place to prevent staff from being locked out of moderation tools.");
+            return;
         }
 
         long duration = -1;

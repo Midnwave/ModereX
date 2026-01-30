@@ -51,6 +51,9 @@ public class ActivityLogEntry {
         AUTOMOD_TRIGGER("automod_trigger", "a:automod"),
         ANTICHEAT_ALERT("anticheat_alert", "a:anticheat"),
 
+        // Watchlist Alert (when watched players perform actions)
+        WATCHLIST_ALERT("watchlist_alert", "w:alert"),
+
         // Staff Action Types (performed by staff)
         STAFF_PUNISHMENT("staff_punishment", "s:punish"),
         STAFF_PARDON("staff_pardon", "s:pardon"),
@@ -234,6 +237,8 @@ public class ActivityLogEntry {
             // Automod & Anticheat
             case AUTOMOD_TRIGGER -> "Automod";
             case ANTICHEAT_ALERT -> "Anticheat";
+            // Watchlist
+            case WATCHLIST_ALERT -> "Watchlist";
             // Staff Actions
             case STAFF_PUNISHMENT -> "Punished";
             case STAFF_PARDON -> "Pardoned";
@@ -286,6 +291,8 @@ public class ActivityLogEntry {
             // Automod & Anticheat
             case AUTOMOD_TRIGGER -> "<#ff6b6b>";
             case ANTICHEAT_ALERT -> "<#ff4757>";
+            // Watchlist
+            case WATCHLIST_ALERT -> "<gold>";
             // Staff Actions
             case STAFF_PUNISHMENT -> "<dark_red>";
             case STAFF_PARDON -> "<green>";

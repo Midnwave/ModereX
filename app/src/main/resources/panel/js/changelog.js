@@ -32,7 +32,10 @@ window.MX_CHANGELOGS = [
           "**Live VL Updates** - Anticheat alerts update VL in real-time without extra sounds",
           "**Clickable Toast** - Rule creation toast now opens editor when clicked",
           "**Permission-Gated UI** - Sections locked/disabled when user lacks permission",
-          "**Essentials Integration** - Integrations tab shows Essentials status and nickname features"
+          "**Essentials Integration** - Integrations tab shows Essentials status and nickname features",
+          "**Database Debug** - Developer Tools now has database inspection section with table stats",
+          "**Command Blacklist Config** - Config option to prevent blacklisting ModereX commands",
+          "**Watchlist Alert Logging** - Watchlist alerts now persist to database (WATCHLIST_ALERT type)"
         ]
       },
       {

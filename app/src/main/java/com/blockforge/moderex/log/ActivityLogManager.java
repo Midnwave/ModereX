@@ -588,8 +588,8 @@ public class ActivityLogManager {
             case PUNISHMENT_BAN, PUNISHMENT_MUTE, PUNISHMENT_WARN, PUNISHMENT_KICK,
                  PUNISHMENT_IPBAN, PUNISHMENT_IPMUTE,
                  PUNISHMENT_UNBAN, PUNISHMENT_UNMUTE, PUNISHMENT_UNWARN -> true;
-            // Automod and Anticheat - always log
-            case AUTOMOD_TRIGGER, ANTICHEAT_ALERT -> true;
+            // Automod, Anticheat, and Watchlist alerts - always log
+            case AUTOMOD_TRIGGER, ANTICHEAT_ALERT, WATCHLIST_ALERT -> true;
             // Staff actions - always log
             case STAFF_PUNISHMENT, STAFF_PARDON,
                  STAFF_WATCHLIST_ADD, STAFF_WATCHLIST_REMOVE, STAFF_WATCHLIST_NOTE,

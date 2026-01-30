@@ -155,21 +155,21 @@ public class WatchlistManager {
         if (!isWatched(player.getUniqueId())) return;
 
         alertStaffJoin(player.getName());
-        alertWebPanel("Player Join", player.getName(), "joined the server");
+        alertWebPanel("Player Join", player.getUniqueId(), player.getName(), "joined the server");
     }
 
     public void onPlayerQuit(Player player) {
         if (!isWatched(player.getUniqueId())) return;
 
         alertStaffQuit(player.getName());
-        alertWebPanel("Player Quit", player.getName(), "left the server");
+        alertWebPanel("Player Quit", player.getUniqueId(), player.getName(), "left the server");
     }
 
     public void onCommand(Player player, String command) {
         if (!isWatched(player.getUniqueId())) return;
 
         alertStaff("ran command: " + command, player.getName());
-        alertWebPanel("Command", player.getName(), "ran: " + command);
+        alertWebPanel("Command", player.getUniqueId(), player.getName(), "ran: " + command);
     }
 
     public void onSignPlace(Player player, String[] lines) {
@@ -177,14 +177,14 @@ public class WatchlistManager {
 
         String signText = String.join(" | ", lines);
         alertStaff("placed sign: " + signText, player.getName());
-        alertWebPanel("Sign Place", player.getName(), "placed sign: " + signText);
+        alertWebPanel("Sign Place", player.getUniqueId(), player.getName(), "placed sign: " + signText);
     }
 
     public void onAutomod(Player player, String rule, String message) {
         if (!isWatched(player.getUniqueId())) return;
 
         alertStaff("triggered automod (" + rule + "): " + message, player.getName());
-        alertWebPanel("Automod", player.getName(), "triggered " + rule);
+        alertWebPanel("Automod", player.getUniqueId(), player.getName(), "triggered " + rule);
     }
 
     public void onPunishment(Punishment punishment) {
@@ -193,14 +193,14 @@ public class WatchlistManager {
         String action = "was " + punishment.getType().getPastTense() + " by " +
                 punishment.getStaffName() + " - " + punishment.getReason();
         alertStaff(action, punishment.getPlayerName());
-        alertWebPanel("Punishment", punishment.getPlayerName(), action);
+        alertWebPanel("Punishment", punishment.getPlayerUuid(), punishment.getPlayerName(), action);
     }
 
     public void onAnticheatAlert(Player player, String alertDetails) {
         if (!isWatched(player.getUniqueId())) return;
 
         alertStaff("triggered anticheat: " + alertDetails, player.getName());
-        alertWebPanel("Anticheat", player.getName(), alertDetails);
+        alertWebPanel("Anticheat", player.getUniqueId(), player.getName(), alertDetails);
     }
 
     private void alertStaff(String action, String playerName) {
@@ -260,9 +260,19 @@ public class WatchlistManager {
         }
     }
 
-    private void alertWebPanel(String type, String playerName, String details) {
+    private void alertWebPanel(String type, UUID playerUuid, String playerName, String details) {
+        // Log to database for persistence
+        plugin.getActivityLogManager().log(
+            playerUuid,
+            playerName,
+            com.blockforge.moderex.log.ActivityLogEntry.ActivityType.WATCHLIST_ALERT,
+            details,
+            type // Store alert type in the extra field
+        );
+
+        // Broadcast to web panel
         if (plugin.getWebPanelServer() != null) {
-            plugin.getWebPanelServer().broadcastWatchlistAlert(type, playerName, details);
+            plugin.getWebPanelServer().broadcastWatchlistAlert(type, playerName, details, playerUuid.toString());
         }
     }
 }

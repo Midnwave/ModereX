@@ -265,6 +265,10 @@ public class ConfigManager {
         settings.setRetentionStaffActions(config.getLong("activity-log.retention.staff-actions", 90));
         settings.setRetentionWatchlist(config.getLong("activity-log.retention.watchlist", 90));
 
+        // Command blacklist settings
+        settings.setCmdBlacklistAllowModerexCommands(config.getBoolean("command-blacklist.allow-moderex-commands", false));
+        settings.setCmdBlacklistProtectedCommands(config.getStringList("command-blacklist.protected-commands"));
+
         settings.setConfigVersion(getCurrentConfigVersion());
     }
 

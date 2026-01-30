@@ -495,6 +495,24 @@ disguise:
   # Example: moderex.disguise.rank.* allows disguising as any rank
 
 # ============================================
+# COMMAND BLACKLIST SETTINGS
+# ============================================
+command-blacklist:
+  # Whether staff can blacklist other players from using ModereX commands
+  # This is disabled by default for safety - being able to blacklist an admin
+  # from using /ban or /unban could be problematic
+  allow-moderex-commands: false
+
+  # Commands that can never be blacklisted (core server commands)
+  # These are always protected regardless of the above setting
+  protected-commands:
+    - 'stop'
+    - 'reload'
+    - 'op'
+    - 'deop'
+    - 'whitelist'
+
+# ============================================
 # WARNING SETTINGS
 # ============================================
 warnings:
@@ -604,7 +622,7 @@ activity-log:
 # CONFIGURATION VERSION
 # ============================================
 # DO NOT MODIFY - Used for automatic config migration
-config-version: 11
+config-version: 12
 
 
 

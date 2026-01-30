@@ -2121,7 +2121,37 @@
   window.renderCmdBlacklist = function() {
     const container = document.getElementById('cmdblList');
     const countBadge = document.getElementById('cmdblCount');
+    const addBtn = document.querySelector('#page-cmdblacklist .btn.primary');
     if (!container) return;
+
+    // Check permission for viewing command blacklist
+    const hasCmdBlacklistPerm = hasPermission('moderex.cmdblacklist') || hasPermission('moderex.cmdunblacklist');
+
+    if (!hasCmdBlacklistPerm) {
+      container.innerHTML = `
+        <div class="permission-denied" style="text-align:center;padding:60px;color:var(--text-secondary)">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:64px;height:64px;opacity:0.3;margin-bottom:16px">
+            <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
+            <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
+          </svg>
+          <h3 style="margin:0 0 8px 0;color:var(--text-primary)">Permission Required</h3>
+          <p style="margin:0;max-width:400px">You need the <code>moderex.cmdblacklist</code> or <code>moderex.cmdunblacklist</code> permission to view command blacklist entries.</p>
+        </div>
+      `;
+      if (countBadge) countBadge.textContent = 'No access';
+      if (addBtn) {
+        addBtn.disabled = true;
+        addBtn.title = 'No permission';
+      }
+      return;
+    }
+
+    // Re-enable add button if permission is granted
+    if (addBtn) {
+      const canAdd = hasPermission('moderex.cmdblacklist');
+      addBtn.disabled = !canAdd;
+      addBtn.title = canAdd ? '' : 'Requires moderex.cmdblacklist permission';
+    }
 
     const search = (document.getElementById('cmdblSearch')?.value || '').toLowerCase();
     const statusFilter = document.getElementById('cmdblStatusFilter')?.value || 'all';
@@ -2186,11 +2216,21 @@
   };
 
   window.openCmdBlacklistModal = function() {
+    // Check permission
+    if (!hasPermission('moderex.cmdblacklist')) {
+      toast('error', 'No Permission', 'You need the moderex.cmdblacklist permission to add command blacklist entries.');
+      return;
+    }
     // TODO: Implement add blacklist modal
     toast('info', 'Coming Soon', 'Command blacklist management will be available soon. Use /cmdblacklist in-game.');
   };
 
   window.removeCmdBlacklist = function(id) {
+    // Check permission
+    if (!hasPermission('moderex.cmdunblacklist')) {
+      toast('error', 'No Permission', 'You need the moderex.cmdunblacklist permission to remove command blacklist entries.');
+      return;
+    }
     // TODO: Implement remove via WebSocket
     toast('info', 'Coming Soon', 'Command blacklist removal will be available soon. Use /cmdunblacklist in-game.');
   };
@@ -4439,6 +4479,14 @@
       ui.renderDashboard();
       // Also re-render players if on that page to show updated watchlist status
       if (state.currentPage === 'players') ui.renderPlayers();
+    });
+
+    // Handle database debug responses
+    ws.on('DATABASE_DEBUG_RESPONSE', (data) => {
+      if (!isLiveMode) return;
+      if (window.handleDatabaseDebugResponse) {
+        window.handleDatabaseDebugResponse(data);
+      }
     });
 
     // Handle automod rules
@@ -7219,6 +7267,165 @@
 
   window.debugCheckPermissions = debugCheckPermissions;
   window.debugRefreshPermissions = debugRefreshPermissions;
+
+  // ===== DATABASE DEBUG =====
+  function showDatabaseOutput(html) {
+    const outputEl = document.getElementById('debugDatabaseOutput');
+    if (outputEl) {
+      outputEl.style.display = 'block';
+      outputEl.innerHTML = html;
+    }
+  }
+
+  function debugLoadDatabaseStats() {
+    showDatabaseOutput('<div style="color:#06b6d4">Loading database statistics...</div>');
+
+    // Request database stats from server
+    if (window.MX?.ws?.send) {
+      window.MX.ws.send('GET_DATABASE_DEBUG', { type: 'stats' });
+    } else {
+      showDatabaseOutput('<div style="color:#ef4444">WebSocket not connected!</div>');
+    }
+  }
+
+  function debugLoadAutomodRules() {
+    showDatabaseOutput('<div style="color:#06b6d4">Loading automod rules...</div>');
+
+    // Use existing state data
+    const rules = state.rules || [];
+    let html = `<div style="margin-bottom:8px;color:#22c55e;font-weight:600">Automod Rules (${rules.length}):</div>`;
+
+    if (rules.length === 0) {
+      html += '<div style="color:#f59e0b;margin-left:12px">No automod rules found</div>';
+    } else {
+      rules.forEach((rule, i) => {
+        html += `<div style="margin-left:12px;padding:4px 0;border-bottom:1px solid rgba(255,255,255,0.1)">`;
+        html += `<span style="color:#a78bfa">[${i + 1}]</span> `;
+        html += `<span style="color:${rule.enabled ? '#22c55e' : '#ef4444'}">${rule.enabled ? '✓' : '✗'}</span> `;
+        html += `<span style="color:#fff">${escapeHtml(rule.name || 'Unnamed')}</span> `;
+        html += `<span style="color:#64748b">(${rule.type || 'unknown'})</span>`;
+        html += `</div>`;
+      });
+    }
+    showDatabaseOutput(html);
+  }
+
+  function debugLoadWatchlist() {
+    showDatabaseOutput('<div style="color:#06b6d4">Loading watchlist...</div>');
+
+    // Request watchlist data from server
+    if (window.MX?.ws?.send) {
+      window.MX.ws.send('GET_DATABASE_DEBUG', { type: 'watchlist' });
+    } else {
+      showDatabaseOutput('<div style="color:#ef4444">WebSocket not connected!</div>');
+    }
+  }
+
+  function debugLoadPunishments() {
+    showDatabaseOutput('<div style="color:#06b6d4">Loading punishments...</div>');
+
+    const punishments = state.punishments || [];
+    let html = `<div style="margin-bottom:8px;color:#22c55e;font-weight:600">Punishments (${punishments.length} loaded):</div>`;
+
+    const recent = punishments.slice(0, 20);
+    if (recent.length === 0) {
+      html += '<div style="color:#f59e0b;margin-left:12px">No punishments found</div>';
+    } else {
+      recent.forEach((p, i) => {
+        html += `<div style="margin-left:12px;padding:4px 0;border-bottom:1px solid rgba(255,255,255,0.1)">`;
+        html += `<span style="color:#a78bfa">[${i + 1}]</span> `;
+        const typeColors = { BAN: '#ef4444', MUTE: '#f59e0b', WARN: '#eab308', KICK: '#3b82f6' };
+        html += `<span style="color:${typeColors[p.type] || '#64748b'}">${p.type}</span> `;
+        html += `<span style="color:#fff">${escapeHtml(p.targetName || 'Unknown')}</span> `;
+        html += `<span style="color:#64748b">by ${escapeHtml(p.staffName || 'Console')}</span>`;
+        html += `</div>`;
+      });
+      if (punishments.length > 20) {
+        html += `<div style="color:#64748b;margin-top:8px;margin-left:12px">...and ${punishments.length - 20} more</div>`;
+      }
+    }
+    showDatabaseOutput(html);
+  }
+
+  function debugLoadCmdBlacklist() {
+    showDatabaseOutput('<div style="color:#06b6d4">Loading command blacklist...</div>');
+
+    const blacklist = state.cmdBlacklist || [];
+    let html = `<div style="margin-bottom:8px;color:#22c55e;font-weight:600">Command Blacklist (${blacklist.length}):</div>`;
+
+    if (blacklist.length === 0) {
+      html += '<div style="color:#f59e0b;margin-left:12px">No command blacklist entries found</div>';
+    } else {
+      blacklist.forEach((entry, i) => {
+        const isActive = entry.expiresAt === -1 || entry.expiresAt > Date.now();
+        html += `<div style="margin-left:12px;padding:4px 0;border-bottom:1px solid rgba(255,255,255,0.1)">`;
+        html += `<span style="color:#a78bfa">[${i + 1}]</span> `;
+        html += `<span style="color:${isActive ? '#ef4444' : '#64748b'}">${isActive ? '⬤' : '○'}</span> `;
+        html += `<span style="color:#fff">${escapeHtml(entry.playerName || 'Unknown')}</span> `;
+        html += `<span style="color:#8b5cf6">/${escapeHtml(entry.command || 'unknown')}</span>`;
+        html += `</div>`;
+      });
+    }
+    showDatabaseOutput(html);
+  }
+
+  function debugLoadActivityLogs() {
+    showDatabaseOutput('<div style="color:#06b6d4">Loading activity logs summary...</div>');
+
+    // Request activity log stats from server
+    if (window.MX?.ws?.send) {
+      window.MX.ws.send('GET_DATABASE_DEBUG', { type: 'activity_logs' });
+    } else {
+      showDatabaseOutput('<div style="color:#ef4444">WebSocket not connected!</div>');
+    }
+  }
+
+  // Handle database debug responses
+  window.handleDatabaseDebugResponse = function(data) {
+    if (data.type === 'stats') {
+      let html = '<div style="margin-bottom:12px;color:#22c55e;font-weight:600">Database Statistics:</div>';
+      html += `<div style="margin-left:12px"><span style="color:#a78bfa">Database Size:</span> ${data.size || 'Unknown'}</div>`;
+      html += `<div style="margin-left:12px"><span style="color:#a78bfa">Type:</span> ${data.dbType || 'SQLite'}</div>`;
+      html += '<div style="margin-top:12px;margin-bottom:8px;color:#22c55e;font-weight:600">Table Row Counts:</div>';
+      if (data.tables) {
+        Object.entries(data.tables).forEach(([table, count]) => {
+          html += `<div style="margin-left:12px"><span style="color:#64748b">${escapeHtml(table)}:</span> <span style="color:#fff">${count.toLocaleString()}</span></div>`;
+        });
+      }
+      showDatabaseOutput(html);
+    } else if (data.type === 'watchlist') {
+      let html = `<div style="margin-bottom:8px;color:#22c55e;font-weight:600">Watchlist (${data.entries?.length || 0}):</div>`;
+      if (!data.entries || data.entries.length === 0) {
+        html += '<div style="color:#f59e0b;margin-left:12px">No watchlist entries found</div>';
+      } else {
+        data.entries.forEach((entry, i) => {
+          html += `<div style="margin-left:12px;padding:4px 0;border-bottom:1px solid rgba(255,255,255,0.1)">`;
+          html += `<span style="color:#a78bfa">[${i + 1}]</span> `;
+          html += `<span style="color:#fff">${escapeHtml(entry.playerName || 'Unknown')}</span> `;
+          html += `<span style="color:#64748b">(${entry.uuid?.substring(0, 8) || '?'})</span>`;
+          if (entry.reason) html += ` <span style="color:#f59e0b">- ${escapeHtml(entry.reason)}</span>`;
+          html += `</div>`;
+        });
+      }
+      showDatabaseOutput(html);
+    } else if (data.type === 'activity_logs') {
+      let html = '<div style="margin-bottom:12px;color:#22c55e;font-weight:600">Activity Log Summary:</div>';
+      if (data.counts) {
+        Object.entries(data.counts).forEach(([type, count]) => {
+          html += `<div style="margin-left:12px"><span style="color:#64748b">${escapeHtml(type)}:</span> <span style="color:#fff">${count.toLocaleString()}</span></div>`;
+        });
+      }
+      html += `<div style="margin-top:8px;margin-left:12px;color:#64748b">Total: ${data.total?.toLocaleString() || 0} entries</div>`;
+      showDatabaseOutput(html);
+    }
+  };
+
+  window.debugLoadDatabaseStats = debugLoadDatabaseStats;
+  window.debugLoadAutomodRules = debugLoadAutomodRules;
+  window.debugLoadWatchlist = debugLoadWatchlist;
+  window.debugLoadPunishments = debugLoadPunishments;
+  window.debugLoadCmdBlacklist = debugLoadCmdBlacklist;
+  window.debugLoadActivityLogs = debugLoadActivityLogs;
 
   // ===== TOKEN STRESS TEST =====
   function startTokenStressTest() {

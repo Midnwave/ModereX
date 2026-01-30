@@ -1439,6 +1439,7 @@ public class HybridPanelServer {
             case "DEV_STRESS_CREATE_PUNISHMENTS" -> handleDevStressCreatePunishments(conn, data);
             case "DEV_STRESS_CLEANUP" -> handleDevStressCleanup(conn);
             case "DEV_STRESS_STOP" -> handleDevStressStop(conn);
+            case "GET_DATABASE_DEBUG" -> sendDatabaseDebug(conn, data);
             default -> sendError(conn, "UNKNOWN_TYPE", "Unknown message type: " + type);
         }
     }
@@ -3650,6 +3651,100 @@ public class HybridPanelServer {
         conn.send(GSON.toJson(response));
     }
 
+    private void sendDatabaseDebug(WebSocketConnection conn, JsonObject data) {
+        String debugType = data.has("type") ? data.get("type").getAsString() : "stats";
+
+        plugin.getServer().getScheduler().runTaskAsynchronously(plugin, () -> {
+            JsonObject response = new JsonObject();
+            response.addProperty("type", "DATABASE_DEBUG_RESPONSE");
+            JsonObject responseData = new JsonObject();
+            responseData.addProperty("type", debugType);
+
+            try {
+                switch (debugType) {
+                    case "stats" -> {
+                        // Get database file size
+                        File dbFile = new File(plugin.getDataFolder(), "moderex.db");
+                        String size = dbFile.exists() ? formatFileSize(dbFile.length()) : "Unknown";
+                        responseData.addProperty("size", size);
+                        responseData.addProperty("dbType", plugin.getConfigManager().getSettings().getDatabaseType());
+
+                        // Get row counts for each table
+                        JsonObject tables = new JsonObject();
+                        String[] tableNames = {
+                            "moderex_punishments", "moderex_warnings", "moderex_activity_log",
+                            "moderex_command_blacklist", "moderex_watchlist", "moderex_automod_rules",
+                            "moderex_players", "moderex_staff_settings", "moderex_sessions"
+                        };
+                        for (String table : tableNames) {
+                            try {
+                                int count = plugin.getDatabaseManager().query(
+                                    "SELECT COUNT(*) as cnt FROM " + table,
+                                    rs -> rs.next() ? rs.getInt("cnt") : 0
+                                );
+                                tables.addProperty(table, count);
+                            } catch (Exception ignored) {
+                                tables.addProperty(table, -1);
+                            }
+                        }
+                        responseData.add("tables", tables);
+                    }
+                    case "watchlist" -> {
+                        JsonArray entries = new JsonArray();
+                        // Get watchlist entries from database
+                        plugin.getDatabaseManager().query(
+                            "SELECT player_uuid, player_name, added_by_name, reason, added_at FROM moderex_watchlist WHERE active = TRUE",
+                            rs -> {
+                                while (rs.next()) {
+                                    JsonObject e = new JsonObject();
+                                    e.addProperty("uuid", rs.getString("player_uuid"));
+                                    e.addProperty("playerName", rs.getString("player_name"));
+                                    e.addProperty("reason", rs.getString("reason"));
+                                    e.addProperty("addedBy", rs.getString("added_by_name"));
+                                    e.addProperty("addedAt", rs.getLong("added_at"));
+                                    entries.add(e);
+                                }
+                                return null;
+                            }
+                        );
+                        responseData.add("entries", entries);
+                    }
+                    case "activity_logs" -> {
+                        // Get counts by activity type
+                        JsonObject counts = new JsonObject();
+                        int[] total = {0};
+                        for (var type : com.blockforge.moderex.log.ActivityLogEntry.ActivityType.values()) {
+                            try {
+                                int cnt = plugin.getDatabaseManager().query(
+                                    "SELECT COUNT(*) as cnt FROM moderex_activity_log WHERE type = ?",
+                                    rs -> rs.next() ? rs.getInt("cnt") : 0,
+                                    type.name()
+                                );
+                                counts.addProperty(type.name(), cnt);
+                                total[0] += cnt;
+                            } catch (Exception ignored) {}
+                        }
+                        responseData.add("counts", counts);
+                        responseData.addProperty("total", total[0]);
+                    }
+                }
+            } catch (Exception e) {
+                plugin.logError("Failed to get database debug info", e);
+                responseData.addProperty("error", e.getMessage());
+            }
+
+            response.add("data", responseData);
+            conn.send(GSON.toJson(response));
+        });
+    }
+
+    private String formatFileSize(long bytes) {
+        if (bytes < 1024) return bytes + " B";
+        if (bytes < 1024 * 1024) return String.format("%.1f KB", bytes / 1024.0);
+        if (bytes < 1024 * 1024 * 1024) return String.format("%.1f MB", bytes / (1024.0 * 1024));
+        return String.format("%.1f GB", bytes / (1024.0 * 1024 * 1024));
+    }
+
     private void createPunishment(WebSocketConnection conn, JsonObject data, WebPanelSession session) {
         String targetName = data.has("playerName") ? data.get("playerName").getAsString() : "";
         String typeStr = data.has("type") ? data.get("type").getAsString() : "";
@@ -3771,12 +3866,14 @@ public class HybridPanelServer {
     }
 
     private void removeFromWatchlist(WebSocketConnection conn, JsonObject data) {
-        String uuid = data.has("uuid") ? data.get("uuid").getAsString() : "";
+        // Support both "uuid" and "playerUuid" field names for backwards compatibility
+        String uuid = data.has("uuid") ? data.get("uuid").getAsString() :
+                      data.has("playerUuid") ? data.get("playerUuid").getAsString() : "";
         try {
             plugin.getWatchlistManager().removeFromWatchlist(UUID.fromString(uuid));
             sendSuccess(conn, "Removed from watchlist");
         } catch (Exception e) {
-            sendError(conn, "INVALID_UUID", "Invalid UUID");
+            sendError(conn, "INVALID_UUID", "Invalid UUID: " + uuid);
         }
     }
 
@@ -4842,13 +4939,14 @@ public class HybridPanelServer {
         debugInfo(DebugCategory.PLAYER, "Player quit broadcast", "Player: " + player.getName());
     }
 
-    public void broadcastWatchlistAlert(String type, String playerName, String details) {
+    public void broadcastWatchlistAlert(String type, String playerName, String details, String playerUuid) {
         JsonObject json = new JsonObject();
         json.addProperty("type", "WATCHLIST_ALERT");
         JsonObject data = new JsonObject();
         data.addProperty("alertType", type);
         data.addProperty("playerName", playerName);
         data.addProperty("details", details);
+        data.addProperty("playerUuid", playerUuid);
         data.addProperty("timestamp", System.currentTimeMillis());
         json.add("data", data);
         broadcast(GSON.toJson(json));

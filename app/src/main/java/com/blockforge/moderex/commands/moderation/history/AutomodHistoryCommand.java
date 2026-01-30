@@ -62,7 +62,7 @@ public class AutomodHistoryCommand extends BaseCommand {
 
         // Open GUI if requested and sender is a player
         if (useGui && sender instanceof Player player) {
-            plugin.getGuiManager().openGui(player, new AutomodHistoryGui(plugin, target));
+            plugin.getGuiManager().open(player, new AutomodHistoryGui(plugin, target));
             return;
         }
 

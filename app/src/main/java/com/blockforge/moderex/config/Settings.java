@@ -89,6 +89,12 @@ public class Settings {
     private boolean warnNotifyStaff = true;
     private boolean warnAutoEscalate = false;
 
+    // Command blacklist settings
+    private boolean cmdBlacklistAllowModerexCommands = false;
+    private java.util.List<String> cmdBlacklistProtectedCommands = java.util.List.of(
+        "stop", "reload", "op", "deop", "whitelist"
+    );
+
     // Vanish settings
     private boolean vanishHideFromTablist = true;
     private boolean vanishSilentContainers = true;
@@ -1206,5 +1212,22 @@ public class Settings {
 
     public void setPrivateMessagesVisibility(String privateMessagesVisibility) {
         this.privateMessagesVisibility = privateMessagesVisibility;
+    }
+
+    // Command blacklist getters and setters
+    public boolean isCmdBlacklistAllowModerexCommands() {
+        return cmdBlacklistAllowModerexCommands;
+    }
+
+    public void setCmdBlacklistAllowModerexCommands(boolean cmdBlacklistAllowModerexCommands) {
+        this.cmdBlacklistAllowModerexCommands = cmdBlacklistAllowModerexCommands;
+    }
+
+    public java.util.List<String> getCmdBlacklistProtectedCommands() {
+        return cmdBlacklistProtectedCommands;
+    }
+
+    public void setCmdBlacklistProtectedCommands(java.util.List<String> cmdBlacklistProtectedCommands) {
+        this.cmdBlacklistProtectedCommands = cmdBlacklistProtectedCommands;
     }
 }
