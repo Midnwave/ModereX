@@ -14,6 +14,21 @@
 
 window.MX_CHANGELOGS = [
   {
+    build: 205,
+    version: "2.0dev-205",
+    date: "2026-01-30",
+    title: "Rule Editor Improvements",
+    sections: [
+      {
+        type: "fixed",
+        title: "Bug Fixes",
+        items: [
+          "**Rule Editor** - Editor now opens immediately after creating a new rule"
+        ]
+      }
+    ]
+  },
+  {
     build: 202,
     version: "2.0dev-202",
     date: "2026-01-30",

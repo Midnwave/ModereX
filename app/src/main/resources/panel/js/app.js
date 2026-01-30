@@ -4472,11 +4472,14 @@
       ui.renderRules();
 
       // Open editor if this was a new rule creation from addRuleUI
-      if (shouldOpenEditor && window.openAutomodRuleEditor) {
-        toast('ok', 'Created', 'Rule created. Opening editor...');
-        setTimeout(() => {
-          window.openAutomodRuleEditor(data.id);
-        }, 1000);
+      if (shouldOpenEditor) {
+        toast('ok', 'Created', 'Rule created successfully');
+        // Open editor immediately after render completes
+        requestAnimationFrame(() => {
+          if (window.openAutomodRuleEditor) {
+            window.openAutomodRuleEditor(data.id);
+          }
+        });
       } else {
         toast('info', 'Automod', 'New rule created: ' + (data.name || 'Unknown'));
       }
