@@ -141,11 +141,15 @@ public class AnticheatManager {
         Player target = alert.getPlayer();
         String anticheat = alert.getAnticheat();
         String checkName = alert.getCheckName();
-        int vl = (int) alert.getVlLevel();
+        int rawVl = (int) alert.getVlLevel();
+
+        // Increment and get cumulative VL (tracks violations over time, resets after 5 min)
+        int cumulativeVl = alertManager.incrementCumulativeVL(
+                target.getUniqueId(), anticheat, checkName, Math.max(1, rawVl));
 
         // Console logging for tracing
-        plugin.getLogger().info("[AC] Processing alert: " + target.getName() + " " + anticheat + ":" + checkName + " VL:" + vl);
-        plugin.logDebug("[AC] Received alert: " + target.getName() + " " + anticheat + ":" + checkName + " VL:" + vl);
+        plugin.getLogger().info("[AC] Processing alert: " + target.getName() + " " + anticheat + ":" + checkName + " VL:" + cumulativeVl + " (raw:" + rawVl + ")");
+        plugin.logDebug("[AC] Received alert: " + target.getName() + " " + anticheat + ":" + checkName + " VL:" + cumulativeVl);
 
         // Process through alert manager for auto-punishments
         alertManager.processAlert(alert);
@@ -156,16 +160,16 @@ public class AnticheatManager {
                 anticheat,
                 checkName,
                 alert.getCheckType(),
-                alert.getViolations(),
-                alert.getVlLevel()
+                cumulativeVl,  // Use cumulative VL
+                cumulativeVl
         );
 
         // Notify staff with permission (filtered by per-staff preferences and thresholds)
-        notifyStaff(alert);
+        notifyStaff(target, anticheat, checkName, cumulativeVl);
 
         // Notify watchlist if player is watched
         if (plugin.getWatchlistManager().isWatched(target.getUniqueId())) {
-            plugin.getWatchlistManager().onAnticheatAlert(target, alert.toString());
+            plugin.getWatchlistManager().onAnticheatAlert(target, anticheat + ":" + checkName + " x" + cumulativeVl);
         }
 
         // Trigger replay recording
@@ -173,16 +177,16 @@ public class AnticheatManager {
             plugin.getReplayManager().onAnticheatAlert(
                     target,
                     checkName,
-                    alert.getViolations()
+                    cumulativeVl
             );
         }
 
-        // Broadcast to web panel (always, let frontend filter)
-        broadcastAlertToWebPanel(alert);
+        // Broadcast to web panel with cumulative VL
+        broadcastAlertToWebPanel(alert, cumulativeVl);
     }
 
-    private void broadcastAlertToWebPanel(AnticheatHook.AnticheatAlert alert) {
-        plugin.getLogger().info("[AC] Broadcasting to web panel: " + alert.getPlayer().getName() + " " + alert.getCheckName());
+    private void broadcastAlertToWebPanel(AnticheatHook.AnticheatAlert alert, int cumulativeVl) {
+        plugin.getLogger().info("[AC] Broadcasting to web panel: " + alert.getPlayer().getName() + " " + alert.getCheckName() + " VL:" + cumulativeVl);
         if (plugin.getWebPanelServer() != null) {
             plugin.getWebPanelServer().broadcastAnticheatAlert(
                     alert.getAnticheat(),
@@ -190,14 +194,10 @@ public class AnticheatManager {
                     alert.getPlayer().getName(),
                     alert.getCheckName(),
                     alert.getCheckType(),
-                    alert.getViolations(),
-                    alert.getVlLevel()
+                    cumulativeVl,
+                    cumulativeVl
             );
         }
-    }
-
-    private void notifyStaff(AnticheatHook.AnticheatAlert alert) {
-        notifyStaff(alert.getPlayer(), alert.getAnticheat(), alert.getCheckName(), (int) alert.getVlLevel());
     }
 
     /**

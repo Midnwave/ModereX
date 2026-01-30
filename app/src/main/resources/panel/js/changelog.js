@@ -14,6 +14,31 @@
 
 window.MX_CHANGELOGS = [
   {
+    build: 200,
+    version: "2.0dev-200",
+    date: "2026-01-29",
+    title: "Cumulative VL Tracking",
+    sections: [
+      {
+        type: "fixed",
+        title: "Bug Fixes",
+        items: [
+          "**Anticheat VL Count** - Alerts now show cumulative VL (x1, x2, x3...) instead of always x1",
+          "**VL Decay** - VL resets after 5 minutes of no violations for that check"
+        ]
+      },
+      {
+        type: "technical",
+        title: "Technical Changes",
+        items: [
+          "Added cumulative VL tracking per player per check in AnticheatAlertManager",
+          "VL is incremented on each flag and used for alerts, web panel, and automod",
+          "Player VL data is cleared when they leave or after 5 min idle"
+        ]
+      }
+    ]
+  },
+  {
     build: 199,
     version: "2.0dev-199",
     date: "2026-01-29",

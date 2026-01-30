@@ -28,6 +28,15 @@ public class AnticheatAlertManager {
     // Per-staff alert tracking: staffUUID:anticheat:checkName -> list of timestamps
     private final Map<String, List<Long>> staffAlertHistory = new ConcurrentHashMap<>();
 
+    // Cumulative VL tracking: playerUUID:anticheat:checkName -> cumulative VL count
+    private final Map<String, Integer> cumulativeVL = new ConcurrentHashMap<>();
+
+    // VL decay tracking: playerUUID:anticheat:checkName -> last VL update time
+    private final Map<String, Long> vlLastUpdate = new ConcurrentHashMap<>();
+
+    // VL decay time (reset VL after 5 minutes of no violations)
+    private static final long VL_DECAY_TIME = 5 * 60 * 1000L; // 5 minutes
+
     // Default threshold settings
     private int defaultThresholdCount = 3;
     private long defaultThresholdDuration = 60000; // 60s
@@ -236,6 +245,51 @@ public class AnticheatAlertManager {
             return section.getInt("min-vl", defaultMinVL);
         }
         return defaultMinVL;
+    }
+
+    /**
+     * Increment and return the cumulative VL for a player's check.
+     * VL decays (resets) after VL_DECAY_TIME of no new violations.
+     */
+    public int incrementCumulativeVL(UUID playerUuid, String anticheat, String checkName, int vlIncrement) {
+        String key = playerUuid + ":" + anticheat.toLowerCase() + ":" + checkName.toLowerCase();
+        long now = System.currentTimeMillis();
+
+        // Check for VL decay (reset if no violations for VL_DECAY_TIME)
+        Long lastUpdate = vlLastUpdate.get(key);
+        if (lastUpdate != null && now - lastUpdate > VL_DECAY_TIME) {
+            cumulativeVL.remove(key);
+        }
+
+        // Update timestamp and increment VL
+        vlLastUpdate.put(key, now);
+        return cumulativeVL.merge(key, Math.max(1, vlIncrement), Integer::sum);
+    }
+
+    /**
+     * Get the current cumulative VL for a player's check (without incrementing).
+     */
+    public int getCumulativeVL(UUID playerUuid, String anticheat, String checkName) {
+        String key = playerUuid + ":" + anticheat.toLowerCase() + ":" + checkName.toLowerCase();
+        long now = System.currentTimeMillis();
+
+        // Check for VL decay
+        Long lastUpdate = vlLastUpdate.get(key);
+        if (lastUpdate != null && now - lastUpdate > VL_DECAY_TIME) {
+            cumulativeVL.remove(key);
+            return 0;
+        }
+
+        return cumulativeVL.getOrDefault(key, 0);
+    }
+
+    /**
+     * Reset cumulative VL for a player (e.g., when they leave)
+     */
+    public void resetPlayerVL(UUID playerUuid) {
+        String prefix = playerUuid + ":";
+        cumulativeVL.entrySet().removeIf(e -> e.getKey().startsWith(prefix));
+        vlLastUpdate.entrySet().removeIf(e -> e.getKey().startsWith(prefix));
     }
 
     public AnticheatCheckRule getOrCreateRule(String anticheat, String checkName) {
