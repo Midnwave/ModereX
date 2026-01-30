@@ -17,14 +17,24 @@ window.MX_CHANGELOGS = [
     build: 202,
     version: "2.0dev-202",
     date: "2026-01-30",
-    title: "Automod UI Fixes",
+    title: "Automod & Alert Improvements",
     sections: [
       {
         type: "fixed",
         title: "Bug Fixes",
         items: [
           "**Rule Card Descriptions** - Fixed filter phrases not showing in rule cards until edited",
+          "**Automod Exclusions** - Fixed exclusions to use exact phrase matching (word boundaries)",
           "**Auto-Save Debounce** - Added 300ms debounce to prevent rapid duplicate saves"
+        ]
+      },
+      {
+        type: "improved",
+        title: "Improvements",
+        items: [
+          "**Watchlist Button** - Clicking watchlist on alerts now adds directly without form popup",
+          "**Rule Creation** - Opens editor form 1 second after creating new rule",
+          "**Removed Regex** - Removed unused regex pattern support from automod rules"
         ]
       }
     ]
