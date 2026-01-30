@@ -1525,6 +1525,33 @@
               </div>
             </div>
 
+            <!-- Essentials Integration -->
+            <div class="card">
+              <h3><i class="fa-solid fa-feather" style="color:#4ade80"></i> Essentials</h3>
+              <p>Nickname management and player information integration.</p>
+              <div style="margin-top:14px">
+                <div class="hintline">Status: <span class="badge" id="essentialsStatus">Loading...</span></div>
+                <div id="essentialsDetails" style="margin-top:8px;color:var(--text-secondary);font-size:13px"></div>
+              </div>
+              <div id="essentialsNickSettings" style="margin-top:16px;padding:12px;border:1px solid var(--border);border-radius:var(--radius);background:rgba(0,0,0,0.15);display:none">
+                <div style="font-weight:600;margin-bottom:10px"><i class="fa-solid fa-id-card" style="margin-right:8px;color:#4ade80"></i>Nickname Features</div>
+                <div class="flex-col gap-sm">
+                  <label class="switch-row">
+                    <span>Automod nickname filtering</span>
+                    <div class="toggle" data-setting="automodNicknames"><div class="toggle-thumb"></div></div>
+                  </label>
+                  <label class="switch-row">
+                    <span>Log nickname changes to activity log</span>
+                    <div class="toggle on" data-setting="logNicknames"><div class="toggle-thumb"></div></div>
+                  </label>
+                  <label class="switch-row">
+                    <span>Show nicknames in player profile</span>
+                    <div class="toggle on" data-setting="showNicknamesProfile"><div class="toggle-thumb"></div></div>
+                  </label>
+                </div>
+              </div>
+            </div>
+
             <!-- Anticheat Integrations -->
             <div class="card">
               <h3><i class="fa-solid fa-shield-halved" style="color:var(--warn)"></i> Anticheat Plugins</h3>

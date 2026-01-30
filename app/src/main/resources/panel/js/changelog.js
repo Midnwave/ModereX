@@ -17,17 +17,22 @@ window.MX_CHANGELOGS = [
     build: 206,
     version: "2.0dev-206",
     date: "2026-01-30",
-    title: "Alerts & Automod Enhancements",
+    title: "Major Update - Automod, Nicknames & Permissions",
     sections: [
       {
         type: "new",
         title: "New Features",
         items: [
+          "**Nickname History** - Player profile now shows nickname change history with expandable view",
+          "**Nick History Command** - `/nickhistory <player>` shows nickname history with pagination and GUI",
           "**Automod History Command** - `/automodhistory <player>` shows automod triggers with pagination",
-          "**Automod History GUI** - Use `-gui` flag to open a chest GUI for automod history",
-          "**Special Characters Filter** - New built-in rule to block unicode/resource pack characters",
-          "**Live VL Updates** - Anticheat alerts now update VL in real-time without extra sounds",
-          "**Clickable Toast** - Rule creation toast now opens editor when clicked"
+          "**Automod History GUI** - Use `-gui` flag to open a chest GUI for history commands",
+          "**Special Characters Filter** - Built-in rule blocking 1000+ unicode/resource pack characters",
+          "**Applies-To Setting** - Automod rules can now target Chat Only, Nicknames Only, or Both",
+          "**Live VL Updates** - Anticheat alerts update VL in real-time without extra sounds",
+          "**Clickable Toast** - Rule creation toast now opens editor when clicked",
+          "**Permission-Gated UI** - Sections locked/disabled when user lacks permission",
+          "**Essentials Integration** - Integrations tab shows Essentials status and nickname features"
         ]
       },
       {
@@ -35,9 +40,11 @@ window.MX_CHANGELOGS = [
         title: "Improvements",
         items: [
           "**Anticheat Alerts** - Now show actual check name instead of 'Unknown'",
-          "**Toggle Animations** - Smoother toggle switch animations with green on-state",
+          "**Toggle Animations** - Smoother toggle switch animations with green on-state glow",
           "**Click to Edit** - Rule cards now show 'Click to edit' hint on hover",
-          "**High Ping Warning** - Status chip turns red when ping exceeds 300ms"
+          "**High Ping Warning** - Status chip turns red when ping exceeds 300ms",
+          "**Watchlist Permissions** - Granular permissions for add/remove/view watchlist",
+          "**View Permissions** - Separate permissions for viewing player info types"
         ]
       },
       {
@@ -53,14 +60,30 @@ window.MX_CHANGELOGS = [
         title: "Technical Changes",
         items: [
           "Removed simulated 'trading?' chat messages from demo mode",
-          "Added activeAnticheatAlerts Map for live VL tracking"
+          "Added activeAnticheatAlerts Map for live VL tracking",
+          "Added permission helpers: requirePermission(), canView(), lockSection()",
+          "Added no-permission CSS with striped overlay and tooltip"
         ]
       },
       {
         type: "permissions",
         title: "New Permissions",
         items: [
-          "`moderex.log.automod` - View automod trigger history"
+          "`moderex.log.automod` - View automod trigger history",
+          "`moderex.log.nicknames` - View nickname change history",
+          "`moderex.view.*` - View all player information",
+          "`moderex.view.punishments` - View punishment history",
+          "`moderex.view.chathistory` - View chat history",
+          "`moderex.view.commandhistory` - View command history",
+          "`moderex.view.automod` - View automod triggers",
+          "`moderex.view.nicknames` - View nickname history",
+          "`moderex.view.ip` - View player IP (sensitive)",
+          "`moderex.view.uuid` - View player UUID",
+          "`moderex.view.playtime` - View playtime stats",
+          "`moderex.view.sessions` - View session history",
+          "`moderex.watchlist.view` - View watchlist entries",
+          "`moderex.watchlist.add` - Add players to watchlist",
+          "`moderex.watchlist.remove` - Remove from watchlist"
         ]
       }
     ]

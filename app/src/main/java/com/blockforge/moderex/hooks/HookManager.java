@@ -283,6 +283,19 @@ public class HookManager {
         return citizensHook != null ? citizensHook.getVersion() : "N/A";
     }
 
+    public boolean isEssentialsAvailable() {
+        return Bukkit.getPluginManager().isPluginEnabled("Essentials") ||
+               Bukkit.getPluginManager().isPluginEnabled("EssentialsX");
+    }
+
+    public String getEssentialsVersion() {
+        var essentials = Bukkit.getPluginManager().getPlugin("Essentials");
+        if (essentials == null) {
+            essentials = Bukkit.getPluginManager().getPlugin("EssentialsX");
+        }
+        return essentials != null ? essentials.getDescription().getVersion() : null;
+    }
+
     public void shutdown() {
         if (placeholderAPIHook != null) {
             placeholderAPIHook.unregister();

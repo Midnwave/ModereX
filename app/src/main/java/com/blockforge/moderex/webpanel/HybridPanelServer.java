@@ -3346,7 +3346,26 @@ public class HybridPanelServer {
             "moderex.alerts.lag",
             "moderex.alerts.watchlist",
             "moderex.alerts.staffchat",
-            "moderex.alerts.punishments"
+            "moderex.alerts.punishments",
+            // View player info permissions
+            "moderex.view.*",
+            "moderex.view.punishments",
+            "moderex.view.chathistory",
+            "moderex.view.commandhistory",
+            "moderex.view.automod",
+            "moderex.view.nicknames",
+            "moderex.view.ip",
+            "moderex.view.uuid",
+            "moderex.view.playtime",
+            "moderex.view.sessions",
+            // Watchlist permissions
+            "moderex.command.watchlist",
+            "moderex.watchlist.add",
+            "moderex.watchlist.remove",
+            "moderex.watchlist.view",
+            // Command blacklist permissions
+            "moderex.cmdblacklist",
+            "moderex.cmdunblacklist"
         };
 
         Player player = Bukkit.getPlayer(uuid);
@@ -5314,6 +5333,16 @@ public class HybridPanelServer {
 
         if (citizensAvailable) {
             data.addProperty("citizensVersion", hookManager.getCitizensVersion());
+        }
+
+        // Essentials integration
+        boolean essentialsAvailable = hookManager != null && hookManager.isEssentialsAvailable();
+        data.addProperty("essentialsAvailable", essentialsAvailable);
+        if (essentialsAvailable) {
+            String essVersion = hookManager.getEssentialsVersion();
+            if (essVersion != null) {
+                data.addProperty("essentialsVersion", essVersion);
+            }
         }
 
         response.add("data", data);

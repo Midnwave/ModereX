@@ -53,6 +53,65 @@
   // Expose hasPermission globally
   window.hasPermission = hasPermission;
 
+  /**
+   * Apply permission restriction to an element. If user lacks permission,
+   * element is disabled with visual indicators.
+   * @param {HTMLElement} element - The element to restrict
+   * @param {string} permission - The required permission
+   * @param {string} [tooltip] - Custom tooltip message (default: "No permission")
+   * @returns {boolean} true if user has permission, false if restricted
+   */
+  function requirePermission(element, permission, tooltip) {
+    if (!element) return true;
+    const hasPerm = hasPermission(permission);
+    if (!hasPerm) {
+      element.classList.add('no-permission', 'no-permission-tooltip');
+      element.setAttribute('data-permission-tooltip', tooltip || `Missing: ${permission}`);
+      // Remove click handlers for buttons
+      if (element.tagName === 'BUTTON' || element.classList.contains('btn')) {
+        const clone = element.cloneNode(true);
+        clone.classList.add('no-permission', 'no-permission-tooltip');
+        clone.setAttribute('data-permission-tooltip', tooltip || `Missing: ${permission}`);
+        element.parentNode?.replaceChild(clone, element);
+      }
+    }
+    return hasPerm;
+  }
+
+  /**
+   * Check if user can view a specific data type and apply restrictions.
+   * @param {string} viewType - One of: punishments, chathistory, commandhistory, automod, nicknames, ip, uuid, playtime, sessions
+   * @returns {boolean} true if user can view this data type
+   */
+  function canView(viewType) {
+    return hasPermission(`moderex.view.${viewType}`) || hasPermission('moderex.view.*');
+  }
+
+  /**
+   * Create a locked section overlay for areas user cannot access.
+   * @param {HTMLElement} container - The container to lock
+   * @param {string} message - Message to display
+   */
+  function lockSection(container, message) {
+    if (!container) return;
+    container.classList.add('section-locked');
+    const overlay = document.createElement('div');
+    overlay.className = 'section-locked-overlay';
+    overlay.innerHTML = `
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
+        <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
+      </svg>
+      <span>${message || 'No Permission'}</span>
+    `;
+    container.appendChild(overlay);
+  }
+
+  // Expose permission helpers globally
+  window.requirePermission = requirePermission;
+  window.canView = canView;
+  window.lockSection = lockSection;
+
   const repeatMemory = {};
 
   function normalizeMessage(msg) {
@@ -5124,16 +5183,18 @@
       ui.renderChatToggles();
     });
 
-    // Integration status (Geyser, Floodgate, Citizens)
+    // Integration status (Geyser, Floodgate, Citizens, Essentials)
     ws.on('GEYSER_STATUS', (data) => {
       if (!isLiveMode) return;
       state.integrations = state.integrations || {};
       state.integrations.geyserDetected = data.geyserAvailable;
       state.integrations.floodgateDetected = data.floodgateAvailable;
       state.integrations.citizensDetected = data.citizensAvailable;
+      state.integrations.essentialsDetected = data.essentialsAvailable;
       state.integrations.geyserVersion = data.geyserVersion;
       state.integrations.floodgateVersion = data.floodgateVersion;
       state.integrations.citizensVersion = data.citizensVersion;
+      state.integrations.essentialsVersion = data.essentialsVersion;
       ui.renderIntegrations();
     });
 

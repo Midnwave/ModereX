@@ -950,8 +950,47 @@ public class AutomodGui extends BaseGui {
 
             // === WORD FILTER SETTINGS ===
             if (rule.getType() == AutomodRule.RuleType.WORD_FILTER || rule.getType() == AutomodRule.RuleType.NICKNAME) {
+                // Applies To selector
+                String appliesDisplay;
+                Material appliesToIcon;
+                if (rule.isNicknameOnly()) {
+                    appliesDisplay = "<light_purple>Nicknames Only";
+                    appliesToIcon = Material.NAME_TAG;
+                } else if (rule.isApplyToNicknames()) {
+                    appliesDisplay = "<gold>Chat & Nicknames";
+                    appliesToIcon = Material.WRITABLE_BOOK;
+                } else {
+                    appliesDisplay = "<aqua>Chat Only";
+                    appliesToIcon = Material.PAPER;
+                }
+                setItem(12, createItem(appliesToIcon,
+                    "<gold>Applies To: " + appliesDisplay,
+                    "<gray>Where this rule is enforced",
+                    "",
+                    "<white>Options:",
+                    "<aqua>• Chat Only <gray>- Only chat messages",
+                    "<gold>• Chat & Nicknames <gray>- Both",
+                    "<light_purple>• Nicknames Only <gray>- Only nicknames",
+                    "",
+                    "<yellow>Click to cycle"), () -> {
+                    if (rule.isNicknameOnly()) {
+                        // Nicknames Only -> Chat Only
+                        rule.setNicknameOnly(false);
+                        rule.setApplyToNicknames(false);
+                    } else if (rule.isApplyToNicknames()) {
+                        // Chat & Nicknames -> Nicknames Only
+                        rule.setNicknameOnly(true);
+                    } else {
+                        // Chat Only -> Chat & Nicknames
+                        rule.setApplyToNicknames(true);
+                    }
+                    plugin.getAutomodManager().saveRule(rule);
+                    viewer.playSound(viewer.getLocation(), Sound.UI_BUTTON_CLICK, 1f, 1f);
+                    refresh();
+                });
+
                 // Filter mode
-                setItem(13, createItem(
+                setItem(14, createItem(
                     rule.isExactMatch() ? Material.TARGET : Material.GLASS,
                     "<gold>Mode: " + (rule.isExactMatch() ? "<yellow>Exact Match" : "<aqua>Contains"),
                     "<gray>How to match phrases",

@@ -90,6 +90,110 @@
   user-select: text;
 }
 
+/* ===== PERMISSION DENIED / LOCKED CONTENT ===== */
+.no-permission {
+  position: relative;
+  pointer-events: none;
+  opacity: 0.4;
+  cursor: not-allowed !important;
+  user-select: none;
+}
+
+.no-permission::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: repeating-linear-gradient(
+    -45deg,
+    transparent,
+    transparent 10px,
+    rgba(0, 0, 0, 0.1) 10px,
+    rgba(0, 0, 0, 0.1) 20px
+  );
+  border-radius: inherit;
+  pointer-events: none;
+}
+
+.no-permission-tooltip {
+  position: relative;
+  cursor: not-allowed !important;
+}
+
+.no-permission-tooltip::before {
+  content: attr(data-permission-tooltip);
+  position: absolute;
+  bottom: 100%;
+  left: 50%;
+  transform: translateX(-50%) translateY(-8px);
+  background: var(--bg2);
+  color: var(--bad);
+  padding: 6px 12px;
+  border-radius: var(--radius-sm);
+  font-size: 0.75rem;
+  font-weight: 500;
+  white-space: nowrap;
+  opacity: 0;
+  visibility: hidden;
+  transition: all var(--transition-fast);
+  border: 1px solid rgba(var(--bad-rgb), 0.3);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+  z-index: 1000;
+}
+
+.no-permission-tooltip:hover::before {
+  opacity: 1;
+  visibility: visible;
+  transform: translateX(-50%) translateY(-4px);
+}
+
+.btn.no-permission,
+.btn-primary.no-permission,
+.btn-outline.no-permission {
+  pointer-events: auto;
+  cursor: not-allowed !important;
+  opacity: 0.5;
+  background: var(--surface) !important;
+  border-color: var(--border) !important;
+  color: var(--muted) !important;
+}
+
+.btn.no-permission:hover,
+.btn-primary.no-permission:hover,
+.btn-outline.no-permission:hover {
+  transform: none !important;
+  box-shadow: none !important;
+}
+
+.section-locked {
+  position: relative;
+}
+
+.section-locked-overlay {
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.6);
+  backdrop-filter: blur(2px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-direction: column;
+  gap: 8px;
+  border-radius: inherit;
+  z-index: 10;
+}
+
+.section-locked-overlay svg {
+  width: 32px;
+  height: 32px;
+  color: var(--bad);
+}
+
+.section-locked-overlay span {
+  color: var(--text-secondary);
+  font-size: 0.875rem;
+  font-weight: 500;
+}
+
 /* ===== RESET & BASE ===== */
 *, *::before, *::after {
   box-sizing: border-box;

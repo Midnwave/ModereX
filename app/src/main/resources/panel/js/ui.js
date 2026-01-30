@@ -1136,6 +1136,29 @@
     if (dom.voiceChatStatus) dom.voiceChatStatus.textContent = state.integrations?.voiceChatDetected ? 'Detected' : 'Not detected';
     if (dom.luckPermsStatus) dom.luckPermsStatus.textContent = state.integrations?.luckPermsDetected ? 'Detected' : 'Not detected';
 
+    // Essentials status
+    const essentialsStatus = document.getElementById('essentialsStatus');
+    const essentialsDetails = document.getElementById('essentialsDetails');
+    const essentialsNickSettings = document.getElementById('essentialsNickSettings');
+    if (essentialsStatus) {
+      const essAvail = state.integrations?.essentialsDetected;
+      essentialsStatus.textContent = essAvail ? 'Detected' : 'Not detected';
+      essentialsStatus.className = 'badge ' + (essAvail ? 'good' : 'gray');
+      if (essentialsDetails) {
+        if (essAvail && state.integrations?.essentialsVersion) {
+          essentialsDetails.textContent = 'v' + state.integrations.essentialsVersion + ' - Nickname sync enabled';
+        } else if (essAvail) {
+          essentialsDetails.textContent = 'Nickname management integration active';
+        } else {
+          essentialsDetails.textContent = 'Install EssentialsX for nickname integration';
+        }
+      }
+      // Show nick settings only when Essentials is detected
+      if (essentialsNickSettings) {
+        essentialsNickSettings.style.display = essAvail ? 'block' : 'none';
+      }
+    }
+
     // Geyser/Floodgate status
     const geyserStatus = document.getElementById('geyserStatus');
     const floodgateStatus = document.getElementById('floodgateStatus');

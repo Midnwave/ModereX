@@ -192,6 +192,12 @@ commands:
     aliases: [amhistory, automodlog]
     permission: moderex.log.automod
 
+  nickhistory:
+    description: View a player's nickname change history
+    usage: /<command> <player> [page|-gui]
+    aliases: [nicknamehistory, nicklog]
+    permission: moderex.log.nicknames
+
   # Admin Commands
   lockdown:
     description: Enable or disable server lockdown mode
@@ -391,6 +397,9 @@ permissions:
       moderex.cmdhistory: true
       moderex.log: true
       moderex.log.teleport: true
+      moderex.log.automod: true
+      moderex.log.nicknames: true
+      moderex.view.*: true
       moderex.command.seen: true
       moderex.disguise: true
       moderex.command.watchlist: true
@@ -731,6 +740,61 @@ permissions:
     description: View automod trigger history
     default: op
 
+  moderex.log.nicknames:
+    description: View nickname change history
+    default: op
+
+  # View Player Info Permissions
+  moderex.view.*:
+    description: View all player information
+    default: op
+    children:
+      moderex.view.punishments: true
+      moderex.view.chathistory: true
+      moderex.view.commandhistory: true
+      moderex.view.automod: true
+      moderex.view.nicknames: true
+      moderex.view.ip: true
+      moderex.view.uuid: true
+      moderex.view.playtime: true
+      moderex.view.sessions: true
+
+  moderex.view.punishments:
+    description: View player punishment history
+    default: op
+
+  moderex.view.chathistory:
+    description: View player chat history
+    default: op
+
+  moderex.view.commandhistory:
+    description: View player command history
+    default: op
+
+  moderex.view.automod:
+    description: View player automod triggers
+    default: op
+
+  moderex.view.nicknames:
+    description: View player nickname history
+    default: op
+
+  moderex.view.ip:
+    description: View player IP address (sensitive)
+    default: op
+
+  moderex.view.uuid:
+    description: View player UUID
+    default: op
+
+  moderex.view.playtime:
+    description: View player playtime statistics
+    default: op
+
+  moderex.view.sessions:
+    description: View player session history
+    default: op
+
   moderex.command.seen:
     description: View when a player was last seen
     default: op
@@ -741,6 +805,22 @@ permissions:
 
   moderex.command.watchlist:
     description: Manage watchlist of suspicious players
+    default: op
+    children:
+      moderex.watchlist.view: true
+      moderex.watchlist.add: true
+      moderex.watchlist.remove: true
+
+  moderex.watchlist.view:
+    description: View watchlist entries and alerts
+    default: op
+
+  moderex.watchlist.add:
+    description: Add players to watchlist
+    default: op
+
+  moderex.watchlist.remove:
+    description: Remove players from watchlist
     default: op
 
   # Bypass Permissions
