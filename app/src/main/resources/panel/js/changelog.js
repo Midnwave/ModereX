@@ -14,6 +14,31 @@
 
 window.MX_CHANGELOGS = [
   {
+    build: 199,
+    version: "2.0dev-199",
+    date: "2026-01-29",
+    title: "Automod Delta Updates",
+    sections: [
+      {
+        type: "fixed",
+        title: "Bug Fixes",
+        items: [
+          "**Automod Performance** - Rule create/update/delete now use delta updates instead of broadcasting all rules",
+          "**Disconnect Issues** - Reduced payload size for automod operations, preventing WebSocket disconnects"
+        ]
+      },
+      {
+        type: "technical",
+        title: "Technical Changes",
+        items: [
+          "createRule no longer broadcasts (saveRule handles it after properties are set)",
+          "deleteRule now broadcasts only the deleted rule ID instead of all rules",
+          "Added broadcastRuleDeleted() for efficient delete notifications"
+        ]
+      }
+    ]
+  },
+  {
     build: 198,
     version: "2.0dev-198",
     date: "2026-01-29",

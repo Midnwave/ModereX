@@ -2517,6 +2517,42 @@ public class HybridPanelServer {
     }
 
     /**
+     * Broadcast a rule deletion to all connected clients.
+     */
+    public void broadcastRuleDeleted(String ruleId) {
+        try {
+            JsonObject broadcast = new JsonObject();
+            broadcast.addProperty("type", "AUTOMOD_RULE_DELETED");
+            JsonObject data = new JsonObject();
+            data.addProperty("id", ruleId);
+            broadcast.add("data", data);
+            String message = GSON.toJson(broadcast);
+
+            plugin.logDebug("[WebPanel] Broadcasting rule deletion: " + ruleId);
+
+            // Broadcast to regular WebSocket connections
+            for (WebSocketConnection conn : sessions.keySet()) {
+                try {
+                    conn.send(message);
+                } catch (Exception e) {
+                    plugin.logDebug("Failed to broadcast rule deletion to connection: " + e.getMessage());
+                }
+            }
+
+            // Also broadcast to same-port (Netty) connections
+            for (var entry : samePortConnections.entrySet()) {
+                try {
+                    entry.getValue().send(message);
+                } catch (Exception e) {
+                    plugin.logDebug("Failed to broadcast rule deletion to same-port connection: " + e.getMessage());
+                }
+            }
+        } catch (Exception e) {
+            plugin.logError("Failed to broadcast rule deletion: " + e.getMessage(), e);
+        }
+    }
+
+    /**
      * Serialize a single automod rule to JSON for broadcasting.
      */
     private JsonObject serializeRule(AutomodRule rule) {

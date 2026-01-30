@@ -650,9 +650,8 @@ public class AutomodManager {
             if (id != null) {
                 rule.setId(String.valueOf(id));
                 rules.put(rule.getId(), rule);
+                // Don't broadcast here - let saveRule handle it after all properties are set
             }
-
-            broadcastAutomodRulesUpdate();
         } catch (SQLException e) {
             plugin.logError("Failed to create automod rule", e);
         }
@@ -776,7 +775,7 @@ public class AutomodManager {
                 );
             }
             rules.remove(ruleId);
-            broadcastAutomodRulesUpdate();
+            broadcastRuleDeleted(ruleId);  // Delta update - just broadcast the deletion
             plugin.logDebug("[Automod] Successfully deleted rule: " + ruleId);
         } catch (SQLException e) {
             plugin.logError("Failed to delete automod rule", e);
@@ -933,6 +932,17 @@ public class AutomodManager {
         if (plugin.getWebPanelServer() != null && rule != null) {
             plugin.getServer().getScheduler().runTaskAsynchronously(plugin, () -> {
                 plugin.getWebPanelServer().broadcastSingleRuleUpdate(rule);
+            });
+        }
+    }
+
+    /**
+     * Broadcast a rule deletion event to web panel clients.
+     */
+    public void broadcastRuleDeleted(String ruleId) {
+        if (plugin.getWebPanelServer() != null && ruleId != null) {
+            plugin.getServer().getScheduler().runTaskAsynchronously(plugin, () -> {
+                plugin.getWebPanelServer().broadcastRuleDeleted(ruleId);
             });
         }
     }
