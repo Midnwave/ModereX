@@ -15,6 +15,7 @@
 
   <!-- Main Stylesheet -->
   <link rel="stylesheet" href="css/styles.css">
+  <link rel="stylesheet" href="css/themes.css">
 
   <!-- Favicon -->
   <link rel="icon" type="image/png" href="537154108207028818e303ef9465c1f66717660d_96.png">
@@ -2012,7 +2013,37 @@
             <!-- Appearance & Theme -->
             <div class="card">
               <h3><i class="fa-solid fa-palette" style="color:var(--primary-light)"></i> Appearance</h3>
-              <p>Customize the panel's colors and background pattern to your preference.</p>
+              <p>Customize the panel's theme, colors, and background pattern to your preference.</p>
+
+              <!-- Panel Theme -->
+              <div class="settings-section" id="themePicker">
+                <div class="settings-row-text" style="margin-bottom:12px">
+                  <div class="settings-row-title"><i class="fa-solid fa-swatchbook" style="color:var(--accent);margin-right:8px"></i>Panel Theme</div>
+                  <div class="settings-row-sub">Choose a visual theme for the entire panel</div>
+                </div>
+                <div class="theme-picker-grid" id="themePickerGrid">
+                  <div class="theme-card active" data-theme-id="default" onclick="setTheme('default')">
+                    <div class="theme-card-preview preview-default"></div>
+                    <div class="theme-card-label">Default</div>
+                  </div>
+                  <div class="theme-card" data-theme-id="apple-light" onclick="setTheme('apple-light')">
+                    <div class="theme-card-preview preview-apple-light"></div>
+                    <div class="theme-card-label">Apple Light</div>
+                  </div>
+                  <div class="theme-card" data-theme-id="apple-dark" onclick="setTheme('apple-dark')">
+                    <div class="theme-card-preview preview-apple-dark"></div>
+                    <div class="theme-card-label">Apple Dark</div>
+                  </div>
+                  <div class="theme-card" data-theme-id="operagx" onclick="setTheme('operagx')">
+                    <div class="theme-card-preview preview-operagx"></div>
+                    <div class="theme-card-label">Opera GX</div>
+                  </div>
+                  <div class="theme-card" data-theme-id="oldschool" onclick="setTheme('oldschool')">
+                    <div class="theme-card-preview preview-oldschool"></div>
+                    <div class="theme-card-label">Oldschool</div>
+                  </div>
+                </div>
+              </div>
 
               <!-- Theme Color -->
               <div class="settings-section" style="margin-top:18px">
