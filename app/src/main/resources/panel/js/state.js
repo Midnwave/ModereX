@@ -198,7 +198,6 @@
 
     // Default automod rules - will be replaced with server data if connected
     state.rules = [
-      { id: uid('rule'), name: 'Spam/Gibberish Guard', enabled: true, locked: true, block: true, conditions: [{ kind: 'regex', value: '([a-zA-Z])\\1{4,}|[a-z]{10,}', match: 'contains' }], action: { kind: 'none', extra: '' }, threshold: { hits: 1, windowMins: 10 }, notes: 'Detects random spam strings' },
       { id: uid('rule'), name: 'Link Filter', enabled: true, block: true, conditions: [{ kind: 'link', value: '' }], action: { kind: 'none', extra: '' }, threshold: { hits: 1, windowMins: 10 }, notes: 'Blocks unauthorized external links' },
       { id: uid('rule'), name: 'Excessive Caps', enabled: true, block: true, conditions: [{ kind: 'caps', value: '65' }], action: { kind: 'warn', extra: 'Excessive capitalization' }, threshold: { hits: 2, windowMins: 10 }, notes: 'Warn on repeated caps messages' },
       { id: uid('rule'), name: 'Repeated Messages', enabled: true, block: true, conditions: [{ kind: 'repeat', value: '3', similar: true }], action: { kind: 'mute', extra: 'Repetitive messaging' }, threshold: { hits: 2, windowMins: 10 }, notes: 'Detects repeated or similar messages' },

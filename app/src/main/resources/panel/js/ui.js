@@ -824,7 +824,7 @@
       // Fall back to conditions format
       const conditions = r.conditions || [];
       phrases = conditions
-        .filter(c => c.kind === 'contains' || c.kind === 'regex')
+        .filter(c => c.kind === 'contains')
         .map(c => c.value || '')
         .filter(v => v)
         .join(', ');
@@ -897,12 +897,6 @@
     }
     console.log('[Automod Editor] Final phrases:', phrases);
 
-    const regexPatterns = conditions
-      .filter(c => c.kind === 'regex')
-      .map(c => c.value || '')
-      .filter(v => v)
-      .join('\n');
-
     // Get exceptions - check multiple possible sources
     const exceptionsArr = r.exceptions || r.exclusionPhrases || r.exclusionWords || r.whitelist || [];
     const exceptions = exceptionsArr.join('\n');
@@ -925,9 +919,6 @@
 
           <div class="hintline">Blocked Phrases <span style="color:var(--text-secondary);font-weight:normal">(one per line)</span></div>
           <textarea class="input" id="automodRulePhrases" rows="4" placeholder="Enter words or phrases to block (one per line)..." style="font-family:var(--font-mono);font-size:12px">${escapeHtml(phrases)}</textarea>
-
-          <div class="hintline">Regex Patterns <span style="color:var(--text-secondary);font-weight:normal">(advanced, one per line)</span></div>
-          <textarea class="input" id="automodRuleRegex" rows="2" placeholder="Enter regex patterns (one per line)..." style="font-family:var(--font-mono);font-size:12px">${escapeHtml(regexPatterns)}</textarea>
 
           <div class="hintline">Exceptions <span style="color:var(--text-secondary);font-weight:normal">(words/phrases that won't trigger, one per line)</span></div>
           <textarea class="input" id="automodRuleExceptions" rows="2" placeholder="Enter exceptions (one per line)..." style="font-family:var(--font-mono);font-size:12px">${escapeHtml(exceptions)}</textarea>
@@ -1005,7 +996,6 @@
     // Get values from form
     const name = document.getElementById('automodRuleName')?.value?.trim() || 'Unnamed Rule';
     const phrasesText = document.getElementById('automodRulePhrases')?.value || '';
-    const regexText = document.getElementById('automodRuleRegex')?.value || '';
     const exceptionsText = document.getElementById('automodRuleExceptions')?.value || '';
     const appliesTo = document.getElementById('automodRuleAppliesTo')?.value || 'chat';
     const actionKind = document.getElementById('automodRuleActionKind')?.value || 'none';
@@ -1014,9 +1004,8 @@
     const thresholdHits = parseInt(document.getElementById('automodRuleThresholdHits')?.value || '1', 10);
     const thresholdWindow = parseInt(document.getElementById('automodRuleThresholdWindow')?.value || '10', 10);
 
-    // Parse phrases and regex - store as arrays
+    // Parse phrases - store as arrays
     const phrases = phrasesText.split('\n').map(p => p.trim()).filter(p => p);
-    const regexes = regexText.split('\n').map(p => p.trim()).filter(p => p);
     const exceptions = exceptionsText.split('\n').map(p => p.trim()).filter(p => p);
 
     // Build conditions for frontend display
@@ -1024,9 +1013,6 @@
     if (phrases.length > 0) {
       conditions.push({ kind: 'contains', value: phrases.join(', ') });
     }
-    regexes.forEach(regex => {
-      conditions.push({ kind: 'regex', value: regex });
-    });
 
     // Update rule - store both formats for compatibility
     r.name = name;
@@ -1103,7 +1089,7 @@
     if (rule.id === 'afk_kick') return 'AFK_KICK';
     // Infer from conditions
     const conditions = rule.conditions || [];
-    if (conditions.some(c => c.kind === 'contains' || c.kind === 'regex')) return 'WORD_FILTER';
+    if (conditions.some(c => c.kind === 'contains')) return 'WORD_FILTER';
     if (conditions.some(c => c.kind === 'caps')) return 'CAPS_FILTER';
     if (conditions.some(c => c.kind === 'repeat')) return 'SPAM_PROTECTION';
     if (conditions.some(c => c.kind === 'link')) return 'LINK_FILTER';

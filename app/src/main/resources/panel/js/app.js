@@ -156,9 +156,6 @@
           if (total > 0 && (upper / total) * 100 >= parseInt(c.value, 10)) triggered = true;
         }
         if (c.kind === 'link' && /https?:\/\//i.test(msg)) triggered = true;
-        if (c.kind === 'regex' && c.value) {
-          try { if (new RegExp(c.value, 'i').test(msg)) triggered = true; } catch {}
-        }
         if (c.kind === 'repeat') {
           triggered = checkRepeat(r, msg, playerId);
         }
@@ -2420,13 +2417,6 @@
             const match = parts.find(part => c.match === 'exact' ? normalizedMsg === part : normalizedMsg.includes(part));
             if (match) { triggered = true; triggerReason = `Contains: "${match}"`; break; }
           }
-          if (c.kind === 'regex' && c.value) {
-            try {
-              if (new RegExp(c.value, 'i').test(msg)) {
-                triggered = true; triggerReason = `Regex: ${c.value}`; break;
-              }
-            } catch {}
-          }
         }
       }
 
@@ -4470,10 +4460,10 @@
 
       // Open editor if this was a new rule creation from addRuleUI
       if (shouldOpenEditor && window.openAutomodRuleEditor) {
-        toast('ok', 'Created', 'Rule created. Configure it below.');
+        toast('ok', 'Created', 'Rule created. Opening editor...');
         setTimeout(() => {
           window.openAutomodRuleEditor(data.id);
-        }, 100);
+        }, 1000);
       } else {
         toast('info', 'Automod', 'New rule created: ' + (data.name || 'Unknown'));
       }
