@@ -563,12 +563,21 @@
       };
     }
 
-    // Watchlist button handler - opens watchlist action form
+    // Watchlist button handler - directly adds to watchlist
     const watchlistBtn = el.querySelector('[data-action="watchlist"]');
     if (watchlistBtn) {
       watchlistBtn.onclick = (e) => {
         e.stopPropagation();
-        showAlertActionModal('watchlist', alertType, playerName, playerId, message);
+        // Build reason from alert info
+        const reason = `${alertType} alert: ${playerName} - ${message.substring(0, 100)}`;
+        // Add directly to watchlist
+        const ws = window.MX?.ws;
+        if (ws && ws.addToWatchlist) {
+          ws.addToWatchlist(playerId, playerName, reason);
+          toast('ok', 'Watchlist', `Added ${playerName} to watchlist`);
+        } else {
+          toast('error', 'Error', 'Not connected to server');
+        }
         dismiss();
       };
     }
@@ -2397,9 +2406,13 @@
         for (const word of blacklist) {
           const w = word.toLowerCase().trim();
           if (w && (r.exactMatch ? normalizedMsg === w : normalizedMsg.includes(w))) {
-            // Check if in exceptions/whitelist
+            // Check if in exceptions/whitelist - use word boundary matching for exact phrases
             const exceptions = r.exceptions || r.exclusionWords || r.whitelist || [];
-            const isExcepted = exceptions.some(e => normalizedMsg.includes(e.toLowerCase()));
+            const isExcepted = exceptions.some(e => {
+              const escaped = e.toLowerCase().replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+              const pattern = new RegExp('\\b' + escaped + '\\b', 'i');
+              return pattern.test(normalizedMsg);
+            });
             if (!isExcepted) {
               triggered = true;
               triggerReason = `Blacklisted: "${word}"`;
