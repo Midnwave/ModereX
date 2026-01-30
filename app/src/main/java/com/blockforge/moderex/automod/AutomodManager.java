@@ -670,7 +670,7 @@ public class AutomodManager {
         if (rule.isBuiltIn()) {
             plugin.logDebug("[Automod] Routing to saveBuiltInRule for: " + rule.getId());
             saveBuiltInRule(rule);
-            broadcastSingleRuleUpdate(rule); // Delta update - only send this rule
+            // No broadcast here - let caller handle it
             return;
         }
 
@@ -678,7 +678,7 @@ public class AutomodManager {
         if (rule.getType() == AutomodRule.RuleType.ANTICHEAT) {
             plugin.logDebug("[Automod] Routing to saveAnticheatRule for: " + rule.getId());
             saveAnticheatRule(rule);
-            broadcastSingleRuleUpdate(rule); // Delta update - only send this rule
+            // No broadcast here - let caller handle it
             return;
         }
 
@@ -693,7 +693,7 @@ public class AutomodManager {
                     System.currentTimeMillis(), Integer.parseInt(rule.getId())
             );
 
-            broadcastSingleRuleUpdate(rule); // Delta update - only send this rule
+            // No broadcast here - let caller handle it
             plugin.logDebug("[Automod] Successfully saved rule: " + rule.getId());
         } catch (SQLException e) {
             plugin.logError("Failed to save automod rule", e);
@@ -775,7 +775,7 @@ public class AutomodManager {
                 );
             }
             rules.remove(ruleId);
-            broadcastRuleDeleted(ruleId);  // Delta update - just broadcast the deletion
+            // No broadcast here - let caller handle it
             plugin.logDebug("[Automod] Successfully deleted rule: " + ruleId);
         } catch (SQLException e) {
             plugin.logError("Failed to delete automod rule", e);
@@ -836,7 +836,7 @@ public class AutomodManager {
         if (registered > 0) {
             plugin.getLogger().info("[Automod] Registered " + registered + " new anticheat rules for " +
                     anticheatName + " " + version);
-            broadcastAutomodRulesUpdate();
+            // No broadcast here - rules are loaded on panel connect
         }
     }
 

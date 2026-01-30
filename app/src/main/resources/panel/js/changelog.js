@@ -17,6 +17,31 @@ window.MX_CHANGELOGS = [
     build: 200,
     version: "2.0dev-200",
     date: "2026-01-29",
+    title: "Automod Broadcast Fix",
+    sections: [
+      {
+        type: "fixed",
+        title: "Bug Fixes",
+        items: [
+          "**Automod Create/Update** - Removed duplicate broadcasts that caused disconnects",
+          "**Automod Delete** - Fixed delete not broadcasting to other clients"
+        ]
+      },
+      {
+        type: "technical",
+        title: "Technical Changes",
+        items: [
+          "Removed all auto-broadcasts from AutomodManager (saveRule, deleteRule, createRule)",
+          "HybridPanelServer now controls all broadcasts - single rule per operation",
+          "Create/Update broadcasts full rule data, Delete broadcasts just the rule ID"
+        ]
+      }
+    ]
+  },
+  {
+    build: 200,
+    version: "2.0dev-200",
+    date: "2026-01-29",
     title: "Cumulative VL Tracking",
     sections: [
       {

@@ -2113,7 +2113,7 @@ public class HybridPanelServer {
                 }
             }
 
-            // Save rule (this also broadcasts the update via AutomodManager)
+            // Save rule to database
             plugin.logDebug("[WebPanel] About to save rule: " + rule.getId());
             try {
                 plugin.getAutomodManager().saveRule(rule);
@@ -2123,17 +2123,8 @@ public class HybridPanelServer {
                 throw saveEx;
             }
 
-            plugin.logDebug("[WebPanel] Building response for rule update");
-            JsonObject response = new JsonObject();
-            response.addProperty("type", "AUTOMOD_RULE_UPDATED");
-            // Data must be nested under "data" property for frontend WebSocket handler
-            JsonObject responseData = new JsonObject();
-            responseData.addProperty("id", ruleId);
-            response.add("data", responseData);
-
-            plugin.logDebug("[WebPanel] Sending AUTOMOD_RULE_UPDATED response");
-            conn.send(GSON.toJson(response));
-            plugin.logDebug("[WebPanel] Response sent successfully");
+            // Broadcast the updated rule to ALL connected clients
+            broadcastSingleRuleUpdate(rule);
 
             plugin.logDebug("[WebPanel] Automod rule updated: " + rule.getName() + " by " + session.playerName);
             debugSuccess(DebugCategory.AUTOMOD, "Automod rule updated",
@@ -2181,15 +2172,11 @@ public class HybridPanelServer {
                 rule.setExclusionWords(exclusions);
             }
 
-            // Save rule (this also broadcasts the update via AutomodManager)
+            // Save rule to database
             plugin.getAutomodManager().saveRule(rule);
 
-            // Return full rule data so frontend can immediately use it
-            JsonObject response = new JsonObject();
-            response.addProperty("type", "AUTOMOD_RULE_CREATED");
-            JsonObject responseData = serializeRule(rule);
-            response.add("data", responseData);
-            conn.send(GSON.toJson(response));
+            // Broadcast the new rule to ALL connected clients (not just the originator)
+            broadcastSingleRuleUpdate(rule);
 
             plugin.logDebug("[WebPanel] Automod rule created: " + name + " (id=" + rule.getId() + ") by " + session.playerName);
             debugSuccess(DebugCategory.AUTOMOD, "Automod rule created",
@@ -2222,15 +2209,11 @@ public class HybridPanelServer {
                 return;
             }
 
-            // Delete rule (this also broadcasts the update via AutomodManager)
+            // Delete rule from database
             plugin.getAutomodManager().deleteRule(ruleId);
 
-            JsonObject response = new JsonObject();
-            response.addProperty("type", "AUTOMOD_RULE_DELETED");
-            JsonObject responseData = new JsonObject();
-            responseData.addProperty("id", ruleId);
-            response.add("data", responseData);
-            conn.send(GSON.toJson(response));
+            // Broadcast deletion to ALL connected clients
+            broadcastRuleDeleted(ruleId);
 
             plugin.logDebug("[WebPanel] Automod rule deleted: " + rule.getName() + " by " + session.playerName);
             debugSuccess(DebugCategory.AUTOMOD, "Automod rule deleted",
