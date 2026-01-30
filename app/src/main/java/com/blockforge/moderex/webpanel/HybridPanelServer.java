@@ -1620,10 +1620,25 @@ public class HybridPanelServer {
                                 }
                             }
                             details.add("ipHistory", ipArray);
+
+                            // Nickname history
+                            List<ActivityLogEntry> nickLogs = plugin.getActivityLogManager().getEntries(
+                                    playerUuid, List.of(ActivityType.NICKNAME_CHANGE), 0, 1, 20);
+                            JsonArray nickArray = new JsonArray();
+                            for (ActivityLogEntry entry : nickLogs) {
+                                JsonObject nickEntry = new JsonObject();
+                                nickEntry.addProperty("nick", entry.getContent()); // New nick in content
+                                nickEntry.addProperty("oldNick", entry.getExtra()); // Old nick in extra
+                                nickEntry.addProperty("t", entry.getTimestamp());
+                                nickEntry.addProperty("server", entry.getServer());
+                                nickArray.add(nickEntry);
+                            }
+                            details.add("nicknameHistory", nickArray);
                         } else {
                             details.add("chatLogs", new JsonArray());
                             details.add("automodLogs", new JsonArray());
                             details.add("ipHistory", new JsonArray());
+                            details.add("nicknameHistory", new JsonArray());
                         }
 
                         JsonObject response = new JsonObject();

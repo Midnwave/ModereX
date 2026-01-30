@@ -1255,6 +1255,24 @@
       ${ipHistory.length > 5 ? `<div class="drawer-row"><div class="meta"><small>${ipHistory.length - 5} more IPs...</small></div></div>` : ''}
     `;
 
+    // Nickname History section - only show if player has nickname changes
+    const nickHistory = (p.nicknameHistory || []).slice(0, 5);
+    const nickSection = document.getElementById('drawerNickSection');
+    const nickContainer = document.getElementById('drawerNicks');
+    if (nickHistory.length > 0 && nickSection && nickContainer) {
+      nickSection.style.display = '';
+      nickContainer.innerHTML = nickHistory.map(entry => `
+        <div class="drawer-row">
+          <div class="meta">
+            <b style="color:var(--primary-light)">${escapeHtml(entry.nick || 'Unknown')}</b>
+            <small>from ${escapeHtml(entry.oldNick || 'none')} | ${escapeHtml(fmtShort(entry.t))}</small>
+          </div>
+        </div>
+      `).join('') + (nickHistory.length > 5 ? `<div class="drawer-row"><div class="meta"><small>${(p.nicknameHistory || []).length - 5} more nicknames...</small></div></div>` : '');
+    } else if (nickSection) {
+      nickSection.style.display = 'none';
+    }
+
     // Recent Commands section
     const recentCmds = (p.recentCommands || []).slice(0, 10);
     dom().drawerRecent.innerHTML = recentCmds.length ? `
