@@ -314,18 +314,31 @@
     const iconMap = { ok: 'fa-check', warn: 'fa-triangle-exclamation', bad: 'fa-xmark', info: 'fa-circle-info' };
     const el = document.createElement('div');
     el.className = `toast ${type}`;
+
+    // Add clickable hint if there's an onClick callback
+    const clickHint = options.onClick ? '<span class="toast-click-hint">Click to view</span>' : '';
+
     el.innerHTML = `
       <div class="toast-icon"><i class="fa-solid ${iconMap[type] || iconMap.info}"></i></div>
-      <div class="toast-content"><b>${escapeHtml(title)}</b><small>${escapeHtml(message)}</small></div>
+      <div class="toast-content"><b>${escapeHtml(title)}</b><small>${escapeHtml(message)}${clickHint}</small></div>
       <button class="toast-close"><i class="fa-solid fa-xmark"></i></button>
     `;
     const dismiss = () => { el.classList.add('exit'); setTimeout(() => el.remove(), 200); };
     el.querySelector('.toast-close').onclick = dismiss;
     el.onclick = (e) => {
       if (e.target.closest('.toast-close')) return;
-      if (options.playerId) openDrawer(options.playerId);
+      if (options.onClick) {
+        options.onClick();
+      } else if (options.playerId) {
+        openDrawer(options.playerId);
+      }
       dismiss();
     };
+
+    // Add clickable cursor style if there's a callback
+    if (options.onClick || options.playerId) {
+      el.style.cursor = 'pointer';
+    }
 
     // Get container - try cached first, then direct query as fallback
     const container = dom()?.toastContainer || document.getElementById('toastContainer');
@@ -3479,22 +3492,22 @@
   // ===== SIMULATION =====
   function startSimulation() {
     const chatSamples = [
-      'gg', 'hello', 'anyone trading?', 'looking for diamonds', 'who wants to duel', 'lmao', 'nice base', 'brb',
-      'selling iron', 'need help at spawn', 'tp me?', 'grats', 'that was close', 'wow', 'lag?', 'server is smooth',
+      'gg', 'hello', 'hey everyone', 'looking for diamonds', 'who wants to duel', 'lmao', 'nice base', 'brb',
+      'need help at spawn', 'tp me?', 'grats', 'that was close', 'wow', 'server is smooth',
       'anyone online?', 'who built this', 'party up', 'join my town', 'lol', 'ok', 'sure', 'thanks', 'ggs',
-      'caps test', 'WOW THATS HUGE', 'check this link', 'kys', 'hey', 'heya', 'heyy', 'spam spam spam',
-      'this is awesome', 'trade at /warp shop', 'any mods on?', 'help', 'new player here', 'testing', 'anyone want to mine',
-      'lets go', 'free items', 'not really', 'haha', 'ok ok', 'gg again', 'dm me', 'invite me', 'nope', 'lolol',
-      'what time is it', 'server restart soon?', 'can you unban', 'why muted', 'oops', 'my bad', 'forgive me',
+      'caps test', 'WOW THATS HUGE', 'check this out', 'hey', 'heya', 'heyy',
+      'this is awesome', 'any mods on?', 'help', 'new player here', 'testing', 'anyone want to mine',
+      'lets go', 'not really', 'haha', 'ok ok', 'gg again', 'dm me', 'invite me', 'nope', 'lolol',
+      'what time is it', 'server restart soon?', 'oops', 'my bad', 'forgive me',
       'party chat', 'where is end', 'nether?', 'portal coords', 'meet at spawn', 'be right back', 'afk',
-      'this is a long message to test caps', 'BUY NOW', 'HELLO EVERYONE', 'visit example.com', 'discord.gg/abc',
-      'I love this', 'clutch', 'speedrun time', 'nice pvp', 'gg wp', 'banned?', 'moderator?', 'help me',
-      'trade key for crate', 'anyone have elytra', 'mending book', 'enchanting', 'villager trading',
-      'hello hello', 'repeat repeat', 'repeating', 'ok done', 'gg bye'
+      'BUY NOW', 'HELLO EVERYONE',
+      'I love this', 'clutch', 'speedrun time', 'nice pvp', 'gg wp', 'help me',
+      'anyone have elytra', 'mending book', 'enchanting',
+      'hello hello', 'ok done', 'gg bye'
     ];
-    const chatNouns = ['spawn', 'market', 'base', 'farm', 'mine', 'nether', 'end', 'village', 'arena', 'shop'];
-    const chatVerbs = ['looking for', 'selling', 'buying', 'trading', 'need help with', 'anyone seen'];
-    const chatAdj = ['rare', 'epic', 'tiny', 'huge', 'fast', 'slow', 'broken', 'new'];
+    const chatNouns = ['spawn', 'base', 'farm', 'mine', 'nether', 'end', 'village', 'arena'];
+    const chatVerbs = ['looking for', 'need help with', 'anyone seen', 'going to'];
+    const chatAdj = ['rare', 'epic', 'huge', 'fast', 'new', 'cool'];
     for (const noun of chatNouns) {
       for (const verb of chatVerbs) {
         chatSamples.push(`${verb} ${noun}`);
@@ -3505,7 +3518,7 @@
         chatSamples.push(`${adj} ${noun}`);
       }
     }
-    while (chatSamples.length < 220) {
+    while (chatSamples.length < 180) {
       chatSamples.push(`message ${chatSamples.length + 1}`);
     }
     const commandSamples = [
@@ -3528,7 +3541,7 @@
 
     for (let i = 0; i < 8; i++) {
       const p = pick(state.players.filter(x => x.status === 'online')) || pick(state.players);
-      logEvent('INFO', 'chat', `Chat | ${p.name}`, pick(['hey', 'gg', 'lol', 'trading?']), { playerId: p.id, kind: 'chat' });
+      logEvent('INFO', 'chat', `Chat | ${p.name}`, pick(['hey', 'gg', 'lol', 'nice']), { playerId: p.id, kind: 'chat' });
     }
 
     for (let i = 0; i < 220; i++) {
@@ -4473,15 +4486,31 @@
 
       // Open editor if this was a new rule creation from addRuleUI
       if (shouldOpenEditor) {
-        toast('ok', 'Created', 'Rule created successfully');
         // Open editor immediately after render completes
         requestAnimationFrame(() => {
           if (window.openAutomodRuleEditor) {
             window.openAutomodRuleEditor(data.id);
           }
         });
+        // Show a clickable toast as well
+        toast('ok', 'Rule Created', `${data.name || 'New rule'} created`, {
+          ttl: 6000,
+          onClick: () => {
+            if (window.openAutomodRuleEditor) {
+              window.openAutomodRuleEditor(data.id);
+            }
+          }
+        });
       } else {
-        toast('info', 'Automod', 'New rule created: ' + (data.name || 'Unknown'));
+        // For rules created by others or system, show clickable toast
+        toast('info', 'Automod', `New rule: ${data.name || 'Unknown'}`, {
+          ttl: 6000,
+          onClick: () => {
+            if (window.openAutomodRuleEditor) {
+              window.openAutomodRuleEditor(data.id);
+            }
+          }
+        });
       }
     });
 
@@ -4930,8 +4959,13 @@
       if (!isLiveMode) return;
       const player = state.players.find(p => p.name === data.playerName || p.uuid === data.playerUuid);
 
+      // Get check name from various possible fields
+      const checkName = data.checkName || data.check || data.checkType || 'Unknown';
+      const vlLevel = data.vlLevel || data.vl || data.violations || 0;
+      const anticheatName = (data.anticheat || 'Anticheat').charAt(0).toUpperCase() + (data.anticheat || 'anticheat').slice(1);
+
       // Always log the event with explicit type for filtering
-      logEvent('WARN', 'anticheat', `Anticheat | ${data.check || 'Unknown'}`, `${data.playerName} (VL: ${data.vl || 0})`, { playerId: player?.id, kind: 'anticheat', type: 'ANTICHEAT' });
+      logEvent('WARN', 'anticheat', `${anticheatName} | ${checkName}`, `${data.playerName} (VL: ${vlLevel})`, { playerId: player?.id, kind: 'anticheat', type: 'ANTICHEAT' });
 
       // Check global anticheat alert setting FIRST
       const rawSetting = state.staffSettings?.anticheatAlerts;
@@ -4950,7 +4984,6 @@
 
       // Get per-check alert preference from staff settings (optional additional filtering)
       const anticheat = (data.anticheat || 'grim').toLowerCase();
-      const checkName = data.check || 'Unknown';
       const prefKey = `${anticheat}.${checkName}`;
       const checkPref = state.anticheat?.alertPrefs?.[prefKey];
 
@@ -4960,10 +4993,15 @@
       // If per-check is watchlist only and player not on watchlist, skip
       if (checkPref?.alertLevel === 'WATCHLIST_ONLY' && !isWatchlisted) return;
 
-      // Show alert using panel notification settings (handles rate limiting and sounds)
-      const title = `Anticheat Alert: ${data.playerName}`;
-      const sub = `${checkName} - VL: ${data.vl || 0}`;
-      showPanelAlert('anticheat', title, sub, { playerId: player?.id || data.playerUuid, playerName: data.playerName, severity: 'warn' });
+      // Show alert with live VL updates using alertToast with updateKey
+      const alertKey = `ac_${data.playerUuid || data.playerName}_${checkName}`;
+      showAnticheatAlertWithUpdates(alertKey, {
+        playerName: data.playerName,
+        playerId: player?.id || data.playerUuid,
+        checkName,
+        anticheat: anticheatName,
+        vl: vlLevel
+      });
     });
 
     // Custom alerts from /mx sendalert command
@@ -5590,6 +5628,134 @@
   }
 
   window.showPanelAlert = showPanelAlert;
+
+  // Track active anticheat alerts for live VL updates
+  const activeAnticheatAlerts = new Map();
+
+  /**
+   * Show an anticheat alert with live VL updates
+   * If an alert for the same player+check already exists, update its VL instead of creating a new one
+   */
+  function showAnticheatAlertWithUpdates(alertKey, data) {
+    const { playerName, playerId, checkName, anticheat, vl } = data;
+
+    // Check if there's an existing alert for this key
+    const existing = activeAnticheatAlerts.get(alertKey);
+    if (existing && existing.element && document.body.contains(existing.element)) {
+      // Update VL in existing alert without playing sound
+      const vlEl = existing.element.querySelector('.alert-vl-value');
+      if (vlEl) {
+        const oldVl = parseInt(vlEl.textContent) || 0;
+        vlEl.textContent = vl;
+        // Add visual feedback for VL increase
+        if (vl > oldVl) {
+          vlEl.classList.add('vl-increased');
+          setTimeout(() => vlEl.classList.remove('vl-increased'), 300);
+        }
+      }
+      existing.vl = vl;
+      return;
+    }
+
+    // Create new alert
+    const staffSettings = state.staffSettings || {};
+    const duration = (staffSettings.webAlertDurationSeconds || 10) * 1000;
+
+    // Check notification mode
+    const mode = staffSettings.webNotifyAnticheat || 'toast';
+    if (mode === 'off' || mode === 'OFF') return;
+
+    const container = document.getElementById('alertToastContainer') || createAlertContainer();
+
+    const el = document.createElement('div');
+    el.className = 'alert-toast anticheat';
+
+    el.innerHTML = `
+      <div class="alert-toast-left">
+        ${playerId ? `<img class="alert-toast-avatar" src="https://mc-heads.net/avatar/${escapeHtml(playerId)}/32" alt="">` : '<div class="alert-toast-icon"><i class="fa-solid fa-shield-halved"></i></div>'}
+        <div class="alert-toast-text">
+          <div class="alert-toast-title">${escapeHtml(anticheat)}: ${escapeHtml(playerName)}</div>
+          <div class="alert-toast-sub">
+            <span>${escapeHtml(checkName)}</span>
+            <span class="alert-vl-badge">VL: <span class="alert-vl-value">${vl}</span></span>
+          </div>
+        </div>
+      </div>
+      <div class="alert-toast-actions">
+        <button class="mini" data-action="punish" title="Punish"><i class="fa-solid fa-gavel"></i></button>
+        <button class="mini" data-action="watchlist" title="Add to Watchlist"><i class="fa-solid fa-eye"></i></button>
+        <button class="mini" data-action="dismiss" title="Dismiss"><i class="fa-solid fa-xmark"></i></button>
+      </div>
+      <div class="alert-toast-progress" style="animation-duration: ${duration}ms"></div>
+    `;
+
+    const dismiss = () => {
+      activeAnticheatAlerts.delete(alertKey);
+      el.classList.add('exit');
+      setTimeout(() => el.remove(), 350);
+    };
+
+    // Punish button handler
+    el.querySelector('[data-action="punish"]').onclick = (e) => {
+      e.stopPropagation();
+      showAlertActionModal('punish', 'anticheat', playerName, playerId, `${checkName} VL: ${vl}`);
+      dismiss();
+    };
+
+    // Watchlist button handler
+    el.querySelector('[data-action="watchlist"]').onclick = (e) => {
+      e.stopPropagation();
+      const reason = `${anticheat} ${checkName} alert (VL: ${vl})`;
+      const ws = window.MX?.ws;
+      if (ws && ws.addToWatchlist) {
+        ws.addToWatchlist(playerId, playerName, reason);
+        toast('ok', 'Watchlist', `Added ${playerName} to watchlist`);
+      }
+      dismiss();
+    };
+
+    // Dismiss button handler
+    el.querySelector('[data-action="dismiss"]').onclick = (e) => {
+      e.stopPropagation();
+      dismiss();
+    };
+
+    // Insert at top
+    container.insertBefore(el, container.firstChild);
+
+    // Track this alert
+    activeAnticheatAlerts.set(alertKey, { element: el, vl, timeout: null });
+
+    // Trigger slide-in animation
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        el.classList.add('show');
+      });
+    });
+
+    // Auto-dismiss
+    const timeout = setTimeout(dismiss, duration);
+    activeAnticheatAlerts.get(alertKey).timeout = timeout;
+
+    // Play sound (only for new alerts, not updates)
+    const shouldPlaySound = staffSettings.webSoundAnticheat !== false;
+    if (shouldPlaySound && window.MX?.sounds?.alertBar) {
+      window.MX.sounds.alertBar();
+    }
+  }
+
+  function createAlertContainer() {
+    let container = document.getElementById('alertToastContainer');
+    if (!container) {
+      container = document.createElement('div');
+      container.id = 'alertToastContainer';
+      container.className = 'top-right';
+      document.body.appendChild(container);
+    }
+    return container;
+  }
+
+  window.showAnticheatAlertWithUpdates = showAnticheatAlertWithUpdates;
 
   function loadMySettings() {
     try {

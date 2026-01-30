@@ -89,6 +89,7 @@ public class CommandManager {
         registerPaperCommand(commandMap, "geoip", new GeoIPCommand(plugin), "Show player's country", List.of());
         registerPaperCommand(commandMap, "lastuuid", new LastUUIDCommand(plugin), "Show player's UUID", List.of());
         registerPaperCommand(commandMap, "namehistory", new NameHistoryCommand(plugin), "Show player's name history", List.of());
+        registerPaperCommand(commandMap, "automodhistory", new AutomodHistoryCommand(plugin), "View player's automod triggers", List.of("amhistory", "automodlog"));
 
         registerPaperCommand(commandMap, "lockdown", new LockdownCommand(plugin), "Enable/disable lockdown mode", List.of());
         registerPaperCommand(commandMap, "prunehistory", new PruneHistoryCommand(plugin), "Prune old punishments", List.of());
@@ -178,6 +179,7 @@ public class CommandManager {
         registerSpigotCommand("geoip", new GeoIPCommand(plugin));
         registerSpigotCommand("lastuuid", new LastUUIDCommand(plugin));
         registerSpigotCommand("namehistory", new NameHistoryCommand(plugin));
+        registerSpigotCommand("automodhistory", new AutomodHistoryCommand(plugin));
 
         registerSpigotCommand("lockdown", new LockdownCommand(plugin));
         registerSpigotCommand("prunehistory", new PruneHistoryCommand(plugin));

@@ -74,7 +74,8 @@ public class AutomodRule {
         LINK_FILTER,        // Built-in link detection
         ANTICHEAT,          // Per-check anticheat rules
         AFK_KICK,           // Auto AFK kick
-        NICKNAME            // Nickname moderation
+        NICKNAME,           // Nickname moderation
+        SPECIAL_CHARS       // Special/unicode character filter
     }
 
     public enum FilterMode {

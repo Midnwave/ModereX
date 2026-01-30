@@ -14,6 +14,58 @@
 
 window.MX_CHANGELOGS = [
   {
+    build: 206,
+    version: "2.0dev-206",
+    date: "2026-01-30",
+    title: "Alerts & Automod Enhancements",
+    sections: [
+      {
+        type: "new",
+        title: "New Features",
+        items: [
+          "**Automod History Command** - `/automodhistory <player>` shows automod triggers with pagination",
+          "**Automod History GUI** - Use `-gui` flag to open a chest GUI for automod history",
+          "**Special Characters Filter** - New built-in rule to block unicode/resource pack characters",
+          "**Live VL Updates** - Anticheat alerts now update VL in real-time without extra sounds",
+          "**Clickable Toast** - Rule creation toast now opens editor when clicked"
+        ]
+      },
+      {
+        type: "improved",
+        title: "Improvements",
+        items: [
+          "**Anticheat Alerts** - Now show actual check name instead of 'Unknown'",
+          "**Toggle Animations** - Smoother toggle switch animations with green on-state",
+          "**Click to Edit** - Rule cards now show 'Click to edit' hint on hover",
+          "**High Ping Warning** - Status chip turns red when ping exceeds 300ms"
+        ]
+      },
+      {
+        type: "fixed",
+        title: "Bug Fixes",
+        items: [
+          "**Anticheat Check Names** - Fixed checkName vs check field mismatch",
+          "**Chip Styles** - Added missing .chip.bad CSS for high ping indicator"
+        ]
+      },
+      {
+        type: "technical",
+        title: "Technical Changes",
+        items: [
+          "Removed simulated 'trading?' chat messages from demo mode",
+          "Added activeAnticheatAlerts Map for live VL tracking"
+        ]
+      },
+      {
+        type: "permissions",
+        title: "New Permissions",
+        items: [
+          "`moderex.log.automod` - View automod trigger history"
+        ]
+      }
+    ]
+  },
+  {
     build: 205,
     version: "2.0dev-205",
     date: "2026-01-30",

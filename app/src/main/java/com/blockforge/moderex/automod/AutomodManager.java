@@ -49,6 +49,51 @@ public class AutomodManager {
             "§[0-9a-fk-or]|<[a-z_]+>|\\[[a-z_]+\\])"
     );
 
+    // Special/unicode characters pattern - includes resource pack characters and filter bypass characters
+    // Private Use Area (U+E000-U+F8FF), Symbols, Box Drawing, Arrows, Math, etc.
+    private static final Pattern SPECIAL_CHARS_PATTERN = Pattern.compile(
+            "[\\uE000-\\uF8FF" +  // Private Use Area (resource packs)
+            "\\u2500-\\u257F" +   // Box Drawing
+            "\\u2580-\\u259F" +   // Block Elements
+            "\\u25A0-\\u25FF" +   // Geometric Shapes
+            "\\u2600-\\u26FF" +   // Miscellaneous Symbols
+            "\\u2700-\\u27BF" +   // Dingbats
+            "\\u2800-\\u28FF" +   // Braille Patterns
+            "\\u2B00-\\u2BFF" +   // Misc Symbols and Arrows
+            "\\uFE00-\\uFE0F" +   // Variation Selectors
+            "\\uFFF0-\\uFFFF" +   // Specials
+            "\\u0300-\\u036F" +   // Combining Diacritical Marks (zalgo)
+            "\\u1AB0-\\u1AFF" +   // Combining Diacritical Extended
+            "\\u1DC0-\\u1DFF" +   // Combining Diacritical Supplement
+            "\\u20D0-\\u20FF" +   // Combining Diacritical for Symbols
+            "\\uFE20-\\uFE2F" +   // Combining Half Marks
+            "\\u0483-\\u0489" +   // Combining Cyrillic
+            "\\u0591-\\u05BD" +   // Hebrew diacritics
+            "\\u0610-\\u061A" +   // Arabic diacritics
+            "\\u064B-\\u065F" +   // Arabic fathatan
+            "\\u0670" +           // Arabic superscript alef
+            "\\u06D6-\\u06DC" +   // Arabic small
+            "\\u06DF-\\u06E4" +   // Arabic small
+            "\\u06E7-\\u06E8" +   // Arabic small
+            "\\u06EA-\\u06ED" +   // Arabic small
+            "\\u0711" +           // Syriac
+            "\\u0730-\\u074A" +   // Syriac combining
+            "\\u07A6-\\u07B0" +   // Thaana combining
+            "\\u07EB-\\u07F3" +   // NKo combining
+            "\\u0816-\\u0819" +   // Samaritan
+            "\\u081B-\\u0823" +   // Samaritan
+            "\\u0825-\\u0827" +   // Samaritan
+            "\\u0829-\\u082D" +   // Samaritan
+            "\\u0859-\\u085B" +   // Mandaic
+            "\\u08D4-\\u08E1" +   // Arabic Extended
+            "\\u08E3-\\u0903" +   // Arabic Extended
+            "\\u093A-\\u093C" +   // Devanagari
+            "\\u093E-\\u094F" +   // Devanagari
+            "\\u0951-\\u0957" +   // Devanagari stress
+            "\\u0962-\\u0963" +   // Devanagari vowel
+            "]"
+    );
+
     public AutomodManager(ModereX plugin) {
         this.plugin = plugin;
     }
@@ -107,6 +152,15 @@ public class AutomodManager {
         afkRule.setEnabled(false);
         rules.put(afkRule.getId(), afkRule);
 
+        // Special Characters Filter (built-in)
+        AutomodRule specialCharsRule = AutomodRule.createBuiltIn(
+                "special_chars", "Special Characters Filter", AutomodRule.RuleType.SPECIAL_CHARS
+        );
+        specialCharsRule.setDescription("Blocks special unicode characters often used in resource packs");
+        specialCharsRule.setApplyToNicknames(true);
+        specialCharsRule.setEnabled(false); // Disabled by default
+        rules.put(specialCharsRule.getId(), specialCharsRule);
+
         // Load built-in rule configs from database (to restore user settings)
         loadBuiltInRuleConfigs();
     }
@@ -117,7 +171,7 @@ public class AutomodManager {
     private void loadBuiltInRuleConfigs() {
         try {
             plugin.getDatabaseManager().query("""
-                    SELECT * FROM moderex_automod_rules WHERE type IN ('SPAM_PROTECTION', 'CAPS_FILTER', 'LINK_FILTER', 'AFK_KICK')
+                    SELECT * FROM moderex_automod_rules WHERE type IN ('SPAM_PROTECTION', 'CAPS_FILTER', 'LINK_FILTER', 'AFK_KICK', 'SPECIAL_CHARS')
                     """,
                     rs -> {
                         while (rs.next()) {
@@ -276,6 +330,7 @@ public class AutomodManager {
                 }
                 yield result;
             }
+            case SPECIAL_CHARS -> checkSpecialChars(player, message, rule);
             case ANTICHEAT -> FilterResult.allow(); // Handled separately
             case AFK_KICK -> FilterResult.allow(); // Handled by AfkManager
         };
@@ -358,6 +413,19 @@ public class AutomodManager {
             alertStaff(player, rule.getName(), message);
             handleAutoPunishment(player, rule);
             return FilterResult.block("link");
+        }
+        return FilterResult.allow();
+    }
+
+    /**
+     * Check special characters filter rule.
+     * Detects unicode characters commonly used in resource packs or to bypass filters.
+     */
+    private FilterResult checkSpecialChars(Player player, String message, AutomodRule rule) {
+        if (SPECIAL_CHARS_PATTERN.matcher(message).find()) {
+            alertStaff(player, rule.getName(), "Special characters in: " + message);
+            handleAutoPunishment(player, rule);
+            return FilterResult.block("special_chars");
         }
         return FilterResult.allow();
     }

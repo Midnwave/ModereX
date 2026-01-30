@@ -816,6 +816,12 @@ body {
   color: var(--ok);
 }
 
+.chip.bad {
+  border-color: rgba(var(--bad-rgb), 0.25);
+  background: rgba(var(--bad-rgb), 0.08);
+  color: var(--bad);
+}
+
 .chip.info {
   border-color: rgba(var(--primary-rgb), 0.25);
   background: rgba(var(--primary-rgb), 0.08);
@@ -1609,6 +1615,25 @@ body {
 .card.rule-card-clickable {
   cursor: pointer;
   transition: all var(--transition-fast);
+  position: relative;
+}
+
+.card.rule-card-clickable::after {
+  content: 'Click to edit';
+  position: absolute;
+  top: 8px;
+  right: 70px;
+  font-size: 10px;
+  color: var(--primary-light);
+  opacity: 0;
+  transform: translateX(5px);
+  transition: all var(--transition-fast);
+  pointer-events: none;
+}
+
+.card.rule-card-clickable:hover::after {
+  opacity: 0.7;
+  transform: translateX(0);
 }
 
 .card.rule-card-clickable:hover {
@@ -2605,18 +2630,24 @@ textarea.input {
   height: 18px;
   border-radius: 50%;
   background: rgba(255, 255, 255, 0.7);
-  transition: all var(--transition);
+  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+  transform: scale(1);
+}
+
+.toggle:active .toggle-thumb {
+  transform: scale(0.9);
 }
 
 .toggle.on {
-  background: rgba(var(--primary-rgb), 0.3);
-  border-color: rgba(var(--primary-rgb), 0.6);
-  box-shadow: 0 0 14px var(--primary-glow);
+  background: rgba(var(--ok-rgb), 0.25);
+  border-color: rgba(var(--ok-rgb), 0.5);
+  box-shadow: 0 0 12px rgba(var(--ok-rgb), 0.3);
 }
 
 .toggle.on .toggle-thumb {
   left: 22px;
-  background: #dbe8ff;
+  background: var(--ok);
+  box-shadow: 0 0 8px rgba(var(--ok-rgb), 0.5);
 }
 
 .toggle-meta {
@@ -2906,6 +2937,19 @@ textarea.input {
   background: rgba(255, 255, 255, 0.1);
 }
 
+.toast-click-hint {
+  display: block;
+  font-size: 10px;
+  color: var(--primary-light);
+  margin-top: 4px;
+  opacity: 0.8;
+}
+
+.toast:hover .toast-click-hint {
+  opacity: 1;
+  text-decoration: underline;
+}
+
 /* ===== ALERT TOASTS (Priority Notifications - AlertBar Style) ===== */
 #alertToastContainer {
   position: fixed;
@@ -3026,6 +3070,32 @@ textarea.input {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.alert-vl-badge {
+  background: rgba(255, 71, 87, 0.15);
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--bad);
+  border: 1px solid rgba(255, 71, 87, 0.3);
+}
+
+.alert-vl-value {
+  display: inline-block;
+  min-width: 20px;
+  text-align: center;
+  transition: all 0.2s ease;
+}
+
+.alert-vl-value.vl-increased {
+  transform: scale(1.3);
+  color: #ff6b6b;
+  text-shadow: 0 0 8px rgba(255, 107, 107, 0.5);
 }
 
 /* Alert toast actions */
