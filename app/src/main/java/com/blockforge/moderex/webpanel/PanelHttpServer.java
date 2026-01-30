@@ -100,6 +100,7 @@ public class PanelHttpServer {
             if (!Files.exists(indexPath)) {
                 extractResource("panel/index.html", indexPath);
                 extractResource("panel/css/styles.css", panelDirectory.resolve("css/styles.css"));
+                extractResource("panel/css/themes.css", panelDirectory.resolve("css/themes.css"));
                 extractResource("panel/js/utils.js", panelDirectory.resolve("js/utils.js"));
                 extractResource("panel/js/state.js", panelDirectory.resolve("js/state.js"));
                 extractResource("panel/js/websocket.js", panelDirectory.resolve("js/websocket.js"));
