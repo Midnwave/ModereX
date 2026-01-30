@@ -23,6 +23,7 @@ public class PermissionUtil {
     /**
      * Check if a permissible (player/sender) has a permission.
      * OPs automatically have all permissions EXCEPT protected ones.
+     * Also checks wildcard permissions (moderex.*, moderex.command.*, etc.)
      *
      * @param permissible The player or command sender
      * @param permission The permission to check
@@ -43,7 +44,48 @@ public class PermissionUtil {
             return true;
         }
 
-        return permissible.hasPermission(permission);
+        // Check exact permission first
+        if (permissible.hasPermission(permission)) {
+            return true;
+        }
+
+        // Check wildcard permissions
+        // e.g., for "moderex.command.ban", check "moderex.*" and "moderex.command.*"
+        return hasWildcardPermission(permissible, permission);
+    }
+
+    /**
+     * Check if a permissible has a wildcard permission that grants the requested permission.
+     * e.g., moderex.* grants moderex.command.ban
+     * e.g., moderex.command.* grants moderex.command.ban
+     */
+    private static boolean hasWildcardPermission(Permissible permissible, String permission) {
+        if (!permission.startsWith("moderex.")) {
+            return false;
+        }
+
+        // Check moderex.* (grants all moderex permissions except protected)
+        if (permissible.hasPermission("moderex.*")) {
+            return !isProtectedPermission(permission);
+        }
+
+        // Build wildcard paths from the permission
+        // e.g., "moderex.command.ban" -> check "moderex.command.*"
+        // e.g., "moderex.history.watchlist.bans" -> check "moderex.history.*", "moderex.history.watchlist.*"
+        String[] parts = permission.split("\\.");
+        StringBuilder wildcardPath = new StringBuilder();
+
+        for (int i = 0; i < parts.length - 1; i++) {
+            if (i > 0) wildcardPath.append(".");
+            wildcardPath.append(parts[i]);
+
+            String wildcard = wildcardPath + ".*";
+            if (permissible.hasPermission(wildcard)) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /**

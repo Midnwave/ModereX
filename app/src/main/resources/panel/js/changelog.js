@@ -14,6 +14,66 @@
 
 window.MX_CHANGELOGS = [
   {
+    build: 207,
+    version: "2.0dev-207",
+    date: "2026-01-30",
+    title: "Permissions System Overhaul",
+    sections: [
+      {
+        type: "new",
+        title: "New Features",
+        items: [
+          "**Complete Permissions Overhaul** - New structured permission system with clear categories",
+          "**Wildcard Permissions** - Support for moderex.*, moderex.command.*, moderex.bypass.*, etc.",
+          "**Info Permissions** - New moderex.info.* permissions for viewing player data (IP, UUID, nicknames)",
+          "**History Permissions** - New moderex.history.* permissions for viewing logs (chat, commands, automod)",
+          "**Punishment Permissions** - Granular permissions for each punishment type (ban, mute, kick, warn)",
+          "**Flag Permissions** - New moderex.flag.* permissions for punishment flags (silent, public, global)",
+          "**Automod Permissions** - Separate view/edit/create/delete permissions for automod management"
+        ]
+      },
+      {
+        type: "improved",
+        title: "Improvements",
+        items: [
+          "**Web Panel Permission Enforcement** - Backend now filters data based on viewer permissions",
+          "**Frontend Permission Checks** - UI elements hidden/disabled based on permissions",
+          "**Toggle Styling** - Toggle switches now use primary color instead of green",
+          "**Nickname Section** - Always visible with 'No history' message when empty",
+          "**IP Section** - Shows 'No permission' message when user lacks moderex.info.ip",
+          "**OP Bypass** - Operators bypass all permission checks (except moderex.webpanel)"
+        ]
+      },
+      {
+        type: "permissions",
+        title: "Permission Changes",
+        items: [
+          "**moderex.info.ip** - View player IP addresses (replaces moderex.view.ip)",
+          "**moderex.info.uuid** - View player UUIDs (replaces moderex.view.uuid)",
+          "**moderex.info.nick** - View current player nicknames",
+          "**moderex.history.chat** - View chat history (replaces moderex.view.chathistory)",
+          "**moderex.history.commands** - View command history (replaces moderex.view.commandhistory)",
+          "**moderex.history.automod** - View automod logs (replaces moderex.view.automod)",
+          "**moderex.history.nick** - View nickname change history",
+          "**moderex.flag.silent** - Use -s flag (replaces moderex.notify.silent)",
+          "**moderex.flag.public** - Use -p flag (replaces moderex.public)",
+          "**moderex.flag.global** - Use -g flag (replaces moderex.server.global)",
+          "**moderex.punish.delete** - Delete punishments (replaces moderex.delete)",
+          "**moderex.punish.modify** - Modify punishments (replaces moderex.modify)"
+        ]
+      },
+      {
+        type: "technical",
+        title: "Technical Changes",
+        items: [
+          "**PermissionUtil** - Enhanced wildcard permission checking",
+          "**HybridPanelServer** - Permission-based data filtering for sendPlayerList/sendPlayerDetails",
+          "**app.js** - Updated canView() function to use new permission mapping"
+        ]
+      }
+    ]
+  },
+  {
     build: 206,
     version: "2.0dev-206",
     date: "2026-01-30",

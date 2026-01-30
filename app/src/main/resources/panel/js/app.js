@@ -79,12 +79,49 @@
   }
 
   /**
-   * Check if user can view a specific data type and apply restrictions.
-   * @param {string} viewType - One of: punishments, chathistory, commandhistory, automod, nicknames, ip, uuid, playtime, sessions
+   * Check if user can view a specific data type based on new permission structure.
+   * Maps old view types to new permission names:
+   * - ip -> moderex.info.ip
+   * - uuid -> moderex.info.uuid
+   * - nicknames -> moderex.info.nick or moderex.history.nick
+   * - commandhistory -> moderex.history.commands
+   * - chathistory -> moderex.history.chat
+   * - automod -> moderex.history.automod
+   * - punishments -> moderex.history.* (or specific history types)
+   * @param {string} viewType - The type of data to check
    * @returns {boolean} true if user can view this data type
    */
   function canView(viewType) {
-    return hasPermission(`moderex.view.${viewType}`) || hasPermission('moderex.view.*');
+    // Map old view types to new permission structure
+    const permissionMap = {
+      'ip': 'moderex.info.ip',
+      'uuid': 'moderex.info.uuid',
+      'nicknames': ['moderex.info.nick', 'moderex.history.nick'],
+      'nick': ['moderex.info.nick', 'moderex.history.nick'],
+      'commandhistory': 'moderex.history.commands',
+      'commands': 'moderex.history.commands',
+      'chathistory': 'moderex.history.chat',
+      'chat': 'moderex.history.chat',
+      'automod': 'moderex.history.automod',
+      'punishments': 'moderex.history.*',
+      'bans': 'moderex.history.bans',
+      'mutes': 'moderex.history.mutes',
+      'warns': 'moderex.history.warns',
+      'kicks': 'moderex.history.kicks',
+      'joindate': 'moderex.info.joindate',
+      'time': 'moderex.info.time',
+      'namehistory': 'moderex.info.namehistory'
+    };
+
+    const permission = permissionMap[viewType];
+    if (!permission) return true; // Unknown type, allow by default
+
+    // Handle array of permissions (any of them grants access)
+    if (Array.isArray(permission)) {
+      return permission.some(p => hasPermission(p));
+    }
+
+    return hasPermission(permission);
   }
 
   /**
@@ -1252,7 +1289,12 @@
     dom().drawerAvatar.onerror = () => { dom().drawerAvatar.src = `https://minotar.net/helm/${encodeURIComponent(p.name)}/64.png`; };
     dom().drawerAvatar.src = avatarUrl(p);
     dom().drawerName.textContent = p.name;
-    dom().drawerMeta.innerHTML = `${escapeHtml(p.uuid)} | <span class="ip-blur">${escapeHtml(p.ip)}</span> | ${escapeHtml(p.platform)}`;
+    // Build meta line based on permissions
+    const metaParts = [];
+    if (canView('uuid')) metaParts.push(escapeHtml(p.uuid));
+    if (canView('ip') && p.ip) metaParts.push(`<span class="ip-blur">${escapeHtml(p.ip)}</span>`);
+    metaParts.push(escapeHtml(p.platform));
+    dom().drawerMeta.innerHTML = metaParts.join(' | ');
 
     // Load external punishments from other moderation plugins
     if (window.showExternalPunishments) {
@@ -1303,33 +1345,54 @@
       </div>
     `).join('') : `<div class="drawer-row"><div class="meta"><small>No pardons.</small></div></div>`;
 
-    // IP History section - show current IP and historical IPs
-    const ipHistory = (p.ipHistory || []).slice(0, 5);
-    const currentIp = p.ip || (ipHistory.length > 0 ? ipHistory[0].ip : 'Unknown');
-    dom().drawerIps.innerHTML = `
-      <div class="drawer-row"><div class="meta"><b>Current IP</b><small><span class="ip-blur">${escapeHtml(currentIp)}</span></small></div></div>
-      ${ipHistory.length > 1 ? ipHistory.slice(1).map(entry => `
-        <div class="drawer-row"><div class="meta"><b>Previous</b><small><span class="ip-blur">${escapeHtml(entry.ip)}</span> | ${escapeHtml(fmtShort(entry.t))}</small></div></div>
-      `).join('') : ''}
-      ${ipHistory.length > 5 ? `<div class="drawer-row"><div class="meta"><small>${ipHistory.length - 5} more IPs...</small></div></div>` : ''}
-    `;
+    // IP History section - show current IP and historical IPs (with permission check)
+    const ipSection = document.getElementById('drawerIpSection');
+    const ipContainer = dom().drawerIps;
+    if (canView('ip') && (p.ip || (p.ipHistory && p.ipHistory.length > 0))) {
+      if (ipSection) ipSection.style.display = '';
+      const ipHistory = (p.ipHistory || []).slice(0, 5);
+      const currentIp = p.ip || (ipHistory.length > 0 ? ipHistory[0].ip : 'Unknown');
+      ipContainer.innerHTML = `
+        <div class="drawer-row"><div class="meta"><b>Current IP</b><small><span class="ip-blur">${escapeHtml(currentIp)}</span></small></div></div>
+        ${ipHistory.length > 1 ? ipHistory.slice(1).map(entry => `
+          <div class="drawer-row"><div class="meta"><b>Previous</b><small><span class="ip-blur">${escapeHtml(entry.ip)}</span> | ${escapeHtml(fmtShort(entry.t))}</small></div></div>
+        `).join('') : ''}
+        ${ipHistory.length > 5 ? `<div class="drawer-row"><div class="meta"><small>${ipHistory.length - 5} more IPs...</small></div></div>` : ''}
+      `;
+    } else if (ipSection) {
+      // No permission or no IP data
+      if (!canView('ip')) {
+        ipSection.style.display = '';
+        ipContainer.innerHTML = `<div class="drawer-row"><div class="meta"><small style="color:var(--muted)"><i class="fa-solid fa-lock"></i> No permission to view IP</small></div></div>`;
+      } else {
+        ipSection.style.display = '';
+        ipContainer.innerHTML = `<div class="drawer-row"><div class="meta"><small>No IP data available.</small></div></div>`;
+      }
+    }
 
-    // Nickname History section - only show if player has nickname changes
+    // Nickname History section - always show (with permission check)
     const nickHistory = (p.nicknameHistory || []).slice(0, 5);
     const nickSection = document.getElementById('drawerNickSection');
     const nickContainer = document.getElementById('drawerNicks');
-    if (nickHistory.length > 0 && nickSection && nickContainer) {
-      nickSection.style.display = '';
-      nickContainer.innerHTML = nickHistory.map(entry => `
-        <div class="drawer-row">
-          <div class="meta">
-            <b style="color:var(--primary-light)">${escapeHtml(entry.nick || 'Unknown')}</b>
-            <small>from ${escapeHtml(entry.oldNick || 'none')} | ${escapeHtml(fmtShort(entry.t))}</small>
+    if (nickSection) {
+      nickSection.style.display = ''; // Always show the section
+      if (!canView('nicknames')) {
+        // No permission
+        nickContainer.innerHTML = `<div class="drawer-row"><div class="meta"><small style="color:var(--muted)"><i class="fa-solid fa-lock"></i> No permission to view nicknames</small></div></div>`;
+      } else if (nickHistory.length > 0) {
+        // Has nickname history
+        nickContainer.innerHTML = nickHistory.map(entry => `
+          <div class="drawer-row">
+            <div class="meta">
+              <b style="color:var(--primary-light)">${escapeHtml(entry.nick || 'Unknown')}</b>
+              <small>from ${escapeHtml(entry.oldNick || 'none')} | ${escapeHtml(fmtShort(entry.t))}</small>
+            </div>
           </div>
-        </div>
-      `).join('') + (nickHistory.length > 5 ? `<div class="drawer-row"><div class="meta"><small>${(p.nicknameHistory || []).length - 5} more nicknames...</small></div></div>` : '');
-    } else if (nickSection) {
-      nickSection.style.display = 'none';
+        `).join('') + (nickHistory.length > 5 ? `<div class="drawer-row"><div class="meta"><small>${(p.nicknameHistory || []).length - 5} more nicknames...</small></div></div>` : '');
+      } else {
+        // No nickname history
+        nickContainer.innerHTML = `<div class="drawer-row"><div class="meta"><small>No nickname changes recorded.</small></div></div>`;
+      }
     }
 
     // Recent Commands section

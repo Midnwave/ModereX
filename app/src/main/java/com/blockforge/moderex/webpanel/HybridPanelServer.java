@@ -1448,6 +1448,11 @@ public class HybridPanelServer {
         JsonObject response = new JsonObject();
         response.addProperty("type", "PLAYERS_DATA");
 
+        // Get the session to check viewer permissions
+        WebPanelSession session = sessions.get(conn);
+        UUID viewerUuid = session != null ? session.playerUuid : null;
+        boolean canViewIp = hasViewPermission(viewerUuid, "moderex.info.ip");
+
         JsonObject data = new JsonObject();
         JsonArray players = new JsonArray();
 
@@ -1463,10 +1468,20 @@ public class HybridPanelServer {
             p.addProperty("online", isOnline);
             if (isOnline) {
                 p.addProperty("status", plugin.getVanishManager().isVanished(onlinePlayer) ? "vanished" : "online");
-                p.addProperty("ip", onlinePlayer.getAddress() != null ? onlinePlayer.getAddress().getAddress().getHostAddress() : "");
+                // Only include IP if viewer has permission
+                if (canViewIp) {
+                    p.addProperty("ip", onlinePlayer.getAddress() != null ? onlinePlayer.getAddress().getAddress().getHostAddress() : "");
+                } else {
+                    p.addProperty("ip", ""); // Empty string - no permission
+                }
             } else {
                 p.addProperty("status", "offline");
-                p.addProperty("ip", profile.getIpAddress() != null ? profile.getIpAddress() : "");
+                // Only include IP if viewer has permission
+                if (canViewIp) {
+                    p.addProperty("ip", profile.getIpAddress() != null ? profile.getIpAddress() : "");
+                } else {
+                    p.addProperty("ip", ""); // Empty string - no permission
+                }
             }
 
             // Check for Floodgate/Geyser (Bedrock players have UUIDs starting with 00000000-0000-0000)
@@ -1496,6 +1511,16 @@ public class HybridPanelServer {
     private void sendPlayerDetails(WebSocketConnection conn, JsonObject data) {
         String uuidStr = data.has("uuid") ? data.get("uuid").getAsString() : "";
 
+        // Get the session to check viewer permissions (using new permission names)
+        WebPanelSession session = sessions.get(conn);
+        UUID viewerUuid = session != null ? session.playerUuid : null;
+        boolean canViewIp = hasViewPermission(viewerUuid, "moderex.info.ip");
+        boolean canViewNicknames = hasViewPermission(viewerUuid, "moderex.info.nick") ||
+                                   hasViewPermission(viewerUuid, "moderex.history.nick");
+        boolean canViewCommands = hasViewPermission(viewerUuid, "moderex.history.commands");
+        boolean canViewChat = hasViewPermission(viewerUuid, "moderex.history.chat");
+        boolean canViewAutomod = hasViewPermission(viewerUuid, "moderex.history.automod");
+
         try {
             UUID playerUuid = UUID.fromString(uuidStr);
             OfflinePlayer offlinePlayer = Bukkit.getOfflinePlayer(playerUuid);
@@ -1508,8 +1533,8 @@ public class HybridPanelServer {
             details.addProperty("lastPlayed", offlinePlayer.getLastPlayed());
             details.addProperty("watched", plugin.getWatchlistManager().isWatched(playerUuid));
 
-            // Get nickname if player is online and has one
-            if (offlinePlayer.isOnline() && offlinePlayer.getPlayer() != null) {
+            // Get nickname if player is online and has one (and viewer has permission)
+            if (canViewNicknames && offlinePlayer.isOnline() && offlinePlayer.getPlayer() != null) {
                 Player onlinePlayer = offlinePlayer.getPlayer();
                 String displayName = net.kyori.adventure.text.serializer.plain.PlainTextComponentSerializer.plainText()
                         .serialize(onlinePlayer.displayName());
@@ -1528,10 +1553,12 @@ public class HybridPanelServer {
             details.addProperty("banned", plugin.getPunishmentManager().isBanned(playerUuid));
             details.addProperty("warnings", getWarningCount(playerUuid));
 
-            // Get player profile info
+            // Get player profile info - only include IP if viewer has permission
             var profile = plugin.getPlayerProfileManager().getProfile(playerUuid);
-            if (profile != null) {
+            if (profile != null && canViewIp) {
                 details.addProperty("ip", profile.getIpAddress());
+            } else if (profile != null) {
+                details.addProperty("ip", ""); // Empty - no permission
             }
 
             // Fetch punishments and recent commands asynchronously
@@ -1543,98 +1570,118 @@ public class HybridPanelServer {
                 details.add("punishments", punsArray);
 
                 // Fetch recent commands, chat logs, automod logs, and IP history from database
+                // Permission checks are done at the start of this method (canView* flags)
                 plugin.getServer().getScheduler().runTaskAsynchronously(plugin, () -> {
                     try {
-                        // Fetch recent commands
-                        List<JsonObject> commands = plugin.getDatabaseManager().query("""
-                                SELECT command, executed_at FROM moderex_command_history
-                                WHERE player_uuid = ?
-                                ORDER BY executed_at DESC
-                                LIMIT 50
-                                """,
-                                rs -> {
-                                    List<JsonObject> list = new java.util.ArrayList<>();
-                                    while (rs.next()) {
-                                        JsonObject cmd = new JsonObject();
-                                        cmd.addProperty("cmd", rs.getString("command"));
-                                        cmd.addProperty("t", rs.getLong("executed_at"));
-                                        list.add(cmd);
-                                    }
-                                    return list;
-                                },
-                                playerUuid.toString()
-                        );
+                        // Fetch recent commands (only if viewer has permission)
+                        if (canViewCommands) {
+                            List<JsonObject> commands = plugin.getDatabaseManager().query("""
+                                    SELECT command, executed_at FROM moderex_command_history
+                                    WHERE player_uuid = ?
+                                    ORDER BY executed_at DESC
+                                    LIMIT 50
+                                    """,
+                                    rs -> {
+                                        List<JsonObject> list = new java.util.ArrayList<>();
+                                        while (rs.next()) {
+                                            JsonObject cmd = new JsonObject();
+                                            cmd.addProperty("cmd", rs.getString("command"));
+                                            cmd.addProperty("t", rs.getLong("executed_at"));
+                                            list.add(cmd);
+                                        }
+                                        return list;
+                                    },
+                                    playerUuid.toString()
+                            );
 
-                        JsonArray cmdArray = new JsonArray();
-                        for (JsonObject cmd : commands) {
-                            cmdArray.add(cmd);
+                            JsonArray cmdArray = new JsonArray();
+                            for (JsonObject cmd : commands) {
+                                cmdArray.add(cmd);
+                            }
+                            details.add("recentCommands", cmdArray);
+                        } else {
+                            details.add("recentCommands", new JsonArray());
                         }
-                        details.add("recentCommands", cmdArray);
 
                         // Fetch activity logs (chat, automod, IP changes) if activity log is enabled
                         if (plugin.getActivityLogManager() != null && plugin.getActivityLogManager().isEnabled()) {
                             int maxChatLogs = plugin.getConfigManager().getSettings().getMaxChatLogs();
-                            int maxCommandLogs = plugin.getConfigManager().getSettings().getMaxCommandLogs();
 
-                            // Chat logs
-                            List<ActivityLogEntry> chatLogs = plugin.getActivityLogManager().getEntries(
-                                    playerUuid, List.of(ActivityType.CHAT), 0, 1, Math.min(maxChatLogs, 100));
-                            JsonArray chatArray = new JsonArray();
-                            for (ActivityLogEntry entry : chatLogs) {
-                                JsonObject log = new JsonObject();
-                                log.addProperty("t", entry.getTimestamp());
-                                log.addProperty("content", entry.getContent());
-                                log.addProperty("server", entry.getServer());
-                                chatArray.add(log);
-                            }
-                            details.add("chatLogs", chatArray);
-
-                            // Automod logs
-                            List<ActivityLogEntry> automodLogs = plugin.getActivityLogManager().getEntries(
-                                    playerUuid, List.of(ActivityType.AUTOMOD_TRIGGER), 0, 1, 50);
-                            JsonArray automodArray = new JsonArray();
-                            for (ActivityLogEntry entry : automodLogs) {
-                                JsonObject log = new JsonObject();
-                                log.addProperty("t", entry.getTimestamp());
-                                log.addProperty("rule", entry.getExtra()); // Rule name stored in extra
-                                log.addProperty("content", entry.getContent());
-                                log.addProperty("server", entry.getServer());
-                                automodArray.add(log);
-                            }
-                            details.add("automodLogs", automodArray);
-
-                            // IP history
-                            List<ActivityLogEntry> ipLogs = plugin.getActivityLogManager().getEntries(
-                                    playerUuid, List.of(ActivityType.IP_CHANGE, ActivityType.SESSION_JOIN), 0, 1, 20);
-                            JsonArray ipArray = new JsonArray();
-                            Set<String> seenIps = new HashSet<>();
-                            for (ActivityLogEntry entry : ipLogs) {
-                                String ip = entry.getType() == ActivityType.IP_CHANGE ?
-                                        entry.getContent() : // IP_CHANGE stores new IP in content
-                                        extractIpFromJoinLog(entry.getContent()); // SESSION_JOIN has "Joined from IP"
-                                if (ip != null && !ip.isEmpty() && seenIps.add(ip)) {
-                                    JsonObject ipEntry = new JsonObject();
-                                    ipEntry.addProperty("ip", ip);
-                                    ipEntry.addProperty("t", entry.getTimestamp());
-                                    ipEntry.addProperty("server", entry.getServer());
-                                    ipArray.add(ipEntry);
+                            // Chat logs (only if viewer has permission)
+                            if (canViewChat) {
+                                List<ActivityLogEntry> chatLogs = plugin.getActivityLogManager().getEntries(
+                                        playerUuid, List.of(ActivityType.CHAT), 0, 1, Math.min(maxChatLogs, 100));
+                                JsonArray chatArray = new JsonArray();
+                                for (ActivityLogEntry entry : chatLogs) {
+                                    JsonObject log = new JsonObject();
+                                    log.addProperty("t", entry.getTimestamp());
+                                    log.addProperty("content", entry.getContent());
+                                    log.addProperty("server", entry.getServer());
+                                    chatArray.add(log);
                                 }
+                                details.add("chatLogs", chatArray);
+                            } else {
+                                details.add("chatLogs", new JsonArray());
                             }
-                            details.add("ipHistory", ipArray);
 
-                            // Nickname history
-                            List<ActivityLogEntry> nickLogs = plugin.getActivityLogManager().getEntries(
-                                    playerUuid, List.of(ActivityType.NICKNAME_CHANGE), 0, 1, 20);
-                            JsonArray nickArray = new JsonArray();
-                            for (ActivityLogEntry entry : nickLogs) {
-                                JsonObject nickEntry = new JsonObject();
-                                nickEntry.addProperty("nick", entry.getContent()); // New nick in content
-                                nickEntry.addProperty("oldNick", entry.getExtra()); // Old nick in extra
-                                nickEntry.addProperty("t", entry.getTimestamp());
-                                nickEntry.addProperty("server", entry.getServer());
-                                nickArray.add(nickEntry);
+                            // Automod logs (only if viewer has permission)
+                            if (canViewAutomod) {
+                                List<ActivityLogEntry> automodLogs = plugin.getActivityLogManager().getEntries(
+                                        playerUuid, List.of(ActivityType.AUTOMOD_TRIGGER), 0, 1, 50);
+                                JsonArray automodArray = new JsonArray();
+                                for (ActivityLogEntry entry : automodLogs) {
+                                    JsonObject log = new JsonObject();
+                                    log.addProperty("t", entry.getTimestamp());
+                                    log.addProperty("rule", entry.getExtra()); // Rule name stored in extra
+                                    log.addProperty("content", entry.getContent());
+                                    log.addProperty("server", entry.getServer());
+                                    automodArray.add(log);
+                                }
+                                details.add("automodLogs", automodArray);
+                            } else {
+                                details.add("automodLogs", new JsonArray());
                             }
-                            details.add("nicknameHistory", nickArray);
+
+                            // IP history (only if viewer has permission)
+                            if (canViewIp) {
+                                List<ActivityLogEntry> ipLogs = plugin.getActivityLogManager().getEntries(
+                                        playerUuid, List.of(ActivityType.IP_CHANGE, ActivityType.SESSION_JOIN), 0, 1, 20);
+                                JsonArray ipArray = new JsonArray();
+                                Set<String> seenIps = new HashSet<>();
+                                for (ActivityLogEntry entry : ipLogs) {
+                                    String ip = entry.getType() == ActivityType.IP_CHANGE ?
+                                            entry.getContent() : // IP_CHANGE stores new IP in content
+                                            extractIpFromJoinLog(entry.getContent()); // SESSION_JOIN has "Joined from IP"
+                                    if (ip != null && !ip.isEmpty() && seenIps.add(ip)) {
+                                        JsonObject ipEntry = new JsonObject();
+                                        ipEntry.addProperty("ip", ip);
+                                        ipEntry.addProperty("t", entry.getTimestamp());
+                                        ipEntry.addProperty("server", entry.getServer());
+                                        ipArray.add(ipEntry);
+                                    }
+                                }
+                                details.add("ipHistory", ipArray);
+                            } else {
+                                details.add("ipHistory", new JsonArray());
+                            }
+
+                            // Nickname history (only if viewer has permission)
+                            if (canViewNicknames) {
+                                List<ActivityLogEntry> nickLogs = plugin.getActivityLogManager().getEntries(
+                                        playerUuid, List.of(ActivityType.NICKNAME_CHANGE), 0, 1, 20);
+                                JsonArray nickArray = new JsonArray();
+                                for (ActivityLogEntry entry : nickLogs) {
+                                    JsonObject nickEntry = new JsonObject();
+                                    nickEntry.addProperty("nick", entry.getContent()); // New nick in content
+                                    nickEntry.addProperty("oldNick", entry.getExtra()); // Old nick in extra
+                                    nickEntry.addProperty("t", entry.getTimestamp());
+                                    nickEntry.addProperty("server", entry.getServer());
+                                    nickArray.add(nickEntry);
+                                }
+                                details.add("nicknameHistory", nickArray);
+                            } else {
+                                details.add("nicknameHistory", new JsonArray());
+                            }
                         } else {
                             details.add("chatLogs", new JsonArray());
                             details.add("automodLogs", new JsonArray());
@@ -3322,51 +3369,124 @@ public class HybridPanelServer {
 
     /**
      * Get the user's ModereX permissions for the frontend.
-     * Checks all alert-related permissions for the user.
+     * Checks permissions based on the new permission system.
      * Works for both online players (Bukkit) and offline players (LuckPerms).
      */
     private JsonArray getUserPermissions(UUID uuid) {
         JsonArray permissions = new JsonArray();
 
-        // List of permissions to check
-        String[] alertPermissions = {
-            "moderex.staff",
-            "moderex.admin",
-            "moderex.admin.automod",  // Permission for automod configuration
-            "moderex.alerts.*",
-            "moderex.alerts.ban",
-            "moderex.alerts.kick",
-            "moderex.alerts.mute",
-            "moderex.alerts.warn",
-            "moderex.alerts.pardon",
-            "moderex.alerts.anticheat",
-            "moderex.alerts.automod",
-            "moderex.alerts.commands",
-            "moderex.alerts.nickname",
-            "moderex.alerts.joinleave",
-            "moderex.alerts.lag",
-            "moderex.alerts.watchlist",
-            "moderex.alerts.staffchat",
-            "moderex.alerts.punishments",
-            // View player info permissions
-            "moderex.view.*",
-            "moderex.view.punishments",
-            "moderex.view.chathistory",
-            "moderex.view.commandhistory",
-            "moderex.view.automod",
-            "moderex.view.nicknames",
-            "moderex.view.ip",
-            "moderex.view.uuid",
-            "moderex.view.playtime",
-            "moderex.view.sessions",
+        // Complete list of permissions to check for web panel functionality
+        String[] permissionsToCheck = {
+            // Wildcards
+            "moderex.*",
+            "moderex.command.*",
+            "moderex.bypass.*",
+
+            // Punishment permissions
+            "moderex.ban",
+            "moderex.tempban",
+            "moderex.ipban",
+            "moderex.mute",
+            "moderex.tempmute",
+            "moderex.ipmute",
+            "moderex.warn",
+            "moderex.kick",
+            "moderex.punish",
+
+            // Unpunishment permissions
+            "moderex.unban",
+            "moderex.unmute",
+            "moderex.unwarn",
+            "moderex.clearwarnings",
+
+            // Punishment modifiers
+            "moderex.punish.delete",
+            "moderex.punish.modify",
+
+            // Flag permissions
+            "moderex.flag.silent",
+            "moderex.flag.extrasilent",
+            "moderex.flag.public",
+            "moderex.flag.global",
+            "moderex.flag.hidden",
+            "moderex.flag.skip",
+
+            // History permissions
+            "moderex.history.*",
+            "moderex.history.warns",
+            "moderex.history.kicks",
+            "moderex.history.bans",
+            "moderex.history.mutes",
+            "moderex.history.nick",
+            "moderex.history.automod",
+            "moderex.history.commands",
+            "moderex.history.chat",
+
+            // Player info permissions
+            "moderex.info.ip",
+            "moderex.info.uuid",
+            "moderex.info.nick",
+            "moderex.info.joindate",
+            "moderex.info.time",
+            "moderex.info.namehistory",
+
+            // Commands
+            "moderex.command.seen",
+            "moderex.command.lastuuid",
+            "moderex.command.viewpunishment",
+            "moderex.command.staffchat",
+
+            // Staff history
+            "moderex.staffhistory",
+            "moderex.ipreport",
+            "moderex.geoip",
+            "moderex.dupeip",
+
             // Watchlist permissions
-            "moderex.command.watchlist",
             "moderex.watchlist.add",
             "moderex.watchlist.remove",
-            "moderex.watchlist.view",
+            "moderex.history.watchlist.*",
+            "moderex.history.watchlist.warns",
+            "moderex.history.watchlist.kicks",
+            "moderex.history.watchlist.bans",
+            "moderex.history.watchlist.mutes",
+            "moderex.history.watchlist.automod",
+            "moderex.history.watchlist.commands",
+            "moderex.history.watchlist.chat",
+
             // Command blacklist permissions
             "moderex.cmdblacklist",
-            "moderex.cmdunblacklist"
+            "moderex.cmdunblacklist",
+
+            // Activity log
+            "moderex.log",
+            "moderex.log.teleport",
+
+            // Alert permissions
+            "moderex.alerts.*",
+            "moderex.alerts.punishments",
+            "moderex.alerts.automod",
+            "moderex.alerts.anticheat",
+            "moderex.alerts.staffchat",
+            "moderex.alerts.silent",
+            "moderex.alerts.joinleave",
+            "moderex.alerts.watchlist",
+            "moderex.alerts.lag",
+            "moderex.alerts.nickname",
+            "moderex.alerts.commands",
+
+            // Automod permissions
+            "moderex.automod.*",
+            "moderex.automod.view",
+            "moderex.automod.edit",
+            "moderex.automod.create",
+            "moderex.automod.delete",
+
+            // Web panel
+            "moderex.webpanel",
+
+            // Admin
+            "moderex.reload"
         };
 
         Player player = Bukkit.getPlayer(uuid);
@@ -3374,13 +3494,13 @@ public class HybridPanelServer {
             // Player is online - check if OP first for direct permission grant
             if (player.isOp()) {
                 plugin.logDebug("[WebPanel] Player " + player.getName() + " is OP - granting all permissions");
-                for (String perm : alertPermissions) {
+                for (String perm : permissionsToCheck) {
                     permissions.add(perm);
                 }
             } else {
                 // Not OP - check each permission individually
                 plugin.logDebug("[WebPanel] Checking permissions for online player " + player.getName());
-                for (String perm : alertPermissions) {
+                for (String perm : permissionsToCheck) {
                     if (PermissionUtil.hasPermission(player, perm)) {
                         permissions.add(perm);
                     }
@@ -3390,7 +3510,7 @@ public class HybridPanelServer {
             // Player is offline - use LuckPerms for permission check
             plugin.logDebug("[WebPanel] Checking permissions via LuckPerms for offline player " + uuid);
             var lpHook = plugin.getHookManager().getLuckPermsHook();
-            for (String perm : alertPermissions) {
+            for (String perm : permissionsToCheck) {
                 if (lpHook.hasPermission(uuid, perm)) {
                     permissions.add(perm);
                 }
@@ -3400,7 +3520,7 @@ public class HybridPanelServer {
             plugin.logDebug("[WebPanel] Cannot check permissions for offline player " + uuid + " - LuckPerms not available");
             // Grant all permissions as fallback for web panel users (they already have webpanel permission)
             plugin.logDebug("[WebPanel] Granting all alert permissions as fallback");
-            for (String perm : alertPermissions) {
+            for (String perm : permissionsToCheck) {
                 permissions.add(perm);
             }
         }
@@ -3432,6 +3552,41 @@ public class HybridPanelServer {
         } else {
             // No way to check - allow by default for web panel users (they already passed auth)
             plugin.logDebug("[WebPanel] Cannot check automod permission for offline user - allowing by default");
+            return true;
+        }
+    }
+
+    /**
+     * Check if user has a specific permission for viewing data.
+     * Used to filter data sent to the frontend based on permissions.
+     * Supports both new permissions (moderex.info.*, moderex.history.*) and wildcards.
+     */
+    private boolean hasViewPermission(UUID uuid, String permission) {
+        if (uuid == null) return false;
+
+        Player player = Bukkit.getPlayer(uuid);
+        if (player != null && player.isOnline()) {
+            // Online player - check OP or permissions
+            if (player.isOp()) return true;
+            // Use PermissionUtil which handles wildcards (moderex.*, moderex.info.*, etc.)
+            return PermissionUtil.hasPermission(player, permission);
+        } else if (plugin.getHookManager().isLuckPermsEnabled()) {
+            // Offline player - use LuckPerms with wildcard checking
+            var lpHook = plugin.getHookManager().getLuckPermsHook();
+            if (lpHook.hasPermission(uuid, permission)) return true;
+            if (lpHook.hasPermission(uuid, "moderex.*")) return true;
+
+            // Check category wildcards
+            String[] parts = permission.split("\\.");
+            StringBuilder wildcardPath = new StringBuilder();
+            for (int i = 0; i < parts.length - 1; i++) {
+                if (i > 0) wildcardPath.append(".");
+                wildcardPath.append(parts[i]);
+                if (lpHook.hasPermission(uuid, wildcardPath + ".*")) return true;
+            }
+            return false;
+        } else {
+            // Cannot check - allow by default for web panel users
             return true;
         }
     }

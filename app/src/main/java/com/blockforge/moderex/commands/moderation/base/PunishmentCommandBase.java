@@ -25,6 +25,7 @@ public abstract class PunishmentCommandBase extends BaseCommand {
 
     /**
      * Checks flag permissions with options to skip certain checks.
+     * Uses moderex.flag.* permissions for punishment flags.
      *
      * @param sender The command sender
      * @param flags The parsed flags
@@ -35,11 +36,11 @@ public abstract class PunishmentCommandBase extends BaseCommand {
      */
     protected boolean checkFlagPermissions(CommandSender sender, FlagParser flags,
                                            boolean checkIp, boolean checkModify, boolean checkDelete) {
-        if (checkDelete && flags.isDelete() && !sender.hasPermission("moderex.delete")) {
+        if (checkDelete && flags.isDelete() && !sender.hasPermission("moderex.punish.delete")) {
             sendMessage(sender, MessageKey.NO_PERMISSION);
             return false;
         }
-        if (flags.isGlobal() && !sender.hasPermission("moderex.server.global")) {
+        if (flags.isGlobal() && !sender.hasPermission("moderex.flag.global")) {
             sendMessage(sender, MessageKey.NO_PERMISSION);
             return false;
         }
@@ -47,31 +48,31 @@ public abstract class PunishmentCommandBase extends BaseCommand {
             sendMessage(sender, MessageKey.NO_PERMISSION);
             return false;
         }
-        if (checkModify && flags.isModify() && !sender.hasPermission("moderex.modify")) {
+        if (checkModify && flags.isModify() && !sender.hasPermission("moderex.punish.modify")) {
             sendMessage(sender, MessageKey.NO_PERMISSION);
             return false;
         }
-        if (flags.isPublic() && !sender.hasPermission("moderex.public")) {
+        if (flags.isPublic() && !sender.hasPermission("moderex.flag.public")) {
             sendMessage(sender, MessageKey.NO_PERMISSION);
             return false;
         }
-        if (flags.isSilent() && !sender.hasPermission("moderex.notify.silent")) {
+        if (flags.isSilent() && !sender.hasPermission("moderex.flag.silent")) {
             sendMessage(sender, MessageKey.NO_PERMISSION);
             return false;
         }
-        if (flags.isExtraSilent() && !sender.hasPermission("moderex.extrasilent")) {
+        if (flags.isExtraSilent() && !sender.hasPermission("moderex.flag.extrasilent")) {
             sendMessage(sender, MessageKey.NO_PERMISSION);
             return false;
         }
-        if (flags.isHidden() && !sender.hasPermission("moderex.admin")) {
+        if (flags.isHidden() && !sender.hasPermission("moderex.flag.hidden")) {
             sendMessage(sender, MessageKey.NO_PERMISSION);
             return false;
         }
-        if (flags.isSkip() && !sender.hasPermission("moderex.admin")) {
+        if (flags.isSkip() && !sender.hasPermission("moderex.flag.skip")) {
             sendMessage(sender, MessageKey.NO_PERMISSION);
             return false;
         }
-        if (flags.getServerOrigin() != null && !sender.hasPermission("moderex.admin")) {
+        if (flags.getServerOrigin() != null && !sender.hasPermission("moderex.flag.global")) {
             sendMessage(sender, MessageKey.NO_PERMISSION);
             return false;
         }
