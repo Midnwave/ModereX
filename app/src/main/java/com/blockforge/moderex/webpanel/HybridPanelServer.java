@@ -6079,6 +6079,7 @@ public class HybridPanelServer implements com.blockforge.moderex.gateway.Gateway
         if (data.has("chatAlerts")) settings.chatAlerts = data.get("chatAlerts").getAsBoolean();
         if (data.has("soundEnabled")) settings.soundEnabled = data.get("soundEnabled").getAsBoolean();
         if (data.has("watchlistToasts")) settings.watchlistToasts = data.get("watchlistToasts").getAsBoolean();
+        if (data.has("theme")) settings.theme = data.get("theme").getAsString();
         if (data.has("themeColor")) settings.themeColor = data.get("themeColor").getAsString();
         if (data.has("backgroundPattern")) settings.backgroundPattern = data.get("backgroundPattern").getAsString();
         if (data.has("watchlistAlerts")) settings.watchlistAlerts = data.get("watchlistAlerts").getAsBoolean();
