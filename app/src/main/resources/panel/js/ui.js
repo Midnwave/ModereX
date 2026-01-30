@@ -813,13 +813,22 @@
 
   // Render a custom rule card - simplified, click to edit
   function renderCustomRuleCard(r, thr, ruleIcon, iconColor) {
-    // Build a summary of what the rule filters
-    const conditions = r.conditions || [];
-    const phrases = conditions
-      .filter(c => c.kind === 'contains' || c.kind === 'regex')
-      .map(c => c.value || '')
-      .filter(v => v)
-      .join(', ');
+    // Build a summary of what the rule filters - check multiple data sources
+    let phrases = '';
+
+    // First check direct blacklistedWords/blacklistedPhrases arrays from backend
+    const directPhrases = r.blacklistedPhrases || r.blacklistedWords || [];
+    if (directPhrases.length > 0) {
+      phrases = directPhrases.join(', ');
+    } else {
+      // Fall back to conditions format
+      const conditions = r.conditions || [];
+      phrases = conditions
+        .filter(c => c.kind === 'contains' || c.kind === 'regex')
+        .map(c => c.value || '')
+        .filter(v => v)
+        .join(', ');
+    }
     const phraseSummary = phrases ? phrases.slice(0, 80) + (phrases.length > 80 ? '...' : '') : 'No filters configured';
 
     // Action summary

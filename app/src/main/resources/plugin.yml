@@ -476,6 +476,12 @@ permissions:
   moderex.admin:
     description: Use admin-only flags (--hide, --skip, --server-origin)
     default: op
+    children:
+      moderex.admin.automod: true
+
+  moderex.admin.automod:
+    description: Configure automod rules via web panel (create, edit, delete rules)
+    default: op
 
   # Check Permissions
   moderex.check:

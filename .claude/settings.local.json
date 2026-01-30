@@ -25,11 +25,17 @@
       "Bash(git push)",
       "Bash(./gradlew shadowJar:*)",
       "Bash(git rebase:*)",
-      "Bash(copy /Y \"app\\\\build\\\\libs\\\\ModereX-2.0.0.jar\" \"ModereX-latest.jar\")",
+      "Bash(git push:*)",
       "Bash(git stash:*)",
-      "Bash(git stash pop:*)",
-      "Bash(git reset:*)",
-      "Bash(git push:*)"
+      "Bash(.\\\\gradlew.bat compileJava:*)",
+      "Bash(./gradlew.bat compileJava:*)",
+      "Bash(cmd.exe /c \"cd /d c:\\\\projects\\\\Moderex\\\\app && gradlew.bat compileJava --quiet\")",
+      "Bash(cmd.exe /c \"cd /d c:\\\\projects\\\\Moderex\\\\app && gradlew.bat compileJava 2>&1\")",
+      "Bash(cmd.exe /c \"cd /d c:\\\\projects\\\\Moderex\\\\app && gradlew.bat build 2>&1\")",
+      "Bash(cmd /c \"gradlew.bat build\")",
+      "Bash(powershell.exe -Command \"cd ''c:\\\\projects\\\\Moderex\\\\app''; .\\\\gradlew.bat build\")",
+      "Bash(powershell.exe -Command \"cd ''c:\\\\projects\\\\Moderex''; .\\\\gradlew.bat :app:build\")",
+      "Bash(gradlew.bat build:*)"
     ]
   }
 }

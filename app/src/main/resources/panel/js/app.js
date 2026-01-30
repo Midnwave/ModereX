@@ -2316,7 +2316,10 @@
     ui.renderRules();
   };
 
-  // Auto-save a rule to the server
+  // Debounce timers for auto-save per rule
+  const autoSaveTimers = {};
+
+  // Auto-save a rule to the server (debounced to prevent rapid-fire updates)
   function autoSaveRule(rule) {
     if (!rule) return;
 
@@ -2331,16 +2334,26 @@
       return;
     }
 
-    // Show loading bar and debug message
-    if (window.showLoadingLine) window.showLoadingLine();
-    if (window.debugLog) window.debugLog('DB', 'Syncing rule ' + rule.id + ' to database...', 'info');
+    // Clear any existing timer for this rule to debounce rapid changes
+    if (autoSaveTimers[rule.id]) {
+      clearTimeout(autoSaveTimers[rule.id]);
+    }
 
-    // Auto-save all rules that have a server ID
-    console.log('[autoSaveRule] Sending UPDATE_AUTOMOD_RULE for:', rule.id);
-    MX.ws.send('UPDATE_AUTOMOD_RULE', {
-      ruleId: rule.id,
-      rule: rule
-    });
+    // Debounce: wait 300ms before actually sending to prevent duplicate saves
+    autoSaveTimers[rule.id] = setTimeout(() => {
+      delete autoSaveTimers[rule.id];
+
+      // Show loading bar and debug message
+      if (window.showLoadingLine) window.showLoadingLine();
+      if (window.debugLog) window.debugLog('DB', 'Syncing rule ' + rule.id + ' to database...', 'info');
+
+      // Auto-save all rules that have a server ID
+      console.log('[autoSaveRule] Sending UPDATE_AUTOMOD_RULE for:', rule.id);
+      MX.ws.send('UPDATE_AUTOMOD_RULE', {
+        ruleId: rule.id,
+        rule: rule
+      });
+    }, 300);
   }
 
   window.setRuleExceptions = function(ruleId, value) {

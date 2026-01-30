@@ -447,7 +447,7 @@
               <span class="badge" style="background:${categoryColor}20;color:${categoryColor};font-size:10px">${escapeHtml(rule.category || 'general')}</span>
             </div>
           </div>
-          <button class="btn mini bad" onclick="event.stopPropagation();deleteRule(${rule.order})" title="Delete rule"><i class="fa-solid fa-trash"></i></button>
+          <button class="btn mini bad" onclick="event.stopPropagation();deleteServerRule(${rule.order})" title="Delete rule"><i class="fa-solid fa-trash"></i></button>
         </div>
       `;
     }).join('');
@@ -556,16 +556,20 @@
     closeRuleEditor();
   };
 
-  window.deleteRule = function(order) {
-    if (!confirm('Delete this rule?')) return;
-
-    const ws = window.MX?.ws;
-    if (!ws || !ws.isConnected()) {
-      window.toast('warn', 'Not Connected', 'Cannot delete rule - not connected to server');
-      return;
-    }
-
-    ws.send('DELETE_RULE', { order });
+  window.deleteServerRule = function(order) {
+    window.openConfirmPanel({
+      title: 'Delete Server Rule',
+      body: 'Are you sure you want to delete this rule? This cannot be undone.',
+      confirmText: 'Delete',
+      onConfirm: () => {
+        const ws = window.MX?.ws;
+        if (!ws || !ws.isConnected()) {
+          window.toast('warn', 'Not Connected', 'Cannot delete rule - not connected to server');
+          return;
+        }
+        ws.send('DELETE_RULE', { order });
+      }
+    });
   };
 
   window.saveRules = function() {

@@ -14,6 +14,54 @@
 
 window.MX_CHANGELOGS = [
   {
+    build: 202,
+    version: "2.0dev-202",
+    date: "2026-01-30",
+    title: "Automod UI Fixes",
+    sections: [
+      {
+        type: "fixed",
+        title: "Bug Fixes",
+        items: [
+          "**Rule Card Descriptions** - Fixed filter phrases not showing in rule cards until edited",
+          "**Auto-Save Debounce** - Added 300ms debounce to prevent rapid duplicate saves"
+        ]
+      }
+    ]
+  },
+  {
+    build: 201,
+    version: "2.0dev-201",
+    date: "2026-01-30",
+    title: "Permissions & Server Rules",
+    sections: [
+      {
+        type: "fixed",
+        title: "Bug Fixes",
+        items: [
+          "**Automod Permissions** - Fixed OP players not having automod permissions",
+          "**Delete Rule Conflict** - Fixed server rules delete conflicting with automod delete",
+          "**Loading Bar** - Fixed fade-out animation sliding instead of fading"
+        ]
+      },
+      {
+        type: "improved",
+        title: "Improvements",
+        items: [
+          "**Delete Confirmation** - Server rules now use custom styled confirmation popup",
+          "**Auto-Save Debounce** - Added 300ms debounce to prevent rapid-fire rule saves"
+        ]
+      },
+      {
+        type: "permissions",
+        title: "New Permissions",
+        items: [
+          "**moderex.admin.automod** - Configure automod rules via web panel"
+        ]
+      }
+    ]
+  },
+  {
     build: 200,
     version: "2.0dev-200",
     date: "2026-01-29",

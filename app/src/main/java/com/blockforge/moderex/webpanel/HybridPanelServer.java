@@ -1384,6 +1384,9 @@ public class HybridPanelServer {
             case "UPDATE_AUTOMOD_RULE" -> updateAutomodRule(conn, data, session);
             case "CREATE_AUTOMOD_RULE" -> createAutomodRule(conn, data, session);
             case "DELETE_AUTOMOD_RULE" -> deleteAutomodRule(conn, data, session);
+            case "ADD_RULE" -> addServerRule(conn, data, session);
+            case "DELETE_RULE" -> deleteServerRule(conn, data, session);
+            case "UPDATE_RULES" -> updateServerRules(conn, data, session);
             case "GET_ANTICHEAT_INFO" -> sendAnticheatInfo(conn);
             case "GET_ANTICHEAT_ALERTS" -> sendAnticheatAlerts(conn);
             case "GET_ANTICHEAT_CHECKS" -> sendAnticheatChecks(conn);
@@ -2222,6 +2225,112 @@ public class HybridPanelServer {
             sendError(conn, "DELETE_ERROR", "Failed to delete rule: " + e.getMessage());
             plugin.logError("Failed to delete automod rule from web panel", e);
             debugError(ErrorCode.AUTOMOD_RULE_DELETE_FAILED, "Error: " + e.getMessage());
+        }
+    }
+
+    // ===== SERVER RULES HANDLERS =====
+
+    private void addServerRule(WebSocketConnection conn, JsonObject data, WebPanelSession session) {
+        try {
+            String title = data.has("title") ? data.get("title").getAsString() : "New Rule";
+            String description = data.has("description") ? data.get("description").getAsString() : "";
+            String category = data.has("category") ? data.get("category").getAsString() : "General";
+
+            com.blockforge.moderex.rules.Rule rule = new com.blockforge.moderex.rules.Rule();
+            rule.setTitle(title);
+            rule.setDescription(description);
+            rule.setCategory(category);
+            rule.setEnabled(true);
+            rule.setOrder(plugin.getRulesManager().getRules().size() + 1);
+            rule.setCreatedAt(System.currentTimeMillis());
+            rule.setUpdatedAt(System.currentTimeMillis());
+
+            plugin.getRulesManager().saveRule(rule).thenAccept(savedRule -> {
+                if (savedRule != null) {
+                    JsonObject response = new JsonObject();
+                    response.addProperty("type", "RULE_CREATED");
+                    JsonObject ruleData = new JsonObject();
+                    ruleData.addProperty("id", savedRule.getId());
+                    ruleData.addProperty("order", savedRule.getOrder());
+                    ruleData.addProperty("title", savedRule.getTitle());
+                    ruleData.addProperty("description", savedRule.getDescription());
+                    ruleData.addProperty("category", savedRule.getCategory());
+                    response.add("data", ruleData);
+                    conn.send(GSON.toJson(response));
+                    plugin.logDebug("[WebPanel] Server rule created: " + title + " by " + session.playerName);
+                }
+            });
+        } catch (Exception e) {
+            sendError(conn, "CREATE_ERROR", "Failed to create server rule: " + e.getMessage());
+            plugin.logError("Failed to create server rule from web panel", e);
+        }
+    }
+
+    private void deleteServerRule(WebSocketConnection conn, JsonObject data, WebPanelSession session) {
+        try {
+            int order = data.get("order").getAsInt();
+
+            // Find rule by order
+            com.blockforge.moderex.rules.Rule rule = plugin.getRulesManager().getRules().stream()
+                    .filter(r -> r.getOrder() == order)
+                    .findFirst()
+                    .orElse(null);
+
+            if (rule == null) {
+                sendError(conn, "NOT_FOUND", "Rule not found with order: " + order);
+                return;
+            }
+
+            plugin.getRulesManager().deleteRule(rule.getId()).thenAccept(success -> {
+                if (success) {
+                    JsonObject response = new JsonObject();
+                    response.addProperty("type", "RULE_DELETED");
+                    JsonObject responseData = new JsonObject();
+                    responseData.addProperty("order", order);
+                    response.add("data", responseData);
+                    conn.send(GSON.toJson(response));
+                    plugin.logDebug("[WebPanel] Server rule deleted: " + rule.getTitle() + " by " + session.playerName);
+                } else {
+                    sendError(conn, "DELETE_ERROR", "Failed to delete rule");
+                }
+            });
+        } catch (Exception e) {
+            sendError(conn, "DELETE_ERROR", "Failed to delete server rule: " + e.getMessage());
+            plugin.logError("Failed to delete server rule from web panel", e);
+        }
+    }
+
+    private void updateServerRules(WebSocketConnection conn, JsonObject data, WebPanelSession session) {
+        try {
+            if (!data.has("rules")) {
+                sendError(conn, "INVALID_DATA", "No rules provided");
+                return;
+            }
+
+            JsonArray rulesArray = data.getAsJsonArray("rules");
+            for (int i = 0; i < rulesArray.size(); i++) {
+                JsonObject ruleObj = rulesArray.get(i).getAsJsonObject();
+                int order = ruleObj.get("order").getAsInt();
+
+                com.blockforge.moderex.rules.Rule rule = plugin.getRulesManager().getRules().stream()
+                        .filter(r -> r.getOrder() == order)
+                        .findFirst()
+                        .orElse(null);
+
+                if (rule != null) {
+                    if (ruleObj.has("title")) rule.setTitle(ruleObj.get("title").getAsString());
+                    if (ruleObj.has("description")) rule.setDescription(ruleObj.get("description").getAsString());
+                    if (ruleObj.has("category")) rule.setCategory(ruleObj.get("category").getAsString());
+                    rule.setUpdatedAt(System.currentTimeMillis());
+                    plugin.getRulesManager().saveRule(rule);
+                }
+            }
+
+            sendSuccess(conn, "Rules updated");
+            plugin.logDebug("[WebPanel] Server rules updated by " + session.playerName);
+        } catch (Exception e) {
+            sendError(conn, "UPDATE_ERROR", "Failed to update server rules: " + e.getMessage());
+            plugin.logError("Failed to update server rules from web panel", e);
         }
     }
 
@@ -3227,11 +3336,19 @@ public class HybridPanelServer {
 
         Player player = Bukkit.getPlayer(uuid);
         if (player != null && player.isOnline()) {
-            // Player is online - use PermissionUtil (which handles OP bypass)
-            plugin.logDebug("[WebPanel] Checking permissions for online player " + player.getName());
-            for (String perm : alertPermissions) {
-                if (PermissionUtil.hasPermission(player, perm)) {
+            // Player is online - check if OP first for direct permission grant
+            if (player.isOp()) {
+                plugin.logDebug("[WebPanel] Player " + player.getName() + " is OP - granting all permissions");
+                for (String perm : alertPermissions) {
                     permissions.add(perm);
+                }
+            } else {
+                // Not OP - check each permission individually
+                plugin.logDebug("[WebPanel] Checking permissions for online player " + player.getName());
+                for (String perm : alertPermissions) {
+                    if (PermissionUtil.hasPermission(player, perm)) {
+                        permissions.add(perm);
+                    }
                 }
             }
         } else if (plugin.getHookManager().isLuckPermsEnabled()) {
@@ -3264,7 +3381,10 @@ public class HybridPanelServer {
     private boolean hasAutomodPermission(UUID uuid) {
         Player player = Bukkit.getPlayer(uuid);
         if (player != null && player.isOnline()) {
-            // Player is online - check permissions directly
+            // Player is online - check OP status first, then permissions
+            if (player.isOp()) {
+                return true;
+            }
             return PermissionUtil.hasPermission(player, "moderex.admin.automod") ||
                    PermissionUtil.hasPermission(player, "moderex.admin.*") ||
                    PermissionUtil.hasPermission(player, "moderex.admin");
@@ -5834,6 +5954,9 @@ public class HybridPanelServer {
             case "UPDATE_AUTOMOD_RULE" -> updateAutomodRule(wrapper, data, session);
             case "CREATE_AUTOMOD_RULE" -> createAutomodRule(wrapper, data, session);
             case "DELETE_AUTOMOD_RULE" -> deleteAutomodRule(wrapper, data, session);
+            case "ADD_RULE" -> addServerRule(wrapper, data, session);
+            case "DELETE_RULE" -> deleteServerRule(wrapper, data, session);
+            case "UPDATE_RULES" -> updateServerRules(wrapper, data, session);
             case "CREATE_PUNISHMENT" -> createPunishment(wrapper, data, session);
             case "REVOKE_PUNISHMENT" -> revokePunishment(wrapper, data, session);
             case "ADD_TO_WATCHLIST" -> addToWatchlist(wrapper, data, session);
