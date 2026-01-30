@@ -1332,6 +1332,9 @@ public class WebPanelServer extends WebSocketServer {
         if (data.has("automodAlerts")) settings.automodAlerts = data.get("automodAlerts").getAsBoolean();
         if (data.has("anticheatAlerts")) settings.anticheatAlerts = data.get("anticheatAlerts").getAsBoolean();
         if (data.has("compactMode")) settings.compactMode = data.get("compactMode").getAsBoolean();
+        if (data.has("theme")) settings.theme = data.get("theme").getAsString();
+        if (data.has("themeColor")) settings.themeColor = data.get("themeColor").getAsString();
+        if (data.has("backgroundPattern")) settings.backgroundPattern = data.get("backgroundPattern").getAsString();
 
         saveUserSettings();
         sendSuccess(conn, "User settings saved");
@@ -1716,6 +1719,7 @@ public class WebPanelServer extends WebSocketServer {
         boolean automodAlerts = true;
         boolean anticheatAlerts = true;
         boolean compactMode = false;
+        String theme = "default";
         String themeColor = "#2d7aed";
         String backgroundPattern = "aurora";
         boolean watchlistAlerts = true;
@@ -1730,6 +1734,7 @@ public class WebPanelServer extends WebSocketServer {
             json.addProperty("automodAlerts", automodAlerts);
             json.addProperty("anticheatAlerts", anticheatAlerts);
             json.addProperty("compactMode", compactMode);
+            json.addProperty("theme", theme);
             json.addProperty("themeColor", themeColor);
             json.addProperty("backgroundPattern", backgroundPattern);
             json.addProperty("watchlistAlerts", watchlistAlerts);
