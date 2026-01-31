@@ -334,7 +334,7 @@ public class MxCommand extends BaseCommand {
             return;
         }
 
-        if (!sender.hasPermission("moderex.webpanel")) {
+        if (!sender.hasPermission("moderex.staff")) {
             sendMessage(sender, MessageKey.NO_PERMISSION);
             return;
         }
@@ -384,7 +384,7 @@ public class MxCommand extends BaseCommand {
             return;
         }
 
-        if (!sender.hasPermission("moderex.webpanel")) {
+        if (!sender.hasPermission("moderex.staff")) {
             sendMessage(sender, MessageKey.NO_PERMISSION);
             return;
         }
@@ -1303,6 +1303,11 @@ public class MxCommand extends BaseCommand {
     }
 
     private void sendHelp(CommandSender sender) {
+        if (!sender.hasPermission("moderex.staff")) {
+            sendMessage(sender, MessageKey.NO_PERMISSION);
+            return;
+        }
+
         sendMessage(sender, "");
         sendMessage(sender, "<gradient:#a855f7:#ec4899>━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━</gradient>");
         sendMessage(sender, "<white>      <bold>ModereX v" + plugin.getDescription().getVersion() + "</bold>");
