@@ -14,6 +14,43 @@
 
 window.MX_CHANGELOGS = [
   {
+    build: 214,
+    version: "2.0dev-214",
+    date: "2026-01-31",
+    title: "Mass Punishments & Permission Fixes",
+    sections: [
+      {
+        type: "new",
+        title: "Mass Punishment Commands",
+        items: [
+          "**/masswarn** - Warn multiple players at once (comma-separated)",
+          "**/massmute** - Mute multiple players at once",
+          "**/masskick** - Kick multiple online players at once",
+          "**/massban** - Ban multiple players at once",
+          "**/massunwarn, /massunmute, /massunban** - Undo by batch ID"
+        ]
+      },
+      {
+        type: "improved",
+        title: "Permission System",
+        items: [
+          "**OP Bypass** - Server operators now get all permissions automatically",
+          "**15s Refresh** - Permission refresh interval changed from 5s to 15s",
+          "**New Permissions** - Added moderex.staff, moderex.staffchat, moderex.template.*, moderex.mass.*"
+        ]
+      },
+      {
+        type: "fixed",
+        title: "UI Improvements",
+        items: [
+          "**Staff Chat Overlay** - Proper styled permission box when lacking access",
+          "**Command Blacklist Overlay** - Proper styled permission box",
+          "**Watchlist Overlay** - Consistent styling with other pages"
+        ]
+      }
+    ]
+  },
+  {
     build: 213,
     version: "2.0dev-213",
     date: "2026-01-31",
