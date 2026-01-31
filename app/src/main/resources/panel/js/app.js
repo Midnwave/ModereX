@@ -317,6 +317,169 @@
   window.closeOverlay = closeOverlay;
   window.renderNoPermissionTable = renderNoPermissionTable;
 
+  // ===== PERMISSION AUTO-REFRESH SYSTEM =====
+  let previousPermissions = [];
+  let permissionRefreshInterval = null;
+  const PERMISSION_REFRESH_MS = 5000; // 5 seconds
+
+  /**
+   * Detect permission changes between old and new arrays.
+   * @param {string[]} oldPerms - Previous permissions array
+   * @param {string[]} newPerms - New permissions array
+   * @returns {string[]} Array of changes (e.g., ['+moderex.ban', '-moderex.mute'])
+   */
+  function detectPermissionChanges(oldPerms, newPerms) {
+    const added = newPerms.filter(p => !oldPerms.includes(p)).map(p => `+${p}`);
+    const removed = oldPerms.filter(p => !newPerms.includes(p)).map(p => `-${p}`);
+    return [...added, ...removed];
+  }
+
+  /**
+   * Start auto-refresh of permissions every 5 seconds.
+   */
+  function startPermissionRefresh() {
+    if (permissionRefreshInterval) return;
+
+    permissionRefreshInterval = setInterval(() => {
+      if (window.MX?.ws?.connected) {
+        window.MX.ws.send('GET_USER_SETTINGS', {});
+      }
+    }, PERMISSION_REFRESH_MS);
+
+    console.debug('[Permissions] Started auto-refresh (5s interval)');
+  }
+
+  /**
+   * Stop auto-refresh of permissions.
+   */
+  function stopPermissionRefresh() {
+    if (permissionRefreshInterval) {
+      clearInterval(permissionRefreshInterval);
+      permissionRefreshInterval = null;
+      console.debug('[Permissions] Stopped auto-refresh');
+    }
+  }
+
+  /**
+   * Handle updated permissions - detect changes and update UI.
+   * @param {string[]} newPermissions - New permissions array from server
+   */
+  function handlePermissionsUpdate(newPermissions) {
+    const changed = detectPermissionChanges(previousPermissions, newPermissions);
+
+    if (changed.length > 0) {
+      console.debug('[Permissions] Changed:', changed);
+      window.devtoolsLog?.('PERMISSIONS', `Permissions changed: ${changed.join(', ')}`, 'info');
+
+      // Update state first
+      state.permissions = newPermissions;
+      previousPermissions = [...newPermissions];
+
+      // Update all permission-dependent UI elements
+      updatePunishPlayerButtons();
+      updatePunishFilterButtons();
+
+      // Re-render current page if needed
+      if (state.currentPage === 'punishments') {
+        ui.renderPunishments();
+      } else if (state.currentPage === 'dashboard') {
+        ui.renderDashboard();
+      }
+    } else {
+      // Just update state silently
+      state.permissions = newPermissions;
+      previousPermissions = [...newPermissions];
+    }
+  }
+
+  /**
+   * Update "Punish Player" buttons based on permissions.
+   */
+  function updatePunishPlayerButtons() {
+    const canPunish = canIssueAnyPunishment();
+
+    // Dashboard quick actions button
+    const dashboardBtn = document.getElementById('dashboardPunishBtn');
+    if (dashboardBtn) {
+      if (canPunish) {
+        dashboardBtn.disabled = false;
+        dashboardBtn.classList.remove('no-permission');
+        dashboardBtn.title = '';
+      } else {
+        dashboardBtn.disabled = true;
+        dashboardBtn.classList.add('no-permission');
+        dashboardBtn.title = 'No permission to issue punishments';
+      }
+    }
+
+    // Punishments page button
+    const punishmentsBtn = document.getElementById('punishmentsPagePunishBtn');
+    if (punishmentsBtn) {
+      if (canPunish) {
+        punishmentsBtn.disabled = false;
+        punishmentsBtn.classList.remove('no-permission');
+        punishmentsBtn.title = '';
+      } else {
+        punishmentsBtn.disabled = true;
+        punishmentsBtn.classList.add('no-permission');
+        punishmentsBtn.title = 'No permission to issue punishments';
+      }
+    }
+  }
+
+  /**
+   * Update punishment filter buttons based on permissions.
+   */
+  function updatePunishFilterButtons() {
+    const filterBan = document.getElementById('filterBan');
+    const filterMute = document.getElementById('filterMute');
+    const filterWarn = document.getElementById('filterWarn');
+    const filterKick = document.getElementById('filterKick');
+    const filterGroup = document.querySelector('.filter-group');
+
+    // Show/hide each filter button based on permission
+    if (filterBan) filterBan.style.display = canViewHistoryType('BAN') ? '' : 'none';
+    if (filterMute) filterMute.style.display = canViewHistoryType('MUTE') ? '' : 'none';
+    if (filterWarn) filterWarn.style.display = canViewHistoryType('WARN') ? '' : 'none';
+    if (filterKick) filterKick.style.display = canViewHistoryType('KICK') ? '' : 'none';
+
+    // If NO filters visible, hide entire filter group
+    if (filterGroup) {
+      const hasAnyFilter = canViewHistoryType('BAN') || canViewHistoryType('MUTE') ||
+        canViewHistoryType('WARN') || canViewHistoryType('KICK');
+      filterGroup.style.display = hasAnyFilter ? '' : 'none';
+    }
+  }
+
+  /**
+   * Render empty table state (no results, as opposed to no permission).
+   * @param {string} message - Message to display
+   */
+  function renderEmptyTable(message) {
+    const tbody = document.getElementById('punishmentsList');
+    if (!tbody) return;
+    tbody.innerHTML = `
+      <tr>
+        <td colspan="8">
+          <div class="table-empty">
+            <i class="fa-solid fa-inbox"></i>
+            <span>${message}</span>
+          </div>
+        </td>
+      </tr>
+    `;
+    // Also hide pagination
+    const pagination = document.querySelector('.punishments-pagination');
+    if (pagination) pagination.style.display = 'none';
+  }
+
+  // Expose new functions globally
+  window.startPermissionRefresh = startPermissionRefresh;
+  window.stopPermissionRefresh = stopPermissionRefresh;
+  window.updatePunishPlayerButtons = updatePunishPlayerButtons;
+  window.updatePunishFilterButtons = updatePunishFilterButtons;
+  window.renderEmptyTable = renderEmptyTable;
+
   const repeatMemory = {};
 
   function normalizeMessage(msg) {
@@ -1487,9 +1650,15 @@
         ${banBtn}
       </div>
       <div class="action-cluster">
-        <button class="action-btn" onclick="openChatLogs('${p.id}')"><i class="fa-solid fa-comments"></i> Chat Logs</button>
-        <button class="action-btn" onclick="openCommandHistory('${p.id}')"><i class="fa-solid fa-terminal"></i> Commands</button>
-        <button class="action-btn compact" onclick="openAutomodLogs('${p.id}')"><i class="fa-solid fa-robot"></i> Automod</button>
+        ${hasPermission('moderex.history.chat')
+          ? `<button class="action-btn" onclick="openChatLogs('${p.id}')"><i class="fa-solid fa-comments"></i> Chat Logs</button>`
+          : `<button class="action-btn btn-disabled" disabled title="Missing: moderex.history.chat"><i class="fa-solid fa-lock"></i> Chat Logs</button>`}
+        ${hasPermission('moderex.history.commands')
+          ? `<button class="action-btn" onclick="openCommandHistory('${p.id}')"><i class="fa-solid fa-terminal"></i> Commands</button>`
+          : `<button class="action-btn btn-disabled" disabled title="Missing: moderex.history.commands"><i class="fa-solid fa-lock"></i> Commands</button>`}
+        ${hasPermission('moderex.history.automod')
+          ? `<button class="action-btn compact" onclick="openAutomodLogs('${p.id}')"><i class="fa-solid fa-robot"></i> Automod</button>`
+          : `<button class="action-btn compact btn-disabled" disabled title="Missing: moderex.history.automod"><i class="fa-solid fa-lock"></i> Automod</button>`}
       </div>
     `;
 
@@ -4821,10 +4990,16 @@
           window.loadCurrentPluginVersion();
         }
       }, 1000);
+
+      // Start permission auto-refresh (5 second interval)
+      startPermissionRefresh();
     });
 
     // Handle disconnect
     ws.on('disconnected', (data) => {
+      // Stop permission refresh on disconnect
+      stopPermissionRefresh();
+
       if (isLiveMode && state.authenticated) {
         // Show disconnect overlay only if we were previously authenticated
         const serverName = document.getElementById('serverNameText')?.textContent || 'Server';
@@ -5173,7 +5348,7 @@
 
       // Store permissions array for UI permission checks
       if (data.permissions) {
-        state.permissions = data.permissions;
+        handlePermissionsUpdate(data.permissions);
         console.log('[USER_SETTINGS] Received permissions:', state.permissions);
         window.devtoolsLog('PERMISSIONS', `Received ${state.permissions.length} permissions from server`, 'success');
       } else {

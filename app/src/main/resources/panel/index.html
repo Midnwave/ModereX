@@ -398,7 +398,7 @@
               <h3><i class="fa-solid fa-bolt" style="color:var(--warn)"></i> Quick Actions</h3>
               <p>Common moderation tasks at your fingertips.</p>
               <div style="display:flex;flex-wrap:wrap;gap:10px;margin-top:12px">
-                <button class="btn primary" onclick="openPunishFromList()"><i class="fa-solid fa-gavel"></i> Punish Player</button>
+                <button class="btn primary" id="dashboardPunishBtn" onclick="openPunishFromList()"><i class="fa-solid fa-gavel"></i> Punish Player</button>
                 <button class="btn" onclick="go('logs')"><i class="fa-solid fa-list"></i> View Logs</button>
                 <button class="btn" onclick="go('watchlist')"><i class="fa-solid fa-eye"></i> Manage Watchlist</button>
                 <button class="btn" onclick="go('automod')"><i class="fa-solid fa-robot"></i> Automod Rules</button>
@@ -491,7 +491,7 @@
               <h1>Punishment History</h1>
               <p>View and manage all enforcement actions.</p>
             </div>
-            <button class="btn primary" onclick="openPunishFromList()"><i class="fa-solid fa-gavel"></i> Punish Player</button>
+            <button class="btn primary" id="punishmentsPagePunishBtn" onclick="openPunishFromList()"><i class="fa-solid fa-gavel"></i> Punish Player</button>
           </div>
           
           <div class="panel pad">

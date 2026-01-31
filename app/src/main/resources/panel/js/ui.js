@@ -376,39 +376,50 @@
     `).join('');
     dom.activityRows.innerHTML = rows || `<tr><td colspan="4" style="color:var(--muted)">No activity recorded.</td></tr>`;
 
-    // Recent punishments
+    // Recent punishments (filtered by permission)
     if (dom.recentPunishments) {
-      const recentPuns = state.punishments.slice().sort((a, b) => b.createdAt - a.createdAt).slice(0, 5);
-      dom.recentPunishments.innerHTML = recentPuns.map(pun => {
-        const pl = state.players.find(p => p.id === pun.playerId);
-        const name = pl?.name || 'Unknown';
-        const avatarFallback = `https://minotar.net/helm/${encodeURIComponent(name)}/64.png`;
-        const typeBadge = pun.type === 'BAN' ? `<span class="badge red"><i class="fa-solid fa-ban"></i></span>` :
-          pun.type === 'MUTE' ? `<span class="badge yellow"><i class="fa-solid fa-volume-xmark"></i></span>` :
-          pun.type === 'KICK' ? `<span class="badge purple"><i class="fa-solid fa-person-walking-arrow-right"></i></span>` :
-          `<span class="badge blue"><i class="fa-solid fa-triangle-exclamation"></i></span>`;
-        const statusBadge = pun.revoked
-          ? `<span class="badge gray"><i class="fa-solid fa-xmark"></i> Revoked</span>`
-          : pun.active === false
-            ? `<span class="badge gray"><i class="fa-solid fa-check"></i> Expired</span>`
-            : `<span class="badge green"><i class="fa-solid fa-check"></i> Active</span>`;
+      // Check if user has any history permission
+      if (!canViewAnyHistory()) {
+        dom.recentPunishments.innerHTML = `<div class="hintline"><i class="fa-solid fa-lock" style="margin-right:6px"></i>No permission to view punishment history</div>`;
+      } else {
+        // Filter by type permission
+        const recentPuns = state.punishments
+          .filter(p => canViewHistoryType(p.type))
+          .slice()
+          .sort((a, b) => b.createdAt - a.createdAt)
+          .slice(0, 5);
 
-        return `
-          <div class="drawer-row" style="border-radius:var(--radius);cursor:pointer" onclick="viewPunishmentDetails('${pun.id}')">
-            <div style="display:flex;align-items:center;gap:10px">
-              <div class="phead" style="width:32px;height:32px"><img src="${avatarUrl(pl || { name: name })}" alt="" onerror="this.onerror=null;this.src='${avatarFallback}'" style="width:100%;height:100%;border-radius:4px"></div>
-              <div class="meta" style="flex:1">
-                <b>${escapeHtml(name)}</b>
-                <small>${escapeHtml(truncate(pun.reason || 'No reason', 35))} • ${escapeHtml(fmtShort(pun.createdAt))}</small>
+        dom.recentPunishments.innerHTML = recentPuns.map(pun => {
+          const pl = state.players.find(p => p.id === pun.playerId);
+          const name = pl?.name || 'Unknown';
+          const avatarFallback = `https://minotar.net/helm/${encodeURIComponent(name)}/64.png`;
+          const typeBadge = pun.type === 'BAN' ? `<span class="badge red"><i class="fa-solid fa-ban"></i></span>` :
+            pun.type === 'MUTE' ? `<span class="badge yellow"><i class="fa-solid fa-volume-xmark"></i></span>` :
+            pun.type === 'KICK' ? `<span class="badge purple"><i class="fa-solid fa-person-walking-arrow-right"></i></span>` :
+            `<span class="badge blue"><i class="fa-solid fa-triangle-exclamation"></i></span>`;
+          const statusBadge = pun.revoked
+            ? `<span class="badge gray"><i class="fa-solid fa-xmark"></i> Revoked</span>`
+            : pun.active === false
+              ? `<span class="badge gray"><i class="fa-solid fa-check"></i> Expired</span>`
+              : `<span class="badge green"><i class="fa-solid fa-check"></i> Active</span>`;
+
+          return `
+            <div class="drawer-row" style="border-radius:var(--radius);cursor:pointer" onclick="viewPunishmentDetails('${pun.id}')">
+              <div style="display:flex;align-items:center;gap:10px">
+                <div class="phead" style="width:32px;height:32px"><img src="${avatarUrl(pl || { name: name })}" alt="" onerror="this.onerror=null;this.src='${avatarFallback}'" style="width:100%;height:100%;border-radius:4px"></div>
+                <div class="meta" style="flex:1">
+                  <b>${escapeHtml(name)}</b>
+                  <small>${escapeHtml(truncate(pun.reason || 'No reason', 35))} • ${escapeHtml(fmtShort(pun.createdAt))}</small>
+                </div>
+              </div>
+              <div style="display:flex;gap:6px;align-items:center">
+                ${typeBadge}
+                ${statusBadge}
               </div>
             </div>
-            <div style="display:flex;gap:6px;align-items:center">
-              ${typeBadge}
-              ${statusBadge}
-            </div>
-          </div>
-        `;
-      }).join('') || `<div class="hintline">No recent punishments.</div>`;
+          `;
+        }).join('') || `<div class="hintline">No recent punishments.</div>`;
+      }
     }
 
     // Match by UUID (from server) instead of internal ID
@@ -458,7 +469,9 @@
           <td class="flag-cell">${flagsBadge}</td>
           <td style="text-align:right">
             <button class="mini primary" onclick="event.stopPropagation(); openDrawer('${p.id}')"><i class="fa-solid fa-id-card-clip"></i> Profile</button>
-            <button class="mini" onclick="event.stopPropagation(); openPunishModal(null,'${p.id}')"><i class="fa-solid fa-bolt"></i> Action</button>
+            ${canIssueAnyPunishment()
+              ? `<button class="mini" onclick="event.stopPropagation(); openPunishModal(null,'${p.id}')"><i class="fa-solid fa-gavel"></i> Punish</button>`
+              : `<button class="mini btn-disabled" disabled title="No permission to issue punishments"><i class="fa-solid fa-gavel"></i> Punish</button>`}
           </td>
         </tr>
       `;
@@ -550,16 +563,18 @@
             ${hasPermission('moderex.command.viewpunishment')
               ? `<button class="mini" onclick="event.stopPropagation(); viewPunishmentDetails('${pun.id}')"><i class="fa-solid fa-eye"></i> Details</button>`
               : `<button class="mini btn-disabled" disabled title="Missing: moderex.command.viewpunishment"><i class="fa-solid fa-eye-slash"></i> Details</button>`}
-            ${canRevoke && canRevokePunishment(pun.type) ? `<button class="mini bad" onclick="event.stopPropagation(); revokePunishmentConfirm('${pun.id}')"><i class="fa-solid fa-xmark"></i> ${pun.type === 'WARN' ? 'Remove' : 'Revoke'}</button>` : canRevoke && !canRevokePunishment(pun.type) ? `<span class="badge gray" title="No permission to revoke"><i class="fa-solid fa-lock"></i></span>` : `<span class="badge gray"><i class="fa-solid fa-check"></i> Closed</span>`}
           </td>
         </tr>
       `;
     }).join('');
 
-    dom.punishRows.innerHTML = rows || `<tr><td colspan="8" style="color:var(--muted)">No punishments match filters.</td></tr>`;
-
-    // Render pagination controls
-    renderPagination('punishPagination', pag.page, totalPages, totalItems, pag.pageSize, 'punishments');
+    if (rows) {
+      dom.punishRows.innerHTML = rows;
+      // Render pagination controls
+      renderPagination('punishPagination', pag.page, totalPages, totalItems, pag.pageSize, 'punishments');
+    } else {
+      renderEmptyTable('No punishments match your current filters.');
+    }
   }
 
   function renderTemplates() {

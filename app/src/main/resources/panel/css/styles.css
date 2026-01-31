@@ -262,6 +262,27 @@
   text-align: center;
 }
 
+/* ===== EMPTY TABLE STATE (no results) ===== */
+.table-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 4rem 2rem;
+  color: var(--text-secondary);
+}
+
+.table-empty i {
+  font-size: 3rem;
+  color: var(--muted);
+  margin-bottom: 1rem;
+}
+
+.table-empty span {
+  font-size: 0.95rem;
+  text-align: center;
+}
+
 /* ===== DISABLED BUTTON STATE ===== */
 button.btn-disabled,
 button:disabled:not(.filter-btn) {
