@@ -149,6 +149,174 @@
   window.canView = canView;
   window.lockSection = lockSection;
 
+  /**
+   * Check if user can issue a specific punishment type.
+   * @param {string} type - Punishment type (BAN, MUTE, WARN, KICK)
+   * @returns {boolean} true if user can issue this punishment type
+   */
+  function canIssuePunishment(type) {
+    switch (type?.toUpperCase()) {
+      case 'BAN': return hasPermission('moderex.ban') || hasPermission('moderex.tempban');
+      case 'MUTE': return hasPermission('moderex.mute') || hasPermission('moderex.tempmute');
+      case 'WARN': return hasPermission('moderex.warn');
+      case 'KICK': return hasPermission('moderex.kick');
+      default: return false;
+    }
+  }
+
+  /**
+   * Check if user can issue PERMANENT punishment of a specific type.
+   * @param {string} type - Punishment type (BAN, MUTE)
+   * @returns {boolean} true if user can issue permanent punishment
+   */
+  function canIssuePermanent(type) {
+    switch (type?.toUpperCase()) {
+      case 'BAN': return hasPermission('moderex.ban');
+      case 'MUTE': return hasPermission('moderex.mute');
+      default: return true; // WARN and KICK don't have duration
+    }
+  }
+
+  /**
+   * Check if user can revoke a specific punishment type.
+   * @param {string} type - Punishment type (BAN, MUTE, WARN)
+   * @returns {boolean} true if user can revoke this punishment type
+   */
+  function canRevokePunishment(type) {
+    switch (type?.toUpperCase()) {
+      case 'BAN': return hasPermission('moderex.unban');
+      case 'MUTE': return hasPermission('moderex.unmute');
+      case 'WARN': return hasPermission('moderex.unwarn');
+      default: return false; // KICK cannot be revoked
+    }
+  }
+
+  /**
+   * Check if user can view a specific punishment type in history.
+   * @param {string} type - Punishment type (BAN, MUTE, WARN, KICK)
+   * @returns {boolean} true if user can view this punishment type
+   */
+  function canViewHistoryType(type) {
+    // Check for wildcard first
+    if (hasPermission('moderex.history.*')) return true;
+
+    switch (type?.toUpperCase()) {
+      case 'BAN': return hasPermission('moderex.history.bans');
+      case 'MUTE': return hasPermission('moderex.history.mutes');
+      case 'WARN': return hasPermission('moderex.history.warns');
+      case 'KICK': return hasPermission('moderex.history.kicks');
+      case 'PARDON': return hasPermission('moderex.history.pardons');
+      default: return false;
+    }
+  }
+
+  /**
+   * Check if user has permission to issue ANY punishment.
+   * @returns {boolean} true if user can issue at least one punishment type
+   */
+  function canIssueAnyPunishment() {
+    return hasPermission('moderex.punish') ||
+      hasPermission('moderex.ban') || hasPermission('moderex.tempban') ||
+      hasPermission('moderex.mute') || hasPermission('moderex.tempmute') ||
+      hasPermission('moderex.warn') || hasPermission('moderex.kick');
+  }
+
+  /**
+   * Check if user can view ANY punishment history.
+   * @returns {boolean} true if user can view at least one history type
+   */
+  function canViewAnyHistory() {
+    return hasPermission('moderex.history.*') ||
+      hasPermission('moderex.history.bans') ||
+      hasPermission('moderex.history.mutes') ||
+      hasPermission('moderex.history.warns') ||
+      hasPermission('moderex.history.kicks');
+  }
+
+  /**
+   * Show no permission overlay on a modal.
+   * @param {string} overlayId - The ID of the overlay element
+   * @param {string} message - Message to display
+   */
+  function showNoPermissionOverlay(overlayId, message) {
+    const overlay = document.getElementById(overlayId);
+    if (!overlay) {
+      console.debug('[Permission] Overlay not found:', overlayId);
+      return;
+    }
+    const modal = overlay.querySelector('.modal, .punish-modal');
+    if (!modal) {
+      console.debug('[Permission] Modal not found in overlay:', overlayId);
+      return;
+    }
+
+    // Remove existing no-permission overlay if any
+    const existing = modal.querySelector('.no-permission-overlay');
+    if (existing) existing.remove();
+
+    const noPermDiv = document.createElement('div');
+    noPermDiv.className = 'no-permission-overlay';
+    noPermDiv.innerHTML = `
+      <i class="fa-solid fa-ban"></i>
+      <span>${message}</span>
+      <button onclick="closeOverlay('${overlayId}')">Close</button>
+    `;
+    modal.style.position = 'relative';
+    modal.appendChild(noPermDiv);
+
+    overlay.classList.add('show', 'top');
+    console.debug('[Permission] Denied access to', overlayId, '-', message);
+  }
+
+  /**
+   * Close any overlay by ID.
+   * @param {string} overlayId - The ID of the overlay to close
+   */
+  function closeOverlay(overlayId) {
+    const overlay = document.getElementById(overlayId);
+    if (!overlay) return;
+    overlay.classList.add('fade-out');
+    setTimeout(() => {
+      overlay.classList.remove('show', 'top', 'fade-out');
+      // Also remove any no-permission overlay inside
+      const noPermOverlay = overlay.querySelector('.no-permission-overlay');
+      if (noPermOverlay) noPermOverlay.remove();
+    }, 220);
+  }
+
+  /**
+   * Render no permission state for punishment history table.
+   * @param {string} message - Message to display
+   */
+  function renderNoPermissionTable(message) {
+    const tbody = document.getElementById('punishmentsList');
+    if (!tbody) return;
+    tbody.innerHTML = `
+      <tr>
+        <td colspan="8">
+          <div class="table-no-permission">
+            <i class="fa-solid fa-ban"></i>
+            <span>${message}</span>
+          </div>
+        </td>
+      </tr>
+    `;
+    // Also hide pagination if no permission
+    const pagination = document.querySelector('.punishments-pagination');
+    if (pagination) pagination.style.display = 'none';
+  }
+
+  // Expose new permission helpers globally
+  window.canIssuePunishment = canIssuePunishment;
+  window.canIssuePermanent = canIssuePermanent;
+  window.canRevokePunishment = canRevokePunishment;
+  window.canViewHistoryType = canViewHistoryType;
+  window.canIssueAnyPunishment = canIssueAnyPunishment;
+  window.canViewAnyHistory = canViewAnyHistory;
+  window.showNoPermissionOverlay = showNoPermissionOverlay;
+  window.closeOverlay = closeOverlay;
+  window.renderNoPermissionTable = renderNoPermissionTable;
+
   const repeatMemory = {};
 
   function normalizeMessage(msg) {
@@ -1301,11 +1469,22 @@
       window.showExternalPunishments(p.uuid);
     }
 
+    // Build quick punishment buttons based on permissions
+    const warnBtn = canIssuePunishment('WARN')
+      ? `<button class="action-btn warn" onclick="openPunishModal('WARN','${p.id}')"><i class="fa-solid fa-triangle-exclamation"></i> Warn</button>`
+      : `<button class="action-btn warn btn-disabled" disabled title="Missing: moderex.warn"><i class="fa-solid fa-lock"></i> Warn</button>`;
+    const muteBtn = canIssuePunishment('MUTE')
+      ? `<button class="action-btn mute" onclick="openPunishModal('MUTE','${p.id}')"><i class="fa-solid fa-volume-xmark"></i> Mute</button>`
+      : `<button class="action-btn mute btn-disabled" disabled title="Missing: moderex.mute"><i class="fa-solid fa-lock"></i> Mute</button>`;
+    const banBtn = canIssuePunishment('BAN')
+      ? `<button class="action-btn ban" onclick="openPunishModal('BAN','${p.id}')"><i class="fa-solid fa-ban"></i> Ban</button>`
+      : `<button class="action-btn ban btn-disabled" disabled title="Missing: moderex.ban"><i class="fa-solid fa-lock"></i> Ban</button>`;
+
     dom().drawerActionBar.innerHTML = `
       <div class="action-cluster">
-        <button class="action-btn warn" onclick="openPunishModal('WARN','${p.id}')"><i class="fa-solid fa-triangle-exclamation"></i> Warn</button>
-        <button class="action-btn mute" onclick="openPunishModal('MUTE','${p.id}')"><i class="fa-solid fa-volume-xmark"></i> Mute</button>
-        <button class="action-btn ban" onclick="openPunishModal('BAN','${p.id}')"><i class="fa-solid fa-ban"></i> Ban</button>
+        ${warnBtn}
+        ${muteBtn}
+        ${banBtn}
       </div>
       <div class="action-cluster">
         <button class="action-btn" onclick="openChatLogs('${p.id}')"><i class="fa-solid fa-comments"></i> Chat Logs</button>
@@ -1314,36 +1493,60 @@
       </div>
     `;
 
-    const active = state.punishments.filter(x => x.playerId === p.id && x.active && !x.revoked);
-    dom().drawerActivePun.innerHTML = active.length ? active.map(x => {
-      const badgeClass = x.type === 'BAN' ? 'red' : x.type === 'MUTE' ? 'yellow' : x.type === 'KICK' ? 'purple' : 'blue';
-      const canRevoke = x.type !== 'KICK'; // Kicks cannot be revoked
-      return `
-        <div class="drawer-row" style="cursor:pointer" onclick="viewPunishmentDetails('${x.id}')">
-          <div class="meta"><b>${escapeHtml(x.type)} | ${escapeHtml(x.duration || 'instant')}</b><small>${escapeHtml(truncateText(x.reason || 'No reason', 40))}<br>Case: <span style="font-family:var(--font-mono)">${escapeHtml(x.id)}</span> | by ${escapeHtml(x.staff)}</small></div>
-          <div class="drawer-actions">
-            <span class="badge ${badgeClass}"><i class="fa-solid fa-file-lines"></i></span>
-            ${canRevoke ? `<button class="mini bad" onclick="event.stopPropagation(); revokePunishmentConfirm('${x.id}')"><i class="fa-solid fa-xmark"></i></button>` : ''}
+    // Filter active punishments by type permission
+    const activeAll = state.punishments.filter(x => x.playerId === p.id && x.active && !x.revoked);
+    const active = activeAll.filter(x => canViewHistoryType(x.type));
+    const hasAnyActiveViewPerm = canViewAnyHistory();
+
+    if (!hasAnyActiveViewPerm) {
+      dom().drawerActivePun.innerHTML = `<div class="drawer-row"><div class="meta"><small style="color:var(--muted)"><i class="fa-solid fa-lock"></i> No permission to view punishments</small></div></div>`;
+    } else {
+      dom().drawerActivePun.innerHTML = active.length ? active.map(x => {
+        const badgeClass = x.type === 'BAN' ? 'red' : x.type === 'MUTE' ? 'yellow' : x.type === 'KICK' ? 'purple' : 'blue';
+        const canRevokeType = x.type !== 'KICK' && canRevokePunishment(x.type);
+        const canViewDetails = hasPermission('moderex.command.viewpunishment');
+        return `
+          <div class="drawer-row" style="cursor:${canViewDetails ? 'pointer' : 'default'}" ${canViewDetails ? `onclick="viewPunishmentDetails('${x.id}')"` : ''}>
+            <div class="meta"><b>${escapeHtml(x.type)} | ${escapeHtml(x.duration || 'instant')}</b><small>${escapeHtml(truncateText(x.reason || 'No reason', 40))}<br>Case: <span style="font-family:var(--font-mono)">${escapeHtml(x.id)}</span> | by ${escapeHtml(x.staff)}</small></div>
+            <div class="drawer-actions">
+              <span class="badge ${badgeClass}"><i class="fa-solid fa-file-lines"></i></span>
+              ${canRevokeType ? `<button class="mini bad" onclick="event.stopPropagation(); revokePunishmentConfirm('${x.id}')"><i class="fa-solid fa-xmark"></i></button>` : x.type !== 'KICK' ? `<span class="badge gray" title="No revoke permission"><i class="fa-solid fa-lock"></i></span>` : ''}
+            </div>
           </div>
+        `;
+      }).join('') : `<div class="drawer-row"><div class="meta"><small>No active punishments.</small></div></div>`;
+    }
+
+    // Filter past violations by type permission
+    const violationsAll = state.punishments.filter(x => x.playerId === p.id && (!x.active || x.revoked)).sort((a, b) => b.createdAt - a.createdAt);
+    const violations = violationsAll.filter(x => canViewHistoryType(x.type));
+    const canViewDetails = hasPermission('moderex.command.viewpunishment');
+
+    if (!hasAnyActiveViewPerm) {
+      dom().drawerViolations.innerHTML = `<div class="drawer-row"><div class="meta"><small style="color:var(--muted)"><i class="fa-solid fa-lock"></i> No permission to view violations</small></div></div>`;
+    } else {
+      dom().drawerViolations.innerHTML = violations.length ? violations.slice(0, 8).map(v => `
+        <div class="drawer-row" style="cursor:${canViewDetails ? 'pointer' : 'default'}" ${canViewDetails ? `onclick="viewPunishmentDetails('${v.id}')"` : ''}>
+          <div class="meta"><b>${escapeHtml(v.type)} | <span style="font-family:var(--font-mono)">${escapeHtml(v.id)}</span></b><small>${escapeHtml(fmtLong(v.createdAt))} | ${escapeHtml(truncateText(v.reason || 'No reason', 35))}</small></div>
+          <span class="badge ${v.type === 'BAN' ? 'red' : v.type === 'MUTE' ? 'yellow' : 'blue'}"><i class="fa-solid fa-file-lines"></i></span>
         </div>
-      `;
-    }).join('') : `<div class="drawer-row"><div class="meta"><small>No active punishments.</small></div></div>`;
+      `).join('') : `<div class="drawer-row"><div class="meta"><small>No violations.</small></div></div>`;
+    }
 
-    const violations = state.punishments.filter(x => x.playerId === p.id && (!x.active || x.revoked)).sort((a, b) => b.createdAt - a.createdAt);
-    dom().drawerViolations.innerHTML = violations.length ? violations.slice(0, 8).map(v => `
-      <div class="drawer-row" style="cursor:pointer" onclick="viewPunishmentDetails('${v.id}')">
-        <div class="meta"><b>${escapeHtml(v.type)} | <span style="font-family:var(--font-mono)">${escapeHtml(v.id)}</span></b><small>${escapeHtml(fmtLong(v.createdAt))} | ${escapeHtml(truncateText(v.reason || 'No reason', 35))}</small></div>
-        <span class="badge ${v.type === 'BAN' ? 'red' : v.type === 'MUTE' ? 'yellow' : 'blue'}"><i class="fa-solid fa-file-lines"></i></span>
-      </div>
-    `).join('') : `<div class="drawer-row"><div class="meta"><small>No violations.</small></div></div>`;
+    // Pardons section - requires moderex.history.pardons permission
+    const pardonsAll = violationsAll.filter(v => v.revoked && v.revokedBy);
+    const pardons = pardonsAll.filter(v => canViewHistoryType(v.type)); // Also check type permission
 
-    const pardons = violations.filter(v => v.revoked && v.revokedBy);
-    dom().drawerPardons.innerHTML = pardons.length ? pardons.map(v => `
-      <div class="drawer-row">
-        <div class="meta"><b>${escapeHtml(v.type)} | <span style="font-family:var(--font-mono)">${escapeHtml(v.id)}</span></b><small>Pardoned by ${escapeHtml(v.revokedBy)} | ${escapeHtml(fmtLong(v.revokedAt || v.createdAt))}</small></div>
-        <span class="badge gray"><i class="fa-solid fa-check"></i> Pardon</span>
-      </div>
-    `).join('') : `<div class="drawer-row"><div class="meta"><small>No pardons.</small></div></div>`;
+    if (!hasPermission('moderex.history.pardons')) {
+      dom().drawerPardons.innerHTML = `<div class="drawer-row"><div class="meta"><small style="color:var(--muted)"><i class="fa-solid fa-lock"></i> No permission to view pardons</small></div></div>`;
+    } else {
+      dom().drawerPardons.innerHTML = pardons.length ? pardons.map(v => `
+        <div class="drawer-row">
+          <div class="meta"><b>${escapeHtml(v.type)} | <span style="font-family:var(--font-mono)">${escapeHtml(v.id)}</span></b><small>Pardoned by ${escapeHtml(v.revokedBy)} | ${escapeHtml(fmtLong(v.revokedAt || v.createdAt))}</small></div>
+          <span class="badge gray"><i class="fa-solid fa-check"></i> Pardon</span>
+        </div>
+      `).join('') : `<div class="drawer-row"><div class="meta"><small>No pardons.</small></div></div>`;
+    }
 
     // IP History section - show current IP and historical IPs (with permission check)
     const ipSection = document.getElementById('drawerIpSection');
@@ -1433,6 +1636,12 @@
 
   // ===== PUNISHMENT MODAL =====
   window.openPunishModal = function(type = null, playerId = null) {
+    // Permission check - user must have at least one punishment permission
+    if (!canIssueAnyPunishment()) {
+      showNoPermissionOverlay('punishOverlay', 'You do not have permission to issue punishments.');
+      return;
+    }
+
     const pid = playerId || state.selectedPlayerId;
     if (pid) state.selectedPlayerId = pid;
     const p = pid ? state.players.find(x => x.id === pid) : null;
@@ -1440,6 +1649,12 @@
     dom().punishOverlay.classList.add('show');
     state.pendingPunishType = type || state.pendingPunishType || 'WARN';
     state.punishTargetLocked = !!playerId;
+
+    // If requested type is not allowed, default to first allowed type
+    if (!canIssuePunishment(state.pendingPunishType)) {
+      state.pendingPunishType = getFirstAllowedPunishType() || 'WARN';
+    }
+
     updatePunishTitle(dom().punishTitle, state.pendingPunishType, pid);
 
     dom().punishTarget.innerHTML = state.players.map(player => `
@@ -1450,11 +1665,14 @@
       state.selectedPlayerId = state.players[0].id;
     }
     dom().punishTarget.disabled = state.punishTargetLocked;
+
+    // Update type dropdown to only show allowed types
+    updatePunishTypeDropdown(dom().punishTypeSelect);
     dom().punishTypeSelect.value = state.pendingPunishType;
     updatePunishTitle(dom().punishTitle, state.pendingPunishType, state.selectedPlayerId);
 
     const tplOptions = ['<option value="none">(none)</option>'].concat(
-      state.templates.filter(t => t.id !== 'none').map(t => `<option value="${t.id}">${escapeHtml(t.name)}</option>`)
+      state.templates.filter(t => t.id !== 'none' && canIssuePunishment(t.type)).map(t => `<option value="${t.id}">${escapeHtml(t.name)}</option>`)
     );
     dom().punishTemplate.innerHTML = tplOptions.join('');
     dom().punishTemplate.value = 'none';
@@ -1474,6 +1692,12 @@
   };
 
   window.openPunishCreateModal = function(type = null, playerId = null, lockPlayer = false) {
+    // Permission check - user must have at least one punishment permission
+    if (!canIssueAnyPunishment()) {
+      showNoPermissionOverlay('punishCreateOverlay', 'You do not have permission to issue punishments.');
+      return;
+    }
+
     dom().punishCreateOverlay.classList.add('show');
     state.punishCreateLocked = !!lockPlayer;
     state.punishCreatePlayerId = playerId || state.punishCreatePlayerId || state.players[0]?.id || null;
@@ -1481,12 +1705,21 @@
     const selected = state.players.find(x => x.id === state.punishCreatePlayerId);
     dom().punishCreatePlayer.value = state.punishCreateLocked ? (selected?.name || '') : '';
     dom().punishCreatePlayer.disabled = state.punishCreateLocked;
-    dom().punishCreateType.value = type || state.pendingPunishType || 'WARN';
-    state.pendingPunishType = dom().punishCreateType.value;
-    updatePunishTitle(dom().punishCreateTitle, dom().punishCreateType.value, state.punishCreatePlayerId);
+
+    // Update type dropdown to only show allowed types
+    updatePunishTypeDropdown(dom().punishCreateType);
+
+    // Set type - if requested type is not allowed, default to first allowed
+    let selectedType = type || state.pendingPunishType || 'WARN';
+    if (!canIssuePunishment(selectedType)) {
+      selectedType = getFirstAllowedPunishType() || 'WARN';
+    }
+    dom().punishCreateType.value = selectedType;
+    state.pendingPunishType = selectedType;
+    updatePunishTitle(dom().punishCreateTitle, selectedType, state.punishCreatePlayerId);
 
     const tplOptions = ['<option value="none">(none)</option>'].concat(
-      state.templates.filter(t => t.id !== 'none').map(t => `<option value="${t.id}">${escapeHtml(t.name)}</option>`)
+      state.templates.filter(t => t.id !== 'none' && canIssuePunishment(t.type)).map(t => `<option value="${t.id}">${escapeHtml(t.name)}</option>`)
     );
     dom().punishCreateTemplate.innerHTML = tplOptions.join('');
     dom().punishCreateTemplate.value = 'none';
@@ -1509,6 +1742,82 @@
       state.punishCreateLocked = false;
     }, 220);
   };
+
+  /**
+   * Update a punishment type dropdown to only show types the user has permission for.
+   * @param {HTMLSelectElement} selectEl - The select element to update
+   */
+  function updatePunishTypeDropdown(selectEl) {
+    if (!selectEl) return;
+    const currentValue = selectEl.value;
+    selectEl.innerHTML = '';
+
+    const types = [
+      { value: 'WARN', label: 'Warn', icon: 'fa-triangle-exclamation' },
+      { value: 'MUTE', label: 'Mute', icon: 'fa-volume-xmark' },
+      { value: 'BAN', label: 'Ban', icon: 'fa-ban' },
+      { value: 'KICK', label: 'Kick', icon: 'fa-person-walking-arrow-right' }
+    ];
+
+    let hasOptions = false;
+    types.forEach(t => {
+      if (canIssuePunishment(t.value)) {
+        const opt = document.createElement('option');
+        opt.value = t.value;
+        opt.textContent = t.label;
+        selectEl.appendChild(opt);
+        hasOptions = true;
+      }
+    });
+
+    if (!hasOptions) {
+      const opt = document.createElement('option');
+      opt.value = '';
+      opt.textContent = 'No permissions';
+      opt.disabled = true;
+      selectEl.appendChild(opt);
+      selectEl.disabled = true;
+    } else {
+      selectEl.disabled = false;
+      // Restore previous value if still valid
+      if (canIssuePunishment(currentValue)) {
+        selectEl.value = currentValue;
+      }
+    }
+  }
+
+  /**
+   * Get the first punishment type the user has permission for.
+   * @returns {string|null} First allowed type or null
+   */
+  function getFirstAllowedPunishType() {
+    if (canIssuePunishment('WARN')) return 'WARN';
+    if (canIssuePunishment('MUTE')) return 'MUTE';
+    if (canIssuePunishment('BAN')) return 'BAN';
+    if (canIssuePunishment('KICK')) return 'KICK';
+    return null;
+  }
+
+  /**
+   * Validate duration for permanent punishment permissions.
+   * @param {string} type - Punishment type
+   * @param {string} duration - Duration string
+   * @returns {{valid: boolean, error?: string}}
+   */
+  function validatePunishDuration(type, duration) {
+    const d = (duration || '').trim().toLowerCase();
+    const isPerm = !d || d === 'perm' || d === '-1' || d === 'permanent';
+
+    if (isPerm) {
+      if (type === 'BAN' && !canIssuePermanent('BAN')) {
+        return { valid: false, error: 'You only have permission for temporary bans.' };
+      }
+      if (type === 'MUTE' && !canIssuePermanent('MUTE')) {
+        return { valid: false, error: 'You only have permission for temporary mutes.' };
+      }
+    }
+    return { valid: true };
+  }
 
   function renderPunishCreateList() {
     const combo = dom().punishCreateList?.closest('.combo');
@@ -1563,8 +1872,27 @@
     const pid = state.punishCreatePlayerId;
     if (!pid) { window.MX.sounds?.toastWarning(); toast('warn', 'No Target', 'Select a player first.'); return; }
     const type = dom().punishCreateType.value || 'WARN';
+
+    // Permission check for punishment type
+    if (!canIssuePunishment(type)) {
+      console.debug('[Permission] Denied CREATE punishment type:', type);
+      window.MX.sounds?.toastWarning();
+      toast('bad', 'No Permission', `You do not have permission to issue ${type.toLowerCase()} punishments.`);
+      return;
+    }
+
     const reason = dom().punishCreateReason.value.trim() || 'No reason';
     const duration = dom().punishCreateDuration.value.trim() || (type === 'BAN' ? 'perm' : type === 'MUTE' ? '7d' : '');
+
+    // Validate duration for permanent punishment permissions
+    const durationCheck = validatePunishDuration(type, duration);
+    if (!durationCheck.valid) {
+      console.debug('[Permission] Denied permanent duration for:', type);
+      window.MX.sounds?.toastWarning();
+      toast('bad', 'No Permission', durationCheck.error);
+      return;
+    }
+
     const evId = dom().punishCreateEvidencePick.value || null;
     executePunishment({ playerId: pid, type, reason, duration, evidenceId: evId });
     ui.renderPunishments();
@@ -1611,8 +1939,27 @@
     if (!p) { window.MX.sounds?.toastWarning(); toast('warn', 'No Target', 'Select a player first.'); return; }
 
     const type = state.pendingPunishType || 'WARN';
+
+    // Permission check for punishment type
+    if (!canIssuePunishment(type)) {
+      console.debug('[Permission] Denied SUBMIT punishment type:', type);
+      window.MX.sounds?.toastWarning();
+      toast('bad', 'No Permission', `You do not have permission to issue ${type.toLowerCase()} punishments.`);
+      return;
+    }
+
     const reason = dom().punishReason.value.trim() || 'No reason';
     const duration = dom().punishDuration.value.trim() || (type === 'BAN' ? 'perm' : type === 'MUTE' ? '7d' : '');
+
+    // Validate duration for permanent punishment permissions
+    const durationCheck = validatePunishDuration(type, duration);
+    if (!durationCheck.valid) {
+      console.debug('[Permission] Denied permanent duration for:', type);
+      window.MX.sounds?.toastWarning();
+      toast('bad', 'No Permission', durationCheck.error);
+      return;
+    }
+
     const evId = dom().punishEvidencePick.value || null;
 
     executePunishment({ playerId: p.id, type, reason, duration, evidenceId: evId });
@@ -1626,6 +1973,13 @@
 
   // ===== PUNISHMENT DETAILS =====
   window.viewPunishmentDetails = function(caseId) {
+    // Permission check - user must have viewpunishment permission
+    if (!hasPermission('moderex.command.viewpunishment')) {
+      showNoPermissionOverlay('detailsOverlay', 'You do not have permission to view punishment details.');
+      console.debug('[Permission] Denied viewPunishmentDetails - missing moderex.command.viewpunishment');
+      return;
+    }
+
     const pun = state.punishments.find(x => x.id === caseId);
     if (!pun) return;
 
@@ -1660,8 +2014,11 @@
 
     // Kicks cannot be revoked - they are instant actions
     const canRevoke = !pun.revoked && pun.type !== 'KICK';
+    const hasRevokePerm = canRevokePunishment(pun.type);
     dom().detailsActions.innerHTML = `
-      ${canRevoke ? `<button class="btn bad" onclick="revokePunishmentConfirm('${pun.id}')"><i class="fa-solid fa-xmark"></i> ${pun.type === 'WARN' ? 'Remove' : 'Revoke'}</button>` : ''}
+      <button class="btn ghost" onclick="openCaseInformation('${pun.id}')"><i class="fa-solid fa-info-circle"></i> Case Information</button>
+      ${canRevoke && hasRevokePerm ? `<button class="btn bad" onclick="revokePunishmentConfirm('${pun.id}')"><i class="fa-solid fa-xmark"></i> ${pun.type === 'WARN' ? 'Remove' : 'Revoke'}</button>` : ''}
+      ${canRevoke && !hasRevokePerm ? `<button class="btn bad btn-disabled" disabled title="Missing: moderex.un${pun.type.toLowerCase()}"><i class="fa-solid fa-lock"></i> ${pun.type === 'WARN' ? 'Remove' : 'Revoke'}</button>` : ''}
       ${pun.type === 'KICK' && !pun.revoked ? `<span class="badge gray"><i class="fa-solid fa-info-circle"></i> Kicks cannot be revoked</span>` : ''}
       <button class="btn ghost" onclick="closeDetailsModal()"><i class="fa-solid fa-xmark"></i> Close</button>
     `;
@@ -1703,6 +2060,15 @@
     // Kicks cannot be revoked - they are instant actions
     if (pun.type === 'KICK') {
       toast('warn', 'Cannot Revoke', 'Kicks are instant actions and cannot be revoked.');
+      return;
+    }
+
+    // Permission check for revocation
+    if (!canRevokePunishment(pun.type)) {
+      const permName = pun.type === 'BAN' ? 'moderex.unban' : pun.type === 'MUTE' ? 'moderex.unmute' : 'moderex.unwarn';
+      console.debug('[Permission] Denied revoke punishment - missing', permName);
+      window.MX.sounds?.toastWarning();
+      toast('bad', 'No Permission', `You do not have permission to revoke ${pun.type.toLowerCase()} punishments.`);
       return;
     }
 

@@ -42,6 +42,35 @@
     return text.length > maxLen ? text.substring(0, maxLen) + '...' : text;
   }
 
+  /**
+   * Update punishment filter buttons based on user permissions.
+   * Hides filter buttons for punishment types the user cannot view.
+   */
+  function updatePunishFilterButtons() {
+    const filterGroup = document.querySelector('#punishments-page .filter-group');
+    if (!filterGroup) return;
+
+    // Show/hide the entire filter group
+    filterGroup.style.display = '';
+
+    // Update each filter button
+    const btnBan = filterGroup.querySelector('#filterBan');
+    const btnMute = filterGroup.querySelector('#filterMute');
+    const btnWarn = filterGroup.querySelector('#filterWarn');
+    const btnKick = filterGroup.querySelector('#filterKick');
+
+    if (btnBan) btnBan.style.display = canViewHistoryType('BAN') ? '' : 'none';
+    if (btnMute) btnMute.style.display = canViewHistoryType('MUTE') ? '' : 'none';
+    if (btnWarn) btnWarn.style.display = canViewHistoryType('WARN') ? '' : 'none';
+    if (btnKick) btnKick.style.display = canViewHistoryType('KICK') ? '' : 'none';
+
+    // Update state filters to match permissions (disable filters for types without permission)
+    if (!canViewHistoryType('BAN')) state.punishFilters.BAN = false;
+    if (!canViewHistoryType('MUTE')) state.punishFilters.MUTE = false;
+    if (!canViewHistoryType('WARN')) state.punishFilters.WARN = false;
+    if (!canViewHistoryType('KICK')) state.punishFilters.KICK = false;
+  }
+
   // Pagination helper - renders pagination controls
   function renderPagination(stateKey, currentPage, totalPages, totalItems, pageSize, targetId) {
     const container = document.getElementById(targetId + 'Pagination');
@@ -441,11 +470,26 @@
 
   function renderPunishments() {
     if (!dom.punishRows) return;
+
+    // Permission check - if user has no history permissions, show no-permission state
+    if (!canViewAnyHistory()) {
+      renderNoPermissionTable('You do not have permission to view punishment history.');
+      // Hide filter buttons
+      const filterGroup = document.querySelector('#punishments-page .filter-group');
+      if (filterGroup) filterGroup.style.display = 'none';
+      return;
+    }
+
+    // Update filter buttons based on permissions
+    updatePunishFilterButtons();
+
     const q = (dom.punishSearch?.value || '').trim().toLowerCase();
     const filters = state.punishFilters;
 
-    // Filter and sort all punishments
+    // Filter and sort all punishments (also filter by permission)
     const allFiltered = state.punishments.filter(pun => {
+      // Check user has permission to view this punishment type
+      if (!canViewHistoryType(pun.type)) return false;
       if (!filters[pun.type]) return false;
       if (q) {
         const pl = state.players.find(p => p.id === pun.playerId);
@@ -503,8 +547,10 @@
           <td><span class="badge ${durClass}" title="Time remaining">${escapeHtml(durDisplay)}</span></td>
           <td>${escapeHtml(pun.staff || 'Console')}</td>
           <td style="text-align:right">
-            <button class="mini" onclick="event.stopPropagation(); viewPunishmentDetails('${pun.id}')"><i class="fa-solid fa-eye"></i> Details</button>
-            ${canRevoke ? `<button class="mini bad" onclick="event.stopPropagation(); revokePunishmentConfirm('${pun.id}')"><i class="fa-solid fa-xmark"></i> ${pun.type === 'WARN' ? 'Remove' : 'Revoke'}</button>` : `<span class="badge gray"><i class="fa-solid fa-check"></i> Closed</span>`}
+            ${hasPermission('moderex.command.viewpunishment')
+              ? `<button class="mini" onclick="event.stopPropagation(); viewPunishmentDetails('${pun.id}')"><i class="fa-solid fa-eye"></i> Details</button>`
+              : `<button class="mini btn-disabled" disabled title="Missing: moderex.command.viewpunishment"><i class="fa-solid fa-eye-slash"></i> Details</button>`}
+            ${canRevoke && canRevokePunishment(pun.type) ? `<button class="mini bad" onclick="event.stopPropagation(); revokePunishmentConfirm('${pun.id}')"><i class="fa-solid fa-xmark"></i> ${pun.type === 'WARN' ? 'Remove' : 'Revoke'}</button>` : canRevoke && !canRevokePunishment(pun.type) ? `<span class="badge gray" title="No permission to revoke"><i class="fa-solid fa-lock"></i></span>` : `<span class="badge gray"><i class="fa-solid fa-check"></i> Closed</span>`}
           </td>
         </tr>
       `;

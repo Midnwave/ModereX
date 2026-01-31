@@ -194,6 +194,86 @@
   font-weight: 500;
 }
 
+/* ===== NO PERMISSION OVERLAY (for modals) ===== */
+.no-permission-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.88);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  z-index: 100;
+  border-radius: inherit;
+  gap: 12px;
+}
+
+.no-permission-overlay i {
+  font-size: 3rem;
+  color: var(--bad);
+  margin-bottom: 0.5rem;
+}
+
+.no-permission-overlay span {
+  color: var(--text-secondary);
+  font-size: 0.9rem;
+  text-align: center;
+  max-width: 80%;
+  line-height: 1.5;
+}
+
+.no-permission-overlay button {
+  margin-top: 1rem;
+  padding: 10px 24px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  color: var(--text);
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+
+.no-permission-overlay button:hover {
+  background: var(--bg2);
+  border-color: var(--border-light);
+}
+
+/* ===== NO PERMISSION TABLE STATE ===== */
+.table-no-permission {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 4rem 2rem;
+  color: var(--text-secondary);
+}
+
+.table-no-permission i {
+  font-size: 3rem;
+  color: var(--bad);
+  margin-bottom: 1rem;
+}
+
+.table-no-permission span {
+  font-size: 0.95rem;
+  text-align: center;
+}
+
+/* ===== DISABLED BUTTON STATE ===== */
+button.btn-disabled,
+button:disabled:not(.filter-btn) {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+button.btn-disabled:hover,
+button:disabled:not(.filter-btn):hover {
+  transform: none !important;
+}
+
 /* ===== RESET & BASE ===== */
 *, *::before, *::after {
   box-sizing: border-box;
