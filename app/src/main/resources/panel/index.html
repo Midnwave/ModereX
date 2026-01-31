@@ -671,23 +671,23 @@
 
         <!-- Watchlist Page -->
         <section class="page" id="page-watchlist">
+          <div class="page-head">
+            <div class="page-title">
+              <h1>Watchlist</h1>
+              <p>Monitor specific players and receive alerts on their activity.</p>
+            </div>
+          </div>
+
           <!-- Permission overlay (hidden by default) -->
           <div id="watchlistNoPermissionOverlay" class="panel pad" style="display:none;min-height:400px;align-items:center;justify-content:center">
             <div style="text-align:center;color:var(--text-secondary)">
               <i class="fa-solid fa-lock" style="font-size:48px;opacity:0.4;margin-bottom:16px;display:block"></i>
               <h3 style="margin:0 0 8px 0;color:var(--text-primary)">Permission Required</h3>
-              <p style="margin:0">You need watchlist permissions to access this page</p>
+              <p style="margin:0">You do not have permission to access the watchlist</p>
             </div>
           </div>
 
           <div id="watchlistContent">
-            <div class="page-head">
-              <div class="page-title">
-                <h1>Watchlist</h1>
-                <p>Monitor specific players and receive alerts on their activity.</p>
-              </div>
-            </div>
-
             <div class="panel pad">
               <div class="toolbar" style="margin-top:0">
                 <div class="left">
@@ -1388,6 +1388,19 @@
 
         <!-- Anticheat Page -->
         <section class="page" id="page-anticheat">
+          <div class="page-head">
+            <div class="page-title">
+              <h1>Anticheat Alerts</h1>
+              <p>Configure per-check alert preferences and notification thresholds.</p>
+            </div>
+            <div id="anticheatHeaderActions" style="display:flex;gap:10px;align-items:center">
+              <select class="input" id="acPresetSelect" onchange="applySelectedPreset()" style="width:200px">
+                <option value="">Apply Preset...</option>
+              </select>
+              <button class="btn" onclick="refreshAnticheatData()"><i class="fa-solid fa-sync"></i> Refresh</button>
+            </div>
+          </div>
+
           <!-- Permission overlay (hidden by default) -->
           <div id="anticheatNoPermissionOverlay" class="panel pad" style="display:none;min-height:400px;align-items:center;justify-content:center">
             <div style="text-align:center;color:var(--text-secondary)">
@@ -1398,19 +1411,6 @@
           </div>
 
           <div id="anticheatContent">
-            <div class="page-head">
-              <div class="page-title">
-                <h1>Anticheat Alerts</h1>
-                <p>Configure per-check alert preferences and notification thresholds.</p>
-              </div>
-              <div style="display:flex;gap:10px;align-items:center">
-                <select class="input" id="acPresetSelect" onchange="applySelectedPreset()" style="width:200px">
-                  <option value="">Apply Preset...</option>
-                </select>
-                <button class="btn" onclick="refreshAnticheatData()"><i class="fa-solid fa-sync"></i> Refresh</button>
-              </div>
-            </div>
-
             <div class="panel pad">
               <div class="card" id="anticheatDisabledCard" style="margin:0;display:none">
                 <h3><i class="fa-solid fa-shield-halved" style="color:var(--warn)"></i> Anticheat Alerts Disabled</h3>

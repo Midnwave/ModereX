@@ -1638,15 +1638,18 @@
     const canViewAnticheat = window.hasPermission ? window.hasPermission('moderex.alerts.anticheat') : true;
     const noPermOverlay = $('#anticheatNoPermissionOverlay');
     const anticheatContent = $('#anticheatContent');
+    const headerActions = $('#anticheatHeaderActions');
 
     if (!canViewAnticheat) {
       if (noPermOverlay) noPermOverlay.style.display = 'flex';
       if (anticheatContent) anticheatContent.style.display = 'none';
+      if (headerActions) headerActions.style.display = 'none';
       return;
     }
 
     if (noPermOverlay) noPermOverlay.style.display = 'none';
     if (anticheatContent) anticheatContent.style.display = 'block';
+    if (headerActions) headerActions.style.display = 'flex';
 
     const categoriesContainer = $('#anticheatCategories');
     const categoryFilter = $('#acCategoryFilter');
