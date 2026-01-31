@@ -295,8 +295,32 @@ button:disabled:not(.filter-btn):hover {
   transform: none !important;
 }
 
+/* ===== CUSTOM TOOLTIP ===== */
+.mx-tooltip {
+  position: fixed;
+  background: var(--bg2);
+  color: var(--text);
+  padding: 6px 10px;
+  border-radius: var(--radius-sm);
+  font-size: 0.75rem;
+  font-weight: 500;
+  pointer-events: none;
+  z-index: 10000;
+  display: none;
+  border: 1px solid var(--border);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+  max-width: 250px;
+  white-space: nowrap;
+  opacity: 0;
+  transition: opacity 0.15s ease;
+}
+
+.mx-tooltip.visible {
+  display: block;
+  opacity: 1;
+}
+
 /* ===== NO-PERMISSION STYLES ===== */
-/* Uses native title attribute for tooltip - simpler and follows mouse cursor */
 .no-permission {
   opacity: 0.5;
   cursor: not-allowed !important;
@@ -304,7 +328,7 @@ button:disabled:not(.filter-btn):hover {
 
 .btn.no-permission,
 button.no-permission {
-  pointer-events: auto; /* Allow hover for native title tooltip */
+  pointer-events: auto; /* Allow hover for custom tooltip */
   cursor: not-allowed !important;
 }
 

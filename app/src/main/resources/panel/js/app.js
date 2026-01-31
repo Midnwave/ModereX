@@ -502,17 +502,66 @@
     if (pagination) pagination.style.display = 'none';
   }
 
+  /* ===== CUSTOM TOOLTIP MODULE ===== */
+  const tooltip = {
+    element: null,
+    activeTarget: null,
+
+    init() {
+      if (this.element) return;
+      this.element = document.createElement('div');
+      this.element.className = 'mx-tooltip';
+      document.body.appendChild(this.element);
+    },
+
+    show(text, e) {
+      if (!this.element) this.init();
+      this.element.textContent = text;
+      this.element.classList.add('visible');
+      this.move(e);
+    },
+
+    move(e) {
+      if (!this.element) return;
+      const x = e.clientX + 12;
+      const y = e.clientY + 12;
+      // Keep tooltip within viewport
+      const rect = this.element.getBoundingClientRect();
+      const maxX = window.innerWidth - rect.width - 10;
+      const maxY = window.innerHeight - rect.height - 10;
+      this.element.style.left = Math.min(x, maxX) + 'px';
+      this.element.style.top = Math.min(y, maxY) + 'px';
+    },
+
+    hide() {
+      if (!this.element) return;
+      this.element.classList.remove('visible');
+      this.activeTarget = null;
+    }
+  };
+
+  // Initialize tooltip on DOM ready
+  document.addEventListener('DOMContentLoaded', () => tooltip.init());
+
+  // Expose tooltip module
+  window.MX.tooltip = tooltip;
+
   /**
    * Apply no-permission tooltip to an element with custom message.
-   * Uses native title attribute for tooltip (follows mouse cursor naturally).
+   * Uses custom tooltip that follows mouse cursor.
    * @param {HTMLElement} element - Element to apply tooltip to
    * @param {string} message - Custom message (default: generic no permission message)
    */
   function applyNoPermTooltip(element, message = "You lack sufficient permissions") {
     if (!element) return;
-    element.setAttribute('title', message);
+    element.dataset.noPermTooltip = message;
     element.disabled = true;
     element.classList.add('no-permission');
+
+    // Add event listeners for custom tooltip
+    element.addEventListener('mouseenter', handleTooltipEnter);
+    element.addEventListener('mousemove', handleTooltipMove);
+    element.addEventListener('mouseleave', handleTooltipLeave);
   }
 
   /**
@@ -521,9 +570,34 @@
    */
   function removeNoPermTooltip(element) {
     if (!element) return;
-    element.removeAttribute('title');
+    delete element.dataset.noPermTooltip;
     element.disabled = false;
     element.classList.remove('no-permission');
+
+    // Remove event listeners
+    element.removeEventListener('mouseenter', handleTooltipEnter);
+    element.removeEventListener('mousemove', handleTooltipMove);
+    element.removeEventListener('mouseleave', handleTooltipLeave);
+  }
+
+  function handleTooltipEnter(e) {
+    const msg = e.currentTarget.dataset.noPermTooltip;
+    if (msg) {
+      tooltip.activeTarget = e.currentTarget;
+      tooltip.show(msg, e);
+    }
+  }
+
+  function handleTooltipMove(e) {
+    if (tooltip.activeTarget === e.currentTarget) {
+      tooltip.move(e);
+    }
+  }
+
+  function handleTooltipLeave(e) {
+    if (tooltip.activeTarget === e.currentTarget) {
+      tooltip.hide();
+    }
   }
 
   // Expose new functions globally
