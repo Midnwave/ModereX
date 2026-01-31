@@ -956,10 +956,24 @@
             <span class="chip ok" id="staffOnlineChip"><i class="fa-solid fa-users"></i> <span id="staffOnlineCount">0</span> staff online</span>
           </div>
 
-          <div class="panel pad">
+          <!-- Permission overlay for staff chat -->
+          <div id="staffchatNoPermOverlay" class="permission-overlay" style="display:none">
+            <div class="permission-overlay-content">
+              <i class="fa-solid fa-lock"></i>
+              <h3>Permission Required</h3>
+              <p>You do not have permission to access staff chat</p>
+            </div>
+          </div>
+
+          <div class="panel pad" id="staffchatContent">
             <div class="grid cols-3wide">
               <div class="card staffchat-container" style="margin:0">
                 <div class="staffchat-messages" id="staffchatMessages">
+                  <!-- Loading indicator for history -->
+                  <div class="staffchat-loading" id="staffchatLoading" style="display:none">
+                    <i class="fa-solid fa-spinner fa-spin"></i>
+                    <span>Loading messages...</span>
+                  </div>
                   <div class="staffchat-empty">
                     <i class="fa-solid fa-comments"></i>
                     <p>No messages yet. Start the conversation!</p>

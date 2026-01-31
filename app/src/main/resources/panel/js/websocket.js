@@ -143,8 +143,8 @@
     'GET_SERVER_SETTINGS', 'GET_CHAT_STATUS', 'GET_PLAYER_DETAILS',
     'GET_COMMAND_HISTORY', 'GET_AUTOMOD_LOGS', 'GET_CHAT_LOGS',
     'GET_DEV_CHECKLIST', 'GET_GEYSER_STATUS', 'GET_TRUSTED_DEVICE_COUNT',
-    'SYNC_AUTOMOD_RULES', 'UPDATE_SETTINGS', 'UPDATE_USER_SETTINGS',
-    'CREATE_PUNISHMENT', 'REVOKE_PUNISHMENT'
+    'GET_STAFFCHAT_HISTORY', 'SYNC_AUTOMOD_RULES', 'UPDATE_SETTINGS',
+    'UPDATE_USER_SETTINGS', 'CREATE_PUNISHMENT', 'REVOKE_PUNISHMENT'
   ]);
 
   // Track pending requests to auto-hide loading bar
@@ -359,7 +359,7 @@
     'ANTICHEAT_CONFIG', 'ANTICHEAT_INFO', 'ANTICHEAT_ALERTS',
     'STAFF_ALERT_PREFS', 'ALERT_PRESETS', 'SERVER_SETTINGS', 'CHAT_STATUS',
     'PLAYER_DETAILS', 'COMMAND_HISTORY', 'AUTOMOD_LOGS', 'CHAT_LOGS',
-    'DEV_CHECKLIST', 'GEYSER_STATUS', 'TRUSTED_DEVICE_COUNT',
+    'DEV_CHECKLIST', 'GEYSER_STATUS', 'TRUSTED_DEVICE_COUNT', 'STAFFCHAT_HISTORY',
     'PUNISHMENT_CREATED', 'PUNISHMENT_REVOKED', 'SETTINGS_UPDATED',
     'ERROR', 'SUCCESS'
   ]);
@@ -750,6 +750,10 @@
     return send('GET_TRUSTED_DEVICE_COUNT');
   }
 
+  function requestStaffChatHistory(limit = 50, beforeTimestamp = null) {
+    return send('GET_STAFFCHAT_HISTORY', { limit, beforeTimestamp });
+  }
+
   // Expose API
   window.MX = window.MX || {};
   window.MX.ws = {
@@ -788,6 +792,7 @@
     requestAnticheatAlerts,
     requestStaffAlertPrefs,
     requestAlertPresets,
+    requestStaffChatHistory,
 
     // Actions
     createPunishment,

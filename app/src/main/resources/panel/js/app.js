@@ -380,12 +380,15 @@
       updatePunishFilterButtons();
       updateAnticheatPermissionOverlay();
       updateOnlineStaffPermission();
+      if (window.updateStaffChatPermission) updateStaffChatPermission();
 
       // Re-render current page if needed
       if (state.currentPage === 'punishments') {
         ui.renderPunishments();
       } else if (state.currentPage === 'dashboard') {
         ui.renderDashboard();
+      } else if (state.currentPage === 'staffchat') {
+        updateStaffChatPermission();
       }
     } else {
       // Just update state silently
@@ -837,6 +840,12 @@
     }
     if (page === 'status' && window.initServerStatus) window.initServerStatus();
     if (page === 'replay' && window.initReplayViewer) window.initReplayViewer();
+    if (page === 'staffchat') {
+      // Check permission and update overlay
+      updateStaffChatPermission();
+      // Load staff chat history if not already loaded
+      loadStaffChatHistory(false);
+    }
     if (page === 'devtools') {
       if (!state.settings?.developerMode) {
         toast('warn', 'Developer Mode Required', 'Enable Developer Mode to access this page.');
@@ -1638,11 +1647,21 @@
 
   // ===== STAFF CHAT =====
   const staffChatMessages = [];
+  let staffChatLoading = false;
+  let staffChatHasMore = true;
+  let staffChatOldestTimestamp = null;
+  let staffChatInitialized = false;
 
   window.sendStaffChat = function() {
     const input = $('#staffchatInput');
     const message = input?.value?.trim();
     if (!message) return;
+
+    // Check permission
+    if (window.hasPermission && !window.hasPermission('moderex.staffchat')) {
+      toast('error', 'Permission Denied', 'You do not have permission to send staff chat messages.');
+      return;
+    }
 
     const ws = window.MX.ws;
     if (ws?.isConnected()) {
@@ -1656,26 +1675,157 @@
       isWeb: true,
       isSelf: true,
       time: now()
-    });
+    }, false); // false = don't scroll to bottom initially, let renderStaffChat handle it
 
     input.value = '';
     input.focus();
   };
 
-  function addStaffChatMessage(data) {
-    staffChatMessages.push(data);
-    if (staffChatMessages.length > 100) {
-      staffChatMessages.shift();
-    }
-    renderStaffChat();
+  /**
+   * Load staff chat history from database
+   */
+  function loadStaffChatHistory(loadMore = false) {
+    if (staffChatLoading || (!loadMore && staffChatInitialized)) return;
+    if (loadMore && !staffChatHasMore) return;
+
+    const ws = window.MX.ws;
+    if (!ws?.isConnected()) return;
+
+    staffChatLoading = true;
+    showStaffChatLoading(true);
+
+    const beforeTimestamp = loadMore ? staffChatOldestTimestamp : null;
+    ws.requestStaffChatHistory(50, beforeTimestamp);
   }
 
-  function renderStaffChat() {
+  /**
+   * Show/hide staff chat loading indicator
+   */
+  function showStaffChatLoading(show) {
+    const loadingEl = $('#staffchatLoading');
+    if (loadingEl) {
+      loadingEl.style.display = show ? 'flex' : 'none';
+    }
+  }
+
+  /**
+   * Update staff chat permission overlay
+   */
+  function updateStaffChatPermission() {
+    const overlay = $('#staffchatNoPermOverlay');
+    const content = $('#staffchatContent');
+    const input = $('#staffchatInput');
+    const sendBtn = $('#staffchatSend');
+
+    if (!overlay || !content) return;
+
+    const hasPermission = window.hasPermission ? window.hasPermission('moderex.staffchat') : true;
+
+    if (hasPermission) {
+      overlay.style.display = 'none';
+      content.style.display = 'block';
+      if (input) input.disabled = false;
+      if (sendBtn) sendBtn.disabled = false;
+    } else {
+      overlay.style.display = 'flex';
+      content.style.display = 'none';
+      if (input) input.disabled = true;
+      if (sendBtn) sendBtn.disabled = true;
+    }
+  }
+
+  // Export permission update function
+  window.updateStaffChatPermission = updateStaffChatPermission;
+
+  function addStaffChatMessage(data, scrollToBottom = true) {
+    // Check for duplicates (same sender + message + time within 2 seconds)
+    const isDuplicate = staffChatMessages.some(msg =>
+      msg.sender === data.sender &&
+      msg.message === data.message &&
+      Math.abs((msg.time || 0) - (data.time || 0)) < 2000
+    );
+
+    if (isDuplicate) return;
+
+    staffChatMessages.push(data);
+
+    // Sort by timestamp (oldest first)
+    staffChatMessages.sort((a, b) => (a.time || 0) - (b.time || 0));
+
+    // Keep max 200 messages
+    while (staffChatMessages.length > 200) {
+      staffChatMessages.shift();
+    }
+
+    renderStaffChat(scrollToBottom);
+  }
+
+  /**
+   * Prepend historical messages (for lazy loading)
+   */
+  function prependStaffChatMessages(messages) {
+    if (!messages || messages.length === 0) {
+      staffChatHasMore = false;
+      return;
+    }
+
+    // Convert server format to local format
+    const converted = messages.map(msg => ({
+      sender: msg.senderName || msg.sender,
+      message: msg.message,
+      isWeb: (msg.source || '').toUpperCase() === 'WEB',
+      isSelf: msg.senderName === state.currentUser?.name,
+      time: msg.timestamp || msg.time
+    }));
+
+    // Update oldest timestamp for pagination
+    const oldest = converted.reduce((min, msg) => Math.min(min, msg.time || Infinity), Infinity);
+    if (oldest < Infinity) {
+      staffChatOldestTimestamp = oldest;
+    }
+
+    // Prepend messages (avoiding duplicates)
+    for (const msg of converted) {
+      const isDuplicate = staffChatMessages.some(existing =>
+        existing.sender === msg.sender &&
+        existing.message === msg.message &&
+        Math.abs((existing.time || 0) - (msg.time || 0)) < 2000
+      );
+      if (!isDuplicate) {
+        staffChatMessages.unshift(msg);
+      }
+    }
+
+    // Sort by timestamp
+    staffChatMessages.sort((a, b) => (a.time || 0) - (b.time || 0));
+
+    // Keep max 200 messages
+    while (staffChatMessages.length > 200) {
+      staffChatMessages.shift();
+    }
+
+    // If we got fewer than requested, no more history
+    if (messages.length < 50) {
+      staffChatHasMore = false;
+    }
+
+    renderStaffChat(false); // Don't scroll to bottom when loading history
+  }
+
+  function renderStaffChat(scrollToBottom = true) {
     const container = $('#staffchatMessages');
     if (!container) return;
 
+    // Preserve scroll position if loading more history
+    const scrollTop = container.scrollTop;
+    const scrollHeight = container.scrollHeight;
+
     if (staffChatMessages.length === 0) {
       container.innerHTML = `
+        <div class="staffchat-loading" id="staffchatLoading" style="display:none">
+          <i class="fa-solid fa-spinner fa-spin"></i>
+          <span>Loading messages...</span>
+        </div>
         <div class="staffchat-empty">
           <i class="fa-solid fa-comments"></i>
           <p>No messages yet. Start the conversation!</p>
@@ -1684,32 +1834,90 @@
       return;
     }
 
-    container.innerHTML = staffChatMessages.map(msg => {
+    // Group messages by date for date dividers
+    let lastDate = null;
+    let html = `
+      <div class="staffchat-loading" id="staffchatLoading" style="display:none">
+        <i class="fa-solid fa-spinner fa-spin"></i>
+        <span>Loading messages...</span>
+      </div>
+    `;
+
+    // Show "Load more" if there's more history
+    if (staffChatHasMore && !staffChatLoading) {
+      html += `
+        <div class="staffchat-load-more" onclick="loadStaffChatHistory(true)">
+          <i class="fa-solid fa-arrow-up"></i>&nbsp; Load older messages
+        </div>
+      `;
+    }
+
+    staffChatMessages.forEach(msg => {
+      const msgDate = new Date(msg.time || Date.now()).toDateString();
+      if (msgDate !== lastDate) {
+        const dateStr = formatDateDivider(msg.time);
+        html += `<div class="staffchat-date-divider">${dateStr}</div>`;
+        lastDate = msgDate;
+      }
+
       const classes = ['staffchat-message'];
       if (msg.isSelf) classes.push('self');
       if (msg.isWeb) classes.push('web');
 
-      const avatar = `https://mc-heads.net/avatar/${encodeURIComponent(msg.sender.replace('[Web] ', ''))}/32`;
+      const senderName = (msg.sender || '').replace('[Web] ', '');
+      const avatar = `https://mc-heads.net/avatar/${encodeURIComponent(senderName)}/32`;
       const time = typeof msg.time === 'number' ? fmtShort(msg.time) : msg.time;
+      const badge = msg.isWeb
+        ? '<span class="staffchat-badge">WEB</span>'
+        : '<span class="staffchat-badge game">GAME</span>';
 
-      return `
+      html += `
         <div class="${classes.join(' ')}">
           <img class="staffchat-avatar" src="${avatar}" alt="">
           <div class="staffchat-content">
             <div class="staffchat-header">
               <span class="staffchat-sender">${escapeHtml(msg.sender)}</span>
-              ${msg.isWeb ? '<span class="staffchat-badge">WEB</span>' : ''}
+              ${badge}
               <span class="staffchat-time">${time}</span>
             </div>
             <div class="staffchat-text">${escapeHtml(msg.message)}</div>
           </div>
         </div>
       `;
-    }).join('');
+    });
 
-    // Scroll to bottom
-    container.scrollTop = container.scrollHeight;
+    container.innerHTML = html;
+
+    // Restore/adjust scroll position
+    if (scrollToBottom) {
+      container.scrollTop = container.scrollHeight;
+    } else {
+      // When prepending, maintain visual position
+      const newScrollHeight = container.scrollHeight;
+      container.scrollTop = scrollTop + (newScrollHeight - scrollHeight);
+    }
   }
+
+  /**
+   * Format date for date divider
+   */
+  function formatDateDivider(timestamp) {
+    const date = new Date(timestamp);
+    const today = new Date();
+    const yesterday = new Date(today);
+    yesterday.setDate(yesterday.getDate() - 1);
+
+    if (date.toDateString() === today.toDateString()) {
+      return 'Today';
+    } else if (date.toDateString() === yesterday.toDateString()) {
+      return 'Yesterday';
+    } else {
+      return date.toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' });
+    }
+  }
+
+  // Expose loadStaffChatHistory for button click
+  window.loadStaffChatHistory = loadStaffChatHistory;
 
   // Handle staff chat input enter key
   document.addEventListener('keydown', (e) => {
@@ -1717,6 +1925,17 @@
       sendStaffChat();
     }
   });
+
+  // Lazy loading: Load more when scrolling to top
+  document.addEventListener('scroll', (e) => {
+    if (e.target.id === 'staffchatMessages') {
+      const container = e.target;
+      // If near top (within 50px), load more history
+      if (container.scrollTop < 50 && staffChatHasMore && !staffChatLoading) {
+        loadStaffChatHistory(true);
+      }
+    }
+  }, true);
 
   // ===== AUTHENTICATION =====
   window.login = function() {
@@ -5812,6 +6031,17 @@
         });
         showPanelAlert('staffChat', `Staff Chat: ${data.sender}`, data.message);
         window.MX.sounds?.staffChat();
+      }
+    });
+
+    ws.on('STAFFCHAT_HISTORY', (data) => {
+      // Handle staff chat history response
+      staffChatLoading = false;
+      staffChatInitialized = true;
+      showStaffChatLoading(false);
+
+      if (data.messages && Array.isArray(data.messages)) {
+        prependStaffChatMessages(data.messages);
       }
     });
 
