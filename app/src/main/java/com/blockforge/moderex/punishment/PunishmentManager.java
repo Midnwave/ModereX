@@ -259,6 +259,9 @@ public class PunishmentManager {
                         ipBanCache.remove(punishment.getIpAddress());
                     }
 
+                    // Log the pardon for history
+                    logPardon(punishment, staffUuid, staffName, reason);
+
                     // Broadcast
                     MessageKey broadcastKey = switch (punishment.getType()) {
                         case MUTE -> MessageKey.UNMUTE_BROADCAST;
@@ -278,6 +281,45 @@ public class PunishmentManager {
                 plugin.logError("Failed to remove punishment by case ID", e);
             }
             return false;
+        });
+    }
+
+    /**
+     * Log a pardon (punishment revocation) to the database for history tracking.
+     * @param punishment The punishment that was revoked
+     * @param staffUuid UUID of the staff who revoked it
+     * @param staffName Name of the staff who revoked it
+     * @param reason Reason for the pardon
+     */
+    public void logPardon(Punishment punishment, UUID staffUuid, String staffName, String reason) {
+        if (punishment == null) return;
+
+        String pardonId = java.util.UUID.randomUUID().toString();
+        long now = System.currentTimeMillis();
+
+        plugin.getServer().getScheduler().runTaskAsynchronously(plugin, () -> {
+            try {
+                plugin.getDatabaseManager().update("""
+                        INSERT INTO moderex_pardons
+                        (id, original_punishment_id, original_case_id, player_uuid, player_name,
+                         punishment_type, staff_uuid, staff_name, reason, pardoned_at)
+                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                        """,
+                        pardonId,
+                        punishment.getId(),
+                        punishment.getCaseId(),
+                        punishment.getPlayerUuid().toString(),
+                        punishment.getPlayerName(),
+                        punishment.getType().name(),
+                        staffUuid != null ? staffUuid.toString() : "CONSOLE",
+                        staffName != null ? staffName : "Console",
+                        reason,
+                        now
+                );
+                plugin.logDebug("[Pardon] Logged pardon for case " + punishment.getCaseId() + " by " + staffName);
+            } catch (SQLException e) {
+                plugin.logError("Failed to log pardon for case " + punishment.getCaseId(), e);
+            }
         });
     }
 

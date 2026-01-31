@@ -340,6 +340,22 @@ public class DatabaseManager {
                     )
                     """);
 
+            // Pardons tracking table (logs when punishments are revoked)
+            stmt.execute("""
+                    CREATE TABLE IF NOT EXISTS moderex_pardons (
+                        id VARCHAR(36) PRIMARY KEY,
+                        original_punishment_id VARCHAR(36) NOT NULL,
+                        original_case_id VARCHAR(16) NOT NULL,
+                        player_uuid VARCHAR(36) NOT NULL,
+                        player_name VARCHAR(16) NOT NULL,
+                        punishment_type VARCHAR(16) NOT NULL,
+                        staff_uuid VARCHAR(36) NOT NULL,
+                        staff_name VARCHAR(16) NOT NULL,
+                        reason TEXT,
+                        pardoned_at BIGINT NOT NULL
+                    )
+                    """);
+
             // Create indexes for performance
             createIndexes(stmt);
         }
@@ -391,6 +407,11 @@ public class DatabaseManager {
         // Chat logs indexes
         executeIfNotExists(stmt, "CREATE INDEX IF NOT EXISTS idx_chat_logs_player ON moderex_chat_logs(player_uuid)");
         executeIfNotExists(stmt, "CREATE INDEX IF NOT EXISTS idx_chat_logs_time ON moderex_chat_logs(sent_at)");
+
+        // Pardons indexes
+        executeIfNotExists(stmt, "CREATE INDEX IF NOT EXISTS idx_pardons_player ON moderex_pardons(player_uuid)");
+        executeIfNotExists(stmt, "CREATE INDEX IF NOT EXISTS idx_pardons_staff ON moderex_pardons(staff_uuid)");
+        executeIfNotExists(stmt, "CREATE INDEX IF NOT EXISTS idx_pardons_time ON moderex_pardons(pardoned_at)");
     }
 
     private void executeIfNotExists(Statement stmt, String sql) {
