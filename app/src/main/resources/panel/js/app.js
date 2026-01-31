@@ -320,7 +320,7 @@
   // ===== PERMISSION AUTO-REFRESH SYSTEM =====
   let previousPermissions = [];
   let permissionRefreshInterval = null;
-  const PERMISSION_REFRESH_MS = 5000; // 5 seconds
+  const PERMISSION_REFRESH_MS = 15000; // 15 seconds
 
   /**
    * Detect permission changes between old and new arrays.
@@ -335,7 +335,7 @@
   }
 
   /**
-   * Start auto-refresh of permissions every 5 seconds.
+   * Start auto-refresh of permissions every 15 seconds.
    */
   function startPermissionRefresh() {
     if (permissionRefreshInterval) return;
@@ -346,7 +346,7 @@
       }
     }, PERMISSION_REFRESH_MS);
 
-    console.debug('[Permissions] Started auto-refresh (5s interval)');
+    console.debug('[Permissions] Started auto-refresh (15s interval)');
   }
 
   /**
@@ -3203,13 +3203,12 @@
 
     if (!hasCmdBlacklistPerm) {
       container.innerHTML = `
-        <div class="permission-denied" style="text-align:center;padding:60px;color:var(--text-secondary)">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:64px;height:64px;opacity:0.3;margin-bottom:16px">
-            <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
-            <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
-          </svg>
-          <h3 style="margin:0 0 8px 0;color:var(--text-primary)">Permission Required</h3>
-          <p style="margin:0;max-width:400px">You do not have permission to view command blacklist entries</p>
+        <div class="page-permission-box">
+          <div class="permission-card">
+            <i class="fa-solid fa-lock"></i>
+            <h3>Permission Required</h3>
+            <p>You do not have permission to view command blacklist entries. Contact an administrator if you believe this is an error.</p>
+          </div>
         </div>
       `;
       if (countBadge) countBadge.textContent = 'No access';
@@ -5527,7 +5526,7 @@
         }
       }, 1000);
 
-      // Start permission auto-refresh (5 second interval)
+      // Start permission auto-refresh (15 second interval)
       startPermissionRefresh();
     });
 

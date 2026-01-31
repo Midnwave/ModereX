@@ -3542,7 +3542,27 @@ public class HybridPanelServer {
             "moderex.webpanel",
 
             // Admin
-            "moderex.reload"
+            "moderex.reload",
+
+            // Staff permission
+            "moderex.staff",
+            "moderex.staffchat",
+
+            // Template permissions
+            "moderex.template.*",
+            "moderex.template.create",
+            "moderex.template.edit",
+            "moderex.template.delete",
+
+            // Mass punishment permissions
+            "moderex.mass.*",
+            "moderex.masswarn",
+            "moderex.massmute",
+            "moderex.masskick",
+            "moderex.massban",
+            "moderex.massunwarn",
+            "moderex.massunmute",
+            "moderex.massunban"
         };
 
         Player player = Bukkit.getPlayer(uuid);

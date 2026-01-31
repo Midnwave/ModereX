@@ -125,6 +125,15 @@ public class CommandManager {
         registerPaperCommand(commandMap, "mwarn", new WarnCommand(plugin), "Warn a player", List.of());
         registerPaperCommand(commandMap, "munwarn", new UnwarnCommand(plugin), "Remove a warning", List.of());
         registerPaperCommand(commandMap, "mkick", new KickCommand(plugin), "Kick a player", List.of());
+
+        // Mass punishment commands
+        registerPaperCommand(commandMap, "masswarn", new MassWarnCommand(plugin), "Mass warn players", List.of());
+        registerPaperCommand(commandMap, "massmute", new MassMuteCommand(plugin), "Mass mute players", List.of());
+        registerPaperCommand(commandMap, "masskick", new MassKickCommand(plugin), "Mass kick players", List.of());
+        registerPaperCommand(commandMap, "massban", new MassBanCommand(plugin), "Mass ban players", List.of());
+        registerPaperCommand(commandMap, "massunwarn", new MassUnwarnCommand(plugin), "Mass unwarn by batch ID", List.of());
+        registerPaperCommand(commandMap, "massunmute", new MassUnmuteCommand(plugin), "Mass unmute by batch ID", List.of());
+        registerPaperCommand(commandMap, "massunban", new MassUnbanCommand(plugin), "Mass unban by batch ID", List.of());
     }
 
     private void registerPaperCommand(CommandMap commandMap, String name, BaseCommand executor, String description, List<String> aliases) {
@@ -216,6 +225,15 @@ public class CommandManager {
         registerSpigotCommand("mwarn", new WarnCommand(plugin));
         registerSpigotCommand("munwarn", new UnwarnCommand(plugin));
         registerSpigotCommand("mkick", new KickCommand(plugin));
+
+        // Mass punishment commands
+        registerSpigotCommand("masswarn", new MassWarnCommand(plugin));
+        registerSpigotCommand("massmute", new MassMuteCommand(plugin));
+        registerSpigotCommand("masskick", new MassKickCommand(plugin));
+        registerSpigotCommand("massban", new MassBanCommand(plugin));
+        registerSpigotCommand("massunwarn", new MassUnwarnCommand(plugin));
+        registerSpigotCommand("massunmute", new MassUnmuteCommand(plugin));
+        registerSpigotCommand("massunban", new MassUnbanCommand(plugin));
     }
 
     private void registerSpigotCommand(String name, BaseCommand executor) {

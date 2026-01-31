@@ -340,6 +340,42 @@ commands:
     description: Shorthand for /kick
     permission: moderex.kick
 
+  # Mass Punishment Commands
+  masswarn:
+    description: Warn multiple players at once
+    usage: /<command> <player1,player2,...> [duration] <reason>
+    permission: moderex.masswarn
+
+  massmute:
+    description: Mute multiple players at once
+    usage: /<command> <player1,player2,...> <duration> <reason>
+    permission: moderex.massmute
+
+  masskick:
+    description: Kick multiple players at once
+    usage: /<command> <player1,player2,...> <reason>
+    permission: moderex.masskick
+
+  massban:
+    description: Ban multiple players at once
+    usage: /<command> <player1,player2,...> <duration> <reason>
+    permission: moderex.massban
+
+  massunwarn:
+    description: Remove a mass warning by case ID
+    usage: /<command> <caseId>
+    permission: moderex.massunwarn
+
+  massunmute:
+    description: Remove a mass mute by case ID
+    usage: /<command> <caseId>
+    permission: moderex.massunmute
+
+  massunban:
+    description: Remove a mass ban by case ID
+    usage: /<command> <caseId>
+    permission: moderex.massunban
+
 permissions:
   # ==================== WILDCARD PERMISSIONS ====================
   moderex.*:
@@ -353,6 +389,9 @@ permissions:
       moderex.history.*: true
       moderex.flag.*: true
       moderex.automod.*: true
+      moderex.template.*: true
+      moderex.mass.*: true
+      moderex.staff: true
 
   moderex.command.*:
     description: Access to all ModereX commands
@@ -823,6 +862,7 @@ permissions:
       moderex.history.kicks: true
       moderex.history.bans: true
       moderex.history.mutes: true
+      moderex.history.pardons: true
       moderex.history.nick: true
       moderex.history.automod: true
       moderex.history.commands: true
@@ -842,6 +882,10 @@ permissions:
 
   moderex.history.mutes:
     description: View mute history for a player
+    default: op
+
+  moderex.history.pardons:
+    description: View pardon history for a player
     default: op
 
   moderex.history.nick:
@@ -1018,6 +1062,73 @@ permissions:
   # ==================== PLUGIN ADMINISTRATION ====================
   moderex.reload:
     description: Reload the plugin configuration
+    default: op
+
+  # ==================== STAFF PERMISSIONS ====================
+  moderex.staff:
+    description: General staff permission - view online staff, use /mx commands
+    default: op
+
+  # ==================== TEMPLATE PERMISSIONS ====================
+  moderex.template.*:
+    description: Full access to punishment templates
+    default: op
+    children:
+      moderex.template.create: true
+      moderex.template.edit: true
+      moderex.template.delete: true
+
+  moderex.template.create:
+    description: Create punishment templates
+    default: op
+
+  moderex.template.edit:
+    description: Edit punishment templates
+    default: op
+
+  moderex.template.delete:
+    description: Delete punishment templates
+    default: op
+
+  # ==================== MASS PUNISHMENT PERMISSIONS ====================
+  moderex.mass.*:
+    description: Full access to mass punishments
+    default: op
+    children:
+      moderex.masswarn: true
+      moderex.massmute: true
+      moderex.masskick: true
+      moderex.massban: true
+      moderex.massunwarn: true
+      moderex.massunmute: true
+      moderex.massunban: true
+
+  moderex.masswarn:
+    description: Warn multiple players at once
+    default: op
+
+  moderex.massmute:
+    description: Mute multiple players at once
+    default: op
+
+  moderex.masskick:
+    description: Kick multiple players at once
+    default: op
+
+  moderex.massban:
+    description: Ban multiple players at once
+    default: op
+
+  moderex.massunwarn:
+    description: Remove mass warnings by case ID
+    default: op
+
+  moderex.massunmute:
+    description: Remove mass mutes by case ID
+    default: op
+
+  moderex.massunban:
+    description: Remove mass bans by case ID
     default: op
 
   # ==================== WEB PANEL (PROTECTED) ====================
