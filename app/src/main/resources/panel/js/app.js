@@ -378,6 +378,7 @@
       // Update all permission-dependent UI elements
       updatePunishPlayerButtons();
       updatePunishFilterButtons();
+      updateAnticheatPermissionOverlay();
 
       // Re-render current page if needed
       if (state.currentPage === 'punishments') {
@@ -452,6 +453,34 @@
   }
 
   /**
+   * Update anticheat integration card permission overlay.
+   * Shows overlay if user lacks moderex.alerts.anticheat permission.
+   */
+  function updateAnticheatPermissionOverlay() {
+    const overlay = document.getElementById('anticheatNoPermOverlay');
+    const card = document.getElementById('anticheatIntegrationCard');
+    const toggle = document.getElementById('anticheatReplaceToggle');
+
+    if (!overlay || !card) return;
+
+    const hasPermission = window.hasPermission ? window.hasPermission('moderex.alerts.anticheat') : true;
+
+    if (hasPermission) {
+      overlay.style.display = 'none';
+      if (toggle) {
+        toggle.disabled = false;
+        toggle.classList.remove('no-permission');
+      }
+    } else {
+      overlay.style.display = 'flex';
+      if (toggle) {
+        toggle.disabled = true;
+        toggle.classList.add('no-permission');
+      }
+    }
+  }
+
+  /**
    * Render empty table state (no results, as opposed to no permission).
    * @param {string} message - Message to display
    */
@@ -473,12 +502,37 @@
     if (pagination) pagination.style.display = 'none';
   }
 
+  /**
+   * Apply no-permission tooltip to an element with custom message.
+   * @param {HTMLElement} element - Element to apply tooltip to
+   * @param {string} message - Custom message (default: generic no permission message)
+   */
+  function applyNoPermTooltip(element, message = "You lack sufficient permissions to perform this action") {
+    if (!element) return;
+    element.setAttribute('data-no-perm-tooltip', message);
+    element.disabled = true;
+    element.classList.add('no-permission');
+  }
+
+  /**
+   * Remove no-permission tooltip from an element.
+   * @param {HTMLElement} element - Element to remove tooltip from
+   */
+  function removeNoPermTooltip(element) {
+    if (!element) return;
+    element.removeAttribute('data-no-perm-tooltip');
+    element.disabled = false;
+    element.classList.remove('no-permission');
+  }
+
   // Expose new functions globally
   window.startPermissionRefresh = startPermissionRefresh;
   window.stopPermissionRefresh = stopPermissionRefresh;
   window.updatePunishPlayerButtons = updatePunishPlayerButtons;
   window.updatePunishFilterButtons = updatePunishFilterButtons;
   window.renderEmptyTable = renderEmptyTable;
+  window.applyNoPermTooltip = applyNoPermTooltip;
+  window.removeNoPermTooltip = removeNoPermTooltip;
 
   const repeatMemory = {};
 
@@ -1613,9 +1667,48 @@
     }
 
     const watching = state.watchlist.has(p.uuid) || state.watchlist.has(playerId);
+    const canAdd = hasPermission('moderex.watchlist.add');
+    const canRemove = hasPermission('moderex.watchlist.remove');
+
+    // Determine toggle state and interactability
     dom().watchToggleBtn.classList.toggle('on', watching);
     dom().watchToggleBtn.setAttribute('aria-pressed', watching ? 'true' : 'false');
-    dom().watchToggleHint.textContent = watching ? 'Watching player' : 'Not watching';
+
+    // Permission-based toggle behavior:
+    // - Has both: fully interactable
+    // - Has add only: can turn ON, can't turn OFF (disable if currently ON)
+    // - Has remove only: can turn OFF, can't turn ON (disable if currently OFF)
+    // - Has neither: completely disabled
+    let canToggle = false;
+    let tooltipMsg = '';
+
+    if (canAdd && canRemove) {
+      canToggle = true;
+    } else if (canAdd && !canRemove) {
+      canToggle = !watching; // Can only add (turn ON)
+      if (!canToggle) tooltipMsg = 'You lack permission to remove players from watchlist';
+    } else if (!canAdd && canRemove) {
+      canToggle = watching; // Can only remove (turn OFF)
+      if (!canToggle) tooltipMsg = 'You lack permission to add players to watchlist';
+    } else {
+      // Neither permission
+      tooltipMsg = 'You lack permission to manage watchlist';
+    }
+
+    dom().watchToggleBtn.disabled = !canToggle;
+    dom().watchToggleBtn.classList.toggle('no-permission', !canToggle);
+    if (!canToggle && tooltipMsg) {
+      dom().watchToggleBtn.setAttribute('data-no-perm-tooltip', tooltipMsg);
+    } else {
+      dom().watchToggleBtn.removeAttribute('data-no-perm-tooltip');
+    }
+
+    // Update hint text
+    if (!canAdd && !canRemove) {
+      dom().watchToggleHint.textContent = 'No watchlist permission';
+    } else {
+      dom().watchToggleHint.textContent = watching ? 'Watching player' : 'Not watching';
+    }
 
     dom().drawerAvatar.onerror = () => { dom().drawerAvatar.src = `https://minotar.net/helm/${encodeURIComponent(p.name)}/64.png`; };
     dom().drawerAvatar.src = avatarUrl(p);
@@ -2862,9 +2955,9 @@
   };
 
   window.addRuleUI = function() {
-    // Check permission
-    if (!hasPermission('moderex.admin.automod')) {
-      toast('error', 'No Permission', 'You do not have permission to create automod rules.');
+    // Check permission - button should be disabled, but double-check here
+    if (!hasPermission('moderex.automod.create')) {
+      // Don't show toast - button is disabled, this is just a safety check
       return;
     }
 
@@ -2887,9 +2980,9 @@
   };
 
   window.deleteRule = function(ruleId) {
-    // Check permission
-    if (!hasPermission('moderex.admin.automod')) {
-      toast('error', 'No Permission', 'You do not have permission to delete automod rules.');
+    // Check permission - button should be hidden, but double-check here
+    if (!hasPermission('moderex.automod.delete')) {
+      // Don't show toast - button is hidden, this is just a safety check
       return;
     }
 
@@ -2910,6 +3003,10 @@
   };
 
   window.toggleRule = function(ruleId) {
+    // Check edit permission - toggle should be disabled, but double-check here
+    if (!hasPermission('moderex.automod.edit')) {
+      return;
+    }
     const r = state.rules.find(r => r.id === ruleId);
     if (r) {
       r.enabled = !r.enabled;
@@ -2971,6 +3068,8 @@
   };
 
   window.setRuleAction = function(ruleId, kind) {
+    // Check edit permission - inputs should be disabled, but double-check here
+    if (!hasPermission('moderex.automod.edit')) return;
     const r = state.rules.find(r => r.id === ruleId);
     if (r) {
       if (!r.action) r.action = {};
@@ -2983,6 +3082,8 @@
   };
 
   window.setRuleActionExtra = function(ruleId, extra) {
+    // Check edit permission - inputs should be disabled, but double-check here
+    if (!hasPermission('moderex.automod.edit')) return;
     const r = state.rules.find(r => r.id === ruleId);
     if (r) {
       if (!r.action) r.action = {};
@@ -2993,6 +3094,8 @@
   };
 
   window.setRuleActionDuration = function(ruleId, duration) {
+    // Check edit permission - inputs should be disabled, but double-check here
+    if (!hasPermission('moderex.automod.edit')) return;
     const r = state.rules.find(r => r.id === ruleId);
     if (r) {
       if (!r.action) r.action = {};
@@ -3003,11 +3106,15 @@
   };
 
   window.setRuleName = function(ruleId, name) {
+    // Check edit permission - inputs should be disabled, but double-check here
+    if (!hasPermission('moderex.automod.edit')) return;
     const r = state.rules.find(r => r.id === ruleId);
     if (r && !r.locked) { r.name = name; ui.markUnsaved('rules', true); }
   };
 
   window.toggleRuleBlock = function(ruleId) {
+    // Check edit permission - inputs should be disabled, but double-check here
+    if (!hasPermission('moderex.automod.edit')) return;
     const r = state.rules.find(r => r.id === ruleId);
     if (r) {
       r.block = !r.block;
@@ -3018,6 +3125,8 @@
   };
 
   window.setRuleThreshold = function(ruleId, field, v) {
+    // Check edit permission - inputs should be disabled, but double-check here
+    if (!hasPermission('moderex.automod.edit')) return;
     const r = state.rules.find(r => r.id === ruleId);
     if (r) {
       if (!r.threshold) r.threshold = {};
@@ -3028,11 +3137,8 @@
 
   // Set a specific setting on a rule (for built-in rule config)
   window.setRuleSetting = function(ruleId, setting, value) {
-    // Check permission
-    if (!hasPermission('moderex.admin.automod')) {
-      toast('error', 'No Permission', 'You do not have permission to modify automod rules.');
-      return;
-    }
+    // Check edit permission - inputs should be disabled, but double-check here
+    if (!hasPermission('moderex.automod.edit')) return;
 
     const r = state.rules.find(r => r.id === ruleId);
     if (!r) return;
@@ -3289,6 +3395,9 @@
   };
 
   window.addWatchlistFromInput = function() {
+    // Check permission
+    if (!hasPermission('moderex.watchlist.add')) return;
+
     const name = (dom().watchAdd.value || '').trim().toLowerCase();
     if (!name) return;
     const p = state.players.find(x => x.name.toLowerCase().includes(name));
@@ -3308,6 +3417,8 @@
   };
 
   window.openWatchlistPicker = function() {
+    // Check permission - button should be disabled, but double-check here
+    if (!hasPermission('moderex.watchlist.add')) return;
     if (genericModalEl) genericModalEl.remove();
     const overlay = document.createElement('div');
     overlay.className = 'overlay show';
@@ -3345,9 +3456,10 @@
       const filtered = state.players.filter(p => !q || p.name.toLowerCase().includes(q)).slice(0, 60);
       listEl.innerHTML = filtered.length ? filtered.map(p => {
         const isWatching = state.watchlist.has(p.uuid) || state.watchlist.has(p.id);
+        const uuidDisplay = hasPermission('moderex.info.uuid') ? ` | ${escapeHtml(p.uuid.slice(0, 8))}...` : '';
         return `
         <div class="drawer-row" data-player-id="${p.id}" style="cursor:pointer" onclick="addWatchlistById('${p.id}'); this.closest('.overlay').remove();">
-          <div class="meta"><b>${escapeHtml(p.name)}</b><small>${escapeHtml(p.platform)} | ${escapeHtml(p.uuid.slice(0, 8))}...</small></div>
+          <div class="meta"><b>${escapeHtml(p.name)}</b><small>${escapeHtml(p.platform)}${uuidDisplay}</small></div>
           <span class="badge ${isWatching ? 'yellow' : 'gray'}"><i class="fa-solid fa-eye"></i> ${isWatching ? 'Watching' : 'Add'}</span>
         </div>
       `;}).join('') : `<div class="drawer-row"><div class="meta"><small>No players found.</small></div></div>`;
@@ -3357,6 +3469,9 @@
   };
 
   window.addWatchlistById = function(pid) {
+    // Check permission
+    if (!hasPermission('moderex.watchlist.add')) return;
+
     const p = state.players.find(x => x.id === pid);
     if (!p) return;
     // Use UUID for consistent storage and server sync
@@ -3382,6 +3497,14 @@
     const ws = window.MX?.ws;
     const isWatching = state.watchlist.has(p.uuid) || state.watchlist.has(pid);
 
+    // Check permissions based on current state
+    if (isWatching && !hasPermission('moderex.watchlist.remove')) {
+      return; // Can't remove without permission
+    }
+    if (!isWatching && !hasPermission('moderex.watchlist.add')) {
+      return; // Can't add without permission
+    }
+
     window.MX.sounds?.toggle();
     if (isWatching) {
       state.watchlist.delete(p.uuid);
@@ -3401,13 +3524,43 @@
     }
     ui.renderWatchlist();
     ui.renderPlayers();
-    const watching = state.watchlist.has(p.uuid);
-    dom().watchToggleBtn.classList.toggle('on', watching);
-    dom().watchToggleBtn.setAttribute('aria-pressed', watching ? 'true' : 'false');
-    dom().watchToggleHint.textContent = watching ? 'Watching player' : 'Not watching';
+    const nowWatching = state.watchlist.has(p.uuid);
+    dom().watchToggleBtn.classList.toggle('on', nowWatching);
+    dom().watchToggleBtn.setAttribute('aria-pressed', nowWatching ? 'true' : 'false');
+
+    // Update toggle interactability based on new state
+    const canAdd = hasPermission('moderex.watchlist.add');
+    const canRemove = hasPermission('moderex.watchlist.remove');
+    let canToggle = false;
+    let tooltipMsg = '';
+
+    if (canAdd && canRemove) {
+      canToggle = true;
+    } else if (canAdd && !canRemove) {
+      canToggle = !nowWatching; // Can only add
+      if (!canToggle) tooltipMsg = 'You lack permission to remove players from watchlist';
+    } else if (!canAdd && canRemove) {
+      canToggle = nowWatching; // Can only remove
+      if (!canToggle) tooltipMsg = 'You lack permission to add players to watchlist';
+    } else {
+      tooltipMsg = 'You lack permission to manage watchlist';
+    }
+
+    dom().watchToggleBtn.disabled = !canToggle;
+    dom().watchToggleBtn.classList.toggle('no-permission', !canToggle);
+    if (!canToggle && tooltipMsg) {
+      dom().watchToggleBtn.setAttribute('data-no-perm-tooltip', tooltipMsg);
+    } else {
+      dom().watchToggleBtn.removeAttribute('data-no-perm-tooltip');
+    }
+
+    dom().watchToggleHint.textContent = nowWatching ? 'Watching player' : 'Not watching';
   };
 
   window.removeWatch = function(pid) {
+    // Check permission - button should be hidden, but double-check here
+    if (!hasPermission('moderex.watchlist.remove')) return;
+
     const p = state.players.find(x => x.id === pid);
     // Remove both UUID and internal ID to ensure cleanup
     if (p) state.watchlist.delete(p.uuid);

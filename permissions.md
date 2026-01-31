@@ -254,6 +254,40 @@ This document contains all permissions used by ModereX. When editing permissions
 
 **No permissions:** Respective buttons show lock icon, sections show "No permission" message.
 
+### Web Panel - Automod
+
+| Permission | Web Panel Behavior |
+|------------|-------------------|
+| `moderex.automod.view` | View automod rule details (blurred without) |
+| `moderex.automod.edit` | Edit existing rules, toggle states |
+| `moderex.automod.create` | "Add Rule" button enabled |
+| `moderex.automod.delete` | Delete buttons visible on rules |
+
+**No view permission:** Rules blurred with overlay message "You do not have permission to view automod rule details".
+**No edit permission:** Rule editor opens in view-only mode, all inputs disabled.
+
+### Web Panel - Watchlist
+
+| Permission | Web Panel Behavior |
+|------------|-------------------|
+| `moderex.watchlist.add` | Add Player button enabled, can toggle ON |
+| `moderex.watchlist.remove` | Remove buttons visible, can toggle OFF |
+
+**Toggle behavior:** Watchlist toggle adapts based on permissions:
+- Both: Fully interactable
+- Add only: Can turn ON, disabled when already ON
+- Remove only: Can turn OFF, disabled when already OFF
+- Neither: Completely disabled with tooltip
+
+### Web Panel - Alerts
+
+| Permission | Web Panel Behavior |
+|------------|-------------------|
+| `moderex.alerts.anticheat` | Anticheat Integration section in Settings enabled |
+| `moderex.history.watchlist.*` | Filter watchlist alerts by type |
+
+**No permission:** Anticheat section shows "No permission" overlay.
+
 ---
 
 ## Plugin Administration

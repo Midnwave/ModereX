@@ -460,9 +460,10 @@
       const watching = state.watchlist.has(p.uuid) || state.watchlist.has(p.id);
 
       const avatarFallback = `https://minotar.net/helm/${encodeURIComponent(p.name)}/64.png`;
+      const uuidDisplay = hasPermission('moderex.info.uuid') ? `<small style="color:var(--text-secondary);font-size:12px">${escapeHtml(p.uuid.slice(0, 8))}...</small>` : '';
       return `
         <tr class="${watching ? 'watchlist-row' : ''}" data-player-id="${p.id}" style="cursor:pointer" onclick="openDrawer('${p.id}')">
-          <td><div class="pwrap"><div class="phead"><img src="${avatarUrl(p)}" alt="" onerror="this.onerror=null;this.src='${avatarFallback}'"></div><div><b style="font-size:13px">${escapeHtml(p.name)} ${watching ? '<span class="watchlist-indicator"></span>' : ''}</b><small style="color:var(--text-secondary);font-size:12px">${escapeHtml(p.uuid.slice(0, 8))}...</small></div></div></td>
+          <td><div class="pwrap"><div class="phead"><img src="${avatarUrl(p)}" alt="" onerror="this.onerror=null;this.src='${avatarFallback}'"></div><div><b style="font-size:13px">${escapeHtml(p.name)} ${watching ? '<span class="watchlist-indicator"></span>' : ''}</b>${uuidDisplay}</div></div></td>
           <td>${platformBadge}</td>
           <td>${statusBadge}</td>
           <td>${escapeHtml(fmtLong(p.lastSeen))}</td>
@@ -599,6 +600,34 @@
   function renderRules() {
     if (!dom.rulesList) return;
 
+    // Check automod permissions
+    const canView = window.hasPermission ? window.hasPermission('moderex.automod.view') : true;
+    const canEdit = window.hasPermission ? window.hasPermission('moderex.automod.edit') : true;
+    const canCreate = window.hasPermission ? window.hasPermission('moderex.automod.create') : true;
+    const canDelete = window.hasPermission ? window.hasPermission('moderex.automod.delete') : true;
+
+    // Apply permission classes to container
+    dom.rulesList.classList.remove('automod-no-view', 'automod-no-edit', 'automod-no-delete');
+    if (!canView) dom.rulesList.classList.add('automod-no-view');
+    if (!canEdit) dom.rulesList.classList.add('automod-no-edit');
+    if (!canDelete) dom.rulesList.classList.add('automod-no-delete');
+
+    // Update Add Rule button based on create permission
+    const addRuleBtn = document.getElementById('addRuleBtn');
+    if (addRuleBtn) {
+      if (!canCreate) {
+        addRuleBtn.disabled = true;
+        addRuleBtn.classList.add('no-permission');
+        if (window.applyNoPermTooltip) {
+          window.applyNoPermTooltip(addRuleBtn, 'You lack permission to create automod rules');
+        }
+      } else {
+        addRuleBtn.disabled = false;
+        addRuleBtn.classList.remove('no-permission');
+        addRuleBtn.removeAttribute('data-no-perm-tooltip');
+      }
+    }
+
     // Get filter values
     const searchQ = (dom.ruleSearch?.value || '').toLowerCase().trim();
     const typeFilter = dom.ruleTypeFilter?.value || 'all';
@@ -710,7 +739,32 @@
     }).join('');
 
     // Render rules list
-    dom.rulesList.innerHTML = rulesHtml || (totalItems === 0 ? `<div class="hintline">No rules match your search. Click "Add Rule" to create one.</div>` : '');
+    if (!canView) {
+      // No view permission - show blurred rules with overlay
+      dom.rulesList.innerHTML = `
+        <div style="position:relative">
+          <div class="automod-permission-overlay">
+            <div class="automod-permission-overlay-content">
+              <i class="fa-solid fa-lock"></i>
+              <p>You do not have permission to view automod rule details</p>
+            </div>
+          </div>
+          <div style="filter:blur(4px);opacity:0.4;pointer-events:none">
+            ${paginatedRules.map(r => `
+              <div class="card" style="margin:0 0 16px 0;padding:16px">
+                <div style="display:flex;align-items:center;gap:10px">
+                  <i class="fa-solid fa-robot" style="color:var(--muted)"></i>
+                  <b>${escapeHtml(r.name)}</b>
+                  <span class="badge gray">${r.enabled ? 'Active' : 'Inactive'}</span>
+                </div>
+              </div>
+            `).join('')}
+          </div>
+        </div>
+      `;
+    } else {
+      dom.rulesList.innerHTML = rulesHtml || (totalItems === 0 ? `<div class="hintline">No rules match your search.${canCreate ? ' Click "Add Rule" to create one.' : ''}</div>` : '');
+    }
   }
 
   // Render a built-in rule card (spam, caps, links, afk) - simplified, no condition editing
@@ -929,9 +983,17 @@
     const r = state.rules.find(rule => rule.id === ruleId);
     if (!r) return;
 
+    // Check permissions
+    const canView = window.hasPermission ? window.hasPermission('moderex.automod.view') : true;
+    const canEdit = window.hasPermission ? window.hasPermission('moderex.automod.edit') : true;
+
+    // If no view permission, don't open editor
+    if (!canView) return;
+
     // Debug: Log the full rule object to see what data we have
     console.log('[Automod Editor] Opening rule:', ruleId);
     console.log('[Automod Editor] Full rule data:', JSON.stringify(r, null, 2));
+    console.log('[Automod Editor] Can edit:', canEdit);
 
     const thr = r.threshold || { hits: 1, windowMins: 10 };
     const conditions = r.conditions || [];
@@ -963,6 +1025,10 @@
     const exceptions = exceptionsArr.join('\n');
     console.log('[Automod Editor] Exceptions:', exceptionsArr);
 
+    // Disabled attribute for view-only mode
+    const disabled = canEdit ? '' : 'disabled';
+    const readonlyAttr = canEdit ? '' : 'readonly';
+
     // Create modal
     const modal = document.createElement('div');
     modal.className = 'overlay';
@@ -971,22 +1037,23 @@
     modal.innerHTML = `
       <div class="modal" style="max-width:600px;max-height:90vh;overflow-y:auto" onclick="event.stopPropagation()">
         <div class="modal-top">
-          <b><i class="fa-solid fa-filter" style="margin-right:8px"></i>Edit Filter Rule</b>
+          <b><i class="fa-solid fa-${canEdit ? 'filter' : 'eye'}" style="margin-right:8px"></i>${canEdit ? 'Edit' : 'View'} Filter Rule</b>
           <button class="mini" onclick="closeAutomodRuleEditor()"><i class="fa-solid fa-xmark"></i></button>
         </div>
+        ${!canEdit ? `<div style="background:rgba(var(--warn-rgb),0.15);border-bottom:1px solid var(--border);padding:8px 16px;color:var(--warn);font-size:12px"><i class="fa-solid fa-lock" style="margin-right:6px"></i>View only - you lack permission to edit automod rules</div>` : ''}
         <div class="modal-body">
           <div class="hintline" style="margin-top:0">Rule Name</div>
-          <input type="text" class="input" id="automodRuleName" value="${escapeHtml(r.name)}" placeholder="Rule name..." style="width:100%">
+          <input type="text" class="input" id="automodRuleName" value="${escapeHtml(r.name)}" placeholder="Rule name..." style="width:100%" ${disabled}>
 
           <div class="hintline">Blocked Phrases <span style="color:var(--text-secondary);font-weight:normal">(one per line)</span></div>
-          <textarea class="input" id="automodRulePhrases" rows="4" placeholder="Enter words or phrases to block (one per line)..." style="font-family:var(--font-mono);font-size:12px">${escapeHtml(phrases)}</textarea>
+          <textarea class="input" id="automodRulePhrases" rows="4" placeholder="Enter words or phrases to block (one per line)..." style="font-family:var(--font-mono);font-size:12px" ${readonlyAttr}>${escapeHtml(phrases)}</textarea>
 
           <div class="hintline">Exceptions <span style="color:var(--text-secondary);font-weight:normal">(words/phrases that won't trigger, one per line)</span></div>
-          <textarea class="input" id="automodRuleExceptions" rows="2" placeholder="Enter exceptions (one per line)..." style="font-family:var(--font-mono);font-size:12px">${escapeHtml(exceptions)}</textarea>
+          <textarea class="input" id="automodRuleExceptions" rows="2" placeholder="Enter exceptions (one per line)..." style="font-family:var(--font-mono);font-size:12px" ${readonlyAttr}>${escapeHtml(exceptions)}</textarea>
 
           <div class="hintline">Applies To</div>
           <div class="block" style="gap:10px">
-            <select class="input" id="automodRuleAppliesTo" style="width:200px">
+            <select class="input" id="automodRuleAppliesTo" style="width:200px" ${disabled}>
               <option value="chat" ${!r.applyToNicknames && !r.nicknameOnly ? 'selected' : ''}>Chat Only</option>
               <option value="nicknames" ${r.nicknameOnly ? 'selected' : ''}>Nicknames Only</option>
               <option value="both" ${r.applyToNicknames && !r.nicknameOnly ? 'selected' : ''}>Both Chat & Nicknames</option>
@@ -996,25 +1063,25 @@
 
           <div class="hintline">Auto Punishment</div>
           <div class="block" style="gap:10px;flex-wrap:wrap">
-            <select class="input" id="automodRuleActionKind" style="width:140px" onchange="updateAutomodActionFields()">
+            <select class="input" id="automodRuleActionKind" style="width:140px" onchange="updateAutomodActionFields()" ${disabled}>
               ${['none', 'warn', 'mute', 'kick', 'ban'].map(k => `<option value="${k}" ${r.action?.kind === k ? 'selected' : ''}>${k.charAt(0).toUpperCase() + k.slice(1)}</option>`).join('')}
             </select>
-            <input class="input" id="automodRuleActionReason" value="${escapeHtml(r.action?.extra || '')}" placeholder="Reason for punishment..." style="flex:1;min-width:180px;display:${r.action?.kind && r.action.kind !== 'none' ? 'block' : 'none'}">
-            <input class="input" id="automodRuleActionDuration" value="${escapeHtml(r.action?.duration || '')}" placeholder="Duration (e.g., 1h, 1d)" style="width:140px;display:${['warn','mute','ban'].includes(r.action?.kind) ? 'block' : 'none'}">
+            <input class="input" id="automodRuleActionReason" value="${escapeHtml(r.action?.extra || '')}" placeholder="Reason for punishment..." style="flex:1;min-width:180px;display:${r.action?.kind && r.action.kind !== 'none' ? 'block' : 'none'}" ${disabled}>
+            <input class="input" id="automodRuleActionDuration" value="${escapeHtml(r.action?.duration || '')}" placeholder="Duration (e.g., 1h, 1d)" style="width:140px;display:${['warn','mute','ban'].includes(r.action?.kind) ? 'block' : 'none'}" ${disabled}>
           </div>
 
           <div class="hintline">Trigger Threshold</div>
           <div class="block" style="gap:10px;flex-wrap:wrap;align-items:center">
             <span class="badge gray">Punish after</span>
-            <input class="input" type="number" id="automodRuleThresholdHits" min="1" value="${thr.hits}" style="width:70px">
+            <input class="input" type="number" id="automodRuleThresholdHits" min="1" value="${thr.hits}" style="width:70px" ${disabled}>
             <span class="badge gray">violations in</span>
-            <input class="input" type="number" id="automodRuleThresholdWindow" min="1" value="${thr.windowMins}" style="width:70px">
+            <input class="input" type="number" id="automodRuleThresholdWindow" min="1" value="${thr.windowMins}" style="width:70px" ${disabled}>
             <span class="badge gray">minutes</span>
           </div>
 
           <div class="block" style="margin-top:24px;gap:10px">
-            <button class="btn primary" onclick="saveAutomodRuleFromEditor('${r.id}')"><i class="fa-solid fa-check"></i> Save</button>
-            <button class="btn" onclick="closeAutomodRuleEditor()">Cancel</button>
+            ${canEdit ? `<button class="btn primary" onclick="saveAutomodRuleFromEditor('${r.id}')"><i class="fa-solid fa-check"></i> Save</button>` : ''}
+            <button class="btn" onclick="closeAutomodRuleEditor()">${canEdit ? 'Cancel' : 'Close'}</button>
           </div>
         </div>
       </div>
@@ -1045,9 +1112,8 @@
   };
 
   window.saveAutomodRuleFromEditor = function(ruleId) {
-    // Check permission
-    if (!window.hasPermission('moderex.admin.automod')) {
-      window.toast('error', 'No Permission', 'You do not have permission to modify automod rules.');
+    // Check permission - form should be disabled, but double-check here
+    if (!window.hasPermission('moderex.automod.edit')) {
       return;
     }
 
@@ -1736,6 +1802,28 @@
 
   function renderWatchlist() {
     if (!dom.watchPlayers) return;
+
+    // Check permissions
+    const canAdd = window.hasPermission ? window.hasPermission('moderex.watchlist.add') : true;
+    const canRemove = window.hasPermission ? window.hasPermission('moderex.watchlist.remove') : true;
+    const canPunish = window.canIssueAnyPunishment ? window.canIssueAnyPunishment() : true;
+
+    // Update Add Player button
+    const addBtn = document.getElementById('watchlistAddBtn');
+    if (addBtn) {
+      if (!canAdd) {
+        addBtn.disabled = true;
+        addBtn.classList.add('no-permission');
+        if (window.applyNoPermTooltip) {
+          window.applyNoPermTooltip(addBtn, 'You lack permission to add players to watchlist');
+        }
+      } else {
+        addBtn.disabled = false;
+        addBtn.classList.remove('no-permission');
+        addBtn.removeAttribute('data-no-perm-tooltip');
+      }
+    }
+
     const q = (dom.watchSearch?.value || '').trim().toLowerCase();
     // Match by UUID (from server) instead of internal ID
     const wlPlayers = [...state.watchlist].map(uuid =>
@@ -1743,17 +1831,45 @@
     ).filter(Boolean);
     const filtered = wlPlayers.filter(p => !q || `${p.name} ${p.platform}`.toLowerCase().includes(q));
 
-    dom.watchPlayers.innerHTML = filtered.map(p => `
-      <div class="drawer-row watchlist-item watching watchlist-row" data-player-id="${p.id}" style="border-radius:var(--radius);cursor:pointer" onclick="openDrawer('${p.id}')">
-        <div class="meta"><b>${escapeHtml(p.name)}</b><small>${p.platform} | ${p.flags} flags</small></div>
-        <div class="drawer-actions">
-          <button class="mini" onclick="event.stopPropagation(); openPunishModal(null,'${p.id}')"><i class="fa-solid fa-bolt"></i></button>
-          <button class="mini bad" onclick="event.stopPropagation(); removeWatch('${p.id}')"><i class="fa-solid fa-xmark"></i></button>
-        </div>
-      </div>
-    `).join('') || `<div class="hintline">No players on watchlist.</div>`;
+    dom.watchPlayers.innerHTML = filtered.map(p => {
+      // Build action buttons based on permissions
+      let actions = '';
+      if (canPunish) {
+        actions += `<button class="mini" onclick="event.stopPropagation(); openPunishModal(null,'${p.id}')"><i class="fa-solid fa-bolt"></i></button>`;
+      }
+      if (canRemove) {
+        actions += `<button class="mini bad" onclick="event.stopPropagation(); removeWatch('${p.id}')"><i class="fa-solid fa-xmark"></i></button>`;
+      }
 
-    dom.watchAlerts.innerHTML = state.watchAlerts.slice().sort((a, b) => b.t - a.t).slice(0, 20).map(a => `
+      return `
+        <div class="drawer-row watchlist-item watching watchlist-row" data-player-id="${p.id}" style="border-radius:var(--radius);cursor:pointer" onclick="openDrawer('${p.id}')">
+          <div class="meta"><b>${escapeHtml(p.name)}</b><small>${p.platform} | ${p.flags} flags</small></div>
+          ${actions ? `<div class="drawer-actions">${actions}</div>` : ''}
+        </div>
+      `;
+    }).join('') || `<div class="hintline">No players on watchlist.</div>`;
+
+    // Render alerts - filter based on permissions
+    const alertsToShow = state.watchAlerts.slice().sort((a, b) => b.t - a.t).slice(0, 20).filter(a => {
+      // Check if user has permission to view this alert type
+      const alertType = (a.type || '').toLowerCase();
+      const permMap = {
+        'warn': 'moderex.history.watchlist.warns',
+        'kick': 'moderex.history.watchlist.kicks',
+        'ban': 'moderex.history.watchlist.bans',
+        'mute': 'moderex.history.watchlist.mutes',
+        'automod': 'moderex.history.watchlist.automod',
+        'command': 'moderex.history.watchlist.commands',
+        'chat': 'moderex.history.watchlist.chat'
+      };
+      const perm = permMap[alertType];
+      if (perm && window.hasPermission && !window.hasPermission(perm)) {
+        return false;
+      }
+      return true;
+    });
+
+    dom.watchAlerts.innerHTML = alertsToShow.map(a => `
       <div class="drawer-row" style="border-radius:var(--radius)">
         <div class="meta"><b>${escapeHtml(a.title)}</b><small>${escapeHtml(fmtShort(a.t))} | ${escapeHtml(a.detail)}</small></div>
         <span class="badge ${a.sev === 'ERROR' ? 'red' : a.sev === 'WARN' ? 'yellow' : 'blue'}"><i class="fa-solid fa-bell"></i></span>
