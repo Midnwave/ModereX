@@ -1957,17 +1957,24 @@
   // ===== DRAWER =====
   // Helper to refresh command section in drawer
   function refreshDrawerCommands(p) {
-    const recentCmds = (p.recentCommands || []).slice(-10).reverse();
     const cmdEl = dom().drawerRecent;
-    if (cmdEl) {
-      cmdEl.innerHTML = recentCmds.length ? `
-        ${recentCmds.map(item => `<div class="drawer-row"><div class="meta"><b>${escapeHtml(item.cmd || item)}</b></div></div>`).join('')}
-        <div class="drawer-row">
-          <div class="meta"><small>${p.recentCommands.length} total commands</small></div>
-          <button class="mini" onclick="openCommandHistory('${p.id}')"><i class="fa-solid fa-up-right-from-square"></i> Expand</button>
-        </div>
-      ` : `<div class="drawer-row"><div class="meta"><small>No commands.</small></div></div>`;
+    if (!cmdEl) return;
+
+    // Check permission first
+    const canViewCommands = window.hasPermission ? window.hasPermission('moderex.alerts.commands') : true;
+    if (!canViewCommands) {
+      cmdEl.innerHTML = `<div class="drawer-row"><div class="meta"><small><i class="fa-solid fa-lock"></i> No permission to view commands</small></div></div>`;
+      return;
     }
+
+    const recentCmds = (p.recentCommands || []).slice(-10).reverse();
+    cmdEl.innerHTML = recentCmds.length ? `
+      ${recentCmds.map(item => `<div class="drawer-row"><div class="meta"><b>${escapeHtml(item.cmd || item)}</b></div></div>`).join('')}
+      <div class="drawer-row">
+        <div class="meta"><small>${p.recentCommands.length} total commands</small></div>
+        <button class="mini" onclick="openCommandHistory('${p.id}')"><i class="fa-solid fa-up-right-from-square"></i> Expand</button>
+      </div>
+    ` : `<div class="drawer-row"><div class="meta"><small>No commands.</small></div></div>`;
   }
 
   window.openDrawer = function(playerId, highlightPunId = null) {
@@ -2176,32 +2183,42 @@
       }
     }
 
-    // Recent Commands section
-    const recentCmds = (p.recentCommands || []).slice(0, 10);
-    dom().drawerRecent.innerHTML = recentCmds.length ? `
-      ${recentCmds.map(item => `<div class="drawer-row"><div class="meta"><b>${escapeHtml(item.cmd || item.command || item)}</b><small>${item.t ? escapeHtml(fmtShort(item.t)) : ''}</small></div></div>`).join('')}
-      <div class="drawer-row">
-        <div class="meta"><small>${(p.recentCommands || []).length} total commands</small></div>
-        <button class="mini" onclick="openCommandHistory('${p.id}')"><i class="fa-solid fa-up-right-from-square"></i> Expand</button>
-      </div>
-    ` : `<div class="drawer-row"><div class="meta"><small>No commands.</small></div></div>`;
+    // Recent Commands section - requires moderex.alerts.commands permission
+    const canViewCommands = window.hasPermission ? window.hasPermission('moderex.alerts.commands') : true;
+    if (canViewCommands) {
+      const recentCmds = (p.recentCommands || []).slice(0, 10);
+      dom().drawerRecent.innerHTML = recentCmds.length ? `
+        ${recentCmds.map(item => `<div class="drawer-row"><div class="meta"><b>${escapeHtml(item.cmd || item.command || item)}</b><small>${item.t ? escapeHtml(fmtShort(item.t)) : ''}</small></div></div>`).join('')}
+        <div class="drawer-row">
+          <div class="meta"><small>${(p.recentCommands || []).length} total commands</small></div>
+          <button class="mini" onclick="openCommandHistory('${p.id}')"><i class="fa-solid fa-up-right-from-square"></i> Expand</button>
+        </div>
+      ` : `<div class="drawer-row"><div class="meta"><small>No commands.</small></div></div>`;
+    } else {
+      dom().drawerRecent.innerHTML = `<div class="drawer-row"><div class="meta"><small><i class="fa-solid fa-lock"></i> No permission to view commands</small></div></div>`;
+    }
 
-    // Automod Logs section - use fetched data from player details, fallback to state.logs
-    const fetchedAutomod = (p.automodLogs || []).slice(0, 6);
-    const liveAutomod = state.logs.filter(l => l.kind === 'automod' && l.playerId === p.id).slice(-6).reverse();
-    const automodLogs = fetchedAutomod.length > 0 ? fetchedAutomod : liveAutomod;
-    dom().drawerAutomod.innerHTML = automodLogs.length ? `
-      ${automodLogs.map(l => {
-        // Handle both fetched format and live format
-        const title = l.rule ? `Automod | ${l.rule}` : (l.title || 'Automod');
-        const detail = l.content || l.detail || '';
-        return `<div class="drawer-row"><div class="meta"><b>${escapeHtml(title)}</b><small>${escapeHtml(fmtShort(l.t))} | ${escapeHtml(detail)}</small></div></div>`;
-      }).join('')}
-      <div class="drawer-row">
-        <div class="meta"><small>${automodLogs.length} recent events</small></div>
-        <button class="mini" onclick="openAutomodLogs('${p.id}')"><i class="fa-solid fa-up-right-from-square"></i> Expand</button>
-      </div>
-    ` : `<div class="drawer-row"><div class="meta"><small>No automod logs.</small></div></div>`;
+    // Automod Logs section - requires moderex.alerts.automod permission
+    const canViewAutomod = window.hasPermission ? window.hasPermission('moderex.alerts.automod') : true;
+    if (canViewAutomod) {
+      const fetchedAutomod = (p.automodLogs || []).slice(0, 6);
+      const liveAutomod = state.logs.filter(l => l.kind === 'automod' && l.playerId === p.id).slice(-6).reverse();
+      const automodLogs = fetchedAutomod.length > 0 ? fetchedAutomod : liveAutomod;
+      dom().drawerAutomod.innerHTML = automodLogs.length ? `
+        ${automodLogs.map(l => {
+          // Handle both fetched format and live format
+          const title = l.rule ? `Automod | ${l.rule}` : (l.title || 'Automod');
+          const detail = l.content || l.detail || '';
+          return `<div class="drawer-row"><div class="meta"><b>${escapeHtml(title)}</b><small>${escapeHtml(fmtShort(l.t))} | ${escapeHtml(detail)}</small></div></div>`;
+        }).join('')}
+        <div class="drawer-row">
+          <div class="meta"><small>${automodLogs.length} recent events</small></div>
+          <button class="mini" onclick="openAutomodLogs('${p.id}')"><i class="fa-solid fa-up-right-from-square"></i> Expand</button>
+        </div>
+      ` : `<div class="drawer-row"><div class="meta"><small>No automod logs.</small></div></div>`;
+    } else {
+      dom().drawerAutomod.innerHTML = `<div class="drawer-row"><div class="meta"><small><i class="fa-solid fa-lock"></i> No permission to view automod logs</small></div></div>`;
+    }
 
     dom().drawerOverlay.classList.add('show');
     dom().playerDrawer.classList.add('show');
@@ -2796,6 +2813,12 @@
   }
 
   window.openCommandHistory = function(playerId) {
+    // Check permission first
+    if (window.hasPermission && !window.hasPermission('moderex.alerts.commands')) {
+      toast('error', 'Permission Denied', 'You do not have permission to view command history.');
+      return;
+    }
+
     const p = state.players.find(x => x.id === playerId);
     if (!p) return;
     if (genericModalEl) genericModalEl.remove();
@@ -2992,6 +3015,12 @@
   };
 
   window.openAutomodLogs = function(playerId) {
+    // Check permission first
+    if (window.hasPermission && !window.hasPermission('moderex.alerts.automod')) {
+      toast('error', 'Permission Denied', 'You do not have permission to view automod logs.');
+      return;
+    }
+
     const p = state.players.find(x => x.id === playerId);
     if (!p) return;
     if (genericModalEl) genericModalEl.remove();
