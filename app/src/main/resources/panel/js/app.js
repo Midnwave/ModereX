@@ -2689,12 +2689,22 @@
 
   window.deleteTemplate = function(tplId) {
     if (tplId === 'none') return;
+    // Permission check
+    if (window.hasPermission && !window.hasPermission('moderex.template.delete')) {
+      toast('warn', 'No Permission', 'You do not have permission to delete templates');
+      return;
+    }
     state.templates = state.templates.filter(t => t.id !== tplId);
     ui.renderTemplates();
     toast('info', 'Deleted', 'Template removed.');
   };
 
   window.createTemplateUI = function() {
+    // Permission check
+    if (window.hasPermission && !window.hasPermission('moderex.template.create')) {
+      toast('warn', 'No Permission', 'You do not have permission to create templates');
+      return;
+    }
     openGenericModal({
       title: 'Create Template',
       html: `
@@ -2719,6 +2729,11 @@
   };
 
   window.editTemplateUI = function(tplId) {
+    // Permission check
+    if (window.hasPermission && !window.hasPermission('moderex.template.edit')) {
+      toast('warn', 'No Permission', 'You do not have permission to edit templates');
+      return;
+    }
     const tpl = state.templates.find(t => t.id === tplId);
     if (!tpl) return;
     openGenericModal({

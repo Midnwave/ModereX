@@ -3728,6 +3728,12 @@ public class HybridPanelServer {
     }
 
     private void createTemplate(WebSocketConnection conn, JsonObject data, WebPanelSession session) {
+        // Permission check
+        if (!hasViewPermission(session.playerUuid, "moderex.template.create")) {
+            sendError(conn, "NO_PERMISSION", "You do not have permission to create templates");
+            return;
+        }
+
         try {
             String name = data.get("name").getAsString();
             String typeStr = data.get("type").getAsString();
@@ -3764,6 +3770,12 @@ public class HybridPanelServer {
     }
 
     private void updateTemplate(WebSocketConnection conn, JsonObject data, WebPanelSession session) {
+        // Permission check
+        if (!hasViewPermission(session.playerUuid, "moderex.template.edit")) {
+            sendError(conn, "NO_PERMISSION", "You do not have permission to edit templates");
+            return;
+        }
+
         try {
             String id = data.get("id").getAsString();
             com.blockforge.moderex.punishment.PunishmentTemplate template = plugin.getTemplateManager().getTemplate(id);
@@ -3803,6 +3815,12 @@ public class HybridPanelServer {
     }
 
     private void deleteTemplate(WebSocketConnection conn, JsonObject data, WebPanelSession session) {
+        // Permission check
+        if (!hasViewPermission(session.playerUuid, "moderex.template.delete")) {
+            sendError(conn, "NO_PERMISSION", "You do not have permission to delete templates");
+            return;
+        }
+
         try {
             String id = data.get("id").getAsString();
             boolean deleted = plugin.getTemplateManager().deleteTemplate(id);

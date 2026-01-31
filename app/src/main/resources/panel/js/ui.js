@@ -580,21 +580,61 @@
 
   function renderTemplates() {
     if (!dom.templateRows) return;
+
+    // Check template permissions
+    const canCreate = window.hasPermission ? window.hasPermission('moderex.template.create') : true;
+    const canEdit = window.hasPermission ? window.hasPermission('moderex.template.edit') : true;
+    const canDelete = window.hasPermission ? window.hasPermission('moderex.template.delete') : true;
+
+    // Update Create Template button based on permission
+    const createTemplateBtn = document.querySelector('[onclick="createTemplateUI()"]');
+    if (createTemplateBtn) {
+      if (!canCreate) {
+        createTemplateBtn.disabled = true;
+        createTemplateBtn.classList.add('no-permission');
+        if (window.applyNoPermTooltip) {
+          window.applyNoPermTooltip(createTemplateBtn, 'You do not have permission to create templates');
+        }
+      } else {
+        createTemplateBtn.disabled = false;
+        createTemplateBtn.classList.remove('no-permission');
+        if (window.removeNoPermTooltip) {
+          window.removeNoPermTooltip(createTemplateBtn);
+        }
+      }
+    }
+
     const q = (dom.templateSearch?.value || '').trim().toLowerCase();
     const arr = state.templates.filter(t => t.id !== 'none').filter(t => !q || `${t.name} ${t.type} ${t.reason}`.toLowerCase().includes(q));
 
-    dom.templateRows.innerHTML = arr.map(t => `
+    dom.templateRows.innerHTML = arr.map(t => {
+      const editBtn = canEdit
+        ? `<button class="mini primary" onclick="editTemplateUI('${t.id}')"><i class="fa-solid fa-pen-to-square"></i> Edit</button>`
+        : `<button class="mini primary no-permission" disabled data-tooltip="You do not have permission to edit templates"><i class="fa-solid fa-pen-to-square"></i> Edit</button>`;
+      const deleteBtn = canDelete
+        ? `<button class="mini bad" onclick="deleteTemplate('${t.id}')"><i class="fa-solid fa-trash"></i></button>`
+        : `<button class="mini bad no-permission" disabled data-tooltip="You do not have permission to delete templates"><i class="fa-solid fa-trash"></i></button>`;
+
+      return `
       <tr>
         <td><b>${escapeHtml(t.name)}</b></td>
         <td>${escapeHtml(t.type)}</td>
         <td>${escapeHtml(t.duration || 'instant')}</td>
         <td class="reason-cell">${window.expandableReason ? expandableReason(t.reason, 15) : escapeHtml(truncate(t.reason || 'No reason', 15))}</td>
         <td style="text-align:right">
-          <button class="mini primary" onclick="editTemplateUI('${t.id}')"><i class="fa-solid fa-pen-to-square"></i> Edit</button>
-          <button class="mini bad" onclick="deleteTemplate('${t.id}')"><i class="fa-solid fa-trash"></i></button>
+          ${editBtn}
+          ${deleteBtn}
         </td>
       </tr>
-    `).join('') || `<tr><td colspan="5" style="color:var(--muted)">No templates.</td></tr>`;
+    `;
+    }).join('') || `<tr><td colspan="5" style="color:var(--muted)">No templates.</td></tr>`;
+
+    // Apply tooltips to no-permission buttons
+    if (window.applyNoPermTooltip) {
+      dom.templateRows.querySelectorAll('.no-permission[data-tooltip]').forEach(btn => {
+        window.applyNoPermTooltip(btn, btn.dataset.tooltip);
+      });
+    }
   }
 
   function renderRules() {
