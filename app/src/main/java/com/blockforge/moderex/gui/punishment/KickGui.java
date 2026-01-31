@@ -1,74 +1,41 @@
 package com.blockforge.moderex.gui.punishment;
 
 import com.blockforge.moderex.ModereX;
-import com.blockforge.moderex.gui.BaseGui;
+import com.blockforge.moderex.punishment.PunishmentType;
 import com.blockforge.moderex.util.TextUtil;
 import org.bukkit.Material;
 import org.bukkit.OfflinePlayer;
 
-public class KickGui extends BaseGui {
+import java.util.UUID;
 
-    private final OfflinePlayer target;
-    private String selectedReason = "No reason specified";
-
-    private static final String[] REASONS = {
-            "AFK", "Server maintenance", "Rule violation", "Spam",
-            "Inappropriate behavior", "Connection issues", "Custom..."
-    };
+public class KickGui extends BasePunishmentGui {
 
     public KickGui(ModereX plugin, OfflinePlayer target) {
-        super(plugin, "<yellow>Kick: <gold>" + target.getName(), 4);
-        this.target = target;
+        super(plugin, target, "<red>Kick: <white>" + target.getName());
     }
 
     @Override
-    protected void populate() {
-        fillBorder(Material.YELLOW_STAINED_GLASS_PANE);
-
-        // Header
-        setItem(4, createItem(Material.LEATHER_BOOTS, "<yellow>Kick " + target.getName(),
-                "<gray>Select a reason for the kick"));
-
-        // Reason options (row 2)
-        int slot = 10;
-        for (String reason : REASONS) {
-            if (slot == 17) break;
-
-            final String r = reason;
-            boolean selected = r.equals(selectedReason);
-            boolean isCustom = reason.equals("Custom...");
-
-            Material mat = isCustom ? Material.NAME_TAG : (selected ? Material.LIME_DYE : Material.GRAY_DYE);
-
-            setItem(slot, createItem(mat,
-                    (selected ? "<green>" : "<yellow>") + reason,
-                    isCustom ? "<gray>Click to enter custom reason" : (selected ? "<green>Selected" : "<gray>Click to select")),
-                    () -> {
-                        if (isCustom) {
-                            close();
-                            promptInput("<yellow>Enter the kick reason:", input -> {
-                                selectedReason = input;
-                                plugin.getGuiManager().open(viewer, this);
-                            });
-                        } else {
-                            selectedReason = r;
-                            refresh();
-                        }
-                    });
-            slot++;
-        }
-
-        // Confirm button
-        setItem(22, createConfirmButton(), this::executeKick);
-
-        // Back button
-        setItem(27, createBackButton(), () -> openGui(new PunishPlayerGui(plugin, target)));
-
-        // Close button
-        setItem(35, createCloseButton(), this::close);
+    protected PunishmentType getPunishmentType() {
+        return PunishmentType.KICK;
     }
 
-    private void executeKick() {
+    @Override
+    protected Material getInfoMaterial() {
+        return Material.LEATHER_BOOTS;
+    }
+
+    @Override
+    protected String getInfoTitle() {
+        return "<red>Kick Details";
+    }
+
+    @Override
+    protected boolean supportsDuration() {
+        return false; // Kicks don't have duration
+    }
+
+    @Override
+    protected void executePunishment() {
         if (!target.isOnline()) {
             viewer.sendMessage(TextUtil.parse(
                     "<red>Player " + target.getName() + " is not online!"));
@@ -79,11 +46,26 @@ public class KickGui extends BaseGui {
         close();
 
         plugin.getServer().getScheduler().runTask(plugin, () -> {
-            String command = String.format("kick %s %s",
-                    target.getName(),
-                    selectedReason);
+            String reasonStr = getReason();
 
+            // Execute kick for main target
+            String command = String.format("kick %s %s", target.getName(), reasonStr);
             plugin.getServer().dispatchCommand(viewer, command);
+
+            // Execute for additional targets (mass kick)
+            for (UUID additionalUuid : getAdditionalTargets()) {
+                OfflinePlayer additional = plugin.getServer().getOfflinePlayer(additionalUuid);
+                if (additional.isOnline()) {
+                    String additionalCmd = String.format("kick %s %s", additional.getName(), reasonStr);
+                    plugin.getServer().dispatchCommand(viewer, additionalCmd);
+                }
+            }
         });
+    }
+
+    @Override
+    protected boolean canExecute() {
+        // Kicks don't require duration, always executable
+        return true;
     }
 }

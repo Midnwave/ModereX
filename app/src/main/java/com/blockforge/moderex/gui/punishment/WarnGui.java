@@ -1,81 +1,72 @@
 package com.blockforge.moderex.gui.punishment;
 
 import com.blockforge.moderex.ModereX;
-import com.blockforge.moderex.gui.BaseGui;
+import com.blockforge.moderex.punishment.PunishmentType;
 import org.bukkit.Material;
 import org.bukkit.OfflinePlayer;
 
-public class WarnGui extends BaseGui {
+import java.util.UUID;
 
-    private final OfflinePlayer target;
-    private String selectedReason = "No reason specified";
-
-    private static final String[] REASONS = {
-            "Minor rule violation", "Spam warning", "Language warning", "Behavior warning",
-            "First offense", "Final warning", "Custom..."
-    };
+public class WarnGui extends BasePunishmentGui {
 
     public WarnGui(ModereX plugin, OfflinePlayer target) {
-        super(plugin, "<aqua>Warn: <white>" + target.getName(), 4);
-        this.target = target;
+        super(plugin, target, "<yellow>Warn: <white>" + target.getName());
     }
 
     @Override
-    protected void populate() {
-        fillBorder(Material.LIGHT_BLUE_STAINED_GLASS_PANE);
-
-        // Header
-        setItem(4, createItem(Material.BOOK, "<aqua>Warn " + target.getName(),
-                "<gray>Select a reason for the warning"));
-
-        // Reason options (row 2)
-        int slot = 10;
-        for (String reason : REASONS) {
-            if (slot == 17) break;
-
-            final String r = reason;
-            boolean selected = r.equals(selectedReason);
-            boolean isCustom = reason.equals("Custom...");
-
-            Material mat = isCustom ? Material.NAME_TAG : (selected ? Material.LIME_DYE : Material.GRAY_DYE);
-
-            setItem(slot, createItem(mat,
-                    (selected ? "<green>" : "<yellow>") + reason,
-                    isCustom ? "<gray>Click to enter custom reason" : (selected ? "<green>Selected" : "<gray>Click to select")),
-                    () -> {
-                        if (isCustom) {
-                            close();
-                            promptInput("<yellow>Enter the warning reason:", input -> {
-                                selectedReason = input;
-                                plugin.getGuiManager().open(viewer, this);
-                            });
-                        } else {
-                            selectedReason = r;
-                            refresh();
-                        }
-                    });
-            slot++;
-        }
-
-        // Confirm button
-        setItem(22, createConfirmButton(), this::executeWarn);
-
-        // Back button
-        setItem(27, createBackButton(), () -> openGui(new PunishPlayerGui(plugin, target)));
-
-        // Close button
-        setItem(35, createCloseButton(), this::close);
+    protected PunishmentType getPunishmentType() {
+        return PunishmentType.WARN;
     }
 
-    private void executeWarn() {
+    @Override
+    protected Material getInfoMaterial() {
+        return Material.BOOK;
+    }
+
+    @Override
+    protected String getInfoTitle() {
+        return "<yellow>Warning Details";
+    }
+
+    @Override
+    protected boolean supportsDuration() {
+        return true; // Warnings can have expiry durations
+    }
+
+    @Override
+    protected void executePunishment() {
         close();
 
         plugin.getServer().getScheduler().runTask(plugin, () -> {
-            String command = String.format("warn %s %s",
-                    target.getName(),
-                    selectedReason);
+            String durationStr = getDurationForCommand();
+            String reasonStr = getReason();
 
+            // Execute warn for main target
+            String command;
+            if (durationStr.isEmpty()) {
+                command = String.format("warn %s %s", target.getName(), reasonStr);
+            } else {
+                command = String.format("warn %s %s %s", target.getName(), durationStr, reasonStr);
+            }
             plugin.getServer().dispatchCommand(viewer, command);
+
+            // Execute for additional targets (mass warn)
+            for (UUID additionalUuid : getAdditionalTargets()) {
+                OfflinePlayer additional = plugin.getServer().getOfflinePlayer(additionalUuid);
+                String additionalCmd;
+                if (durationStr.isEmpty()) {
+                    additionalCmd = String.format("warn %s %s", additional.getName(), reasonStr);
+                } else {
+                    additionalCmd = String.format("warn %s %s %s", additional.getName(), durationStr, reasonStr);
+                }
+                plugin.getServer().dispatchCommand(viewer, additionalCmd);
+            }
         });
+    }
+
+    @Override
+    protected boolean canExecute() {
+        // Warnings don't require duration
+        return true;
     }
 }
