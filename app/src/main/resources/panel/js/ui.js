@@ -563,7 +563,7 @@
           <td style="text-align:right">
             ${hasPermission('moderex.command.viewpunishment')
               ? `<button class="mini" onclick="event.stopPropagation(); viewPunishmentDetails('${pun.id}')"><i class="fa-solid fa-eye"></i> Details</button>`
-              : `<button class="mini btn-disabled" disabled title="Missing: moderex.command.viewpunishment"><i class="fa-solid fa-eye-slash"></i> Details</button>`}
+              : `<button class="mini btn-disabled" disabled title="You lack permission to view punishment details"><i class="fa-solid fa-eye-slash"></i> Details</button>`}
           </td>
         </tr>
       `;

@@ -66,12 +66,12 @@
     const hasPerm = hasPermission(permission);
     if (!hasPerm) {
       element.classList.add('no-permission', 'no-permission-tooltip');
-      element.setAttribute('data-permission-tooltip', tooltip || `Missing: ${permission}`);
+      element.setAttribute('data-permission-tooltip', tooltip || 'You lack sufficient permissions');
       // Remove click handlers for buttons
       if (element.tagName === 'BUTTON' || element.classList.contains('btn')) {
         const clone = element.cloneNode(true);
         clone.classList.add('no-permission', 'no-permission-tooltip');
-        clone.setAttribute('data-permission-tooltip', tooltip || `Missing: ${permission}`);
+        clone.setAttribute('data-permission-tooltip', tooltip || 'You lack sufficient permissions');
         element.parentNode?.replaceChild(clone, element);
       }
     }
@@ -1803,13 +1803,13 @@
     // Build quick punishment buttons based on permissions
     const warnBtn = canIssuePunishment('WARN')
       ? `<button class="action-btn warn" onclick="openPunishModal('WARN','${p.id}')"><i class="fa-solid fa-triangle-exclamation"></i> Warn</button>`
-      : `<button class="action-btn warn btn-disabled" disabled title="Missing: moderex.warn"><i class="fa-solid fa-lock"></i> Warn</button>`;
+      : `<button class="action-btn warn btn-disabled" disabled title="You lack permission to warn players"><i class="fa-solid fa-lock"></i> Warn</button>`;
     const muteBtn = canIssuePunishment('MUTE')
       ? `<button class="action-btn mute" onclick="openPunishModal('MUTE','${p.id}')"><i class="fa-solid fa-volume-xmark"></i> Mute</button>`
-      : `<button class="action-btn mute btn-disabled" disabled title="Missing: moderex.mute"><i class="fa-solid fa-lock"></i> Mute</button>`;
+      : `<button class="action-btn mute btn-disabled" disabled title="You lack permission to mute players"><i class="fa-solid fa-lock"></i> Mute</button>`;
     const banBtn = canIssuePunishment('BAN')
       ? `<button class="action-btn ban" onclick="openPunishModal('BAN','${p.id}')"><i class="fa-solid fa-ban"></i> Ban</button>`
-      : `<button class="action-btn ban btn-disabled" disabled title="Missing: moderex.ban"><i class="fa-solid fa-lock"></i> Ban</button>`;
+      : `<button class="action-btn ban btn-disabled" disabled title="You lack permission to ban players"><i class="fa-solid fa-lock"></i> Ban</button>`;
 
     dom().drawerActionBar.innerHTML = `
       <div class="action-cluster">
@@ -1820,13 +1820,13 @@
       <div class="action-cluster">
         ${hasPermission('moderex.history.chat')
           ? `<button class="action-btn" onclick="openChatLogs('${p.id}')"><i class="fa-solid fa-comments"></i> Chat Logs</button>`
-          : `<button class="action-btn btn-disabled" disabled title="Missing: moderex.history.chat"><i class="fa-solid fa-lock"></i> Chat Logs</button>`}
+          : `<button class="action-btn btn-disabled" disabled title="You lack permission to view chat logs"><i class="fa-solid fa-lock"></i> Chat Logs</button>`}
         ${hasPermission('moderex.history.commands')
           ? `<button class="action-btn" onclick="openCommandHistory('${p.id}')"><i class="fa-solid fa-terminal"></i> Commands</button>`
-          : `<button class="action-btn btn-disabled" disabled title="Missing: moderex.history.commands"><i class="fa-solid fa-lock"></i> Commands</button>`}
+          : `<button class="action-btn btn-disabled" disabled title="You lack permission to view command history"><i class="fa-solid fa-lock"></i> Commands</button>`}
         ${hasPermission('moderex.history.automod')
           ? `<button class="action-btn compact" onclick="openAutomodLogs('${p.id}')"><i class="fa-solid fa-robot"></i> Automod</button>`
-          : `<button class="action-btn compact btn-disabled" disabled title="Missing: moderex.history.automod"><i class="fa-solid fa-lock"></i> Automod</button>`}
+          : `<button class="action-btn compact btn-disabled" disabled title="You lack permission to view automod logs"><i class="fa-solid fa-lock"></i> Automod</button>`}
       </div>
     `;
 
@@ -2355,7 +2355,7 @@
     dom().detailsActions.innerHTML = `
       <button class="btn ghost" onclick="openCaseInformation('${pun.id}')"><i class="fa-solid fa-info-circle"></i> Case Information</button>
       ${canRevoke && hasRevokePerm ? `<button class="btn bad" onclick="revokePunishmentConfirm('${pun.id}')"><i class="fa-solid fa-xmark"></i> ${pun.type === 'WARN' ? 'Remove' : 'Revoke'}</button>` : ''}
-      ${canRevoke && !hasRevokePerm ? `<button class="btn bad btn-disabled" disabled title="Missing: moderex.un${pun.type.toLowerCase()}"><i class="fa-solid fa-lock"></i> ${pun.type === 'WARN' ? 'Remove' : 'Revoke'}</button>` : ''}
+      ${canRevoke && !hasRevokePerm ? `<button class="btn bad btn-disabled" disabled title="You lack permission to ${pun.type === 'WARN' ? 'remove warnings' : 'revoke this punishment'}"><i class="fa-solid fa-lock"></i> ${pun.type === 'WARN' ? 'Remove' : 'Revoke'}</button>` : ''}
       ${pun.type === 'KICK' && !pun.revoked ? `<span class="badge gray"><i class="fa-solid fa-info-circle"></i> Kicks cannot be revoked</span>` : ''}
       <button class="btn ghost" onclick="closeDetailsModal()"><i class="fa-solid fa-xmark"></i> Close</button>
     `;
@@ -2901,7 +2901,7 @@
             <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
           </svg>
           <h3 style="margin:0 0 8px 0;color:var(--text-primary)">Permission Required</h3>
-          <p style="margin:0;max-width:400px">You need the <code>moderex.cmdblacklist</code> or <code>moderex.cmdunblacklist</code> permission to view command blacklist entries.</p>
+          <p style="margin:0;max-width:400px">You do not have permission to view command blacklist entries</p>
         </div>
       `;
       if (countBadge) countBadge.textContent = 'No access';
@@ -2916,7 +2916,7 @@
     if (addBtn) {
       const canAdd = hasPermission('moderex.cmdblacklist');
       addBtn.disabled = !canAdd;
-      addBtn.title = canAdd ? '' : 'Requires moderex.cmdblacklist permission';
+      addBtn.title = canAdd ? '' : 'You lack permission to add command blacklist entries';
     }
 
     const search = (document.getElementById('cmdblSearch')?.value || '').toLowerCase();
@@ -2984,7 +2984,7 @@
   window.openCmdBlacklistModal = function() {
     // Check permission
     if (!hasPermission('moderex.cmdblacklist')) {
-      toast('error', 'No Permission', 'You need the moderex.cmdblacklist permission to add command blacklist entries.');
+      toast('error', 'No Permission', 'You do not have permission to add command blacklist entries.');
       return;
     }
     // TODO: Implement add blacklist modal
@@ -2994,7 +2994,7 @@
   window.removeCmdBlacklist = function(id) {
     // Check permission
     if (!hasPermission('moderex.cmdunblacklist')) {
-      toast('error', 'No Permission', 'You need the moderex.cmdunblacklist permission to remove command blacklist entries.');
+      toast('error', 'No Permission', 'You do not have permission to remove command blacklist entries.');
       return;
     }
     // TODO: Implement remove via WebSocket
