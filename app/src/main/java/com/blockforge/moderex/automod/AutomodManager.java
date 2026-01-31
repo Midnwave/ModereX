@@ -569,7 +569,8 @@ public class AutomodManager {
     private void alertStaff(Player player, String ruleName, String message) {
         Component alert = plugin.getLanguageManager().get(MessageKey.AUTOMOD_ALERT,
                 "player", player.getName(),
-                "rule", ruleName
+                "rule", ruleName,
+                "message", message
         );
 
         for (Player staff : plugin.getServer().getOnlinePlayers()) {
@@ -585,8 +586,11 @@ public class AutomodManager {
             );
         }
 
-        // Trigger replay recording if enabled for this rule
+        // Log to activity log database
         AutomodRule rule = findRuleByName(ruleName);
+        plugin.getActivityLogManager().logAutomodTrigger(player, ruleName, message, "triggered");
+
+        // Trigger replay recording if enabled for this rule
         if (rule != null) {
             triggerReplayRecording(player, rule);
         }
