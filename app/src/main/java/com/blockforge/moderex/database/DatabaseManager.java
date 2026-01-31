@@ -240,6 +240,18 @@ public class DatabaseManager {
                     )
                     """);
 
+            // Staff chat history table
+            stmt.execute("""
+                    CREATE TABLE IF NOT EXISTS moderex_staff_chat (
+                        id INTEGER PRIMARY KEY %s,
+                        sender_uuid VARCHAR(36) NOT NULL,
+                        sender_name VARCHAR(16) NOT NULL,
+                        message TEXT NOT NULL,
+                        source VARCHAR(16) DEFAULT 'GAME',
+                        timestamp BIGINT NOT NULL,
+                        server VARCHAR(64)
+                    )
+                    """.formatted(isMySQL ? "AUTO_INCREMENT" : "AUTOINCREMENT"));
 
             // Templates table
             stmt.execute("""
@@ -395,6 +407,10 @@ public class DatabaseManager {
         executeIfNotExists(stmt, "CREATE INDEX IF NOT EXISTS idx_templates_type ON moderex_templates(type)");
         executeIfNotExists(stmt, "CREATE INDEX IF NOT EXISTS idx_templates_category ON moderex_templates(category)");
         executeIfNotExists(stmt, "CREATE INDEX IF NOT EXISTS idx_templates_active ON moderex_templates(active)");
+
+        // Staff chat indexes
+        executeIfNotExists(stmt, "CREATE INDEX IF NOT EXISTS idx_staff_chat_timestamp ON moderex_staff_chat(timestamp)");
+        executeIfNotExists(stmt, "CREATE INDEX IF NOT EXISTS idx_staff_chat_sender ON moderex_staff_chat(sender_uuid)");
 
         // Vanish state indexes
         executeIfNotExists(stmt, "CREATE INDEX IF NOT EXISTS idx_vanish_state_vanished ON moderex_vanish_state(vanished)");
@@ -617,6 +633,68 @@ public class DatabaseManager {
             "INSERT INTO moderex_changelog_views (player_uuid, last_seen_version, last_seen_build, viewed_at) VALUES (?, ?, ?, ?) ON DUPLICATE KEY UPDATE last_seen_version = VALUES(last_seen_version), last_seen_build = VALUES(last_seen_build), viewed_at = VALUES(viewed_at)" :
             "INSERT OR REPLACE INTO moderex_changelog_views (player_uuid, last_seen_version, last_seen_build, viewed_at) VALUES (?, ?, ?, ?)";
         executeAsync(sql, playerUuid, version, buildNumber, System.currentTimeMillis());
+    }
+
+    // ==================== STAFF CHAT ====================
+
+    /**
+     * Save a staff chat message to the database.
+     */
+    public void saveStaffChatMessage(String senderUuid, String senderName, String message, String source, String server) {
+        String sql = "INSERT INTO moderex_staff_chat (sender_uuid, sender_name, message, source, timestamp, server) VALUES (?, ?, ?, ?, ?, ?)";
+        executeAsync(sql, senderUuid, senderName, message, source, System.currentTimeMillis(), server);
+    }
+
+    /**
+     * Get staff chat history with pagination (most recent first).
+     * @param limit Maximum number of messages to return
+     * @param beforeTimestamp Only return messages older than this timestamp (for pagination)
+     * @return List of chat messages as JsonObjects
+     */
+    public List<JsonObject> getStaffChatHistory(int limit, long beforeTimestamp) throws SQLException {
+        String sql = beforeTimestamp > 0
+            ? "SELECT * FROM moderex_staff_chat WHERE timestamp < ? ORDER BY timestamp DESC LIMIT ?"
+            : "SELECT * FROM moderex_staff_chat ORDER BY timestamp DESC LIMIT ?";
+
+        return beforeTimestamp > 0
+            ? query(sql, rs -> {
+                List<JsonObject> messages = new java.util.ArrayList<>();
+                while (rs.next()) {
+                    JsonObject msg = new JsonObject();
+                    msg.addProperty("id", rs.getInt("id"));
+                    msg.addProperty("senderUuid", rs.getString("sender_uuid"));
+                    msg.addProperty("senderName", rs.getString("sender_name"));
+                    msg.addProperty("message", rs.getString("message"));
+                    msg.addProperty("source", rs.getString("source"));
+                    msg.addProperty("timestamp", rs.getLong("timestamp"));
+                    msg.addProperty("server", rs.getString("server"));
+                    messages.add(msg);
+                }
+                return messages;
+            }, beforeTimestamp, limit)
+            : query(sql, rs -> {
+                List<JsonObject> messages = new java.util.ArrayList<>();
+                while (rs.next()) {
+                    JsonObject msg = new JsonObject();
+                    msg.addProperty("id", rs.getInt("id"));
+                    msg.addProperty("senderUuid", rs.getString("sender_uuid"));
+                    msg.addProperty("senderName", rs.getString("sender_name"));
+                    msg.addProperty("message", rs.getString("message"));
+                    msg.addProperty("source", rs.getString("source"));
+                    msg.addProperty("timestamp", rs.getLong("timestamp"));
+                    msg.addProperty("server", rs.getString("server"));
+                    messages.add(msg);
+                }
+                return messages;
+            }, limit);
+    }
+
+    /**
+     * Clean up old staff chat messages based on retention days.
+     */
+    public void cleanupOldStaffChatMessages(int retentionDays) {
+        long cutoff = System.currentTimeMillis() - (retentionDays * 24L * 60L * 60L * 1000L);
+        executeAsync("DELETE FROM moderex_staff_chat WHERE timestamp < ?", cutoff);
     }
 
     public void executeAsync(String sql, Object... params) {

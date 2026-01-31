@@ -1408,6 +1408,7 @@ public class HybridPanelServer {
             case "ADD_WATCHLIST", "WATCHLIST_ADD" -> addToWatchlist(conn, data, session);
             case "REMOVE_WATCHLIST", "WATCHLIST_REMOVE" -> removeFromWatchlist(conn, data);
             case "SEND_STAFFCHAT", "STAFFCHAT_MESSAGE" -> sendStaffChatFromPanel(conn, data, session);
+            case "GET_STAFFCHAT_HISTORY" -> sendStaffChatHistory(conn, data, session);
             case "KICK_PLAYER" -> kickPlayer(conn, data, session);
             case "CLEAR_CHAT" -> clearChat(conn, session);
             case "UPDATE_USER_SETTINGS" -> updateUserSettings(conn, data, session);
@@ -4151,6 +4152,42 @@ public class HybridPanelServer {
             plugin.getStaffChatManager().broadcastFromWebPanel(session.playerName, message);
         });
         sendSuccess(conn, "Message sent");
+    }
+
+    private void sendStaffChatHistory(WebSocketConnection conn, JsonObject data, WebPanelSession session) {
+        // Check permission
+        if (!hasViewPermission(session.playerUuid, "moderex.staffchat")) {
+            sendError(conn, "NO_PERMISSION", "You do not have permission to view staff chat history");
+            return;
+        }
+
+        int limit = data.has("limit") ? data.get("limit").getAsInt() : 100;
+        long beforeTimestamp = data.has("before") ? data.get("before").getAsLong() : 0;
+
+        // Cap the limit
+        if (limit > 100) limit = 100;
+        if (limit < 1) limit = 20;
+
+        final int finalLimit = limit;
+        plugin.getServer().getScheduler().runTaskAsynchronously(plugin, () -> {
+            try {
+                java.util.List<JsonObject> messages = plugin.getDatabaseManager().getStaffChatHistory(finalLimit, beforeTimestamp);
+
+                JsonObject response = new JsonObject();
+                response.addProperty("type", "STAFFCHAT_HISTORY");
+                com.google.gson.JsonArray messagesArray = new com.google.gson.JsonArray();
+                for (JsonObject msg : messages) {
+                    messagesArray.add(msg);
+                }
+                response.add("messages", messagesArray);
+                response.addProperty("hasMore", messages.size() == finalLimit);
+
+                conn.send(GSON.toJson(response));
+            } catch (Exception e) {
+                plugin.logError("Failed to get staff chat history", e);
+                sendError(conn, "DATABASE_ERROR", "Failed to load staff chat history");
+            }
+        });
     }
 
     private void kickPlayer(WebSocketConnection conn, JsonObject data, WebPanelSession session) {

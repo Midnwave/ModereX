@@ -51,6 +51,16 @@ public class StaffChatManager {
         // Log to console
         plugin.getLogger().info("[StaffChat] " + sender.getName() + ": " + message);
 
+        // Save to database
+        String serverName = plugin.getConfigManager().getSettings().getServerName();
+        plugin.getDatabaseManager().saveStaffChatMessage(
+            sender.getUniqueId().toString(),
+            sender.getName(),
+            message,
+            "GAME",
+            serverName
+        );
+
         // Notify web panel
         if (plugin.getWebPanelServer() != null) {
             plugin.getWebPanelServer().broadcastStaffChat(sender.getName(), message);
@@ -77,6 +87,16 @@ public class StaffChatManager {
 
         // Log to console
         plugin.getLogger().info("[StaffChat] [Web] " + senderName + ": " + message);
+
+        // Save to database (use empty UUID for web panel users)
+        String serverName = plugin.getConfigManager().getSettings().getServerName();
+        plugin.getDatabaseManager().saveStaffChatMessage(
+            "00000000-0000-0000-0000-000000000000",
+            senderName,
+            message,
+            "WEB",
+            serverName
+        );
     }
 
     public void sendHelpRequest(Player requester) {
