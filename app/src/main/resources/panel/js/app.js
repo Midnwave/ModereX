@@ -5900,6 +5900,19 @@
       ui.renderPunishments();
       ui.renderDashboard();
 
+      // Check permission for alert notification based on punishment type
+      const alertPermission = {
+        'BAN': 'moderex.alerts.ban',
+        'IPBAN': 'moderex.alerts.ban',
+        'MUTE': 'moderex.alerts.mute',
+        'KICK': 'moderex.alerts.kick',
+        'WARN': 'moderex.alerts.warn'
+      }[data.type];
+
+      if (alertPermission && window.hasPermission && !window.hasPermission(alertPermission)) {
+        return; // Skip alert if no permission, but still update UI above
+      }
+
       // Format punishment type for display
       const typeDisplay = {
         'BAN': 'Banned',
@@ -5930,6 +5943,10 @@
         pun.revoked = true;
       }
       ui.renderPunishments();
+
+      // Check permission for pardon alerts
+      if (window.hasPermission && !window.hasPermission('moderex.alerts.pardon')) return;
+
       showPanelAlert('punishments', `Punishment Revoked: ${data.caseId}`, `${pun?.type || 'Unknown'} for ${pun?.playerName || 'Unknown'} was revoked`, { caseId: data.caseId });
     });
 
@@ -5942,6 +5959,8 @@
 
     ws.on('WATCHLIST_ALERT', (data) => {
       if (!isLiveMode) return;
+      // Check for moderex.alerts.watchlist permission
+      if (window.hasPermission && !window.hasPermission('moderex.alerts.watchlist')) return;
       // Backend sends alertType, playerName, details, playerUuid, playerIp
       const alertType = data.alertType || data.type || 'Activity';
       const playerName = data.playerName || 'Unknown';
@@ -6017,6 +6036,9 @@
 
     ws.on('STAFFCHAT_MESSAGE', (data) => {
       if (!isLiveMode) return;
+      // Check for moderex.staffchat permission
+      if (window.hasPermission && !window.hasPermission('moderex.staffchat')) return;
+
       logEvent('INFO', 'staffchat', `Staff | ${data.sender}`, data.message, { kind: 'staffchat' });
 
       // Add to staff chat panel (avoid duplicates for self messages)
@@ -6131,16 +6153,20 @@
 
     ws.on('AUTOMOD_TRIGGER', (data) => {
       if (!isLiveMode) return;
+      // Check for moderex.alerts.automod permission
+      if (window.hasPermission && !window.hasPermission('moderex.alerts.automod')) return;
       const player = state.players.find(p => p.uuid === data.playerUuid);
       logEvent('WARN', 'automod', `Automod | ${data.rule}`, `${data.playerName}: ${data.message}`, { playerId: player?.id, kind: 'automod', type: 'AUTOMOD' });
-      showPanelAlert('automod', `Automod Alert: ${data.playerName}`, `Triggered: ${data.rule}`, { playerId: player?.id, playerName: data.playerName, severity: 'warn' });
+      showPanelAlert('automod', `Automod Alert: ${data.playerName}`, `Triggered: ${data.rule} | "${data.message}"`, { playerId: player?.id, playerName: data.playerName, severity: 'warn' });
     });
 
     ws.on('AUTOMOD_TRIGGERED', (data) => {
       if (!isLiveMode) return;
+      // Check for moderex.alerts.automod permission
+      if (window.hasPermission && !window.hasPermission('moderex.alerts.automod')) return;
       const player = state.players.find(p => p.uuid === data.playerUuid);
       logEvent('WARN', 'automod', `Automod | ${data.rule}`, `${data.playerName}: ${data.message}`, { playerId: player?.id, kind: 'automod', type: 'AUTOMOD' });
-      showPanelAlert('automod', `Automod Alert: ${data.playerName}`, `Triggered: ${data.rule}`, { playerId: player?.id, playerName: data.playerName, severity: 'warn' });
+      showPanelAlert('automod', `Automod Alert: ${data.playerName}`, `Triggered: ${data.rule} | "${data.message}"`, { playerId: player?.id, playerName: data.playerName, severity: 'warn' });
     });
 
     ws.on('PRIVATE_MESSAGE', (data) => {
@@ -6166,6 +6192,8 @@
 
     ws.on('ANTICHEAT_ALERT', (data) => {
       if (!isLiveMode) return;
+      // Check for moderex.alerts.anticheat permission
+      if (window.hasPermission && !window.hasPermission('moderex.alerts.anticheat')) return;
       const player = state.players.find(p => p.name === data.playerName || p.uuid === data.playerUuid);
 
       // Get check name from various possible fields
