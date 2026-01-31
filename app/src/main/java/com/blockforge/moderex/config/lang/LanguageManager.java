@@ -99,10 +99,16 @@ public class LanguageManager {
         DEFAULTS.put("modlog.empty", "<gray>No moderation history found for <player>.");
         DEFAULTS.put("modlog.footer", "<gold>===== Page <page>/<total> =====");
 
+        // Activity Log (for /log command)
+        DEFAULTS.put("log.header", "<gold>─── Activity Log for <player> <gray>(<total> entries)</gray> ───</gold>");
+        DEFAULTS.put("log.entry", "<gray><time> - <type_color>(<player>): <type_label> <gray>| <white><content>");
+        DEFAULTS.put("log.empty", "<gray>No activity logs found for <player>.");
+        DEFAULTS.put("log.footer", "<gold>─── Page <page>/<total> ───</gold>");
+
         // Automod
-        DEFAULTS.put("automod.blocked", "<red>Your message was blocked by automod.");
-        DEFAULTS.put("automod.alert", "<red>[Automod]</red> <gray><player> triggered rule: <rule>");
-        DEFAULTS.put("automod.spam-blocked", "<red>Please don't spam.");
+        DEFAULTS.put("automod.blocked", "<red>Your message was deleted for containing prohibited content.");
+        DEFAULTS.put("automod.alert", "<red>[Automod]</red> <gray><player> triggered <rule> <dark_gray>| <white>\"<message>\"");
+        DEFAULTS.put("automod.spam-blocked", "<red>Slow down! You're sending messages too quickly.");
 
         // Anticheat
         DEFAULTS.put("anticheat.alert", "<red>[AC]</red> <yellow><player></yellow> <gray>failed <check> <gray>x<count>");

@@ -193,6 +193,7 @@ public class LogCommand extends BaseCommand {
         String relativeTime = formatRelativeTime(entry.getTimestamp());
         String fullDate = entry.getFormattedFullDate(timezone);
         String typeColor = entry.getTypeColor();
+        String typeLabel = entry.getTypeDisplayName();
         String content = entry.getContent() != null ? entry.getContent() : "";
 
         // Truncate long content
@@ -200,11 +201,12 @@ public class LogCommand extends BaseCommand {
             content = content.substring(0, 47) + "...";
         }
 
-        // Build entry text: "4.55/m ago - <color>(username): <content>"
+        // Build entry text: "4.55/m ago - <color>(username): [Type] content"
         String entryFormat = plugin.getLanguageManager().getRaw(MessageKey.LOG_ENTRY);
         String entryText = entryFormat
                 .replace("<time>", relativeTime)
                 .replace("<type_color>", typeColor)
+                .replace("<type_label>", typeLabel)
                 .replace("<player>", entry.getPlayerName())
                 .replace("<content>", content);
 
