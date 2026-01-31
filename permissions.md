@@ -78,6 +78,7 @@ This document contains all permissions used by ModereX. When editing permissions
 | `moderex.history.kicks` | Only view kicks a player has |
 | `moderex.history.bans` | Only view bans a player has |
 | `moderex.history.mutes` | Only view mutes a player has |
+| `moderex.history.pardons` | View pardon/revocation history |
 
 **Commands:** `/history`, `/checkbans`, `/checkmutes`, `/checkwarns`, `/mutelist`, etc.
 
@@ -200,6 +201,58 @@ This document contains all permissions used by ModereX. When editing permissions
 | `moderex.webpanel` | Access to the web panel |
 
 **Note:** This is a protected permission - OPs do not automatically have it.
+
+### Web Panel - Punishment Form
+
+| Permission | Web Panel Behavior |
+|------------|-------------------|
+| `moderex.punish` | Open punishment form (any type) |
+| `moderex.ban` | Ban option available (permanent) |
+| `moderex.tempban` | Ban option available (temp only, no "perm" duration) |
+| `moderex.mute` | Mute option available (permanent) |
+| `moderex.tempmute` | Mute option available (temp only, no "perm" duration) |
+| `moderex.warn` | Warn option available |
+| `moderex.kick` | Kick option available |
+
+**No permissions:** Form shows "No Permission" overlay, quick action buttons are disabled.
+
+### Web Panel - Punishment History
+
+| Permission | Web Panel Behavior |
+|------------|-------------------|
+| `moderex.history.bans` | View bans in history table, show Ban filter button |
+| `moderex.history.mutes` | View mutes in history table, show Mute filter button |
+| `moderex.history.warns` | View warnings in history table, show Warn filter button |
+| `moderex.history.kicks` | View kicks in history table, show Kick filter button |
+| `moderex.history.pardons` | View pardons section in player profile |
+
+**No permissions:** Table shows "No permission to view punishment history" message, filter buttons hidden.
+
+### Web Panel - Punishment Details
+
+| Permission | Web Panel Behavior |
+|------------|-------------------|
+| `moderex.command.viewpunishment` | View punishment details modal |
+| `moderex.unban` | Revoke button for bans |
+| `moderex.unmute` | Revoke button for mutes |
+| `moderex.unwarn` | Remove button for warnings |
+| `moderex.punish.delete` | Delete punishment button |
+
+**No permissions:** Details button disabled, Revoke/Remove buttons show lock icon.
+
+### Web Panel - Player Profile
+
+| Permission | Web Panel Behavior |
+|------------|-------------------|
+| `moderex.ban` or `moderex.tempban` | Quick Ban button enabled |
+| `moderex.mute` or `moderex.tempmute` | Quick Mute button enabled |
+| `moderex.warn` | Quick Warn button enabled |
+| `moderex.history.*` | View all punishment sections |
+| `moderex.history.pardons` | View Pardons section |
+| `moderex.info.ip` | View IP address and IP history |
+| `moderex.history.nick` | View nickname history |
+
+**No permissions:** Respective buttons show lock icon, sections show "No permission" message.
 
 ---
 
