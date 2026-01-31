@@ -101,6 +101,13 @@ public class HistoryCommand extends BaseCommand {
         // Parse type filter
         List<PunishmentType> typeFilter = parseTypeFilter(type);
 
+        // Filter by permission - only show history types the user has permission for
+        List<PunishmentType> permittedTypes = getPermittedTypes(sender);
+        if (permittedTypes.isEmpty()) {
+            sendMessage(sender, "<red>You don't have permission to view any punishment history.");
+            return;
+        }
+
         final int finalPage = page;
         final String finalType = type;
         final String displayName = target.getDisplayName();
@@ -109,11 +116,22 @@ public class HistoryCommand extends BaseCommand {
             // Filter by type if not "all"
             List<Punishment> history;
             if (typeFilter != null) {
+                // Intersect requested types with permitted types
+                List<PunishmentType> effectiveFilter = typeFilter.stream()
+                        .filter(permittedTypes::contains)
+                        .toList();
+                if (effectiveFilter.isEmpty()) {
+                    sendMessage(sender, "<red>You don't have permission to view " + finalType + " history.");
+                    return;
+                }
                 history = allHistory.stream()
-                        .filter(p -> typeFilter.contains(p.getType()))
+                        .filter(p -> effectiveFilter.contains(p.getType()))
                         .toList();
             } else {
-                history = allHistory;
+                // Show all permitted types
+                history = allHistory.stream()
+                        .filter(p -> permittedTypes.contains(p.getType()))
+                        .toList();
             }
 
             if (history.isEmpty()) {
@@ -242,13 +260,80 @@ public class HistoryCommand extends BaseCommand {
         return Arrays.asList("all", "bans", "mutes", "warnings", "warns", "kicks", "ipbans", "ipmutes", "ip").contains(type);
     }
 
+    /**
+     * Get list of punishment types the sender has permission to view history for.
+     * Checks for specific permissions like moderex.history.bans, moderex.history.warns, etc.
+     * Falls back to moderex.history.* for all types.
+     */
+    private List<PunishmentType> getPermittedTypes(CommandSender sender) {
+        List<PunishmentType> permitted = new ArrayList<>();
+
+        // Check for wildcard permission first
+        if (sender.hasPermission("moderex.history.*")) {
+            return Arrays.asList(PunishmentType.values());
+        }
+
+        // Check individual permissions
+        if (sender.hasPermission("moderex.history.bans") || sender.hasPermission("moderex.checkban")) {
+            permitted.add(PunishmentType.BAN);
+        }
+        if (sender.hasPermission("moderex.history.mutes") || sender.hasPermission("moderex.checkmute")) {
+            permitted.add(PunishmentType.MUTE);
+        }
+        if (sender.hasPermission("moderex.history.warns") || sender.hasPermission("moderex.checkwarn")) {
+            permitted.add(PunishmentType.WARN);
+        }
+        if (sender.hasPermission("moderex.history.kicks")) {
+            permitted.add(PunishmentType.KICK);
+        }
+        if (sender.hasPermission("moderex.history.ipbans")) {
+            permitted.add(PunishmentType.IPBAN);
+        }
+        if (sender.hasPermission("moderex.history.ipmutes")) {
+            permitted.add(PunishmentType.IPMUTE);
+        }
+
+        // Legacy: if they have base moderex.history permission, give them all
+        if (permitted.isEmpty() && sender.hasPermission("moderex.history")) {
+            return Arrays.asList(PunishmentType.values());
+        }
+
+        return permitted;
+    }
+
     @Override
     protected List<String> tabComplete(CommandSender sender, String[] args) {
         if (args.length == 1) {
             return filterCompletions(getOnlinePlayerNames(sender), args[0]);
         }
         if (args.length == 2) {
-            List<String> completions = new ArrayList<>(Arrays.asList("all", "bans", "mutes", "warnings", "kicks", "ipbans", "ipmutes", "--gui"));
+            // Only show types the player has permission for
+            List<String> completions = new ArrayList<>();
+            List<PunishmentType> permitted = getPermittedTypes(sender);
+
+            // Always show "all" if they have any permission
+            if (!permitted.isEmpty()) {
+                completions.add("all");
+            }
+            if (permitted.contains(PunishmentType.BAN)) {
+                completions.add("bans");
+            }
+            if (permitted.contains(PunishmentType.MUTE)) {
+                completions.add("mutes");
+            }
+            if (permitted.contains(PunishmentType.WARN)) {
+                completions.add("warnings");
+            }
+            if (permitted.contains(PunishmentType.KICK)) {
+                completions.add("kicks");
+            }
+            if (permitted.contains(PunishmentType.IPBAN)) {
+                completions.add("ipbans");
+            }
+            if (permitted.contains(PunishmentType.IPMUTE)) {
+                completions.add("ipmutes");
+            }
+            completions.add("--gui");
             return filterCompletions(completions, args[1]);
         }
         if (args.length == 3) {
