@@ -1376,7 +1376,7 @@ public class HybridPanelServer {
         switch (type) {
             case "GET_PLAYERS" -> sendPlayerList(conn);
             case "GET_PLAYER_DETAILS" -> sendPlayerDetails(conn, data);
-            case "GET_PUNISHMENTS" -> sendPunishments(conn, data);
+            case "GET_PUNISHMENTS" -> sendPunishments(conn, data, session);
             case "GET_COMMAND_HISTORY" -> sendCommandHistory(conn, data);
             case "GET_CHAT_LOGS" -> sendChatLogs(conn, data);
             case "GET_AUTOMOD_LOGS" -> sendAutomodLogs(conn, data);
@@ -1712,8 +1712,28 @@ public class HybridPanelServer {
         }
     }
 
-    private void sendPunishments(WebSocketConnection conn, JsonObject filters) {
+    private void sendPunishments(WebSocketConnection conn, JsonObject filters, WebPanelSession session) {
         int limit = filters.has("limit") ? filters.get("limit").getAsInt() : 100;
+        UUID viewerUuid = session.playerUuid;
+
+        // Check which punishment types the user can view
+        boolean canViewBans = hasViewPermission(viewerUuid, "moderex.history.bans");
+        boolean canViewMutes = hasViewPermission(viewerUuid, "moderex.history.mutes");
+        boolean canViewWarns = hasViewPermission(viewerUuid, "moderex.history.warns");
+        boolean canViewKicks = hasViewPermission(viewerUuid, "moderex.history.kicks");
+
+        // If user has no history permissions, send empty list
+        if (!canViewBans && !canViewMutes && !canViewWarns && !canViewKicks) {
+            plugin.logDebug("[WebPanel] Permission denied for " + session.playerName + " to view punishment history");
+            JsonObject response = new JsonObject();
+            response.addProperty("type", "PUNISHMENTS_DATA");
+            JsonObject data = new JsonObject();
+            data.add("punishments", new JsonArray());
+            response.add("data", data);
+            conn.send(GSON.toJson(response));
+            return;
+        }
+
         plugin.getPunishmentManager().getRecentPunishments(limit).thenAccept(punishments -> {
             JsonObject response = new JsonObject();
             response.addProperty("type", "PUNISHMENTS_DATA");
@@ -1721,7 +1741,17 @@ public class HybridPanelServer {
             JsonObject data = new JsonObject();
             JsonArray array = new JsonArray();
             for (Punishment p : punishments) {
-                array.add(punishmentToJson(p));
+                // Filter by permission
+                boolean allowed = switch (p.getType()) {
+                    case BAN, IPBAN -> canViewBans;
+                    case MUTE, IPMUTE -> canViewMutes;
+                    case WARN -> canViewWarns;
+                    case KICK -> canViewKicks;
+                    default -> false;
+                };
+                if (allowed) {
+                    array.add(punishmentToJson(p));
+                }
             }
             data.add("punishments", array);
             response.add("data", data);
@@ -3417,6 +3447,7 @@ public class HybridPanelServer {
             "moderex.history.kicks",
             "moderex.history.bans",
             "moderex.history.mutes",
+            "moderex.history.pardons",
             "moderex.history.nick",
             "moderex.history.automod",
             "moderex.history.commands",
@@ -3902,7 +3933,7 @@ public class HybridPanelServer {
 
     private void createPunishment(WebSocketConnection conn, JsonObject data, WebPanelSession session) {
         String targetName = data.has("playerName") ? data.get("playerName").getAsString() : "";
-        String typeStr = data.has("type") ? data.get("type").getAsString() : "";
+        String typeStr = data.has("type") ? data.get("type").getAsString().toUpperCase() : "";
         String reason = data.has("reason") ? data.get("reason").getAsString() : "No reason specified";
         String durationStr = data.has("duration") ? data.get("duration").getAsString() : "";
 
@@ -3913,15 +3944,50 @@ public class HybridPanelServer {
 
         // Parse the duration
         long durationMs = DurationParser.parse(durationStr);
+        boolean isPermanent = durationMs <= 0 || durationStr.isEmpty() || durationStr.equalsIgnoreCase("perm") || durationStr.equals("-1");
+
+        // Permission check for punishment type
+        UUID staffUuid = session.playerUuid;
+        String staffName = session.playerName;
+        String requiredPerm = switch (typeStr) {
+            case "BAN" -> isPermanent ? "moderex.ban" : "moderex.tempban";
+            case "MUTE" -> isPermanent ? "moderex.mute" : "moderex.tempmute";
+            case "WARN" -> "moderex.warn";
+            case "KICK" -> "moderex.kick";
+            case "IPBAN" -> "moderex.ipban";
+            default -> null;
+        };
+
+        if (requiredPerm == null) {
+            sendError(conn, "INVALID_TYPE", "Unknown punishment type: " + typeStr);
+            return;
+        }
+
+        // Check permission
+        if (!hasViewPermission(staffUuid, requiredPerm)) {
+            plugin.logDebug("[WebPanel] Permission denied for " + staffName + " to create " + typeStr + " - missing " + requiredPerm);
+            sendError(conn, "PERMISSION_DENIED", "You do not have permission to issue " + typeStr.toLowerCase() + " punishments.");
+            return;
+        }
+
+        // Additional check for temp-only permissions trying to do permanent
+        if (isPermanent) {
+            if (typeStr.equals("BAN") && !hasViewPermission(staffUuid, "moderex.ban") && hasViewPermission(staffUuid, "moderex.tempban")) {
+                plugin.logDebug("[WebPanel] Permission denied for " + staffName + " - has tempban but not permanent ban");
+                sendError(conn, "PERMISSION_DENIED", "You only have permission for temporary bans.");
+                return;
+            }
+            if (typeStr.equals("MUTE") && !hasViewPermission(staffUuid, "moderex.mute") && hasViewPermission(staffUuid, "moderex.tempmute")) {
+                plugin.logDebug("[WebPanel] Permission denied for " + staffName + " - has tempmute but not permanent mute");
+                sendError(conn, "PERMISSION_DENIED", "You only have permission for temporary mutes.");
+                return;
+            }
+        }
 
         // Get the target player's UUID
         OfflinePlayer target = Bukkit.getOfflinePlayer(targetName);
         UUID targetUuid = target.getUniqueId();
         String resolvedName = target.getName() != null ? target.getName() : targetName;
-
-        // Use the session's staff info (actual connected player) instead of "Console"
-        UUID staffUuid = session.playerUuid;
-        String staffName = session.playerName;
 
         // Execute punishment via PunishmentManager directly
         plugin.getServer().getScheduler().runTaskAsynchronously(plugin, () -> {
@@ -3965,6 +4031,9 @@ public class HybridPanelServer {
             return;
         }
 
+        UUID staffUuid = session.playerUuid;
+        String staffName = session.playerName;
+
         // First get punishment details for broadcasting
         plugin.getPunishmentManager().getPunishmentByCaseId(caseId).thenAccept(punishment -> {
             if (punishment == null) {
@@ -3977,9 +4046,25 @@ public class HybridPanelServer {
                 return;
             }
 
+            // Permission check based on punishment type
+            String requiredPerm = switch (punishment.getType()) {
+                case BAN, IPBAN -> "moderex.unban";
+                case MUTE, IPMUTE -> "moderex.unmute";
+                case WARN -> "moderex.unwarn";
+                default -> null;
+            };
+
+            if (requiredPerm == null || !hasViewPermission(staffUuid, requiredPerm)) {
+                plugin.logDebug("[WebPanel] Permission denied for " + staffName + " to revoke " +
+                    punishment.getType() + " - missing " + requiredPerm);
+                sendError(conn, "PERMISSION_DENIED", "You do not have permission to revoke " +
+                    punishment.getType().toString().toLowerCase() + " punishments.");
+                return;
+            }
+
             // Use removePunishmentByCaseId for proper handling
             plugin.getPunishmentManager().removePunishmentByCaseId(caseId,
-                session.playerUuid, session.playerName, reason).thenAccept(success -> {
+                staffUuid, staffName, reason).thenAccept(success -> {
 
                 if (success) {
                     sendSuccess(conn, "Punishment revoked");
@@ -6223,7 +6308,7 @@ public class HybridPanelServer {
         switch (type) {
             case "GET_PLAYERS" -> sendPlayerList(wrapper);
             case "GET_PLAYER_DETAILS" -> sendPlayerDetails(wrapper, data);
-            case "GET_PUNISHMENTS" -> sendPunishments(wrapper, data);
+            case "GET_PUNISHMENTS" -> sendPunishments(wrapper, data, session);
             case "GET_COMMAND_HISTORY" -> sendCommandHistory(wrapper, data);
             case "GET_CHAT_LOGS" -> sendChatLogs(wrapper, data);
             case "GET_AUTOMOD_LOGS" -> sendAutomodLogs(wrapper, data);
