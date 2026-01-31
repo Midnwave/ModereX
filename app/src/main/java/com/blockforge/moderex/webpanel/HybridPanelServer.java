@@ -1377,9 +1377,9 @@ public class HybridPanelServer {
             case "GET_PLAYERS" -> sendPlayerList(conn);
             case "GET_PLAYER_DETAILS" -> sendPlayerDetails(conn, data);
             case "GET_PUNISHMENTS" -> sendPunishments(conn, data, session);
-            case "GET_COMMAND_HISTORY" -> sendCommandHistory(conn, data);
-            case "GET_CHAT_LOGS" -> sendChatLogs(conn, data);
-            case "GET_AUTOMOD_LOGS" -> sendAutomodLogs(conn, data);
+            case "GET_COMMAND_HISTORY" -> sendCommandHistory(conn, data, session);
+            case "GET_CHAT_LOGS" -> sendChatLogs(conn, data, session);
+            case "GET_AUTOMOD_LOGS" -> sendAutomodLogs(conn, data, session);
             case "GET_AUTOMOD_RULES" -> sendAutomodRules(conn);
             case "UPDATE_AUTOMOD_RULE" -> updateAutomodRule(conn, data, session);
             case "CREATE_AUTOMOD_RULE" -> createAutomodRule(conn, data, session);
@@ -1759,7 +1759,14 @@ public class HybridPanelServer {
         });
     }
 
-    private void sendCommandHistory(WebSocketConnection conn, JsonObject filters) {
+    private void sendCommandHistory(WebSocketConnection conn, JsonObject filters, WebPanelSession session) {
+        // Permission check
+        if (!hasViewPermission(session.getPlayerUuid(), "moderex.history.commands")) {
+            plugin.logDebug("[WebPanel] Permission denied for " + session.getPlayerName() + " to view command history");
+            sendError(conn, "PERMISSION_DENIED", "You do not have permission to view command history.");
+            return;
+        }
+
         String uuidStr = filters.has("uuid") ? filters.get("uuid").getAsString() : "";
         int page = filters.has("page") ? filters.get("page").getAsInt() : 1;
         int limit = filters.has("limit") ? filters.get("limit").getAsInt() : 50;
@@ -1827,7 +1834,14 @@ public class HybridPanelServer {
         });
     }
 
-    private void sendChatLogs(WebSocketConnection conn, JsonObject filters) {
+    private void sendChatLogs(WebSocketConnection conn, JsonObject filters, WebPanelSession session) {
+        // Permission check
+        if (!hasViewPermission(session.getPlayerUuid(), "moderex.history.chat")) {
+            plugin.logDebug("[WebPanel] Permission denied for " + session.getPlayerName() + " to view chat logs");
+            sendError(conn, "PERMISSION_DENIED", "You do not have permission to view chat logs.");
+            return;
+        }
+
         plugin.logDebug("[WebPanel] Received GET_CHAT_LOGS request");
         String uuidStr = filters.has("uuid") ? filters.get("uuid").getAsString() : "";
         int page = filters.has("page") ? filters.get("page").getAsInt() : 1;
@@ -1879,7 +1893,14 @@ public class HybridPanelServer {
         });
     }
 
-    private void sendAutomodLogs(WebSocketConnection conn, JsonObject filters) {
+    private void sendAutomodLogs(WebSocketConnection conn, JsonObject filters, WebPanelSession session) {
+        // Permission check
+        if (!hasViewPermission(session.getPlayerUuid(), "moderex.history.automod")) {
+            plugin.logDebug("[WebPanel] Permission denied for " + session.getPlayerName() + " to view automod logs");
+            sendError(conn, "PERMISSION_DENIED", "You do not have permission to view automod logs.");
+            return;
+        }
+
         String uuidStr = filters.has("uuid") ? filters.get("uuid").getAsString() : "";
         int page = filters.has("page") ? filters.get("page").getAsInt() : 1;
         int limit = filters.has("limit") ? filters.get("limit").getAsInt() : 50;
@@ -6309,9 +6330,9 @@ public class HybridPanelServer {
             case "GET_PLAYERS" -> sendPlayerList(wrapper);
             case "GET_PLAYER_DETAILS" -> sendPlayerDetails(wrapper, data);
             case "GET_PUNISHMENTS" -> sendPunishments(wrapper, data, session);
-            case "GET_COMMAND_HISTORY" -> sendCommandHistory(wrapper, data);
-            case "GET_CHAT_LOGS" -> sendChatLogs(wrapper, data);
-            case "GET_AUTOMOD_LOGS" -> sendAutomodLogs(wrapper, data);
+            case "GET_COMMAND_HISTORY" -> sendCommandHistory(wrapper, data, session);
+            case "GET_CHAT_LOGS" -> sendChatLogs(wrapper, data, session);
+            case "GET_AUTOMOD_LOGS" -> sendAutomodLogs(wrapper, data, session);
             case "GET_AUTOMOD_RULES" -> sendAutomodRules(wrapper);
             case "GET_USER_SETTINGS" -> sendUserSettingsForSamePort(wrapper, session);
             case "GET_TEMPLATES" -> sendTemplates(wrapper);
