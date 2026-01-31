@@ -382,13 +382,36 @@
       updateOnlineStaffPermission();
       if (window.updateStaffChatPermission) updateStaffChatPermission();
 
-      // Re-render current page if needed
-      if (state.currentPage === 'punishments') {
-        ui.renderPunishments();
-      } else if (state.currentPage === 'dashboard') {
-        ui.renderDashboard();
-      } else if (state.currentPage === 'staffchat') {
-        updateStaffChatPermission();
+      // Re-render current page if needed (all permission-gated pages)
+      switch (state.currentPage) {
+        case 'punishments':
+          ui.renderPunishments();
+          break;
+        case 'dashboard':
+          ui.renderDashboard();
+          break;
+        case 'staffchat':
+          updateStaffChatPermission();
+          break;
+        case 'automod':
+          ui.renderRules();
+          break;
+        case 'watchlist':
+          ui.renderWatchlist();
+          break;
+        case 'players':
+          ui.renderPlayers();
+          break;
+        case 'templates':
+          ui.renderTemplates();
+          break;
+        case 'cmdblacklist':
+          if (window.renderCmdBlacklist) renderCmdBlacklist();
+          break;
+        case 'anticheat':
+          ui.renderAnticheat();
+          updateAnticheatPermissionOverlay();
+          break;
       }
     } else {
       // Just update state silently
