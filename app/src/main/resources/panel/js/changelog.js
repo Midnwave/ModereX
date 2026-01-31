@@ -14,6 +14,67 @@
 
 window.MX_CHANGELOGS = [
   {
+    build: 211,
+    version: "2.0dev-211",
+    date: "2026-01-31",
+    title: "Extended Permission System",
+    sections: [
+      {
+        type: "new",
+        title: "Automod Permissions",
+        items: [
+          "**moderex.automod.view** - View automod rule details (blurred without permission)",
+          "**moderex.automod.edit** - Edit existing automod rules",
+          "**moderex.automod.create** - Create new automod rules (Add Rule button)",
+          "**moderex.automod.delete** - Delete automod rules",
+          "**View-Only Mode** - Rule editor opens in read-only mode without edit permission"
+        ]
+      },
+      {
+        type: "new",
+        title: "Watchlist Permissions",
+        items: [
+          "**moderex.watchlist.add** - Add players to watchlist",
+          "**moderex.watchlist.remove** - Remove players from watchlist",
+          "**Smart Toggle** - Watchlist toggle adapts based on add/remove permissions",
+          "**Alert Filtering** - Watchlist alerts filtered by type permissions (warns, kicks, bans, etc.)"
+        ]
+      },
+      {
+        type: "improved",
+        title: "UI Improvements",
+        items: [
+          "**Watchlist Page** - Removed Watchlist Toasts toggle, Test Alert, and Clear Alerts buttons",
+          "**Custom Tooltips** - Disabled buttons show permission explanations on hover",
+          "**Anticheat Section** - Settings page shows overlay when lacking moderex.alerts.anticheat",
+          "**Command Blacklist** - Permission-aware add/remove with proper UI feedback"
+        ]
+      },
+      {
+        type: "technical",
+        title: "Backend",
+        items: [
+          "Backend validation for automod create/edit/delete operations",
+          "Specific permission checks replace generic moderex.admin.automod",
+          "Watchlist add/remove operations validated server-side"
+        ]
+      },
+      {
+        type: "permissions",
+        title: "New Permissions",
+        items: [
+          "**moderex.automod.view** - View automod rule details",
+          "**moderex.automod.edit** - Modify existing automod rules",
+          "**moderex.automod.create** - Create new automod rules",
+          "**moderex.automod.delete** - Delete automod rules",
+          "**moderex.watchlist.add** - Add players to watchlist",
+          "**moderex.watchlist.remove** - Remove players from watchlist",
+          "**moderex.alerts.anticheat** - Configure anticheat alert integration"
+        ]
+      }
+    ]
+  },
+  {
     build: 210,
     version: "2.0dev-210",
     date: "2026-01-31",
