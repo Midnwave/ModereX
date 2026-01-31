@@ -295,6 +295,110 @@ button:disabled:not(.filter-btn):hover {
   transform: none !important;
 }
 
+/* ===== CUSTOM NO-PERMISSION TOOLTIP ===== */
+[data-no-perm-tooltip] {
+  position: relative;
+  cursor: not-allowed !important;
+}
+
+[data-no-perm-tooltip]::after {
+  content: attr(data-no-perm-tooltip);
+  position: absolute;
+  bottom: calc(100% + 8px);
+  left: 50%;
+  transform: translateX(-50%) translateY(4px);
+  padding: 8px 14px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  color: var(--text-secondary);
+  font-size: 0.8rem;
+  white-space: nowrap;
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity var(--transition-fast), visibility var(--transition-fast), transform var(--transition-fast);
+  z-index: 10000;
+  box-shadow: var(--shadow-sm);
+  pointer-events: none;
+}
+
+[data-no-perm-tooltip]:hover::after {
+  opacity: 1;
+  visibility: visible;
+  transform: translateX(-50%) translateY(0);
+}
+
+/* Tooltip arrow */
+[data-no-perm-tooltip]::before {
+  content: '';
+  position: absolute;
+  bottom: calc(100% + 2px);
+  left: 50%;
+  transform: translateX(-50%);
+  border: 6px solid transparent;
+  border-top-color: var(--border);
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity var(--transition-fast), visibility var(--transition-fast);
+  z-index: 10001;
+  pointer-events: none;
+}
+
+[data-no-perm-tooltip]:hover::before {
+  opacity: 1;
+  visibility: visible;
+}
+
+/* Tooltip position variants */
+[data-no-perm-tooltip].tooltip-left::after {
+  left: auto;
+  right: 100%;
+  bottom: 50%;
+  transform: translateY(50%) translateX(4px);
+  margin-right: 8px;
+}
+
+[data-no-perm-tooltip].tooltip-left:hover::after {
+  transform: translateY(50%) translateX(0);
+}
+
+[data-no-perm-tooltip].tooltip-left::before {
+  display: none;
+}
+
+/* ===== AUTOMOD DISABLED STATES ===== */
+.automod-no-view .rule-card {
+  opacity: 0.5;
+  pointer-events: none;
+  filter: blur(2px);
+}
+
+.automod-no-edit .rule-card input,
+.automod-no-edit .rule-card select,
+.automod-no-edit .rule-card textarea,
+.automod-no-edit .rule-card .toggle,
+.automod-no-edit .rule-card button:not(.btn-view-only) {
+  pointer-events: none !important;
+  opacity: 0.6;
+}
+
+.automod-view-only {
+  position: relative;
+}
+
+.automod-view-only::after {
+  content: 'View Only';
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  padding: 2px 8px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  font-size: 0.7rem;
+  color: var(--muted);
+}
+
 /* ===== RESET & BASE ===== */
 *, *::before, *::after {
   box-sizing: border-box;
@@ -2742,6 +2846,89 @@ textarea.input {
 
 .rule-card.disabled .card {
   background: rgba(0, 0, 0, 0.3);
+}
+
+/* ===== AUTOMOD PERMISSION STATES ===== */
+
+/* No view permission - blur/hide details */
+.automod-no-view .card {
+  filter: blur(4px);
+  pointer-events: none;
+  user-select: none;
+}
+
+.automod-no-view::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.3);
+  z-index: 10;
+  border-radius: var(--radius);
+}
+
+.automod-rules-container.no-view-permission {
+  position: relative;
+}
+
+.automod-rules-container.no-view-permission .card {
+  filter: blur(3px);
+  opacity: 0.5;
+  pointer-events: none;
+}
+
+/* No edit permission - make everything non-interactable */
+.automod-no-edit .input,
+.automod-no-edit select,
+.automod-no-edit textarea,
+.automod-no-edit .toggle,
+.automod-no-edit button:not(.mini):not(.details-btn) {
+  pointer-events: none !important;
+  opacity: 0.6;
+  cursor: not-allowed !important;
+}
+
+.automod-no-edit .toggle {
+  opacity: 0.5;
+}
+
+.automod-no-edit .rule-card-clickable {
+  cursor: default !important;
+}
+
+/* Hide delete buttons without delete permission */
+.automod-no-delete .delete,
+.automod-no-delete [onclick*="deleteRule"] {
+  display: none !important;
+}
+
+/* Automod overlay message */
+.automod-permission-overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.7);
+  z-index: 20;
+  border-radius: var(--radius);
+  backdrop-filter: blur(2px);
+}
+
+.automod-permission-overlay-content {
+  text-align: center;
+  color: var(--text-secondary);
+  padding: 24px;
+}
+
+.automod-permission-overlay-content i {
+  font-size: 32px;
+  margin-bottom: 12px;
+  opacity: 0.6;
+}
+
+.automod-permission-overlay-content p {
+  margin: 0;
+  font-size: 14px;
 }
 
 /* Hintline styling */

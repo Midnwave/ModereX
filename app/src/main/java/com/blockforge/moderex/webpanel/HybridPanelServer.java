@@ -2040,9 +2040,10 @@ public class HybridPanelServer {
 
     private void updateAutomodRule(WebSocketConnection conn, JsonObject data, WebPanelSession session) {
         try {
-            // Check permission
-            if (!hasAutomodPermission(session.playerUuid)) {
-                sendError(conn, "FORBIDDEN", "You do not have permission to modify automod rules (moderex.admin.automod)");
+            // Check permission - requires moderex.automod.edit
+            if (!hasViewPermission(session.playerUuid, "moderex.automod.edit")) {
+                plugin.logDebug("[WebPanel] Permission denied for " + session.playerName + " to edit automod rules");
+                sendError(conn, "PERMISSION_DENIED", "You do not have permission to edit automod rules.");
                 return;
             }
 
@@ -2259,9 +2260,10 @@ public class HybridPanelServer {
 
     private void createAutomodRule(WebSocketConnection conn, JsonObject data, WebPanelSession session) {
         try {
-            // Check permission
-            if (!hasAutomodPermission(session.playerUuid)) {
-                sendError(conn, "FORBIDDEN", "You do not have permission to create automod rules (moderex.admin.automod)");
+            // Check permission - requires moderex.automod.create
+            if (!hasViewPermission(session.playerUuid, "moderex.automod.create")) {
+                plugin.logDebug("[WebPanel] Permission denied for " + session.playerName + " to create automod rules");
+                sendError(conn, "PERMISSION_DENIED", "You do not have permission to create automod rules.");
                 return;
             }
 
@@ -2307,9 +2309,10 @@ public class HybridPanelServer {
 
     private void deleteAutomodRule(WebSocketConnection conn, JsonObject data, WebPanelSession session) {
         try {
-            // Check permission
-            if (!hasAutomodPermission(session.playerUuid)) {
-                sendError(conn, "FORBIDDEN", "You do not have permission to delete automod rules (moderex.admin.automod)");
+            // Check permission - requires moderex.automod.delete
+            if (!hasViewPermission(session.playerUuid, "moderex.automod.delete")) {
+                plugin.logDebug("[WebPanel] Permission denied for " + session.playerName + " to delete automod rules");
+                sendError(conn, "PERMISSION_DENIED", "You do not have permission to delete automod rules.");
                 return;
             }
 
