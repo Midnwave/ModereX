@@ -973,9 +973,14 @@
                 </div>
               </div>
 
-              <div class="card" style="margin:0">
+              <div class="card" id="onlineStaffCard" style="margin:0">
                 <h3><i class="fa-solid fa-users" style="color:var(--primary-light)"></i> Online Staff</h3>
                 <p>Team members currently available.</p>
+                <!-- Permission overlay -->
+                <div id="onlineStaffNoPermOverlay" style="display:none;padding:40px;text-align:center;color:var(--text-secondary)">
+                  <i class="fa-solid fa-lock" style="font-size:32px;opacity:0.4;margin-bottom:12px;display:block"></i>
+                  <p style="margin:0">You do not have permission to view online staff</p>
+                </div>
                 <div id="staffOnlineList" style="margin-top:14px">
                   <div class="staff-member">
                     <div class="profile-avatar"><img src="https://mc-heads.net/avatar/MHF_Steve/32" alt=""></div>

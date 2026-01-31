@@ -379,6 +379,7 @@
       updatePunishPlayerButtons();
       updatePunishFilterButtons();
       updateAnticheatPermissionOverlay();
+      updateOnlineStaffPermission();
 
       // Re-render current page if needed
       if (state.currentPage === 'punishments') {
@@ -477,6 +478,27 @@
         toggle.disabled = true;
         toggle.classList.add('no-permission');
       }
+    }
+  }
+
+  /**
+   * Update online staff section permission overlay.
+   * Shows overlay if user lacks moderex.staff permission.
+   */
+  function updateOnlineStaffPermission() {
+    const overlay = document.getElementById('onlineStaffNoPermOverlay');
+    const list = document.getElementById('staffOnlineList');
+
+    if (!overlay || !list) return;
+
+    const canViewStaff = window.hasPermission ? window.hasPermission('moderex.staff') : true;
+
+    if (canViewStaff) {
+      overlay.style.display = 'none';
+      list.style.display = 'block';
+    } else {
+      overlay.style.display = 'block';
+      list.style.display = 'none';
     }
   }
 
