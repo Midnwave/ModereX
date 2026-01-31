@@ -14,6 +14,40 @@
 
 window.MX_CHANGELOGS = [
   {
+    build: 212,
+    version: "2.0dev-212",
+    date: "2026-01-31",
+    title: "Permission UI Polish",
+    sections: [
+      {
+        type: "fixed",
+        title: "Bug Fixes",
+        items: [
+          "**Tooltip Glitch** - Fixed hover glitch near automod Add Rule button by switching to native browser tooltips",
+          "**Automod No-View** - Shows clean empty state instead of blurred rules when lacking view permission",
+          "**Native Tooltips** - Permission tooltips now follow mouse cursor naturally (browser title attribute)"
+        ]
+      },
+      {
+        type: "new",
+        title: "Permission Overlays",
+        items: [
+          "**Anticheat Page** - Full-page permission overlay when lacking moderex.alerts.anticheat",
+          "**Watchlist Page** - Full-page permission overlay when lacking all watchlist permissions"
+        ]
+      },
+      {
+        type: "improved",
+        title: "UI Improvements",
+        items: [
+          "Simplified tooltip CSS - removed complex pseudo-element positioning",
+          "Cleaner no-permission states across all pages",
+          "Consistent permission overlay styling"
+        ]
+      }
+    ]
+  },
+  {
     build: 211,
     version: "2.0dev-211",
     date: "2026-01-31",

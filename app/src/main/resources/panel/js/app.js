@@ -504,12 +504,13 @@
 
   /**
    * Apply no-permission tooltip to an element with custom message.
+   * Uses native title attribute for tooltip (follows mouse cursor naturally).
    * @param {HTMLElement} element - Element to apply tooltip to
    * @param {string} message - Custom message (default: generic no permission message)
    */
-  function applyNoPermTooltip(element, message = "You lack sufficient permissions to perform this action") {
+  function applyNoPermTooltip(element, message = "You lack sufficient permissions") {
     if (!element) return;
-    element.setAttribute('data-no-perm-tooltip', message);
+    element.setAttribute('title', message);
     element.disabled = true;
     element.classList.add('no-permission');
   }
@@ -520,7 +521,7 @@
    */
   function removeNoPermTooltip(element) {
     if (!element) return;
-    element.removeAttribute('data-no-perm-tooltip');
+    element.removeAttribute('title');
     element.disabled = false;
     element.classList.remove('no-permission');
   }
@@ -1698,9 +1699,9 @@
     dom().watchToggleBtn.disabled = !canToggle;
     dom().watchToggleBtn.classList.toggle('no-permission', !canToggle);
     if (!canToggle && tooltipMsg) {
-      dom().watchToggleBtn.setAttribute('data-no-perm-tooltip', tooltipMsg);
+      dom().watchToggleBtn.setAttribute('title', tooltipMsg);
     } else {
-      dom().watchToggleBtn.removeAttribute('data-no-perm-tooltip');
+      dom().watchToggleBtn.removeAttribute('title');
     }
 
     // Update hint text
@@ -3549,9 +3550,9 @@
     dom().watchToggleBtn.disabled = !canToggle;
     dom().watchToggleBtn.classList.toggle('no-permission', !canToggle);
     if (!canToggle && tooltipMsg) {
-      dom().watchToggleBtn.setAttribute('data-no-perm-tooltip', tooltipMsg);
+      dom().watchToggleBtn.setAttribute('title', tooltipMsg);
     } else {
-      dom().watchToggleBtn.removeAttribute('data-no-perm-tooltip');
+      dom().watchToggleBtn.removeAttribute('title');
     }
 
     dom().watchToggleHint.textContent = nowWatching ? 'Watching player' : 'Not watching';

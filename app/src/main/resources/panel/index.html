@@ -671,35 +671,46 @@
 
         <!-- Watchlist Page -->
         <section class="page" id="page-watchlist">
-          <div class="page-head">
-            <div class="page-title">
-              <h1>Watchlist</h1>
-              <p>Monitor specific players and receive alerts on their activity.</p>
+          <!-- Permission overlay (hidden by default) -->
+          <div id="watchlistNoPermissionOverlay" class="panel pad" style="display:none;min-height:400px;align-items:center;justify-content:center">
+            <div style="text-align:center;color:var(--text-secondary)">
+              <i class="fa-solid fa-lock" style="font-size:48px;opacity:0.4;margin-bottom:16px;display:block"></i>
+              <h3 style="margin:0 0 8px 0;color:var(--text-primary)">Permission Required</h3>
+              <p style="margin:0">You need watchlist permissions to access this page</p>
             </div>
           </div>
 
-          <div class="panel pad">
-            <div class="toolbar" style="margin-top:0">
-              <div class="left">
-                <div class="gsearch" style="width:100%;max-width:400px">
-                  <i class="fa-solid fa-magnifying-glass"></i>
-                  <input type="text" id="watchSearch" placeholder="Search watchlist...">
-                </div>
-              </div>
-              <div class="right" style="margin-left:auto">
-                <button class="btn primary" id="watchlistAddBtn" onclick="openWatchlistPicker()"><i class="fa-solid fa-plus"></i> Add Player</button>
+          <div id="watchlistContent">
+            <div class="page-head">
+              <div class="page-title">
+                <h1>Watchlist</h1>
+                <p>Monitor specific players and receive alerts on their activity.</p>
               </div>
             </div>
-            
-            <div class="grid cols-2" style="margin-top:20px">
-              <div class="card" style="margin:0">
-                <h3><i class="fa-solid fa-eye" style="color:var(--warn)"></i> Monitored Players</h3>
-                <div id="watchPlayers" style="margin-top:12px;display:flex;flex-direction:column;gap:10px;max-height:400px;overflow:auto"></div>
+
+            <div class="panel pad">
+              <div class="toolbar" style="margin-top:0">
+                <div class="left">
+                  <div class="gsearch" style="width:100%;max-width:400px">
+                    <i class="fa-solid fa-magnifying-glass"></i>
+                    <input type="text" id="watchSearch" placeholder="Search watchlist...">
+                  </div>
+                </div>
+                <div class="right" style="margin-left:auto">
+                  <button class="btn primary" id="watchlistAddBtn" onclick="openWatchlistPicker()"><i class="fa-solid fa-plus"></i> Add Player</button>
+                </div>
               </div>
-              
-              <div class="card" style="margin:0">
-                <h3><i class="fa-solid fa-bell" style="color:var(--bad)"></i> Recent Alerts</h3>
-                <div id="watchAlerts" style="margin-top:12px;display:flex;flex-direction:column;gap:10px;max-height:400px;overflow:auto"></div>
+
+              <div class="grid cols-2" style="margin-top:20px">
+                <div class="card" style="margin:0">
+                  <h3><i class="fa-solid fa-eye" style="color:var(--warn)"></i> Monitored Players</h3>
+                  <div id="watchPlayers" style="margin-top:12px;display:flex;flex-direction:column;gap:10px;max-height:400px;overflow:auto"></div>
+                </div>
+
+                <div class="card" style="margin:0">
+                  <h3><i class="fa-solid fa-bell" style="color:var(--bad)"></i> Recent Alerts</h3>
+                  <div id="watchAlerts" style="margin-top:12px;display:flex;flex-direction:column;gap:10px;max-height:400px;overflow:auto"></div>
+                </div>
               </div>
             </div>
           </div>
@@ -1377,27 +1388,37 @@
 
         <!-- Anticheat Page -->
         <section class="page" id="page-anticheat">
-          <div class="page-head">
-            <div class="page-title">
-              <h1>Anticheat Alerts</h1>
-              <p>Configure per-check alert preferences and notification thresholds.</p>
-            </div>
-            <div style="display:flex;gap:10px;align-items:center">
-              <select class="input" id="acPresetSelect" onchange="applySelectedPreset()" style="width:200px">
-                <option value="">Apply Preset...</option>
-              </select>
-              <button class="btn" onclick="refreshAnticheatData()"><i class="fa-solid fa-sync"></i> Refresh</button>
+          <!-- Permission overlay (hidden by default) -->
+          <div id="anticheatNoPermissionOverlay" class="panel pad" style="display:none;min-height:400px;align-items:center;justify-content:center">
+            <div style="text-align:center;color:var(--text-secondary)">
+              <i class="fa-solid fa-lock" style="font-size:48px;opacity:0.4;margin-bottom:16px;display:block"></i>
+              <h3 style="margin:0 0 8px 0;color:var(--text-primary)">Permission Required</h3>
+              <p style="margin:0">You need the <code style="background:var(--surface);padding:2px 6px;border-radius:4px">moderex.alerts.anticheat</code> permission to configure anticheat alerts</p>
             </div>
           </div>
 
-          <div class="panel pad">
-            <div class="card" id="anticheatDisabledCard" style="margin:0;display:none">
-              <h3><i class="fa-solid fa-shield-halved" style="color:var(--warn)"></i> Anticheat Alerts Disabled</h3>
-              <p>Enable "Replace Anticheat Alerts" in Settings to configure alert routing.</p>
-              <a href="#" onclick="go('actions')" style="color:var(--primary-light);font-size:13px">Open Actions</a>
+          <div id="anticheatContent">
+            <div class="page-head">
+              <div class="page-title">
+                <h1>Anticheat Alerts</h1>
+                <p>Configure per-check alert preferences and notification thresholds.</p>
+              </div>
+              <div style="display:flex;gap:10px;align-items:center">
+                <select class="input" id="acPresetSelect" onchange="applySelectedPreset()" style="width:200px">
+                  <option value="">Apply Preset...</option>
+                </select>
+                <button class="btn" onclick="refreshAnticheatData()"><i class="fa-solid fa-sync"></i> Refresh</button>
+              </div>
             </div>
 
-            <div id="anticheatConfig">
+            <div class="panel pad">
+              <div class="card" id="anticheatDisabledCard" style="margin:0;display:none">
+                <h3><i class="fa-solid fa-shield-halved" style="color:var(--warn)"></i> Anticheat Alerts Disabled</h3>
+                <p>Enable "Replace Anticheat Alerts" in Settings to configure alert routing.</p>
+                <a href="#" onclick="go('actions')" style="color:var(--primary-light);font-size:13px">Open Actions</a>
+              </div>
+
+              <div id="anticheatConfig">
               <!-- Presets Quick Actions -->
               <div class="card" style="margin:0 0 16px 0;padding:12px 16px">
                 <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px">
@@ -1436,6 +1457,7 @@
                   <p style="margin-top:12px">Loading anticheat checks...</p>
                 </div>
               </div>
+            </div>
             </div>
           </div>
         </section>

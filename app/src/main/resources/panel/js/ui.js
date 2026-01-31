@@ -624,7 +624,7 @@
       } else {
         addRuleBtn.disabled = false;
         addRuleBtn.classList.remove('no-permission');
-        addRuleBtn.removeAttribute('data-no-perm-tooltip');
+        addRuleBtn.removeAttribute('title');
       }
     }
 
@@ -740,31 +740,28 @@
 
     // Render rules list
     if (!canView) {
-      // No view permission - show blurred rules with overlay
+      // No view permission - hide toolbar and show clean empty state
+      const toolbar = document.querySelector('#page-automod .toolbar');
+      if (toolbar) toolbar.style.display = 'none';
+
+      // Show large empty state with no permission message (no blurred rules)
       dom.rulesList.innerHTML = `
-        <div style="position:relative">
-          <div class="automod-permission-overlay">
-            <div class="automod-permission-overlay-content">
-              <i class="fa-solid fa-lock"></i>
-              <p>You do not have permission to view automod rule details</p>
-            </div>
-          </div>
-          <div style="filter:blur(4px);opacity:0.4;pointer-events:none">
-            ${paginatedRules.map(r => `
-              <div class="card" style="margin:0 0 16px 0;padding:16px">
-                <div style="display:flex;align-items:center;gap:10px">
-                  <i class="fa-solid fa-robot" style="color:var(--muted)"></i>
-                  <b>${escapeHtml(r.name)}</b>
-                  <span class="badge gray">${r.enabled ? 'Active' : 'Inactive'}</span>
-                </div>
-              </div>
-            `).join('')}
+        <div style="min-height:400px;display:flex;align-items:center;justify-content:center">
+          <div style="text-align:center;color:var(--text-secondary)">
+            <i class="fa-solid fa-lock" style="font-size:48px;opacity:0.4;margin-bottom:16px;display:block"></i>
+            <h3 style="margin:0 0 8px 0;color:var(--text-primary)">Permission Required</h3>
+            <p style="margin:0">You do not have permission to view automod rule details</p>
           </div>
         </div>
       `;
-    } else {
-      dom.rulesList.innerHTML = rulesHtml || (totalItems === 0 ? `<div class="hintline">No rules match your search.${canCreate ? ' Click "Add Rule" to create one.' : ''}</div>` : '');
+      return;
     }
+
+    // Show toolbar when has permission
+    const toolbar = document.querySelector('#page-automod .toolbar');
+    if (toolbar) toolbar.style.display = '';
+
+    dom.rulesList.innerHTML = rulesHtml || (totalItems === 0 ? `<div class="hintline">No rules match your search.${canCreate ? ' Click "Add Rule" to create one.' : ''}</div>` : '');
   }
 
   // Render a built-in rule card (spam, caps, links, afk) - simplified, no condition editing
@@ -1637,6 +1634,20 @@
   }
 
   function renderAnticheat() {
+    // Check permission first
+    const canViewAnticheat = window.hasPermission ? window.hasPermission('moderex.alerts.anticheat') : true;
+    const noPermOverlay = $('#anticheatNoPermissionOverlay');
+    const anticheatContent = $('#anticheatContent');
+
+    if (!canViewAnticheat) {
+      if (noPermOverlay) noPermOverlay.style.display = 'flex';
+      if (anticheatContent) anticheatContent.style.display = 'none';
+      return;
+    }
+
+    if (noPermOverlay) noPermOverlay.style.display = 'none';
+    if (anticheatContent) anticheatContent.style.display = 'block';
+
     const categoriesContainer = $('#anticheatCategories');
     const categoryFilter = $('#acCategoryFilter');
     const detectedBadge = $('#acDetectedBadge');
@@ -1807,6 +1818,22 @@
     const canAdd = window.hasPermission ? window.hasPermission('moderex.watchlist.add') : true;
     const canRemove = window.hasPermission ? window.hasPermission('moderex.watchlist.remove') : true;
     const canPunish = window.canIssueAnyPunishment ? window.canIssueAnyPunishment() : true;
+    const hasAnyWatchlistPerm = canAdd || canRemove;
+
+    // Check for permission overlay elements
+    const noPermOverlay = document.getElementById('watchlistNoPermissionOverlay');
+    const watchlistContent = document.getElementById('watchlistContent');
+
+    if (!hasAnyWatchlistPerm) {
+      // No watchlist permissions - show overlay, hide content
+      if (noPermOverlay) noPermOverlay.style.display = 'flex';
+      if (watchlistContent) watchlistContent.style.display = 'none';
+      return;
+    }
+
+    // Has permissions - hide overlay, show content
+    if (noPermOverlay) noPermOverlay.style.display = 'none';
+    if (watchlistContent) watchlistContent.style.display = 'block';
 
     // Update Add Player button
     const addBtn = document.getElementById('watchlistAddBtn');
@@ -1820,7 +1847,7 @@
       } else {
         addBtn.disabled = false;
         addBtn.classList.remove('no-permission');
-        addBtn.removeAttribute('data-no-perm-tooltip');
+        addBtn.removeAttribute('title');
       }
     }
 

@@ -295,75 +295,17 @@ button:disabled:not(.filter-btn):hover {
   transform: none !important;
 }
 
-/* ===== CUSTOM NO-PERMISSION TOOLTIP ===== */
-[data-no-perm-tooltip] {
-  position: relative;
+/* ===== NO-PERMISSION STYLES ===== */
+/* Uses native title attribute for tooltip - simpler and follows mouse cursor */
+.no-permission {
+  opacity: 0.5;
   cursor: not-allowed !important;
 }
 
-[data-no-perm-tooltip]::after {
-  content: attr(data-no-perm-tooltip);
-  position: absolute;
-  bottom: calc(100% + 8px);
-  left: 50%;
-  transform: translateX(-50%) translateY(4px);
-  padding: 8px 14px;
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
-  color: var(--text-secondary);
-  font-size: 0.8rem;
-  white-space: nowrap;
-  opacity: 0;
-  visibility: hidden;
-  transition: opacity var(--transition-fast), visibility var(--transition-fast), transform var(--transition-fast);
-  z-index: 10000;
-  box-shadow: var(--shadow-sm);
-  pointer-events: none;
-}
-
-[data-no-perm-tooltip]:hover::after {
-  opacity: 1;
-  visibility: visible;
-  transform: translateX(-50%) translateY(0);
-}
-
-/* Tooltip arrow */
-[data-no-perm-tooltip]::before {
-  content: '';
-  position: absolute;
-  bottom: calc(100% + 2px);
-  left: 50%;
-  transform: translateX(-50%);
-  border: 6px solid transparent;
-  border-top-color: var(--border);
-  opacity: 0;
-  visibility: hidden;
-  transition: opacity var(--transition-fast), visibility var(--transition-fast);
-  z-index: 10001;
-  pointer-events: none;
-}
-
-[data-no-perm-tooltip]:hover::before {
-  opacity: 1;
-  visibility: visible;
-}
-
-/* Tooltip position variants */
-[data-no-perm-tooltip].tooltip-left::after {
-  left: auto;
-  right: 100%;
-  bottom: 50%;
-  transform: translateY(50%) translateX(4px);
-  margin-right: 8px;
-}
-
-[data-no-perm-tooltip].tooltip-left:hover::after {
-  transform: translateY(50%) translateX(0);
-}
-
-[data-no-perm-tooltip].tooltip-left::before {
-  display: none;
+.btn.no-permission,
+button.no-permission {
+  pointer-events: auto; /* Allow hover for native title tooltip */
+  cursor: not-allowed !important;
 }
 
 /* ===== AUTOMOD DISABLED STATES ===== */
