@@ -10,6 +10,7 @@ import com.blockforge.moderex.gui.AutomodGui;
 import com.blockforge.moderex.gui.MainMenuGui;
 import com.blockforge.moderex.gui.ReplayGui;
 import com.blockforge.moderex.gui.StaffSettingsGui;
+import com.blockforge.moderex.gui.TemplateGui;
 import com.blockforge.moderex.gui.punishment.PunishPlayerGui;
 import com.blockforge.moderex.gui.ModLogGui;
 import com.blockforge.moderex.replay.ReplaySession;
@@ -69,6 +70,7 @@ public class MxCommand extends BaseCommand {
             case "mutesettings" -> handleMuteSettings(sender);
             case "warningsettings" -> handleWarningSettings(sender);
             case "help" -> sendHelp(sender);
+            case "templates", "template", "tpl" -> handleTemplates(sender);
             case "testreplay" -> handleTestReplay(sender);
             case "replay", "replays", "rec", "recording" -> handleReplay(sender, subArgs);
 
@@ -798,6 +800,20 @@ public class MxCommand extends BaseCommand {
         plugin.getGuiManager().open(player, new StaffSettingsGui(plugin));
     }
 
+    private void handleTemplates(CommandSender sender) {
+        if (!(sender instanceof Player player)) {
+            sendMessage(sender, MessageKey.PLAYER_ONLY);
+            return;
+        }
+
+        if (!sender.hasPermission("moderex.staff")) {
+            sendMessage(sender, MessageKey.NO_PERMISSION);
+            return;
+        }
+
+        plugin.getGuiManager().open(player, new TemplateGui(plugin));
+    }
+
     private void handleAnalytics(CommandSender sender) {
         if (!sender.hasPermission("moderex.command.admin")) {
             sendMessage(sender, MessageKey.NO_PERMISSION);
@@ -1328,6 +1344,7 @@ public class MxCommand extends BaseCommand {
         sendMessage(sender, "<gold><bold>Staff:</bold>");
         sendMessage(sender, "<yellow>/mx staffchat [message] <gray>- Toggle or send staff chat");
         sendMessage(sender, "<yellow>/mx vanish <gray>- Toggle vanish mode");
+        sendMessage(sender, "<yellow>/mx templates <gray>- View punishment templates");
         sendMessage(sender, "");
         sendMessage(sender, "<gold><bold>Admin:</bold>");
         sendMessage(sender, "<yellow>/mx reload <gray>- Reload configuration");
@@ -1366,6 +1383,9 @@ public class MxCommand extends BaseCommand {
             if (sender.hasPermission("moderex.command.vanish")) {
                 completions.add("vanish");
                 completions.add("v");
+            }
+            if (sender.hasPermission("moderex.staff")) {
+                completions.add("templates");
             }
             if (sender.hasPermission("moderex.notify.anticheat")) {
                 completions.add("anticheat");
