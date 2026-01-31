@@ -14,6 +14,58 @@
 
 window.MX_CHANGELOGS = [
   {
+    build: 208,
+    version: "2.0dev-208",
+    date: "2026-01-31",
+    title: "Web Panel Permission Enforcement",
+    sections: [
+      {
+        type: "new",
+        title: "New Features",
+        items: [
+          "**Pardon Logging** - Punishment revocations are now logged to database with full tracking",
+          "**New Permission: moderex.history.pardons** - Control who can view pardon/revocation history",
+          "**No Permission Overlays** - Forms and modals show clean 'No Permission' overlay when access denied",
+          "**Filtered Filter Buttons** - Punishment history filter buttons only show for types user can view"
+        ]
+      },
+      {
+        type: "improved",
+        title: "Improvements",
+        items: [
+          "**Backend Permission Validation** - All WebSocket actions now validate permissions server-side",
+          "**Punishment Form** - Dropdown only shows punishment types user has permission for",
+          "**Duration Validation** - Users with tempban/tempmute cannot enter 'perm' duration",
+          "**Player Profile** - Quick action buttons disabled for punishment types without permission",
+          "**Active Punishments** - Revoke buttons check permission per punishment type",
+          "**Past Violations** - Section filtered by type permission, shows lock message if no access",
+          "**Pardons Section** - Requires moderex.history.pardons permission to view",
+          "**Details Modal** - Revoke button disabled with lock icon if user lacks revoke permission",
+          "**History Table** - Server-side filtering prevents unauthorized data from being sent"
+        ]
+      },
+      {
+        type: "technical",
+        title: "Technical Changes",
+        items: [
+          "**moderex_pardons table** - New database table tracking punishment revocations",
+          "**createPunishment()** - Backend permission check before executing punishment",
+          "**revokePunishment()** - Backend permission check and pardon logging",
+          "**sendPunishments()** - Server-side filtering by moderex.history.* permissions",
+          "**Helper Functions** - canIssuePunishment(), canRevokePunishment(), canViewHistoryType()",
+          "**Debug Logging** - Permission denials logged to console for troubleshooting"
+        ]
+      },
+      {
+        type: "permissions",
+        title: "Permission Updates",
+        items: [
+          "**moderex.history.pardons** - New permission to view pardon history in player profile"
+        ]
+      }
+    ]
+  },
+  {
     build: 207,
     version: "2.0dev-207",
     date: "2026-01-30",
