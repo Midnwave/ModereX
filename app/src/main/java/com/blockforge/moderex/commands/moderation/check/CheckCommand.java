@@ -180,30 +180,30 @@ public class CheckCommand extends BaseCommand {
 
         sender.sendMessage(TextUtil.parse("<dark_gray>└──────────────────┘"));
 
-        // Quick actions for players (compact)
+        // Quick actions for players (with full names)
         if (sender instanceof Player) {
             Component actions = TextUtil.parse(" ")
-                .append(TextUtil.parse("<yellow>[H]")
+                .append(TextUtil.parse("<yellow>[History]")
                     .clickEvent(ClickEvent.runCommand("/history " + playerName))
-                    .hoverEvent(HoverEvent.showText(TextUtil.parse("<gray>Punishment History"))))
+                    .hoverEvent(HoverEvent.showText(TextUtil.parse("<gray>View punishment history"))))
                 .append(TextUtil.parse(" "))
-                .append(TextUtil.parse("<aqua>[C]")
+                .append(TextUtil.parse("<aqua>[Commands]")
                     .clickEvent(ClickEvent.runCommand("/cmdhistory " + playerName))
-                    .hoverEvent(HoverEvent.showText(TextUtil.parse("<gray>Command History"))))
+                    .hoverEvent(HoverEvent.showText(TextUtil.parse("<gray>View command history"))))
                 .append(TextUtil.parse(" "))
-                .append(TextUtil.parse("<light_purple>[A]")
+                .append(TextUtil.parse("<light_purple>[Activity]")
                     .clickEvent(ClickEvent.runCommand("/activity " + playerName))
-                    .hoverEvent(HoverEvent.showText(TextUtil.parse("<gray>Activity Log"))))
+                    .hoverEvent(HoverEvent.showText(TextUtil.parse("<gray>View activity log"))))
                 .append(TextUtil.parse(" "))
-                .append(TextUtil.parse("<green>[P]")
+                .append(TextUtil.parse("<green>[Punish]")
                     .clickEvent(ClickEvent.runCommand("/punish " + playerName))
-                    .hoverEvent(HoverEvent.showText(TextUtil.parse("<gray>Punish Menu"))));
+                    .hoverEvent(HoverEvent.showText(TextUtil.parse("<gray>Open punishment menu"))));
 
             if (!isWatched) {
                 actions = actions.append(TextUtil.parse(" "))
-                    .append(TextUtil.parse("<red>[W]")
+                    .append(TextUtil.parse("<red>[Watch]")
                         .clickEvent(ClickEvent.suggestCommand("/watchlist add " + playerName + " "))
-                        .hoverEvent(HoverEvent.showText(TextUtil.parse("<gray>Add to Watchlist"))));
+                        .hoverEvent(HoverEvent.showText(TextUtil.parse("<gray>Add to watchlist"))));
             }
 
             sender.sendMessage(actions);
