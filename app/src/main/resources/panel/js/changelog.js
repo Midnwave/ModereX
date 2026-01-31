@@ -14,6 +14,88 @@
 
 window.MX_CHANGELOGS = [
   {
+    build: 213,
+    version: "2.0dev-213",
+    date: "2026-01-31",
+    title: "Staff Chat, Permissions & GUI Revamp",
+    sections: [
+      {
+        type: "new",
+        title: "Staff Chat System",
+        items: [
+          "**Staff Chat Page** - New dedicated page for staff chat with full history",
+          "**Database Storage** - Staff chat messages now persist in database",
+          "**Lazy Loading** - Load more messages by scrolling up (like Discord)",
+          "**Permission Gating** - Requires moderex.staffchat permission to use"
+        ]
+      },
+      {
+        type: "new",
+        title: "Template Permissions",
+        items: [
+          "**moderex.template.create** - Create new punishment templates",
+          "**moderex.template.edit** - Edit existing punishment templates",
+          "**moderex.template.delete** - Delete punishment templates",
+          "**View Always Available** - All staff can view templates, CRUD requires permissions",
+          "**/mx templates** - New command to open templates GUI in-game"
+        ]
+      },
+      {
+        type: "new",
+        title: "Punishment GUI Revamp",
+        items: [
+          "**New Layout** - Templates at top, duration modifiers, action buttons at bottom",
+          "**Duration Modifiers** - Quick +/- 1h, 1d, 1w, 1mo buttons",
+          "**Info Display** - Center item shows full punishment details with lore wrapping",
+          "**Mass Punishments** - Add multiple players to punish at once from GUI",
+          "**Template Preview** - Click template to see values before applying"
+        ]
+      },
+      {
+        type: "improved",
+        title: "Permission Improvements",
+        items: [
+          "**moderex.staff** - Required for /mx commands and viewing online staff",
+          "**moderex.staffchat** - Separate permission for staff chat access",
+          "**History Commands** - Each check command requires specific history permission",
+          "**Permission Refresh** - All pages now re-render when permissions change"
+        ]
+      },
+      {
+        type: "fixed",
+        title: "Bug Fixes",
+        items: [
+          "**Tooltip System** - Custom JS tooltip fixes hover glitch on disabled buttons",
+          "**Sound Error** - Fixed IncompatibleClassChangeError with Sound.valueOf",
+          "**Automod Logging** - Automod triggers now properly saved to activity logs",
+          "**Automod Messages** - Updated blocked message and alert format with rule + message",
+          "**Activity Logs** - Now show type labels (Chat, Command, Sign, etc.)"
+        ]
+      },
+      {
+        type: "improved",
+        title: "UI Improvements",
+        items: [
+          "**Permission Overlays** - Generic messages instead of showing permission names",
+          "**Page Titles** - Remain visible when lacking permission (only content hidden)",
+          "**Check Buttons** - Expanded from [H][C][A][P][W] to full names",
+          "**Removed** - Unused Watchlist Alerts toggle from My Settings"
+        ]
+      },
+      {
+        type: "permissions",
+        title: "New Permissions",
+        items: [
+          "**moderex.staff** - Access to /mx commands and see online staff",
+          "**moderex.staffchat** - Use the staff chat system",
+          "**moderex.template.create** - Create punishment templates",
+          "**moderex.template.edit** - Edit punishment templates",
+          "**moderex.template.delete** - Delete punishment templates"
+        ]
+      }
+    ]
+  },
+  {
     build: 212,
     version: "2.0dev-212",
     date: "2026-01-31",
