@@ -135,10 +135,23 @@ public class StaffChatManager {
     private void playStaffChatSound(Player player) {
         String soundName = plugin.getConfigManager().getSettings().getStaffChatSound();
         try {
-            Sound sound = Sound.valueOf(soundName);
-            player.playSound(player.getLocation(), sound, 0.5f, 1.0f);
-        } catch (IllegalArgumentException e) {
-            // Invalid sound, use default
+            // Use Registry for Paper 1.21+ compatibility (Sound is now an interface)
+            org.bukkit.NamespacedKey key = org.bukkit.NamespacedKey.minecraft(soundName.toLowerCase().replace("_", "."));
+            Sound sound = org.bukkit.Registry.SOUNDS.get(key);
+            if (sound != null) {
+                player.playSound(player.getLocation(), sound, 0.5f, 1.0f);
+            } else {
+                // Fallback: try with underscores
+                key = org.bukkit.NamespacedKey.minecraft(soundName.toLowerCase());
+                sound = org.bukkit.Registry.SOUNDS.get(key);
+                if (sound != null) {
+                    player.playSound(player.getLocation(), sound, 0.5f, 1.0f);
+                } else {
+                    player.playSound(player.getLocation(), Sound.ENTITY_ITEM_PICKUP, 0.5f, 1.0f);
+                }
+            }
+        } catch (Exception e) {
+            // Fallback to default sound
             player.playSound(player.getLocation(), Sound.ENTITY_ITEM_PICKUP, 0.5f, 1.0f);
         }
     }

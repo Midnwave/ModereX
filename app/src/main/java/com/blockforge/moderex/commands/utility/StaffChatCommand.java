@@ -11,7 +11,7 @@ import java.util.List;
 public class StaffChatCommand extends BaseCommand {
 
     public StaffChatCommand(ModereX plugin) {
-        super(plugin, "moderex.command.staffchat", true);
+        super(plugin, "moderex.staffchat", true);
     }
 
     @Override
