@@ -1761,8 +1761,8 @@ public class HybridPanelServer {
 
     private void sendCommandHistory(WebSocketConnection conn, JsonObject filters, WebPanelSession session) {
         // Permission check
-        if (!hasViewPermission(session.getPlayerUuid(), "moderex.history.commands")) {
-            plugin.logDebug("[WebPanel] Permission denied for " + session.getPlayerName() + " to view command history");
+        if (!hasViewPermission(session.playerUuid, "moderex.history.commands")) {
+            plugin.logDebug("[WebPanel] Permission denied for " + session.playerName + " to view command history");
             sendError(conn, "PERMISSION_DENIED", "You do not have permission to view command history.");
             return;
         }
@@ -1836,8 +1836,8 @@ public class HybridPanelServer {
 
     private void sendChatLogs(WebSocketConnection conn, JsonObject filters, WebPanelSession session) {
         // Permission check
-        if (!hasViewPermission(session.getPlayerUuid(), "moderex.history.chat")) {
-            plugin.logDebug("[WebPanel] Permission denied for " + session.getPlayerName() + " to view chat logs");
+        if (!hasViewPermission(session.playerUuid, "moderex.history.chat")) {
+            plugin.logDebug("[WebPanel] Permission denied for " + session.playerName + " to view chat logs");
             sendError(conn, "PERMISSION_DENIED", "You do not have permission to view chat logs.");
             return;
         }
@@ -1895,8 +1895,8 @@ public class HybridPanelServer {
 
     private void sendAutomodLogs(WebSocketConnection conn, JsonObject filters, WebPanelSession session) {
         // Permission check
-        if (!hasViewPermission(session.getPlayerUuid(), "moderex.history.automod")) {
-            plugin.logDebug("[WebPanel] Permission denied for " + session.getPlayerName() + " to view automod logs");
+        if (!hasViewPermission(session.playerUuid, "moderex.history.automod")) {
+            plugin.logDebug("[WebPanel] Permission denied for " + session.playerName + " to view automod logs");
             sendError(conn, "PERMISSION_DENIED", "You do not have permission to view automod logs.");
             return;
         }

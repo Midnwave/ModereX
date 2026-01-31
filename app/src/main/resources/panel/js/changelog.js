@@ -14,6 +14,44 @@
 
 window.MX_CHANGELOGS = [
   {
+    build: 210,
+    version: "2.0dev-210",
+    date: "2026-01-31",
+    title: "Permission System Refinements",
+    sections: [
+      {
+        type: "improved",
+        title: "Permission Enforcement",
+        items: [
+          "**Auto-Refresh** - Permissions now refresh every 5 seconds with change detection logging",
+          "**Dashboard** - Recent Punishments section now respects history permissions",
+          "**Player Profile** - Chat logs, commands, and automod buttons require proper permissions",
+          "**Filter Buttons** - Hidden when user lacks permission for that punishment type"
+        ]
+      },
+      {
+        type: "fixed",
+        title: "UI Improvements",
+        items: [
+          "**CSS Variables** - Fixed no-permission styles to use existing color scheme",
+          "**Table States** - Separate 'no permission' vs 'no results' messages",
+          "**Punish Button** - Renamed from 'Action' to 'Punish' with permission awareness",
+          "**Punish Player Button** - Now disabled when user has no punishment permissions",
+          "**Removed** - 'Remove' button and 'Closed' badge from punishment table (use Details instead)"
+        ]
+      },
+      {
+        type: "technical",
+        title: "Backend",
+        items: [
+          "Added permission validation for chat logs (moderex.history.chat)",
+          "Added permission validation for command history (moderex.history.commands)",
+          "Added permission validation for automod logs (moderex.history.automod)"
+        ]
+      }
+    ]
+  },
+  {
     build: 208,
     version: "2.0dev-208",
     date: "2026-01-31",
