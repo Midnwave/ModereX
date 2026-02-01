@@ -706,7 +706,7 @@
   function updatePunishTitle(titleEl, type, playerId) {
     if (!titleEl) return;
     const p = state.players.find(x => x.id === playerId);
-    titleEl.textContent = `${type} -= ${p?.name || 'Select Player'}`;
+    titleEl.textContent = `${type} · ${p?.name || 'Select Player'}`;
   }
 
   function renderEvidenceOptions(playerId, selectEl, previewEl) {
@@ -2324,6 +2324,17 @@
     dom().punishCreatePlayer.value = state.punishCreateLocked ? (selected?.name || '') : '';
     dom().punishCreatePlayer.disabled = state.punishCreateLocked;
 
+    // Reset mass punishment mode
+    state.massMode = false;
+    state.massPlayerIds = [];
+    state.massPlayerNames = [];
+    const massCheckbox = document.getElementById('punishCreateMassMode');
+    if (massCheckbox) massCheckbox.checked = false;
+    const singleSection = document.getElementById('punishSinglePlayerSection');
+    const massSection = document.getElementById('punishMassPlayerSection');
+    if (singleSection) singleSection.style.display = 'block';
+    if (massSection) massSection.style.display = 'none';
+
     // Update type dropdown to only show allowed types
     updatePunishTypeDropdown(dom().punishCreateType);
 
@@ -2343,6 +2354,11 @@
     dom().punishCreateTemplate.value = 'none';
     dom().punishCreateDuration.value = '';
     dom().punishCreateReason.value = '';
+
+    // Update reason character count
+    const reasonCountEl = document.getElementById('punishCreateReasonCount');
+    if (reasonCountEl) reasonCountEl.textContent = '0/100';
+
     renderEvidenceOptions(state.punishCreatePlayerId, dom().punishCreateEvidencePick, dom().punishCreateEvidencePreview);
     if (state.punishCreateLocked) {
       renderPunishCreateList();
@@ -2351,6 +2367,9 @@
       if (combo) combo.classList.remove('open');
       dom().punishCreateList.innerHTML = '';
     }
+
+    // Update execute button state
+    updatePunishExecuteButton();
   };
 
   window.closePunishCreateModal = function() {
@@ -2487,9 +2506,54 @@
   };
 
   window.submitPunishCreate = function() {
+    const type = dom().punishCreateType.value || 'WARN';
+    const reason = dom().punishCreateReason.value.trim() || 'No reason';
+    const duration = dom().punishCreateDuration.value.trim() || (type === 'BAN' ? 'perm' : type === 'MUTE' ? '7d' : '');
+
+    // Handle mass punishment mode
+    if (state.massMode) {
+      if (state.massPlayerIds.length === 0) {
+        window.MX.sounds?.toastWarning();
+        toast('warn', 'No Targets', 'Add at least one player first.');
+        return;
+      }
+
+      // Check mass punishment permission
+      const massPermMap = {
+        'WARN': 'moderex.masswarn',
+        'MUTE': 'moderex.massmute',
+        'BAN': 'moderex.massban',
+        'KICK': 'moderex.masskick'
+      };
+      const massPerm = massPermMap[type] || 'moderex.mass.*';
+
+      if (!hasPermission(massPerm) && !hasPermission('moderex.mass.*')) {
+        console.debug('[Permission] Denied mass punishment type:', type);
+        window.MX.sounds?.toastWarning();
+        toast('bad', 'No Permission', `You do not have permission to issue mass ${type.toLowerCase()} punishments.`);
+        return;
+      }
+
+      // Send mass punishment via WebSocket
+      const playerNames = state.massPlayerNames.join(',');
+      const cmdType = type.toLowerCase();
+      const command = `mass${cmdType} ${playerNames} ${duration} ${reason}`;
+
+      sendMessage({ type: 'RUN_COMMAND', command });
+      closePunishCreateModal();
+      window.MX.sounds?.punishment();
+      toast('ok', 'Mass Punishment Sent', `${type} queued for ${state.massPlayerIds.length} players.`, {silent: true});
+
+      // Reset mass state
+      state.massMode = false;
+      state.massPlayerIds = [];
+      state.massPlayerNames = [];
+      return;
+    }
+
+    // Single player mode
     const pid = state.punishCreatePlayerId;
     if (!pid) { window.MX.sounds?.toastWarning(); toast('warn', 'No Target', 'Select a player first.'); return; }
-    const type = dom().punishCreateType.value || 'WARN';
 
     // Permission check for punishment type
     if (!canIssuePunishment(type)) {
@@ -2498,9 +2562,6 @@
       toast('bad', 'No Permission', `You do not have permission to issue ${type.toLowerCase()} punishments.`);
       return;
     }
-
-    const reason = dom().punishCreateReason.value.trim() || 'No reason';
-    const duration = dom().punishCreateDuration.value.trim() || (type === 'BAN' ? 'perm' : type === 'MUTE' ? '7d' : '');
 
     // Validate duration for permanent punishment permissions
     const durationCheck = validatePunishDuration(type, duration);
@@ -2511,7 +2572,7 @@
       return;
     }
 
-    const evId = dom().punishCreateEvidencePick.value || null;
+    const evId = dom().punishCreateEvidencePick?.value || null;
     executePunishment({ playerId: pid, type, reason, duration, evidenceId: evId });
     ui.renderPunishments();
     ui.renderPlayers();
@@ -2527,6 +2588,150 @@
       dom().punishOverlay.classList.remove('show', 'fade-out');
     }, 220);
   };
+
+  // ===== MASS PUNISHMENT MODE =====
+  window.toggleMassPunishMode = function(enabled) {
+    state.massMode = enabled;
+    const singleSection = document.getElementById('punishSinglePlayerSection');
+    const massSection = document.getElementById('punishMassPlayerSection');
+    const titleEl = dom().punishCreateTitle;
+
+    if (enabled) {
+      singleSection.style.display = 'none';
+      massSection.style.display = 'block';
+      state.massPlayerIds = [];
+      state.massPlayerNames = [];
+      renderMassPlayerTags();
+      updateMassPunishTitle();
+      setupMassPlayerCombo();
+    } else {
+      singleSection.style.display = 'block';
+      massSection.style.display = 'none';
+      state.massPlayerIds = [];
+      state.massPlayerNames = [];
+      updatePunishTitle(titleEl, dom().punishCreateType.value, state.punishCreatePlayerId);
+    }
+    updatePunishExecuteButton();
+  };
+
+  function updateMassPunishTitle() {
+    const titleEl = dom().punishCreateTitle;
+    const type = dom().punishCreateType.value || 'WARN';
+    const count = state.massPlayerIds.length;
+    titleEl.textContent = `Mass ${type} · ${count} player${count !== 1 ? 's' : ''}`;
+  }
+
+  function renderMassPlayerTags() {
+    const container = document.getElementById('punishMassPlayerTags');
+    const countBadge = document.getElementById('punishMassPlayerCount');
+    if (!container) return;
+
+    container.innerHTML = state.massPlayerNames.map((name, idx) => `
+      <span class="mass-player-tag">
+        <span>${escapeHtml(name)}</span>
+        <span class="tag-remove" onclick="removeMassPlayer(${idx})"><i class="fa-solid fa-xmark"></i></span>
+      </span>
+    `).join('');
+
+    if (countBadge) {
+      countBadge.textContent = `${state.massPlayerIds.length} selected`;
+    }
+    updateMassPunishTitle();
+    updatePunishExecuteButton();
+  }
+
+  window.removeMassPlayer = function(idx) {
+    state.massPlayerIds.splice(idx, 1);
+    state.massPlayerNames.splice(idx, 1);
+    renderMassPlayerTags();
+  };
+
+  window.addMassPlayer = function(playerId, playerName) {
+    if (state.massPlayerIds.includes(playerId)) {
+      toast('warn', 'Already Added', `${playerName} is already in the list.`);
+      return;
+    }
+    state.massPlayerIds.push(playerId);
+    state.massPlayerNames.push(playerName);
+    renderMassPlayerTags();
+
+    // Clear input
+    const input = document.getElementById('punishMassPlayerInput');
+    if (input) input.value = '';
+
+    // Close combo list
+    const combo = input?.closest('.combo');
+    if (combo) combo.classList.remove('open');
+  };
+
+  function setupMassPlayerCombo() {
+    const input = document.getElementById('punishMassPlayerInput');
+    const list = document.getElementById('punishMassPlayerList');
+    if (!input || !list) return;
+
+    input.oninput = () => {
+      const q = input.value.toLowerCase().trim();
+      const combo = input.closest('.combo');
+
+      if (q.length < 1) {
+        combo?.classList.remove('open');
+        return;
+      }
+
+      const matches = state.players
+        .filter(p => p.name.toLowerCase().includes(q) && !state.massPlayerIds.includes(p.id))
+        .slice(0, 8);
+
+      if (matches.length === 0) {
+        combo?.classList.remove('open');
+        return;
+      }
+
+      list.innerHTML = matches.map(p => `
+        <div class="combo-item" onclick="addMassPlayer('${p.id}', '${escapeHtml(p.name)}')">
+          <span style="display:flex;align-items:center;gap:8px">
+            <img src="${avatarUrl(p)}" style="width:24px;height:24px;border-radius:4px" onerror="this.onerror=null;this.src='https://minotar.net/helm/${encodeURIComponent(p.name)}/24.png'">
+            ${escapeHtml(p.name)}
+          </span>
+          <span class="badge ${p.status === 'online' ? 'green' : 'gray'}">${p.status}</span>
+        </div>
+      `).join('');
+
+      combo?.classList.add('open');
+    };
+
+    input.onblur = () => {
+      setTimeout(() => {
+        input.closest('.combo')?.classList.remove('open');
+      }, 200);
+    };
+  }
+
+  function updatePunishExecuteButton() {
+    const btn = document.getElementById('punishCreateExecuteBtn');
+    const statusEl = document.getElementById('punishCreateStatus');
+    if (!btn) return;
+
+    let valid = true;
+    let message = 'Review before submitting';
+
+    if (state.massMode) {
+      if (state.massPlayerIds.length === 0) {
+        valid = false;
+        message = 'Add at least one player';
+      }
+    } else {
+      if (!state.punishCreatePlayerId) {
+        valid = false;
+        message = 'Select a player first';
+      }
+    }
+
+    btn.disabled = !valid;
+    if (statusEl) {
+      statusEl.innerHTML = `<i class="fa-solid fa-${valid ? 'circle-info' : 'triangle-exclamation'}"></i> ${message}`;
+    }
+  }
 
   window.applyTemplateToPunish = function(templateId) {
     if (!templateId || templateId === 'none') {
@@ -4908,7 +5113,11 @@
     });
     dom().punishCreateType?.addEventListener('change', (e) => {
       state.pendingPunishType = e.target.value;
-      updatePunishTitle(dom().punishCreateTitle, e.target.value, state.punishCreatePlayerId);
+      if (state.massMode) {
+        updateMassPunishTitle();
+      } else {
+        updatePunishTitle(dom().punishCreateTitle, e.target.value, state.punishCreatePlayerId);
+      }
     });
     dom().punishCreateTemplate?.addEventListener('change', (e) => applyTemplateToPunishCreate(e.target.value));
     dom().punishCreateEvidencePick?.addEventListener('change', () => updateEvidencePreviewFor(dom().punishCreateEvidencePick, dom().punishCreateEvidencePreview));

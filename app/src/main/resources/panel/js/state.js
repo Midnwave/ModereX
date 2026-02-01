@@ -27,6 +27,10 @@
     selectedEvidenceId: null,
     pendingPunishType: 'WARN',
     punishTargetLocked: false,
+    // Mass punishment state
+    massMode: false,
+    massPlayerIds: [],
+    massPlayerNames: [],
     punishFilters: { BAN: true, MUTE: true, WARN: true, KICK: true },
     punishPagination: { page: 1, pageSize: 25 },
     playerPagination: { page: 1, pageSize: 25 },

@@ -14,6 +14,33 @@
 
 window.MX_CHANGELOGS = [
   {
+    build: 215,
+    version: "2.0dev-215",
+    date: "2026-01-31",
+    title: "Punishment Form Revamp",
+    sections: [
+      {
+        type: "new",
+        title: "Mass Punishment UI",
+        items: [
+          "**Mass Punishment Toggle** - Switch between single and mass punishment modes",
+          "**Multi-Player Selector** - Add/remove multiple players with tag-style chips",
+          "**Execute via Web Panel** - Mass punishments can now be issued directly from the panel"
+        ]
+      },
+      {
+        type: "improved",
+        title: "Form Styling",
+        items: [
+          "**Modern Dropdowns** - Improved select styling with hover effects",
+          "**Cleaner Title** - Removed '=' from punishment title (now uses · separator)",
+          "**Character Counter** - Reason field shows remaining characters",
+          "**Execute Button** - Disabled state with helpful messages when invalid"
+        ]
+      }
+    ]
+  },
+  {
     build: 214,
     version: "2.0dev-214",
     date: "2026-01-31",

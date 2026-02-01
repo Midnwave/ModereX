@@ -2027,12 +2027,22 @@
       <div class="modal-top">
         <div style="display:flex;align-items:center;gap:10px">
           <i class="fa-solid fa-gavel" style="color:var(--warn)"></i>
-          <b id="punishCreateTitle">WARN -= Select Player</b>
+          <b id="punishCreateTitle">WARN · Select Player</b>
         </div>
         <button class="mini" onclick="closePunishCreateModal()"><i class="fa-solid fa-xmark"></i></button>
       </div>
       <div class="modal-body">
-        <div>
+        <!-- Mass Punishment Toggle -->
+        <div class="punish-mode-toggle" style="margin-bottom:16px">
+          <label class="toggle-switch-label" style="display:flex;align-items:center;gap:10px;cursor:pointer">
+            <input type="checkbox" id="punishCreateMassMode" onchange="toggleMassPunishMode(this.checked)">
+            <span class="toggle-switch"></span>
+            <span style="font-size:13px"><i class="fa-solid fa-users"></i> Mass Punishment</span>
+          </label>
+        </div>
+
+        <!-- Single Player Target (default) -->
+        <div id="punishSinglePlayerSection">
           <div class="hintline" style="margin-top:0">Target Player</div>
           <div class="combo">
             <input type="text" class="input" id="punishCreatePlayer" placeholder="Type a player name...">
@@ -2040,10 +2050,20 @@
           </div>
         </div>
 
+        <!-- Mass Player Target (hidden by default) -->
+        <div id="punishMassPlayerSection" style="display:none">
+          <div class="hintline" style="margin-top:0">Target Players <span id="punishMassPlayerCount" class="badge gray" style="margin-left:8px">0 selected</span></div>
+          <div class="combo" style="margin-bottom:8px">
+            <input type="text" class="input" id="punishMassPlayerInput" placeholder="Type a player name to add...">
+            <div class="combo-list" id="punishMassPlayerList"></div>
+          </div>
+          <div id="punishMassPlayerTags" class="mass-player-tags"></div>
+        </div>
+
         <div class="grid cols-2" style="margin-top:12px">
           <div>
             <div class="hintline" style="margin-top:0">Punishment</div>
-            <select class="input" id="punishCreateType">
+            <select class="input punish-select" id="punishCreateType">
               <option value="WARN">Warn</option>
               <option value="MUTE">Mute</option>
               <option value="BAN">Ban</option>
@@ -2052,7 +2072,7 @@
           </div>
           <div>
             <div class="hintline" style="margin-top:0">Template</div>
-            <select class="input" id="punishCreateTemplate"></select>
+            <select class="input punish-select" id="punishCreateTemplate"></select>
           </div>
         </div>
 
@@ -2067,10 +2087,10 @@
         </div>
       </div>
       <div class="modal-foot">
-        <span class="badge gray"><i class="fa-solid fa-circle-info"></i> Review before submitting</span>
+        <span class="badge gray" id="punishCreateStatus"><i class="fa-solid fa-circle-info"></i> Review before submitting</span>
         <div style="display:flex;gap:10px">
           <button class="btn ghost" onclick="closePunishCreateModal()"><i class="fa-solid fa-xmark"></i> Cancel</button>
-          <button class="btn primary" onclick="submitPunishCreate()"><i class="fa-solid fa-check"></i> Execute</button>
+          <button class="btn primary" id="punishCreateExecuteBtn" onclick="submitPunishCreate()"><i class="fa-solid fa-check"></i> Execute</button>
         </div>
       </div>
     </div>
