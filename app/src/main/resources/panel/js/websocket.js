@@ -751,7 +751,7 @@
   }
 
   function requestStaffChatHistory(limit = 50, beforeTimestamp = null) {
-    return send('GET_STAFFCHAT_HISTORY', { limit, beforeTimestamp });
+    return send('GET_STAFFCHAT_HISTORY', { limit, before: beforeTimestamp });
   }
 
   // Expose API

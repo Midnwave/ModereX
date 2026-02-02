@@ -3360,22 +3360,18 @@
   window.renderCmdBlacklist = function() {
     const container = document.getElementById('cmdblList');
     const countBadge = document.getElementById('cmdblCount');
-    const addBtn = document.querySelector('#page-cmdblacklist .btn.primary');
+    const addBtn = document.getElementById('cmdblAddBtn');
+    const overlay = document.getElementById('cmdblNoPermissionOverlay');
+    const content = document.getElementById('cmdblContent');
     if (!container) return;
 
     // Check permission for viewing command blacklist
     const hasCmdBlacklistPerm = hasPermission('moderex.cmdblacklist') || hasPermission('moderex.cmdunblacklist');
 
     if (!hasCmdBlacklistPerm) {
-      container.innerHTML = `
-        <div class="page-permission-box">
-          <div class="permission-card">
-            <i class="fa-solid fa-lock"></i>
-            <h3>Permission Required</h3>
-            <p>You do not have permission to view command blacklist entries. Contact an administrator if you believe this is an error.</p>
-          </div>
-        </div>
-      `;
+      // Show overlay, hide content
+      if (overlay) overlay.style.display = '';
+      if (content) content.style.display = 'none';
       if (countBadge) countBadge.textContent = 'No access';
       if (addBtn) {
         addBtn.disabled = true;
@@ -3383,6 +3379,10 @@
       }
       return;
     }
+
+    // Hide overlay, show content
+    if (overlay) overlay.style.display = 'none';
+    if (content) content.style.display = '';
 
     // Re-enable add button if permission is granted
     if (addBtn) {
@@ -4400,11 +4400,16 @@
       playerFilter = freeText.join(' ');
     }
 
+    // Get enabled types from filter toggles (only include types that are enabled)
+    const enabledTypes = state.activityLogs.filters.enabledTypes || {};
+    const enabledTypesList = Object.keys(enabledTypes).filter(type => enabledTypes[type] !== false);
+
     ws.send('GET_ACTIVITY_LOGS', {
       page,
       limit: pageSize,
       player: playerFilter,
-      type: typeFilter
+      type: typeFilter,
+      enabledTypes: enabledTypesList.length > 0 ? enabledTypesList : null
     });
   };
 

@@ -2081,12 +2081,46 @@ public class HybridPanelServer {
                 String typeFilter = filters.has("type") ? filters.get("type").getAsString().trim().toUpperCase() : "";
                 int offset = (page - 1) * limit;
 
+                // Parse enabledTypes filter (user's toggle preferences)
+                List<String> enabledTypesList = new java.util.ArrayList<>();
+                if (filters.has("enabledTypes") && !filters.get("enabledTypes").isJsonNull()) {
+                    JsonArray enabledTypesArray = filters.getAsJsonArray("enabledTypes");
+                    for (int i = 0; i < enabledTypesArray.size(); i++) {
+                        String enabledType = enabledTypesArray.get(i).getAsString();
+                        // Only include if it's in the allowed types (permission check)
+                        if (allowedTypes.contains(enabledType)) {
+                            enabledTypesList.add(enabledType);
+                        }
+                    }
+                }
+
+                // Use enabledTypes if provided, otherwise use all allowed types
+                List<String> typesToQuery = enabledTypesList.isEmpty() ? allowedTypes : enabledTypesList;
+
+                // If no types to query, return empty
+                if (typesToQuery.isEmpty()) {
+                    JsonObject response = new JsonObject();
+                    response.addProperty("type", "ACTIVITY_LOGS_DATA");
+                    JsonObject data = new JsonObject();
+                    data.add("logs", new JsonArray());
+                    data.addProperty("total", 0);
+                    data.addProperty("page", 1);
+                    JsonArray allowedTypesArray = new JsonArray();
+                    for (String type : allowedTypes) {
+                        allowedTypesArray.add(type);
+                    }
+                    data.add("allowedTypes", allowedTypesArray);
+                    response.add("data", data);
+                    conn.send(GSON.toJson(response));
+                    return;
+                }
+
                 // Build WHERE clause
                 StringBuilder whereClause = new StringBuilder("WHERE type IN (");
                 List<Object> params = new java.util.ArrayList<>();
-                for (int i = 0; i < allowedTypes.size(); i++) {
+                for (int i = 0; i < typesToQuery.size(); i++) {
                     whereClause.append(i > 0 ? ",?" : "?");
-                    params.add(allowedTypes.get(i));
+                    params.add(typesToQuery.get(i));
                 }
                 whereClause.append(")");
 
@@ -2475,8 +2509,8 @@ public class HybridPanelServer {
             // Save rule to database
             plugin.getAutomodManager().saveRule(rule);
 
-            // Broadcast the new rule to ALL connected clients (not just the originator)
-            broadcastSingleRuleUpdate(rule);
+            // Broadcast the new rule creation to ALL connected clients
+            broadcastRuleCreated(rule);
 
             plugin.logDebug("[WebPanel] Automod rule created: " + name + " (id=" + rule.getId() + ") by " + session.playerName);
             debugSuccess(DebugCategory.AUTOMOD, "Automod rule created",
@@ -2903,6 +2937,42 @@ public class HybridPanelServer {
             }
         } catch (Exception e) {
             plugin.logError("Failed to broadcast single rule update: " + e.getMessage(), e);
+        }
+    }
+
+    /**
+     * Broadcast a new rule creation to all connected clients.
+     * Sends AUTOMOD_RULE_CREATED so the frontend knows to open the editor.
+     */
+    public void broadcastRuleCreated(AutomodRule rule) {
+        try {
+            JsonObject broadcast = new JsonObject();
+            broadcast.addProperty("type", "AUTOMOD_RULE_CREATED");
+            JsonObject data = serializeRule(rule);
+            broadcast.add("data", data);
+            String message = GSON.toJson(broadcast);
+
+            plugin.logDebug("[WebPanel] Broadcasting rule creation: " + rule.getId());
+
+            // Broadcast to regular WebSocket connections
+            for (WebSocketConnection conn : sessions.keySet()) {
+                try {
+                    conn.send(message);
+                } catch (Exception e) {
+                    plugin.logDebug("Failed to broadcast rule creation to connection: " + e.getMessage());
+                }
+            }
+
+            // Also broadcast to same-port (Netty) connections
+            for (var entry : samePortConnections.entrySet()) {
+                try {
+                    entry.getValue().send(message);
+                } catch (Exception e) {
+                    plugin.logDebug("Failed to broadcast rule creation to same-port connection: " + e.getMessage());
+                }
+            }
+        } catch (Exception e) {
+            plugin.logError("Failed to broadcast rule creation: " + e.getMessage(), e);
         }
     }
 
@@ -4407,7 +4477,8 @@ public class HybridPanelServer {
         }
 
         int limit = data.has("limit") ? data.get("limit").getAsInt() : 100;
-        long beforeTimestamp = data.has("before") ? data.get("before").getAsLong() : 0;
+        long beforeTimestamp = data.has("before") && !data.get("before").isJsonNull()
+            ? data.get("before").getAsLong() : 0;
 
         // Cap the limit
         if (limit > 100) limit = 100;

@@ -644,36 +644,47 @@
               <p>Block specific players from using certain commands.</p>
             </div>
             <div style="display:flex;gap:10px">
-              <button class="btn primary" onclick="openCmdBlacklistModal()"><i class="fa-solid fa-plus"></i> Add Blacklist</button>
+              <button class="btn primary" id="cmdblAddBtn" onclick="openCmdBlacklistModal()"><i class="fa-solid fa-plus"></i> Add Blacklist</button>
             </div>
           </div>
 
-          <div class="panel pad">
-            <div class="toolbar" style="margin-top:0;margin-bottom:16px">
-              <div class="left">
-                <div class="gsearch" style="width:100%;max-width:400px">
-                  <i class="fa-solid fa-magnifying-glass"></i>
-                  <input type="text" id="cmdblSearch" placeholder="Search by player or command..." oninput="filterCmdBlacklist()">
-                </div>
-              </div>
-              <div class="right" style="margin-left:auto;display:flex;gap:10px;align-items:center">
-                <select class="input" id="cmdblStatusFilter" onchange="filterCmdBlacklist()" style="width:120px">
-                  <option value="all">All Status</option>
-                  <option value="active">Active</option>
-                  <option value="expired">Expired</option>
-                </select>
-                <span class="badge gray" id="cmdblCount">0 entries</span>
-              </div>
+          <!-- Permission overlay (hidden by default) -->
+          <div id="cmdblNoPermissionOverlay" class="page-permission-box" style="display:none">
+            <div class="permission-card">
+              <i class="fa-solid fa-lock"></i>
+              <h3>Permission Required</h3>
+              <p>You do not have permission to view command blacklist entries. Contact an administrator if you believe this is an error.</p>
             </div>
+          </div>
 
-            <div class="card cmdbl-embed" style="margin:0">
-              <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
-                <div>
-                  <h3 style="margin:0"><i class="fa-solid fa-ban" style="color:var(--bad)"></i> Blocked Commands</h3>
-                  <p style="margin:4px 0 0 0;color:var(--muted)">Players listed here cannot use the specified commands.</p>
+          <div id="cmdblContent">
+            <div class="panel pad">
+              <div class="toolbar" style="margin-top:0;margin-bottom:16px">
+                <div class="left">
+                  <div class="gsearch" style="width:100%;max-width:400px">
+                    <i class="fa-solid fa-magnifying-glass"></i>
+                    <input type="text" id="cmdblSearch" placeholder="Search by player or command..." oninput="filterCmdBlacklist()">
+                  </div>
+                </div>
+                <div class="right" style="margin-left:auto;display:flex;gap:10px;align-items:center">
+                  <select class="input" id="cmdblStatusFilter" onchange="filterCmdBlacklist()" style="width:120px">
+                    <option value="all">All Status</option>
+                    <option value="active">Active</option>
+                    <option value="expired">Expired</option>
+                  </select>
+                  <span class="badge gray" id="cmdblCount">0 entries</span>
                 </div>
               </div>
-              <div id="cmdblList" style="display:flex;flex-direction:column;gap:8px;max-height:520px;overflow:auto"></div>
+
+              <div class="card cmdbl-embed" style="margin:0">
+                <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
+                  <div>
+                    <h3 style="margin:0"><i class="fa-solid fa-ban" style="color:var(--bad)"></i> Blocked Commands</h3>
+                    <p style="margin:4px 0 0 0;color:var(--muted)">Players listed here cannot use the specified commands.</p>
+                  </div>
+                </div>
+                <div id="cmdblList" style="display:flex;flex-direction:column;gap:8px;max-height:520px;overflow:auto"></div>
+              </div>
             </div>
           </div>
         </section>
