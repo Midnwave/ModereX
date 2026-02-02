@@ -1380,6 +1380,7 @@ public class HybridPanelServer {
             case "GET_COMMAND_HISTORY" -> sendCommandHistory(conn, data, session);
             case "GET_CHAT_LOGS" -> sendChatLogs(conn, data, session);
             case "GET_AUTOMOD_LOGS" -> sendAutomodLogs(conn, data, session);
+            case "GET_ACTIVITY_LOGS" -> sendActivityLogs(conn, data, session);
             case "GET_AUTOMOD_RULES" -> sendAutomodRules(conn);
             case "UPDATE_AUTOMOD_RULE" -> updateAutomodRule(conn, data, session);
             case "CREATE_AUTOMOD_RULE" -> createAutomodRule(conn, data, session);
@@ -1987,6 +1988,185 @@ public class HybridPanelServer {
             } catch (Exception e) {
                 plugin.getLogger().warning("Failed to fetch automod logs: " + e.getMessage());
                 sendError(conn, "DATABASE_ERROR", "Failed to fetch automod logs");
+            }
+        });
+    }
+
+    /**
+     * Send activity logs from database with permission-based filtering.
+     * Only returns log types the user has permission to view.
+     */
+    private void sendActivityLogs(WebSocketConnection conn, JsonObject filters, WebPanelSession session) {
+        plugin.getServer().getScheduler().runTaskAsynchronously(plugin, () -> {
+            try {
+                if (plugin.getActivityLogManager() == null || !plugin.getActivityLogManager().isEnabled()) {
+                    JsonObject response = new JsonObject();
+                    response.addProperty("type", "ACTIVITY_LOGS_DATA");
+                    JsonObject data = new JsonObject();
+                    data.add("logs", new JsonArray());
+                    data.addProperty("total", 0);
+                    data.addProperty("page", 1);
+                    response.add("data", data);
+                    conn.send(GSON.toJson(response));
+                    return;
+                }
+
+                // Build list of allowed activity types based on user permissions
+                List<String> allowedTypes = new java.util.ArrayList<>();
+                UUID userUuid = session.playerUuid;
+
+                // Chat logs
+                if (hasViewPermission(userUuid, "moderex.history.chat")) {
+                    allowedTypes.add("CHAT");
+                }
+                // Command logs
+                if (hasViewPermission(userUuid, "moderex.history.commands")) {
+                    allowedTypes.add("COMMAND");
+                }
+                // Ban logs
+                if (hasViewPermission(userUuid, "moderex.history.bans")) {
+                    allowedTypes.add("PUNISHMENT_BAN");
+                    allowedTypes.add("PUNISHMENT_UNBAN");
+                    allowedTypes.add("PUNISHMENT_IPBAN");
+                }
+                // Mute logs
+                if (hasViewPermission(userUuid, "moderex.history.mutes")) {
+                    allowedTypes.add("PUNISHMENT_MUTE");
+                    allowedTypes.add("PUNISHMENT_UNMUTE");
+                    allowedTypes.add("PUNISHMENT_IPMUTE");
+                }
+                // Warn logs
+                if (hasViewPermission(userUuid, "moderex.history.warns")) {
+                    allowedTypes.add("PUNISHMENT_WARN");
+                    allowedTypes.add("PUNISHMENT_UNWARN");
+                }
+                // Kick logs
+                if (hasViewPermission(userUuid, "moderex.history.kicks")) {
+                    allowedTypes.add("PUNISHMENT_KICK");
+                }
+                // Automod logs
+                if (hasViewPermission(userUuid, "moderex.history.automod")) {
+                    allowedTypes.add("AUTOMOD_TRIGGER");
+                    allowedTypes.add("ANTICHEAT_ALERT");
+                }
+                // Nickname logs
+                if (hasViewPermission(userUuid, "moderex.history.nick")) {
+                    allowedTypes.add("NICKNAME_CHANGE");
+                    allowedTypes.add("USERNAME_CHANGE");
+                }
+                // Session logs
+                if (hasViewPermission(userUuid, "moderex.history.sessions")) {
+                    allowedTypes.add("SESSION_JOIN");
+                    allowedTypes.add("SESSION_QUIT");
+                }
+
+                // If no permissions, return empty
+                if (allowedTypes.isEmpty()) {
+                    JsonObject response = new JsonObject();
+                    response.addProperty("type", "ACTIVITY_LOGS_DATA");
+                    JsonObject data = new JsonObject();
+                    data.add("logs", new JsonArray());
+                    data.addProperty("total", 0);
+                    data.addProperty("page", 1);
+                    data.add("allowedTypes", new JsonArray());
+                    response.add("data", data);
+                    conn.send(GSON.toJson(response));
+                    return;
+                }
+
+                // Parse filters
+                int page = filters.has("page") ? filters.get("page").getAsInt() : 1;
+                int limit = filters.has("limit") ? filters.get("limit").getAsInt() : 50;
+                String playerFilter = filters.has("player") ? filters.get("player").getAsString().trim() : "";
+                String typeFilter = filters.has("type") ? filters.get("type").getAsString().trim().toUpperCase() : "";
+                int offset = (page - 1) * limit;
+
+                // Build WHERE clause
+                StringBuilder whereClause = new StringBuilder("WHERE type IN (");
+                List<Object> params = new java.util.ArrayList<>();
+                for (int i = 0; i < allowedTypes.size(); i++) {
+                    whereClause.append(i > 0 ? ",?" : "?");
+                    params.add(allowedTypes.get(i));
+                }
+                whereClause.append(")");
+
+                // Add player filter
+                if (!playerFilter.isEmpty()) {
+                    whereClause.append(" AND player_name LIKE ?");
+                    params.add("%" + playerFilter + "%");
+                }
+
+                // Add type filter (must be in allowed types)
+                if (!typeFilter.isEmpty() && allowedTypes.contains(typeFilter)) {
+                    // Override to single type
+                    whereClause = new StringBuilder("WHERE type = ?");
+                    params.clear();
+                    params.add(typeFilter);
+                    if (!playerFilter.isEmpty()) {
+                        whereClause.append(" AND player_name LIKE ?");
+                        params.add("%" + playerFilter + "%");
+                    }
+                }
+
+                String countQuery = "SELECT COUNT(*) FROM moderex_activity_log " + whereClause;
+                String dataQuery = "SELECT * FROM moderex_activity_log " + whereClause +
+                        " ORDER BY timestamp DESC LIMIT ? OFFSET ?";
+
+                // Get total count
+                int total = plugin.getDatabaseManager().query(countQuery, rs -> {
+                    if (rs.next()) return rs.getInt(1);
+                    return 0;
+                }, params.toArray());
+
+                // Add pagination params
+                params.add(limit);
+                params.add(offset);
+
+                // Get paginated data
+                List<JsonObject> logs = plugin.getDatabaseManager().query(dataQuery, rs -> {
+                    List<JsonObject> list = new java.util.ArrayList<>();
+                    while (rs.next()) {
+                        JsonObject log = new JsonObject();
+                        log.addProperty("id", rs.getLong("id"));
+                        log.addProperty("timestamp", rs.getLong("timestamp"));
+                        log.addProperty("playerUuid", rs.getString("player_uuid"));
+                        log.addProperty("playerName", rs.getString("player_name"));
+                        log.addProperty("type", rs.getString("type"));
+                        log.addProperty("content", rs.getString("content"));
+                        log.addProperty("extra", rs.getString("extra"));
+                        log.addProperty("server", rs.getString("server"));
+                        list.add(log);
+                    }
+                    return list;
+                }, params.toArray());
+
+                // Build response
+                JsonObject response = new JsonObject();
+                response.addProperty("type", "ACTIVITY_LOGS_DATA");
+
+                JsonObject data = new JsonObject();
+                JsonArray logsArray = new JsonArray();
+                for (JsonObject log : logs) {
+                    logsArray.add(log);
+                }
+                data.add("logs", logsArray);
+                data.addProperty("page", page);
+                data.addProperty("limit", limit);
+                data.addProperty("total", total);
+                data.addProperty("totalPages", (int) Math.ceil((double) total / limit));
+
+                // Include allowed types so frontend knows what filters to show
+                JsonArray allowedTypesArray = new JsonArray();
+                for (String type : allowedTypes) {
+                    allowedTypesArray.add(type);
+                }
+                data.add("allowedTypes", allowedTypesArray);
+
+                response.add("data", data);
+                conn.send(GSON.toJson(response));
+            } catch (Exception e) {
+                plugin.getLogger().warning("Failed to fetch activity logs: " + e.getMessage());
+                sendError(conn, "DATABASE_ERROR", "Failed to fetch activity logs");
             }
         });
     }
@@ -3975,6 +4155,33 @@ public class HybridPanelServer {
                         }
                         responseData.add("counts", counts);
                         responseData.addProperty("total", total[0]);
+                    }
+                    case "automod_alerts" -> {
+                        // Get recent automod alerts from database
+                        int total = plugin.getDatabaseManager().query(
+                            "SELECT COUNT(*) as cnt FROM moderex_activity_log WHERE type = 'AUTOMOD_TRIGGER'",
+                            rs -> rs.next() ? rs.getInt("cnt") : 0
+                        );
+                        responseData.addProperty("total", total);
+
+                        JsonArray entries = plugin.getDatabaseManager().query(
+                            "SELECT * FROM moderex_activity_log WHERE type = 'AUTOMOD_TRIGGER' ORDER BY timestamp DESC LIMIT 20",
+                            rs -> {
+                                JsonArray arr = new JsonArray();
+                                while (rs.next()) {
+                                    JsonObject entry = new JsonObject();
+                                    entry.addProperty("playerUuid", rs.getString("player_uuid"));
+                                    entry.addProperty("playerName", rs.getString("player_name"));
+                                    entry.addProperty("rule", rs.getString("extra"));
+                                    entry.addProperty("content", rs.getString("content"));
+                                    entry.addProperty("server", rs.getString("server"));
+                                    entry.addProperty("timestamp", rs.getLong("timestamp"));
+                                    arr.add(entry);
+                                }
+                                return arr;
+                            }
+                        );
+                        responseData.add("entries", entries);
                     }
                 }
             } catch (Exception e) {

@@ -90,6 +90,7 @@ This document contains all permissions used by ModereX. When editing permissions
 | `moderex.history.automod` | View automod flag logs for a player |
 | `moderex.history.commands` | View past commands ran by a player |
 | `moderex.history.chat` | View past chat history for a player |
+| `moderex.history.sessions` | View player session history (join/leave activity) |
 
 ### Player Information
 

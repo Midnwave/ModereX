@@ -14,6 +14,52 @@
 
 window.MX_CHANGELOGS = [
   {
+    build: 216,
+    version: "2.0dev-216",
+    date: "2026-02-02",
+    title: "Activity Log & Punishment Revamp",
+    sections: [
+      {
+        type: "new",
+        title: "Activity Log Page",
+        items: [
+          "**Database-Backed Logs** - New Activity Log page replaces Live Logs with database persistence",
+          "**Permission-Filtered** - Only shows activity types you have permission to view",
+          "**Search Filters** - Use player:name and type:chat style filters",
+          "**Real-Time Updates** - New activity entries pushed via WebSocket",
+          "**Pagination** - Browse through historical activity logs"
+        ]
+      },
+      {
+        type: "improved",
+        title: "Punishment Form",
+        items: [
+          "**Multi-Player Selection** - Select multiple players without toggle, auto-detects mass punishment",
+          "**Dynamic Titles** - Title updates: 'New Punishment' → 'New Ban' → 'Ban - Player' → 'Mass Ban - 3 Players'",
+          "**Smart Search** - Player search only shows after typing 2+ characters",
+          "**Better Styling** - Solid backgrounds, hover glow effects, player avatars in results",
+          "**Player Tags** - Selected players shown as removable tags with avatars"
+        ]
+      },
+      {
+        type: "fixed",
+        title: "Bug Fixes",
+        items: [
+          "**Automod Logs** - Fixed permission mismatch preventing automod logs from displaying",
+          "**Create Rule** - Editor popup now opens reliably after creating new automod rule",
+          "**Database Debug** - Added automod alerts viewer in Developer Tools"
+        ]
+      },
+      {
+        type: "permissions",
+        title: "New Permissions",
+        items: [
+          "**moderex.history.sessions** - View player session history (join/leave activity logs)"
+        ]
+      }
+    ]
+  },
+  {
     build: 215,
     version: "2.0dev-215",
     date: "2026-01-31",

@@ -867,6 +867,7 @@ permissions:
       moderex.history.automod: true
       moderex.history.commands: true
       moderex.history.chat: true
+      moderex.history.sessions: true
 
   moderex.history.warns:
     description: View warning history for a player
@@ -902,6 +903,10 @@ permissions:
 
   moderex.history.chat:
     description: View past chat history for a player
+    default: op
+
+  moderex.history.sessions:
+    description: View player session history (join/leave activity)
     default: op
 
   # ==================== WATCHLIST HISTORY PERMISSIONS ====================

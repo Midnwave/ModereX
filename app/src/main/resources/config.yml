@@ -228,6 +228,10 @@ staff:
   # Sound to play (Bukkit Sound enum name)
   chat-sound: ENTITY_ITEM_PICKUP
 
+  # How long to keep staff chat messages in the database (in days)
+  # Set to -1 to keep forever
+  chat-history-retention: 30
+
 # ============================================
 # JOIN/LEAVE MESSAGES
 # ============================================
@@ -622,7 +626,7 @@ activity-log:
 # CONFIGURATION VERSION
 # ============================================
 # DO NOT MODIFY - Used for automatic config migration
-config-version: 12
+config-version: 13
 
 
 

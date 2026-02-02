@@ -484,48 +484,25 @@
    * Shows overlay if user lacks moderex.alerts.anticheat permission.
    */
   function updateAnticheatPermissionOverlay() {
-    const overlay = document.getElementById('anticheatNoPermOverlay');
     const card = document.getElementById('anticheatIntegrationCard');
-    const toggle = document.getElementById('anticheatReplaceToggle');
-
-    if (!overlay || !card) return;
+    if (!card) return;
 
     const hasPermission = window.hasPermission ? window.hasPermission('moderex.alerts.anticheat') : true;
-
-    if (hasPermission) {
-      overlay.style.display = 'none';
-      if (toggle) {
-        toggle.disabled = false;
-        toggle.classList.remove('no-permission');
-      }
-    } else {
-      overlay.style.display = 'flex';
-      if (toggle) {
-        toggle.disabled = true;
-        toggle.classList.add('no-permission');
-      }
-    }
+    // Hide entire card if no permission
+    card.style.display = hasPermission ? '' : 'none';
   }
 
   /**
-   * Update online staff section permission overlay.
-   * Shows overlay if user lacks moderex.staff permission.
+   * Update online staff section visibility.
+   * Hides card if user lacks moderex.staff permission.
    */
   function updateOnlineStaffPermission() {
-    const overlay = document.getElementById('onlineStaffNoPermOverlay');
-    const list = document.getElementById('staffOnlineList');
-
-    if (!overlay || !list) return;
+    const card = document.getElementById('onlineStaffCard');
+    if (!card) return;
 
     const canViewStaff = window.hasPermission ? window.hasPermission('moderex.staff') : true;
-
-    if (canViewStaff) {
-      overlay.style.display = 'none';
-      list.style.display = 'block';
-    } else {
-      overlay.style.display = 'block';
-      list.style.display = 'none';
-    }
+    // Hide entire card if no permission
+    card.style.display = canViewStaff ? '' : 'none';
   }
 
   /**
@@ -709,6 +686,42 @@
     titleEl.textContent = `${type} · ${p?.name || 'Select Player'}`;
   }
 
+  // New dynamic title for punishment create modal
+  function updatePunishCreateTitle() {
+    const titleEl = dom().punishCreateTitle;
+    if (!titleEl) return;
+
+    const type = dom().punishCreateType?.value || state.pendingPunishType || '';
+    const playerCount = state.massPlayerIds.length;
+
+    // Format type name (WARN -> Warn, BAN -> Ban, etc.)
+    const typeLabel = type ? type.charAt(0) + type.slice(1).toLowerCase() : '';
+
+    if (playerCount === 0) {
+      // No players selected
+      if (type) {
+        titleEl.textContent = `New ${typeLabel}`;
+      } else {
+        titleEl.textContent = 'New Punishment';
+      }
+    } else if (playerCount === 1) {
+      // Single player
+      const playerName = state.massPlayerNames[0] || 'Player';
+      if (type) {
+        titleEl.textContent = `${typeLabel} - ${playerName}`;
+      } else {
+        titleEl.textContent = `Punish - ${playerName}`;
+      }
+    } else {
+      // Multiple players (mass punishment)
+      if (type) {
+        titleEl.textContent = `Mass ${typeLabel} - ${playerCount} Players`;
+      } else {
+        titleEl.textContent = `Mass Punishment - ${playerCount} Players`;
+      }
+    }
+  }
+
   function renderEvidenceOptions(playerId, selectEl, previewEl) {
     const p = state.players.find(x => x.id === playerId);
     const evs = p ? state.evidence.filter(e => e.playerId === p.id) : [];
@@ -827,15 +840,13 @@
     const target = $(`#page-${page}`);
     if (target) target.classList.add('active');
     $$('.sb-item').forEach(item => item.classList.toggle('active', item.dataset.page === page));
-    if (page !== 'livelogs') {
-      state.manualPaused = false;
-      state.autoPaused = false;
-      state.logsFilters.page = 1;
-    }
     if (page === 'punishments') ui.renderPunishments();
     if (page === 'players') ui.renderPlayers();
     if (page === 'watchlist') ui.renderWatchlist();
-    if (page === 'livelogs') ui.renderLogs();
+    if (page === 'activitylog') {
+      // Fetch activity logs from database when opening page
+      fetchActivityLogs(1);
+    }
     if (page === 'automod') {
       // Request fresh automod rules from server when opening automod page
       const ws = window.MX?.ws;
@@ -2221,8 +2232,8 @@
       dom().drawerRecent.innerHTML = `<div class="drawer-row"><div class="meta"><small><i class="fa-solid fa-lock"></i> No permission to view commands</small></div></div>`;
     }
 
-    // Automod Logs section - requires moderex.alerts.automod permission
-    const canViewAutomod = window.hasPermission ? window.hasPermission('moderex.alerts.automod') : true;
+    // Automod Logs section - requires moderex.history.automod permission
+    const canViewAutomod = window.hasPermission ? window.hasPermission('moderex.history.automod') : true;
     if (canViewAutomod) {
       const fetchedAutomod = (p.automodLogs || []).slice(0, 6);
       const liveAutomod = state.logs.filter(l => l.kind === 'automod' && l.playerId === p.id).slice(-6).reverse();
@@ -2318,22 +2329,23 @@
 
     dom().punishCreateOverlay.classList.add('show');
     state.punishCreateLocked = !!lockPlayer;
-    state.punishCreatePlayerId = playerId || state.punishCreatePlayerId || state.players[0]?.id || null;
-    if (state.punishCreatePlayerId) state.selectedPlayerId = state.punishCreatePlayerId;
-    const selected = state.players.find(x => x.id === state.punishCreatePlayerId);
-    dom().punishCreatePlayer.value = state.punishCreateLocked ? (selected?.name || '') : '';
-    dom().punishCreatePlayer.disabled = state.punishCreateLocked;
 
-    // Reset mass punishment mode
-    state.massMode = false;
+    // Reset player selection
     state.massPlayerIds = [];
     state.massPlayerNames = [];
-    const massCheckbox = document.getElementById('punishCreateMassMode');
-    if (massCheckbox) massCheckbox.checked = false;
-    const singleSection = document.getElementById('punishSinglePlayerSection');
-    const massSection = document.getElementById('punishMassPlayerSection');
-    if (singleSection) singleSection.style.display = 'block';
-    if (massSection) massSection.style.display = 'none';
+
+    // If a specific player is provided, add them to selection
+    if (playerId) {
+      const player = state.players.find(x => x.id === playerId);
+      if (player) {
+        state.massPlayerIds.push(playerId);
+        state.massPlayerNames.push(player.name);
+        state.selectedPlayerId = playerId;
+      }
+    }
+
+    dom().punishCreatePlayer.value = '';
+    dom().punishCreatePlayer.disabled = state.punishCreateLocked;
 
     // Update type dropdown to only show allowed types
     updatePunishTypeDropdown(dom().punishCreateType);
@@ -2345,7 +2357,6 @@
     }
     dom().punishCreateType.value = selectedType;
     state.pendingPunishType = selectedType;
-    updatePunishTitle(dom().punishCreateTitle, selectedType, state.punishCreatePlayerId);
 
     const tplOptions = ['<option value="none">(none)</option>'].concat(
       state.templates.filter(t => t.id !== 'none' && canIssuePunishment(t.type)).map(t => `<option value="${t.id}">${escapeHtml(t.name)}</option>`)
@@ -2359,16 +2370,14 @@
     const reasonCountEl = document.getElementById('punishCreateReasonCount');
     if (reasonCountEl) reasonCountEl.textContent = '0/100';
 
-    renderEvidenceOptions(state.punishCreatePlayerId, dom().punishCreateEvidencePick, dom().punishCreateEvidencePreview);
-    if (state.punishCreateLocked) {
-      renderPunishCreateList();
-    } else {
-      const combo = dom().punishCreateList?.closest('.combo');
-      if (combo) combo.classList.remove('open');
-      dom().punishCreateList.innerHTML = '';
-    }
+    // Close the dropdown initially
+    const combo = dom().punishCreateList?.closest('.combo');
+    if (combo) combo.classList.remove('open');
+    dom().punishCreateList.innerHTML = '';
 
-    // Update execute button state
+    // Render player tags and update title
+    renderPunishPlayerTags();
+    updatePunishCreateTitle();
     updatePunishExecuteButton();
   };
 
@@ -2458,36 +2467,107 @@
 
   function renderPunishCreateList() {
     const combo = dom().punishCreateList?.closest('.combo');
-    if (combo) combo.classList.add('open');
-    if (state.punishCreateLocked) {
-      const p = state.players.find(x => x.id === state.punishCreatePlayerId);
-      dom().punishCreateList.innerHTML = p ? `
-        <div class="combo-item" data-player-id="${p.id}">
-          <div class="meta"><b>${escapeHtml(p.name)} - ${escapeHtml(p.platform)}</b><small>${escapeHtml(p.uuid)}</small></div>
-          <span class="badge gray"><i class="fa-solid fa-lock"></i> Locked</span>
-        </div>
-      ` : '';
+    const q = (dom().punishCreatePlayer.value || '').trim().toLowerCase();
+
+    // Only show results after 2+ characters
+    if (q.length < 2) {
+      if (combo) combo.classList.remove('open');
+      dom().punishCreateList.innerHTML = '';
       return;
     }
-    const q = (dom().punishCreatePlayer.value || '').trim().toLowerCase();
-    const list = state.players.filter(p => !q || p.name.toLowerCase().includes(q)).slice(0, 40);
-    dom().punishCreateList.innerHTML = list.length ? list.map(p => `
-      <div class="combo-item" data-player-id="${p.id}" onclick="selectPunishCreatePlayer('${p.id}')">
-        <div class="meta"><b>${escapeHtml(p.name)} - ${escapeHtml(p.platform)}</b><small>${escapeHtml(p.uuid)}</small></div>
-        <span class="badge gray"><i class="fa-solid fa-arrow-right"></i> Select</span>
+
+    if (state.punishCreateLocked) {
+      if (combo) combo.classList.remove('open');
+      return;
+    }
+
+    // Filter out already selected players
+    const list = state.players
+      .filter(p => p.name.toLowerCase().includes(q) && !state.massPlayerIds.includes(p.id))
+      .slice(0, 8);
+
+    if (list.length === 0) {
+      dom().punishCreateList.innerHTML = `<div class="punish-player-result empty"><span>No players found</span></div>`;
+      if (combo) combo.classList.add('open');
+      return;
+    }
+
+    dom().punishCreateList.innerHTML = list.map(p => `
+      <div class="punish-player-result" data-player-id="${p.id}" onclick="selectPunishCreatePlayer('${p.id}')">
+        <img class="player-avatar" src="${avatarUrl(p)}" onerror="this.onerror=null;this.src='https://minotar.net/helm/${encodeURIComponent(p.name)}/32.png'">
+        <div class="player-info">
+          <span class="player-name">${escapeHtml(p.name)}</span>
+          <span class="player-platform">${escapeHtml(p.platform)}</span>
+        </div>
+        <span class="badge ${p.status === 'online' ? 'green' : 'gray'}">${p.status}</span>
       </div>
-    `).join('') : `<div class="drawer-row"><div class="meta"><small>No players found.</small></div></div>`;
+    `).join('');
+
+    if (combo) combo.classList.add('open');
   }
 
+  function renderPunishPlayerTags() {
+    const container = document.getElementById('punishPlayerTags');
+    const countBadge = document.getElementById('punishPlayerCount');
+    if (!container) return;
+
+    if (state.massPlayerIds.length === 0) {
+      container.innerHTML = '';
+      if (countBadge) countBadge.style.display = 'none';
+      return;
+    }
+
+    container.innerHTML = state.massPlayerNames.map((name, idx) => {
+      const playerId = state.massPlayerIds[idx];
+      const player = state.players.find(p => p.id === playerId);
+      return `
+        <span class="punish-player-tag">
+          <img class="tag-avatar" src="${avatarUrl(player)}" onerror="this.onerror=null;this.src='https://minotar.net/helm/${encodeURIComponent(name)}/16.png'">
+          <span class="tag-name">${escapeHtml(name)}</span>
+          ${state.punishCreateLocked ? '' : `<span class="tag-remove" onclick="removePunishPlayer(${idx})"><i class="fa-solid fa-xmark"></i></span>`}
+        </span>
+      `;
+    }).join('');
+
+    if (countBadge) {
+      countBadge.textContent = `${state.massPlayerIds.length} selected`;
+      countBadge.style.display = state.massPlayerIds.length > 1 ? 'inline-flex' : 'none';
+    }
+  }
+
+  window.removePunishPlayer = function(idx) {
+    state.massPlayerIds.splice(idx, 1);
+    state.massPlayerNames.splice(idx, 1);
+    renderPunishPlayerTags();
+    updatePunishCreateTitle();
+    updatePunishExecuteButton();
+  };
+
   window.selectPunishCreatePlayer = function(playerId) {
-    state.punishCreatePlayerId = playerId;
-    state.selectedPlayerId = playerId;
     const p = state.players.find(x => x.id === playerId);
-    dom().punishCreatePlayer.value = p?.name || '';
-    updatePunishTitle(dom().punishCreateTitle, dom().punishCreateType.value, playerId);
-    renderEvidenceOptions(playerId, dom().punishCreateEvidencePick, dom().punishCreateEvidencePreview);
+    if (!p) return;
+
+    // Check if already selected
+    if (state.massPlayerIds.includes(playerId)) {
+      toast('warn', 'Already Added', `${p.name} is already selected.`);
+      return;
+    }
+
+    // Add to selection
+    state.massPlayerIds.push(playerId);
+    state.massPlayerNames.push(p.name);
+    state.selectedPlayerId = playerId;
+
+    // Clear input and close dropdown
+    dom().punishCreatePlayer.value = '';
     const combo = dom().punishCreateList?.closest('.combo');
     combo?.classList.remove('open');
+    dom().punishCreateList.innerHTML = '';
+
+    // Update UI
+    renderPunishPlayerTags();
+    updatePunishCreateTitle();
+    updatePunishExecuteButton();
   };
 
   window.applyTemplateToPunishCreate = function(templateId) {
@@ -2502,22 +2582,41 @@
     state.pendingPunishType = dom().punishCreateType.value;
     dom().punishCreateReason.value = t.reason;
     dom().punishCreateDuration.value = t.duration || '';
-    updatePunishTitle(dom().punishCreateTitle, dom().punishCreateType.value, state.punishCreatePlayerId);
+    updatePunishCreateTitle();
   };
 
   window.submitPunishCreate = function() {
     const type = dom().punishCreateType.value || 'WARN';
     const reason = dom().punishCreateReason.value.trim() || 'No reason';
     const duration = dom().punishCreateDuration.value.trim() || (type === 'BAN' ? 'perm' : type === 'MUTE' ? '7d' : '');
+    const playerCount = state.massPlayerIds.length;
 
-    // Handle mass punishment mode
-    if (state.massMode) {
-      if (state.massPlayerIds.length === 0) {
-        window.MX.sounds?.toastWarning();
-        toast('warn', 'No Targets', 'Add at least one player first.');
-        return;
-      }
+    // Check if any players selected
+    if (playerCount === 0) {
+      window.MX.sounds?.toastWarning();
+      toast('warn', 'No Target', 'Select at least one player first.');
+      return;
+    }
 
+    // Permission check for punishment type
+    if (!canIssuePunishment(type)) {
+      console.debug('[Permission] Denied CREATE punishment type:', type);
+      window.MX.sounds?.toastWarning();
+      toast('bad', 'No Permission', `You do not have permission to issue ${type.toLowerCase()} punishments.`);
+      return;
+    }
+
+    // Validate duration for permanent punishment permissions
+    const durationCheck = validatePunishDuration(type, duration);
+    if (!durationCheck.valid) {
+      console.debug('[Permission] Denied permanent duration for:', type);
+      window.MX.sounds?.toastWarning();
+      toast('bad', 'No Permission', durationCheck.error);
+      return;
+    }
+
+    // Handle mass punishment (2+ players)
+    if (playerCount > 1) {
       // Check mass punishment permission
       const massPermMap = {
         'WARN': 'moderex.masswarn',
@@ -2542,43 +2641,27 @@
       sendMessage({ type: 'RUN_COMMAND', command });
       closePunishCreateModal();
       window.MX.sounds?.punishment();
-      toast('ok', 'Mass Punishment Sent', `${type} queued for ${state.massPlayerIds.length} players.`, {silent: true});
+      toast('ok', 'Mass Punishment Sent', `${type} queued for ${playerCount} players.`, {silent: true});
 
-      // Reset mass state
-      state.massMode = false;
+      // Reset state
       state.massPlayerIds = [];
       state.massPlayerNames = [];
       return;
     }
 
     // Single player mode
-    const pid = state.punishCreatePlayerId;
-    if (!pid) { window.MX.sounds?.toastWarning(); toast('warn', 'No Target', 'Select a player first.'); return; }
-
-    // Permission check for punishment type
-    if (!canIssuePunishment(type)) {
-      console.debug('[Permission] Denied CREATE punishment type:', type);
-      window.MX.sounds?.toastWarning();
-      toast('bad', 'No Permission', `You do not have permission to issue ${type.toLowerCase()} punishments.`);
-      return;
-    }
-
-    // Validate duration for permanent punishment permissions
-    const durationCheck = validatePunishDuration(type, duration);
-    if (!durationCheck.valid) {
-      console.debug('[Permission] Denied permanent duration for:', type);
-      window.MX.sounds?.toastWarning();
-      toast('bad', 'No Permission', durationCheck.error);
-      return;
-    }
-
+    const pid = state.massPlayerIds[0];
     const evId = dom().punishCreateEvidencePick?.value || null;
     executePunishment({ playerId: pid, type, reason, duration, evidenceId: evId });
     ui.renderPunishments();
     ui.renderPlayers();
     closePunishCreateModal();
     window.MX.sounds?.punishment();
-    toast('ok', 'Executed', `${type} applied to ${state.players.find(p => p.id === pid)?.name || 'player'}.`, {silent: true});
+    toast('ok', 'Executed', `${type} applied to ${state.massPlayerNames[0] || 'player'}.`, {silent: true});
+
+    // Reset state
+    state.massPlayerIds = [];
+    state.massPlayerNames = [];
   };
 
   window.closePunishModal = function(e) {
@@ -2589,123 +2672,6 @@
     }, 220);
   };
 
-  // ===== MASS PUNISHMENT MODE =====
-  window.toggleMassPunishMode = function(enabled) {
-    state.massMode = enabled;
-    const singleSection = document.getElementById('punishSinglePlayerSection');
-    const massSection = document.getElementById('punishMassPlayerSection');
-    const titleEl = dom().punishCreateTitle;
-
-    if (enabled) {
-      singleSection.style.display = 'none';
-      massSection.style.display = 'block';
-      state.massPlayerIds = [];
-      state.massPlayerNames = [];
-      renderMassPlayerTags();
-      updateMassPunishTitle();
-      setupMassPlayerCombo();
-    } else {
-      singleSection.style.display = 'block';
-      massSection.style.display = 'none';
-      state.massPlayerIds = [];
-      state.massPlayerNames = [];
-      updatePunishTitle(titleEl, dom().punishCreateType.value, state.punishCreatePlayerId);
-    }
-    updatePunishExecuteButton();
-  };
-
-  function updateMassPunishTitle() {
-    const titleEl = dom().punishCreateTitle;
-    const type = dom().punishCreateType.value || 'WARN';
-    const count = state.massPlayerIds.length;
-    titleEl.textContent = `Mass ${type} · ${count} player${count !== 1 ? 's' : ''}`;
-  }
-
-  function renderMassPlayerTags() {
-    const container = document.getElementById('punishMassPlayerTags');
-    const countBadge = document.getElementById('punishMassPlayerCount');
-    if (!container) return;
-
-    container.innerHTML = state.massPlayerNames.map((name, idx) => `
-      <span class="mass-player-tag">
-        <span>${escapeHtml(name)}</span>
-        <span class="tag-remove" onclick="removeMassPlayer(${idx})"><i class="fa-solid fa-xmark"></i></span>
-      </span>
-    `).join('');
-
-    if (countBadge) {
-      countBadge.textContent = `${state.massPlayerIds.length} selected`;
-    }
-    updateMassPunishTitle();
-    updatePunishExecuteButton();
-  }
-
-  window.removeMassPlayer = function(idx) {
-    state.massPlayerIds.splice(idx, 1);
-    state.massPlayerNames.splice(idx, 1);
-    renderMassPlayerTags();
-  };
-
-  window.addMassPlayer = function(playerId, playerName) {
-    if (state.massPlayerIds.includes(playerId)) {
-      toast('warn', 'Already Added', `${playerName} is already in the list.`);
-      return;
-    }
-    state.massPlayerIds.push(playerId);
-    state.massPlayerNames.push(playerName);
-    renderMassPlayerTags();
-
-    // Clear input
-    const input = document.getElementById('punishMassPlayerInput');
-    if (input) input.value = '';
-
-    // Close combo list
-    const combo = input?.closest('.combo');
-    if (combo) combo.classList.remove('open');
-  };
-
-  function setupMassPlayerCombo() {
-    const input = document.getElementById('punishMassPlayerInput');
-    const list = document.getElementById('punishMassPlayerList');
-    if (!input || !list) return;
-
-    input.oninput = () => {
-      const q = input.value.toLowerCase().trim();
-      const combo = input.closest('.combo');
-
-      if (q.length < 1) {
-        combo?.classList.remove('open');
-        return;
-      }
-
-      const matches = state.players
-        .filter(p => p.name.toLowerCase().includes(q) && !state.massPlayerIds.includes(p.id))
-        .slice(0, 8);
-
-      if (matches.length === 0) {
-        combo?.classList.remove('open');
-        return;
-      }
-
-      list.innerHTML = matches.map(p => `
-        <div class="combo-item" onclick="addMassPlayer('${p.id}', '${escapeHtml(p.name)}')">
-          <span style="display:flex;align-items:center;gap:8px">
-            <img src="${avatarUrl(p)}" style="width:24px;height:24px;border-radius:4px" onerror="this.onerror=null;this.src='https://minotar.net/helm/${encodeURIComponent(p.name)}/24.png'">
-            ${escapeHtml(p.name)}
-          </span>
-          <span class="badge ${p.status === 'online' ? 'green' : 'gray'}">${p.status}</span>
-        </div>
-      `).join('');
-
-      combo?.classList.add('open');
-    };
-
-    input.onblur = () => {
-      setTimeout(() => {
-        input.closest('.combo')?.classList.remove('open');
-      }, 200);
-    };
-  }
 
   function updatePunishExecuteButton() {
     const btn = document.getElementById('punishCreateExecuteBtn');
@@ -2715,16 +2681,10 @@
     let valid = true;
     let message = 'Review before submitting';
 
-    if (state.massMode) {
-      if (state.massPlayerIds.length === 0) {
-        valid = false;
-        message = 'Add at least one player';
-      }
-    } else {
-      if (!state.punishCreatePlayerId) {
-        valid = false;
-        message = 'Select a player first';
-      }
+    // Check if at least one player is selected
+    if (state.massPlayerIds.length === 0) {
+      valid = false;
+      message = 'Select at least one player';
     }
 
     btn.disabled = !valid;
@@ -3258,8 +3218,8 @@
   };
 
   window.openAutomodLogs = function(playerId) {
-    // Check permission first
-    if (window.hasPermission && !window.hasPermission('moderex.alerts.automod')) {
+    // Check permission first - must match backend (moderex.history.automod)
+    if (window.hasPermission && !window.hasPermission('moderex.history.automod')) {
       toast('error', 'Permission Denied', 'You do not have permission to view automod logs.');
       return;
     }
@@ -4404,6 +4364,346 @@
     logEvent(pun.type === 'BAN' ? 'ERROR' : 'WARN', 'punishment', `${pun.type} | ${p?.name}`, `${pun.reason} | case ${pun.id.slice(-8)}`, { playerId, caseId: pun.id, kind: 'punishment', punType: pun.type, type: pun.type });
   }
 
+  // ===== ACTIVITY LOG (Database-backed) =====
+
+  /**
+   * Fetch activity logs from database with current filters
+   */
+  window.fetchActivityLogs = function(page = 1) {
+    const ws = window.MX?.ws;
+    if (!ws || !ws.isConnected()) {
+      console.warn('[ActivityLog] WebSocket not connected');
+      return;
+    }
+
+    const pageSize = parseInt(document.getElementById('activityPageSize')?.value || '100', 10);
+    const searchInput = document.getElementById('activitySearch')?.value || '';
+
+    // Parse search input for filters
+    let playerFilter = '';
+    let typeFilter = '';
+    const parts = searchInput.split(/\s+/).filter(p => p);
+    const freeText = [];
+
+    for (const part of parts) {
+      if (part.toLowerCase().startsWith('player:')) {
+        playerFilter = part.substring(7);
+      } else if (part.toLowerCase().startsWith('type:')) {
+        typeFilter = part.substring(5).toUpperCase();
+      } else {
+        freeText.push(part);
+      }
+    }
+
+    // If there's free text without prefix, treat it as player search
+    if (freeText.length > 0 && !playerFilter) {
+      playerFilter = freeText.join(' ');
+    }
+
+    ws.send('GET_ACTIVITY_LOGS', {
+      page,
+      limit: pageSize,
+      player: playerFilter,
+      type: typeFilter
+    });
+  };
+
+  window.refreshActivityLogs = function() {
+    fetchActivityLogs(1);
+  };
+
+  window.activityPrevPage = function() {
+    const currentPage = state.activityLogs.page || 1;
+    if (currentPage > 1) {
+      fetchActivityLogs(currentPage - 1);
+    }
+  };
+
+  window.activityNextPage = function() {
+    const currentPage = state.activityLogs.page || 1;
+    const totalPages = state.activityLogs.totalPages || 1;
+    if (currentPage < totalPages) {
+      fetchActivityLogs(currentPage + 1);
+    }
+  };
+
+  /**
+   * Render activity logs to the page
+   */
+  function renderActivityLogs() {
+    const box = document.getElementById('activityLogBox');
+    const pageInfo = document.getElementById('activityPageInfo');
+    if (!box) return;
+
+    const logs = state.activityLogs.logs || [];
+    const total = state.activityLogs.total || 0;
+    const page = state.activityLogs.page || 1;
+    const totalPages = state.activityLogs.totalPages || 1;
+
+    if (pageInfo) {
+      pageInfo.textContent = `${page} / ${totalPages}`;
+    }
+
+    if (logs.length === 0) {
+      box.innerHTML = `
+        <div class="activity-log-item" style="text-align:center;padding:40px;color:var(--text-secondary)">
+          <i class="fa-solid fa-inbox" style="font-size:32px;margin-bottom:12px;opacity:0.5"></i>
+          <p style="margin:0">No activity logs found</p>
+          <p style="margin:8px 0 0 0;font-size:12px">Try adjusting your filters or search criteria</p>
+        </div>
+      `;
+      return;
+    }
+
+    box.innerHTML = logs.map(log => {
+      const typeClass = getActivityTypeClass(log.type);
+      const typeLabel = getActivityTypeLabel(log.type);
+      const timestamp = fmtLong(log.timestamp);
+
+      return `
+        <div class="activity-log-item" data-player-id="${log.playerUuid}">
+          <div class="activity-log-left">
+            <b>${escapeHtml(log.playerName || 'Unknown')}</b>
+            <small>${escapeHtml(log.content || '')}${log.extra ? ' | ' + escapeHtml(log.extra) : ''}</small>
+          </div>
+          <div class="activity-log-right">
+            <span class="activity-type ${typeClass}">${typeLabel}</span>
+            <span style="font-size:11px;color:var(--text-secondary)">${timestamp}</span>
+          </div>
+        </div>
+      `;
+    }).join('');
+
+    // Make items clickable to open player drawer
+    box.querySelectorAll('.activity-log-item[data-player-id]').forEach(item => {
+      item.onclick = () => {
+        const uuid = item.dataset.playerId;
+        const player = state.players.find(p => p.uuid === uuid || p.id === uuid);
+        if (player) {
+          openDrawer(player.id);
+        }
+      };
+    });
+  }
+
+  function getActivityTypeClass(type) {
+    if (!type) return '';
+    if (type.includes('CHAT')) return 'chat';
+    if (type.includes('COMMAND')) return 'command';
+    if (type.includes('BAN') || type.includes('IPBAN')) return 'ban';
+    if (type.includes('MUTE') || type.includes('IPMUTE')) return 'mute';
+    if (type.includes('WARN')) return 'warn';
+    if (type.includes('KICK')) return 'kick';
+    if (type.includes('AUTOMOD') || type.includes('ANTICHEAT')) return 'automod';
+    if (type.includes('SESSION')) return 'session';
+    if (type.includes('NICK') || type.includes('USERNAME')) return 'nick';
+    return '';
+  }
+
+  function getActivityTypeLabel(type) {
+    if (!type) return 'Unknown';
+    const labels = {
+      'CHAT': 'Chat',
+      'COMMAND': 'Command',
+      'PUNISHMENT_BAN': 'Ban',
+      'PUNISHMENT_UNBAN': 'Unban',
+      'PUNISHMENT_IPBAN': 'IP Ban',
+      'PUNISHMENT_MUTE': 'Mute',
+      'PUNISHMENT_UNMUTE': 'Unmute',
+      'PUNISHMENT_IPMUTE': 'IP Mute',
+      'PUNISHMENT_WARN': 'Warn',
+      'PUNISHMENT_UNWARN': 'Unwarn',
+      'PUNISHMENT_KICK': 'Kick',
+      'AUTOMOD_TRIGGER': 'Automod',
+      'ANTICHEAT_ALERT': 'Anticheat',
+      'SESSION_JOIN': 'Join',
+      'SESSION_QUIT': 'Leave',
+      'NICKNAME_CHANGE': 'Nick',
+      'USERNAME_CHANGE': 'Username'
+    };
+    return labels[type] || type.replace(/_/g, ' ').toLowerCase().replace(/\b\w/g, c => c.toUpperCase());
+  }
+
+  /**
+   * Show search suggestions dropdown
+   */
+  function showActivitySearchSuggestions(query) {
+    const suggestionBox = document.getElementById('activitySearchSuggestions');
+    if (!suggestionBox) return;
+
+    const lowerQuery = query.toLowerCase();
+    const suggestions = [];
+
+    // Player filter suggestion
+    if (!query.includes('player:') && (lowerQuery.startsWith('p') || lowerQuery.startsWith('pla'))) {
+      suggestions.push({
+        icon: 'fa-user',
+        text: '<b>player:</b>name',
+        hint: 'Filter by player name',
+        value: 'player:'
+      });
+    }
+
+    // Type filter suggestions
+    if (!query.includes('type:') && (lowerQuery.startsWith('t') || lowerQuery.startsWith('typ'))) {
+      suggestions.push({
+        icon: 'fa-filter',
+        text: '<b>type:</b>chat',
+        hint: 'Filter by activity type',
+        value: 'type:'
+      });
+    }
+
+    // Type-specific suggestions
+    const allowedTypes = state.activityLogs.allowedTypes || [];
+    const typeMap = {
+      'CHAT': { label: 'chat', icon: 'fa-message' },
+      'COMMAND': { label: 'command', icon: 'fa-terminal' },
+      'PUNISHMENT_BAN': { label: 'ban', icon: 'fa-hammer' },
+      'PUNISHMENT_MUTE': { label: 'mute', icon: 'fa-volume-xmark' },
+      'PUNISHMENT_WARN': { label: 'warn', icon: 'fa-triangle-exclamation' },
+      'PUNISHMENT_KICK': { label: 'kick', icon: 'fa-door-open' },
+      'AUTOMOD_TRIGGER': { label: 'automod', icon: 'fa-robot' },
+      'SESSION_JOIN': { label: 'session', icon: 'fa-right-to-bracket' },
+      'NICKNAME_CHANGE': { label: 'nick', icon: 'fa-signature' }
+    };
+
+    if (query.toLowerCase().startsWith('type:')) {
+      const typeQuery = query.substring(5).toLowerCase();
+      for (const [type, info] of Object.entries(typeMap)) {
+        if (allowedTypes.includes(type) && info.label.includes(typeQuery)) {
+          suggestions.push({
+            icon: info.icon,
+            text: `<b>type:</b>${info.label}`,
+            hint: `Show ${info.label} logs`,
+            value: `type:${info.label}`
+          });
+        }
+      }
+    }
+
+    if (suggestions.length === 0) {
+      suggestionBox.style.display = 'none';
+      return;
+    }
+
+    suggestionBox.innerHTML = suggestions.map(s => `
+      <div class="search-suggestion" data-value="${escapeHtml(s.value)}">
+        <i class="fa-solid ${s.icon}"></i>
+        <div class="suggestion-text">${s.text}</div>
+        <div class="suggestion-hint">${s.hint}</div>
+      </div>
+    `).join('');
+
+    suggestionBox.querySelectorAll('.search-suggestion').forEach(el => {
+      el.onclick = () => {
+        const searchInput = document.getElementById('activitySearch');
+        if (searchInput) {
+          // Replace or append the filter
+          const currentValue = searchInput.value;
+          const filterPrefix = el.dataset.value.split(':')[0] + ':';
+          if (currentValue.includes(filterPrefix)) {
+            searchInput.value = currentValue.replace(new RegExp(filterPrefix + '\\S*'), el.dataset.value);
+          } else {
+            searchInput.value = (currentValue + ' ' + el.dataset.value).trim();
+          }
+          searchInput.focus();
+        }
+        suggestionBox.style.display = 'none';
+      };
+    });
+
+    suggestionBox.style.display = 'block';
+  }
+
+  /**
+   * Open activity filter panel
+   */
+  window.openActivityFilterPanel = function() {
+    const allowedTypes = state.activityLogs.allowedTypes || [];
+    if (allowedTypes.length === 0) {
+      toast('info', 'No Permissions', 'You do not have permission to view any activity types');
+      return;
+    }
+
+    const enabledTypes = state.activityLogs.filters.enabledTypes || {};
+
+    // Initialize all allowed types as enabled if not set
+    for (const type of allowedTypes) {
+      if (enabledTypes[type] === undefined) {
+        enabledTypes[type] = true;
+      }
+    }
+
+    const typeLabels = {
+      'CHAT': { label: 'Chat', icon: 'fa-message' },
+      'COMMAND': { label: 'Commands', icon: 'fa-terminal' },
+      'PUNISHMENT_BAN': { label: 'Bans', icon: 'fa-hammer' },
+      'PUNISHMENT_UNBAN': { label: 'Unbans', icon: 'fa-unlock' },
+      'PUNISHMENT_MUTE': { label: 'Mutes', icon: 'fa-volume-xmark' },
+      'PUNISHMENT_UNMUTE': { label: 'Unmutes', icon: 'fa-volume-high' },
+      'PUNISHMENT_WARN': { label: 'Warns', icon: 'fa-triangle-exclamation' },
+      'PUNISHMENT_UNWARN': { label: 'Unwarns', icon: 'fa-check' },
+      'PUNISHMENT_KICK': { label: 'Kicks', icon: 'fa-door-open' },
+      'AUTOMOD_TRIGGER': { label: 'Automod', icon: 'fa-robot' },
+      'ANTICHEAT_ALERT': { label: 'Anticheat', icon: 'fa-shield' },
+      'SESSION_JOIN': { label: 'Joins', icon: 'fa-right-to-bracket' },
+      'SESSION_QUIT': { label: 'Leaves', icon: 'fa-right-from-bracket' },
+      'NICKNAME_CHANGE': { label: 'Nicknames', icon: 'fa-signature' },
+      'USERNAME_CHANGE': { label: 'Usernames', icon: 'fa-user-pen' }
+    };
+
+    const overlay = document.createElement('div');
+    overlay.className = 'overlay show';
+    overlay.style.zIndex = 5000;
+    overlay.innerHTML = `
+      <div class="modal" style="max-width:500px" onclick="event.stopPropagation()">
+        <div class="modal-top">
+          <b><i class="fa-solid fa-sliders" style="margin-right:8px"></i>Activity Filters</b>
+          <button class="mini" onclick="this.closest('.overlay').remove()"><i class="fa-solid fa-xmark"></i></button>
+        </div>
+        <div class="modal-body">
+          <p style="margin-bottom:16px;color:var(--text-secondary);font-size:13px">
+            Toggle which activity types to show. Only types you have permission to view are listed.
+          </p>
+          <div class="grid cols-2" style="gap:12px">
+            ${allowedTypes.map(type => {
+              const info = typeLabels[type] || { label: type, icon: 'fa-circle' };
+              const checked = enabledTypes[type] !== false;
+              return `
+                <label class="toggle-wrap" style="cursor:pointer">
+                  <button class="toggle ${checked ? 'on' : ''}" data-type="${type}" onclick="this.classList.toggle('on')">
+                    <span class="toggle-thumb"></span>
+                  </button>
+                  <div class="toggle-meta">
+                    <div class="toggle-title"><i class="fa-solid ${info.icon}" style="margin-right:6px;opacity:0.7"></i>${info.label}</div>
+                  </div>
+                </label>
+              `;
+            }).join('')}
+          </div>
+        </div>
+        <div class="modal-foot">
+          <button class="btn ghost" onclick="this.closest('.overlay').remove()"><i class="fa-solid fa-xmark"></i> Close</button>
+          <button class="btn primary" id="activityFilterApply"><i class="fa-solid fa-check"></i> Apply</button>
+        </div>
+      </div>
+    `;
+
+    overlay.onclick = () => overlay.remove();
+    document.body.appendChild(overlay);
+
+    document.getElementById('activityFilterApply').onclick = () => {
+      // Save filter state
+      overlay.querySelectorAll('.toggle[data-type]').forEach(toggle => {
+        const type = toggle.dataset.type;
+        state.activityLogs.filters.enabledTypes[type] = toggle.classList.contains('on');
+      });
+      overlay.remove();
+      fetchActivityLogs(1);
+    };
+  };
+
   // ===== SETTINGS =====
   window.toggleSetting = function(key) {
     const ws = window.MX?.ws;
@@ -5079,6 +5379,32 @@
       saveUserPrefs();
       ui.renderLogs();
     });
+
+    // Activity Log search event listeners
+    const activitySearchEl = document.getElementById('activitySearch');
+    if (activitySearchEl) {
+      let searchTimeout = null;
+      activitySearchEl.addEventListener('input', (e) => {
+        // Show suggestions while typing
+        showActivitySearchSuggestions(e.target.value);
+        // Debounce the actual search
+        clearTimeout(searchTimeout);
+        searchTimeout = setTimeout(() => fetchActivityLogs(1), 500);
+      });
+      activitySearchEl.addEventListener('focus', () => {
+        if (activitySearchEl.value) {
+          showActivitySearchSuggestions(activitySearchEl.value);
+        }
+      });
+      activitySearchEl.addEventListener('blur', () => {
+        // Hide suggestions after a delay (allow click on suggestion)
+        setTimeout(() => {
+          const suggestionBox = document.getElementById('activitySearchSuggestions');
+          if (suggestionBox) suggestionBox.style.display = 'none';
+        }, 200);
+      });
+    }
+
     dom().slowSeconds?.addEventListener('input', (e) => {
       state.settings.slowSeconds = parseInt(e.target.value || '0', 10);
       ui.markUnsaved('settings', true);
@@ -5113,11 +5439,7 @@
     });
     dom().punishCreateType?.addEventListener('change', (e) => {
       state.pendingPunishType = e.target.value;
-      if (state.massMode) {
-        updateMassPunishTitle();
-      } else {
-        updatePunishTitle(dom().punishCreateTitle, e.target.value, state.punishCreatePlayerId);
-      }
+      updatePunishCreateTitle();
     });
     dom().punishCreateTemplate?.addEventListener('change', (e) => applyTemplateToPunishCreate(e.target.value));
     dom().punishCreateEvidencePick?.addEventListener('change', () => updateEvidencePreviewFor(dom().punishCreateEvidencePick, dom().punishCreateEvidencePreview));
@@ -5202,7 +5524,7 @@
     { id: 'anticheat', name: 'Anticheat', icon: 'fa-shield-halved', keywords: ['hacks', 'cheats', 'alerts'] },
     { id: 'watchlist', name: 'Watchlist', icon: 'fa-eye', keywords: ['monitor', 'watch', 'track'] },
     { id: 'replay', name: 'Replays', icon: 'fa-film', keywords: ['recording', 'playback', 'session'] },
-    { id: 'livelogs', name: 'Live Logs', icon: 'fa-terminal', keywords: ['console', 'events', 'stream'] },
+    { id: 'activitylog', name: 'Activity Log', icon: 'fa-scroll', keywords: ['history', 'events', 'database', 'chat', 'commands'] },
     { id: 'staffchat', name: 'Staff Chat', icon: 'fa-comments', keywords: ['team', 'message', 'communicate'] },
     { id: 'mysettings', name: 'My Settings', icon: 'fa-user-gear', keywords: ['preferences', 'sounds', 'notifications'] },
     { id: 'messages', name: 'Messages', icon: 'fa-language', keywords: ['lang', 'text', 'translate'] },
@@ -5959,12 +6281,17 @@
 
       // Open editor if this was a new rule creation from addRuleUI
       if (shouldOpenEditor) {
-        // Open editor immediately after render completes
-        requestAnimationFrame(() => {
+        // Open editor after a short delay to ensure state is fully updated
+        setTimeout(() => {
+          console.log('[Automod] Opening editor for new rule:', data.id);
+          console.log('[Automod] Rule in state:', state.rules.find(r => r.id === data.id));
           if (window.openAutomodRuleEditor) {
             window.openAutomodRuleEditor(data.id);
+          } else {
+            console.error('[Automod] openAutomodRuleEditor not available');
+            toast('error', 'Error', 'Could not open rule editor');
           }
-        });
+        }, 100);
         // Show a clickable toast as well
         toast('ok', 'Rule Created', `${data.name || 'New rule'} created`, {
           ttl: 6000,
@@ -6104,6 +6431,25 @@
       updateSettingsUI();
       ui.renderWatchToastsToggle();
       ui.renderStaffSettings();
+    });
+
+    // Handle activity logs data (database-backed activity logs)
+    ws.on('ACTIVITY_LOGS_DATA', (data) => {
+      if (!isLiveMode) return;
+      state.activityLogs.logs = data.logs || [];
+      state.activityLogs.total = data.total || 0;
+      state.activityLogs.page = data.page || 1;
+      state.activityLogs.totalPages = data.totalPages || 1;
+      state.activityLogs.allowedTypes = data.allowedTypes || [];
+
+      // Initialize enabled types if not set
+      if (Object.keys(state.activityLogs.filters.enabledTypes).length === 0) {
+        for (const type of state.activityLogs.allowedTypes) {
+          state.activityLogs.filters.enabledTypes[type] = true;
+        }
+      }
+
+      renderActivityLogs();
     });
 
     // Handle anticheat alerts data (list of all checks)
@@ -6428,8 +6774,8 @@
 
     ws.on('AUTOMOD_TRIGGER', (data) => {
       if (!isLiveMode) return;
-      // Check for moderex.alerts.automod permission
-      if (window.hasPermission && !window.hasPermission('moderex.alerts.automod')) return;
+      // Check for moderex.history.automod permission
+      if (window.hasPermission && !window.hasPermission('moderex.history.automod')) return;
       const player = state.players.find(p => p.uuid === data.playerUuid);
       logEvent('WARN', 'automod', `Automod | ${data.rule}`, `${data.playerName}: ${data.message}`, { playerId: player?.id, kind: 'automod', type: 'AUTOMOD' });
       showPanelAlert('automod', `Automod Alert: ${data.playerName}`, `Triggered: ${data.rule} | "${data.message}"`, { playerId: player?.id, playerName: data.playerName, severity: 'warn' });
@@ -6437,8 +6783,8 @@
 
     ws.on('AUTOMOD_TRIGGERED', (data) => {
       if (!isLiveMode) return;
-      // Check for moderex.alerts.automod permission
-      if (window.hasPermission && !window.hasPermission('moderex.alerts.automod')) return;
+      // Check for moderex.history.automod permission
+      if (window.hasPermission && !window.hasPermission('moderex.history.automod')) return;
       const player = state.players.find(p => p.uuid === data.playerUuid);
       logEvent('WARN', 'automod', `Automod | ${data.rule}`, `${data.playerName}: ${data.message}`, { playerId: player?.id, kind: 'automod', type: 'AUTOMOD' });
       showPanelAlert('automod', `Automod Alert: ${data.playerName}`, `Triggered: ${data.rule} | "${data.message}"`, { playerId: player?.id, playerName: data.playerName, severity: 'warn' });
@@ -8767,6 +9113,17 @@
     }
   }
 
+  function debugLoadAutomodAlerts() {
+    showDatabaseOutput('<div style="color:#06b6d4">Loading automod alerts from database...</div>');
+
+    // Request automod alerts from server
+    if (window.MX?.ws?.send) {
+      window.MX.ws.send('GET_DATABASE_DEBUG', { type: 'automod_alerts' });
+    } else {
+      showDatabaseOutput('<div style="color:#ef4444">WebSocket not connected!</div>');
+    }
+  }
+
   // Handle database debug responses
   window.handleDatabaseDebugResponse = function(data) {
     if (data.type === 'stats') {
@@ -8804,6 +9161,23 @@
       }
       html += `<div style="margin-top:8px;margin-left:12px;color:#64748b">Total: ${data.total?.toLocaleString() || 0} entries</div>`;
       showDatabaseOutput(html);
+    } else if (data.type === 'automod_alerts') {
+      let html = `<div style="margin-bottom:12px;color:#22c55e;font-weight:600">Automod Alerts (${data.total || 0} total, showing ${data.entries?.length || 0}):</div>`;
+      if (!data.entries || data.entries.length === 0) {
+        html += '<div style="color:#f59e0b;margin-left:12px">No automod alerts found in database</div>';
+      } else {
+        data.entries.forEach((entry, i) => {
+          html += `<div style="margin-left:12px;padding:6px 0;border-bottom:1px solid rgba(255,255,255,0.1)">`;
+          html += `<div><span style="color:#a78bfa">[${i + 1}]</span> `;
+          html += `<span style="color:#fff">${escapeHtml(entry.playerName || 'Unknown')}</span> `;
+          html += `<span style="color:#64748b">(${entry.playerUuid?.substring(0, 8) || '?'})</span></div>`;
+          html += `<div style="margin-left:24px;color:#06b6d4">Rule: ${escapeHtml(entry.rule || 'N/A')}</div>`;
+          html += `<div style="margin-left:24px;color:#94a3b8">Content: ${escapeHtml(entry.content || 'N/A')}</div>`;
+          html += `<div style="margin-left:24px;color:#64748b">Time: ${fmtLong(entry.timestamp)}</div>`;
+          html += `</div>`;
+        });
+      }
+      showDatabaseOutput(html);
     }
   };
 
@@ -8813,6 +9187,7 @@
   window.debugLoadPunishments = debugLoadPunishments;
   window.debugLoadCmdBlacklist = debugLoadCmdBlacklist;
   window.debugLoadActivityLogs = debugLoadActivityLogs;
+  window.debugLoadAutomodAlerts = debugLoadAutomodAlerts;
 
   // ===== TOKEN STRESS TEST =====
   function startTokenStressTest() {

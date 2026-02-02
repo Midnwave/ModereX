@@ -646,9 +646,22 @@
     const canCreate = window.hasPermission ? window.hasPermission('moderex.automod.create') : true;
     const canDelete = window.hasPermission ? window.hasPermission('moderex.automod.delete') : true;
 
-    // Apply permission classes to container
-    dom.rulesList.classList.remove('automod-no-view', 'automod-no-edit', 'automod-no-delete');
-    if (!canView) dom.rulesList.classList.add('automod-no-view');
+    // Check for permission overlay and content elements
+    const noPermOverlay = document.getElementById('automodNoPermissionOverlay');
+    const automodContent = document.getElementById('automodContent');
+
+    // Show/hide based on view permission
+    if (!canView) {
+      if (noPermOverlay) noPermOverlay.style.display = 'flex';
+      if (automodContent) automodContent.style.display = 'none';
+      return; // Don't render rules if no view permission
+    } else {
+      if (noPermOverlay) noPermOverlay.style.display = 'none';
+      if (automodContent) automodContent.style.display = '';
+    }
+
+    // Apply permission classes for edit/delete control
+    dom.rulesList.classList.remove('automod-no-edit', 'automod-no-delete');
     if (!canEdit) dom.rulesList.classList.add('automod-no-edit');
     if (!canDelete) dom.rulesList.classList.add('automod-no-delete');
 

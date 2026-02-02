@@ -27,8 +27,7 @@
     selectedEvidenceId: null,
     pendingPunishType: 'WARN',
     punishTargetLocked: false,
-    // Mass punishment state
-    massMode: false,
+    // Punishment player selection state
     massPlayerIds: [],
     massPlayerNames: [],
     punishFilters: { BAN: true, MUTE: true, WARN: true, KICK: true },
@@ -48,6 +47,20 @@
     logsRun: true,
     manualPaused: false,
     autoPaused: false,
+    // Activity Log state (database-backed)
+    activityLogs: {
+      logs: [],
+      total: 0,
+      page: 1,
+      pageSize: 100,
+      totalPages: 1,
+      allowedTypes: [],
+      filters: {
+        player: '',
+        type: '',
+        enabledTypes: {}
+      }
+    },
     settings: {
       chatDisabled: false,
       slowEnabled: true,

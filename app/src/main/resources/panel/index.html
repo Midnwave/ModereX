@@ -180,7 +180,7 @@
           <div class="sb-item" data-page="cmdblacklist"><i class="fa-solid fa-ban"></i> Cmd Blacklist</div>
           <div class="sb-item" data-page="anticheat"><i class="fa-solid fa-shield-halved"></i> Anticheat</div>
           <div class="sb-item" data-page="watchlist"><i class="fa-solid fa-eye"></i> Watchlist</div>
-          <div class="sb-item" data-page="livelogs"><i class="fa-solid fa-terminal"></i> Live Logs</div>
+          <div class="sb-item" data-page="activitylog"><i class="fa-solid fa-scroll"></i> Activity Log</div>
           <div class="sb-item" data-page="status"><i class="fa-solid fa-server"></i> Server Status</div>
         </div>
 
@@ -583,7 +583,16 @@
             </div>
           </div>
 
-          <div class="panel pad">
+          <!-- Permission overlay (hidden by default) -->
+          <div id="automodNoPermissionOverlay" class="page-permission-box" style="display:none">
+            <div class="permission-card">
+              <i class="fa-solid fa-lock"></i>
+              <h3>Permission Required</h3>
+              <p>You do not have permission to view automod rules</p>
+            </div>
+          </div>
+
+          <div id="automodContent" class="panel pad">
             <div class="toolbar" style="margin-top:0;margin-bottom:16px">
               <div class="left">
                 <div class="gsearch" style="width:100%;max-width:400px">
@@ -716,42 +725,48 @@
           </div>
         </section>
 
-        <!-- Live Logs Page -->
-        <section class="page" id="page-livelogs">
+        <!-- Activity Log Page -->
+        <section class="page" id="page-activitylog">
           <div class="page-head">
             <div class="page-title">
-              <h1>Live Logs</h1>
-              <p>Real-time server event stream and activity monitor.</p>
+              <h1>Activity Log</h1>
+              <p>Player activity history from database.</p>
             </div>
             <div style="display:flex;gap:10px;align-items:center">
-              <button class="btn bad" onclick="clearLogs()"><i class="fa-solid fa-trash"></i> Clear</button>
+              <button class="btn" onclick="refreshActivityLogs()"><i class="fa-solid fa-sync"></i> Refresh</button>
             </div>
           </div>
-          
+
           <div class="panel pad">
             <div class="toolbar" style="margin-top:0">
               <div class="left">
-                <div class="gsearch" style="width:100%;max-width:400px">
+                <div class="gsearch activity-search" style="width:100%;max-width:400px;position:relative">
                   <i class="fa-solid fa-magnifying-glass"></i>
-                  <input type="text" id="logsSearch" placeholder="Filter logs...">
+                  <input type="text" id="activitySearch" placeholder="Search... (player:name, type:chat)" autocomplete="off">
+                  <div class="search-suggestions" id="activitySearchSuggestions" style="display:none"></div>
                 </div>
               </div>
               <div class="right">
-                <button class="btn" id="logsFilterBtn" onclick="openLogsFilterPanel()"><i class="fa-solid fa-sliders"></i> Filters</button>
-                <select class="input" id="logsPageSize" style="width:110px">
+                <button class="btn" id="activityFilterBtn" onclick="openActivityFilterPanel()"><i class="fa-solid fa-sliders"></i> Filters</button>
+                <select class="input" id="activityPageSize" style="width:110px" onchange="fetchActivityLogs(1)">
                   <option value="50">50 / page</option>
                   <option value="100" selected>100 / page</option>
                   <option value="200">200 / page</option>
                 </select>
                 <div class="page-controls">
-                  <button class="mini" id="logsPrev" onclick="logsPrevPage()"><i class="fa-solid fa-chevron-left"></i></button>
-                  <span class="chip" id="logsPageInfo">1 / 1</span>
-                  <button class="mini" id="logsNext" onclick="logsNextPage()"><i class="fa-solid fa-chevron-right"></i></button>
+                  <button class="mini" id="activityPrev" onclick="activityPrevPage()"><i class="fa-solid fa-chevron-left"></i></button>
+                  <span class="chip" id="activityPageInfo">1 / 1</span>
+                  <button class="mini" id="activityNext" onclick="activityNextPage()"><i class="fa-solid fa-chevron-right"></i></button>
                 </div>
               </div>
             </div>
-            
-            <div class="logsBox" id="logsBox" style="margin-top:16px"></div>
+
+            <div class="activity-log-box" id="activityLogBox" style="margin-top:16px">
+              <div class="activity-log-item" style="text-align:center;padding:40px;color:var(--text-secondary)">
+                <i class="fa-solid fa-spinner fa-spin" style="font-size:24px;margin-bottom:12px"></i>
+                <p style="margin:0">Loading activity logs...</p>
+              </div>
+            </div>
           </div>
         </section>
 
@@ -990,11 +1005,6 @@
               <div class="card" id="onlineStaffCard" style="margin:0">
                 <h3><i class="fa-solid fa-users" style="color:var(--primary-light)"></i> Online Staff</h3>
                 <p>Team members currently available.</p>
-                <!-- Permission overlay -->
-                <div id="onlineStaffNoPermOverlay" style="display:none;padding:40px;text-align:center;color:var(--text-secondary)">
-                  <i class="fa-solid fa-lock" style="font-size:32px;opacity:0.4;margin-bottom:12px;display:block"></i>
-                  <p style="margin:0">You do not have permission to view online staff</p>
-                </div>
                 <div id="staffOnlineList" style="margin-top:14px">
                   <div class="staff-member">
                     <div class="profile-avatar"><img src="https://mc-heads.net/avatar/MHF_Steve/32" alt=""></div>
@@ -1375,13 +1385,7 @@
               </div>
             </div>
 
-            <div class="card" style="margin-top:20px;position:relative" id="anticheatIntegrationCard">
-              <div id="anticheatNoPermOverlay" style="display:none;position:absolute;inset:0;background:rgba(0,0,0,0.7);border-radius:var(--radius);z-index:10;display:none;align-items:center;justify-content:center;backdrop-filter:blur(2px)">
-                <div style="text-align:center;color:var(--text-secondary);padding:24px">
-                  <i class="fa-solid fa-lock" style="font-size:24px;margin-bottom:8px;opacity:0.6"></i>
-                  <p style="margin:0;font-size:13px">You lack permission to configure anticheat alerts</p>
-                </div>
-              </div>
+            <div class="card" style="margin-top:20px" id="anticheatIntegrationCard">
               <h3><i class="fa-solid fa-shield-halved" style="color:var(--accent-light)"></i> Anticheat Integration</h3>
               <p>Replace anticheat alerts with ModereX alerts.</p>
               <div class="toggle-wrap" style="margin-top:12px">
@@ -1411,11 +1415,11 @@
           </div>
 
           <!-- Permission overlay (hidden by default) -->
-          <div id="anticheatNoPermissionOverlay" class="panel pad" style="display:none;min-height:400px;align-items:center;justify-content:center">
-            <div style="text-align:center;color:var(--text-secondary)">
-              <i class="fa-solid fa-lock" style="font-size:48px;opacity:0.4;margin-bottom:16px;display:block"></i>
-              <h3 style="margin:0 0 8px 0;color:var(--text-primary)">Permission Required</h3>
-              <p style="margin:0">You do not have permission to configure anticheat alerts</p>
+          <div id="anticheatNoPermissionOverlay" class="page-permission-box" style="display:none">
+            <div class="permission-card">
+              <i class="fa-solid fa-lock"></i>
+              <h3>Permission Required</h3>
+              <p>You do not have permission to configure anticheat alerts</p>
             </div>
           </div>
 
@@ -1854,6 +1858,9 @@
                   <button class="btn" onclick="debugLoadCmdBlacklist()"><i class="fa-solid fa-ban"></i> Cmd Blacklist</button>
                   <button class="btn" onclick="debugLoadActivityLogs()"><i class="fa-solid fa-scroll"></i> Activity Logs</button>
                 </div>
+                <div class="grid cols-3" style="gap:12px;margin-top:8px">
+                  <button class="btn" onclick="debugLoadAutomodAlerts()"><i class="fa-solid fa-robot"></i> Automod Alerts</button>
+                </div>
                 <div id="debugDatabaseOutput" style="margin-top:12px;padding:12px;background:rgba(0,0,0,0.3);border-radius:var(--radius);border:1px solid var(--border);font-family:var(--font-mono);font-size:12px;max-height:300px;overflow-y:auto;display:none">
                 </div>
               </div>
@@ -2027,37 +2034,19 @@
       <div class="modal-top">
         <div style="display:flex;align-items:center;gap:10px">
           <i class="fa-solid fa-gavel" style="color:var(--warn)"></i>
-          <b id="punishCreateTitle">WARN · Select Player</b>
+          <b id="punishCreateTitle">New Punishment</b>
         </div>
         <button class="mini" onclick="closePunishCreateModal()"><i class="fa-solid fa-xmark"></i></button>
       </div>
       <div class="modal-body">
-        <!-- Mass Punishment Toggle -->
-        <div class="punish-mode-toggle" style="margin-bottom:16px">
-          <label class="toggle-switch-label" style="display:flex;align-items:center;gap:10px;cursor:pointer">
-            <input type="checkbox" id="punishCreateMassMode" onchange="toggleMassPunishMode(this.checked)">
-            <span class="toggle-switch"></span>
-            <span style="font-size:13px"><i class="fa-solid fa-users"></i> Mass Punishment</span>
-          </label>
-        </div>
-
-        <!-- Single Player Target (default) -->
-        <div id="punishSinglePlayerSection">
-          <div class="hintline" style="margin-top:0">Target Player</div>
-          <div class="combo">
-            <input type="text" class="input" id="punishCreatePlayer" placeholder="Type a player name...">
-            <div class="combo-list" id="punishCreateList"></div>
+        <!-- Player Selection -->
+        <div id="punishPlayerSection">
+          <div class="hintline" style="margin-top:0">Target Player(s) <span id="punishPlayerCount" class="badge gray" style="margin-left:8px;display:none">0 selected</span></div>
+          <div class="combo punish-player-combo">
+            <input type="text" class="input" id="punishCreatePlayer" placeholder="Search for a player...">
+            <div class="combo-list punish-player-list" id="punishCreateList"></div>
           </div>
-        </div>
-
-        <!-- Mass Player Target (hidden by default) -->
-        <div id="punishMassPlayerSection" style="display:none">
-          <div class="hintline" style="margin-top:0">Target Players <span id="punishMassPlayerCount" class="badge gray" style="margin-left:8px">0 selected</span></div>
-          <div class="combo" style="margin-bottom:8px">
-            <input type="text" class="input" id="punishMassPlayerInput" placeholder="Type a player name to add...">
-            <div class="combo-list" id="punishMassPlayerList"></div>
-          </div>
-          <div id="punishMassPlayerTags" class="mass-player-tags"></div>
+          <div id="punishPlayerTags" class="punish-player-tags"></div>
         </div>
 
         <div class="grid cols-2" style="margin-top:12px">
