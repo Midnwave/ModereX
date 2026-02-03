@@ -666,6 +666,9 @@ public class HybridPanelServer {
                 String html = buildPlayerPortalHtml(punishment, authSession);
                 sendHtmlResponse(out, 200, html);
 
+            } catch (java.net.SocketException e) {
+                // Client disconnected before response was ready - normal condition
+                plugin.logDebug("[Portal] Client disconnected before response: " + e.getMessage());
             } catch (IOException e) {
                 plugin.logError("Failed to send portal response", e);
             }
@@ -716,6 +719,9 @@ public class HybridPanelServer {
                 String html = buildPlayerPortalHtml(punishment, authSession);
                 sendHtmlResponse(out, 200, html);
 
+            } catch (java.net.SocketException e) {
+                // Client disconnected before response was ready - normal condition
+                plugin.logDebug("[Portal] Client disconnected before response: " + e.getMessage());
             } catch (IOException e) {
                 plugin.logError("Failed to send portal response", e);
             }
