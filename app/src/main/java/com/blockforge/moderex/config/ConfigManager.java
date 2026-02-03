@@ -265,6 +265,15 @@ public class ConfigManager {
         settings.setRetentionStaffActions(config.getLong("activity-log.retention.staff-actions", 90));
         settings.setRetentionWatchlist(config.getLong("activity-log.retention.watchlist", 90));
 
+        // Evidence system settings
+        settings.setEvidenceMaxFileSizeMb(config.getInt("evidence.max-file-size-mb", 250));
+        settings.setEvidenceRequireEvidence(config.getBoolean("evidence.require-evidence", false));
+        settings.setEvidenceMaxActivityLogEntries(config.getInt("evidence.max-activity-log-evidence", 5));
+
+        // Player portal settings
+        settings.setPlayerPortalEnabled(config.getBoolean("player-portal.enabled", true));
+        settings.setPlayerPortalSessionExpiryHours(config.getInt("player-portal.session-expiry-hours", 12));
+
         // Command blacklist settings
         settings.setCmdBlacklistAllowModerexCommands(config.getBoolean("command-blacklist.allow-moderex-commands", false));
         settings.setCmdBlacklistProtectedCommands(config.getStringList("command-blacklist.protected-commands"));

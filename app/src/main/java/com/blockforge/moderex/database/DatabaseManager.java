@@ -368,6 +368,45 @@ public class DatabaseManager {
                     )
                     """);
 
+            // Punishment evidence links (connects evidence to punishment cases)
+            stmt.execute("""
+                    CREATE TABLE IF NOT EXISTS moderex_punishment_evidence (
+                        id INTEGER PRIMARY KEY %s,
+                        punishment_case_id VARCHAR(16) NOT NULL,
+                        evidence_type VARCHAR(32) NOT NULL,
+                        evidence_id VARCHAR(36),
+                        activity_log_id INTEGER,
+                        activity_log_snapshot TEXT,
+                        added_by_uuid VARCHAR(36) NOT NULL,
+                        added_by_name VARCHAR(16) NOT NULL,
+                        added_at BIGINT NOT NULL
+                    )
+                    """.formatted(isMySQL ? "AUTO_INCREMENT" : "AUTOINCREMENT"));
+
+            // Player auth sessions for punishment portal
+            stmt.execute("""
+                    CREATE TABLE IF NOT EXISTS moderex_player_auth_sessions (
+                        id VARCHAR(10) PRIMARY KEY,
+                        player_uuid VARCHAR(36) NOT NULL,
+                        case_id VARCHAR(16),
+                        created_at BIGINT NOT NULL,
+                        expires_at BIGINT NOT NULL,
+                        device_hash VARCHAR(64),
+                        active BOOLEAN DEFAULT TRUE
+                    )
+                    """);
+
+            // Player portal settings (separate from staff settings)
+            stmt.execute("""
+                    CREATE TABLE IF NOT EXISTS moderex_player_settings (
+                        player_uuid VARCHAR(36) PRIMARY KEY,
+                        color_scheme VARCHAR(32) DEFAULT 'blue',
+                        notifications BOOLEAN DEFAULT TRUE,
+                        trusted_devices TEXT,
+                        updated_at BIGINT NOT NULL
+                    )
+                    """);
+
             // Create indexes for performance
             createIndexes(stmt);
         }
@@ -428,6 +467,15 @@ public class DatabaseManager {
         executeIfNotExists(stmt, "CREATE INDEX IF NOT EXISTS idx_pardons_player ON moderex_pardons(player_uuid)");
         executeIfNotExists(stmt, "CREATE INDEX IF NOT EXISTS idx_pardons_staff ON moderex_pardons(staff_uuid)");
         executeIfNotExists(stmt, "CREATE INDEX IF NOT EXISTS idx_pardons_time ON moderex_pardons(pardoned_at)");
+
+        // Punishment evidence indexes
+        executeIfNotExists(stmt, "CREATE INDEX IF NOT EXISTS idx_punishment_evidence_case ON moderex_punishment_evidence(punishment_case_id)");
+        executeIfNotExists(stmt, "CREATE INDEX IF NOT EXISTS idx_punishment_evidence_type ON moderex_punishment_evidence(evidence_type)");
+
+        // Player auth session indexes
+        executeIfNotExists(stmt, "CREATE INDEX IF NOT EXISTS idx_player_auth_player ON moderex_player_auth_sessions(player_uuid)");
+        executeIfNotExists(stmt, "CREATE INDEX IF NOT EXISTS idx_player_auth_expires ON moderex_player_auth_sessions(expires_at)");
+        executeIfNotExists(stmt, "CREATE INDEX IF NOT EXISTS idx_player_auth_active ON moderex_player_auth_sessions(active)");
     }
 
     private void executeIfNotExists(Statement stmt, String sql) {

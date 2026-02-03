@@ -31,6 +31,7 @@ public class Evidence {
     public enum FileType {
         VIDEO_MP4("mp4", "video/mp4"),
         VIDEO_MKV("mkv", "video/x-matroska"),
+        VIDEO_MOV("mov", "video/quicktime"),
         IMAGE_PNG("png", "image/png"),
         IMAGE_JPG("jpg", "image/jpeg"),
         IMAGE_JPEG("jpeg", "image/jpeg");
@@ -47,7 +48,7 @@ public class Evidence {
         public String getMimeType() { return mimeType; }
 
         public boolean isVideo() {
-            return this == VIDEO_MP4 || this == VIDEO_MKV;
+            return this == VIDEO_MP4 || this == VIDEO_MKV || this == VIDEO_MOV;
         }
 
         public boolean isImage() {
@@ -76,6 +77,7 @@ public class Evidence {
 
     public enum Source {
         UPLOAD,           // Direct upload via web panel
+        ACTIVITY_LOG,     // Selected from activity log as evidence
         AUTOMOD_TRIGGER,  // Auto-captured from automod
         CHAT_HISTORY,     // Imported from chat history
         COMMAND_HISTORY,  // Imported from command history
@@ -83,8 +85,20 @@ public class Evidence {
         EXTERNAL          // External source (URL, etc.)
     }
 
-    // Maximum file size: 300MB
-    public static final long MAX_FILE_SIZE = 300 * 1024 * 1024;
+    // Maximum file size - configurable up to HARD_LIMIT
+    public static final long HARD_LIMIT_MB = 1000; // 1GB absolute max
+    public static final long HARD_LIMIT = HARD_LIMIT_MB * 1024 * 1024;
+    public static final long DEFAULT_MAX_SIZE_MB = 250;
+    public static long MAX_FILE_SIZE = DEFAULT_MAX_SIZE_MB * 1024 * 1024;
+
+    /**
+     * Update max file size from config. Respects hard limit.
+     */
+    public static void setMaxFileSizeMB(long mb) {
+        mb = Math.min(mb, HARD_LIMIT_MB);
+        mb = Math.max(mb, 1); // At least 1MB
+        MAX_FILE_SIZE = mb * 1024 * 1024;
+    }
 
     /**
      * Create new evidence with auto-generated ID.

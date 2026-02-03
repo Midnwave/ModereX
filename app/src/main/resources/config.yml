@@ -623,10 +623,36 @@ activity-log:
     usernames: true      # Username changes
 
 # ============================================
+# EVIDENCE SYSTEM
+# ============================================
+evidence:
+  # Maximum file upload size in MB (hard limit: 1000 MB)
+  max-file-size-mb: 250
+
+  # Require evidence when issuing punishments
+  # If true, staff must attach at least one piece of evidence to punish
+  require-evidence: false
+
+  # Maximum number of activity log entries that can be attached as evidence
+  max-activity-log-evidence: 5
+
+# ============================================
+# PLAYER PUNISHMENT PORTAL
+# ============================================
+player-portal:
+  # Enable the player punishment portal
+  # Players can view their punishment details and evidence at a unique URL
+  enabled: true
+
+  # Session expiry time in hours
+  # Players must generate a new link after this time
+  session-expiry-hours: 12
+
+# ============================================
 # CONFIGURATION VERSION
 # ============================================
 # DO NOT MODIFY - Used for automatic config migration
-config-version: 13
+config-version: 14
 
 
 

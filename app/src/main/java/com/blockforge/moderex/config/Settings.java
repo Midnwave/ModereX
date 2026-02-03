@@ -212,6 +212,15 @@ public class Settings {
     private long retentionStaffActions = 90;
     private long retentionWatchlist = 90;
 
+    // Evidence system settings
+    private int evidenceMaxFileSizeMb = 250;
+    private boolean evidenceRequireEvidence = false;
+    private int evidenceMaxActivityLogEntries = 5;
+
+    // Player portal settings
+    private boolean playerPortalEnabled = true;
+    private int playerPortalSessionExpiryHours = 12;
+
     // Config version for migration
     private int configVersion = 2;
 
@@ -976,6 +985,23 @@ public class Settings {
 
     public long getRetentionWatchlist() { return retentionWatchlist; }
     public void setRetentionWatchlist(long v) { this.retentionWatchlist = v; }
+
+    // Evidence system getters/setters
+    public int getEvidenceMaxFileSizeMb() { return evidenceMaxFileSizeMb; }
+    public void setEvidenceMaxFileSizeMb(int v) { this.evidenceMaxFileSizeMb = v; }
+
+    public boolean isEvidenceRequireEvidence() { return evidenceRequireEvidence; }
+    public void setEvidenceRequireEvidence(boolean v) { this.evidenceRequireEvidence = v; }
+
+    public int getEvidenceMaxActivityLogEntries() { return evidenceMaxActivityLogEntries; }
+    public void setEvidenceMaxActivityLogEntries(int v) { this.evidenceMaxActivityLogEntries = v; }
+
+    // Player portal getters/setters
+    public boolean isPlayerPortalEnabled() { return playerPortalEnabled; }
+    public void setPlayerPortalEnabled(boolean v) { this.playerPortalEnabled = v; }
+
+    public int getPlayerPortalSessionExpiryHours() { return playerPortalSessionExpiryHours; }
+    public void setPlayerPortalSessionExpiryHours(int v) { this.playerPortalSessionExpiryHours = v; }
 
     /**
      * Get the server name (uses web panel server name).

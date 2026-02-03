@@ -26,7 +26,7 @@ public class EvidenceManager {
     private final Gson gson = new GsonBuilder().setPrettyPrinting().create();
 
     // Allowed file extensions
-    private static final Set<String> ALLOWED_EXTENSIONS = Set.of("mp4", "mkv", "png", "jpg", "jpeg");
+    private static final Set<String> ALLOWED_EXTENSIONS = Set.of("mp4", "mkv", "mov", "png", "jpg", "jpeg");
 
     public EvidenceManager(ModereX plugin) {
         this.plugin = plugin;
