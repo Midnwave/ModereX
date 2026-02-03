@@ -225,8 +225,20 @@ public class HybridPanelServer {
                 return;
             }
 
+            // Handle POST requests for evidence upload
+            if ("POST".equals(method) && path.equals("/api/evidence/upload")) {
+                handleEvidenceUpload(socket, in, out, headers);
+                return;
+            }
+
             if (!"GET".equals(method)) {
                 sendHttpError(out, 405, "Method Not Allowed");
+                return;
+            }
+
+            // Player portal route: /moderex/punishment/{case-id}/{auth-session}
+            if (path.startsWith("/moderex/punishment/")) {
+                handlePlayerPortalRequest(out, path);
                 return;
             }
 
@@ -310,6 +322,351 @@ public class HybridPanelServer {
             plugin.logDebug("AI API error: " + e.getMessage());
             sendHttpError(out, 502, "AI service unavailable");
         }
+    }
+
+    /**
+     * Handle evidence file upload
+     */
+    private void handleEvidenceUpload(Socket socket, InputStream socketIn, OutputStream out, Map<String, String> headers) throws IOException {
+        // Check authorization
+        String authHeader = headers.get("authorization");
+        if (authHeader == null || !authHeader.toLowerCase().startsWith("bearer ")) {
+            sendJsonResponse(out, 401, "{\"success\":false,\"error\":\"Authorization required\"}");
+            return;
+        }
+
+        String sessionId = authHeader.substring(7);
+
+        // Validate session via WebAuthManager
+        WebAuthManager authManager = plugin.getWebAuthManager();
+        if (authManager == null) {
+            sendJsonResponse(out, 401, "{\"success\":false,\"error\":\"Authentication system not available\"}");
+            return;
+        }
+
+        WebAuthManager.AuthenticatedSession authSession = authManager.validateSession(sessionId);
+        if (authSession == null) {
+            sendJsonResponse(out, 401, "{\"success\":false,\"error\":\"Invalid or expired session\"}");
+            return;
+        }
+
+        // Get content length
+        int contentLength;
+        try {
+            contentLength = Integer.parseInt(headers.getOrDefault("content-length", "0"));
+        } catch (NumberFormatException e) {
+            sendJsonResponse(out, 400, "{\"success\":false,\"error\":\"Invalid content length\"}");
+            return;
+        }
+
+        // Check max file size (default 250MB, configurable)
+        long maxSize = com.blockforge.moderex.evidence.Evidence.MAX_FILE_SIZE;
+        if (contentLength <= 0 || contentLength > maxSize) {
+            sendJsonResponse(out, 400, "{\"success\":false,\"error\":\"File too large. Maximum size is " + (maxSize / 1024 / 1024) + " MB\"}");
+            return;
+        }
+
+        // Get content type (multipart/form-data; boundary=...)
+        String contentType = headers.getOrDefault("content-type", "");
+        if (!contentType.startsWith("multipart/form-data")) {
+            sendJsonResponse(out, 400, "{\"success\":false,\"error\":\"Expected multipart/form-data\"}");
+            return;
+        }
+
+        // Extract boundary
+        String boundary = null;
+        for (String part : contentType.split(";")) {
+            part = part.trim();
+            if (part.startsWith("boundary=")) {
+                boundary = part.substring(9);
+                if (boundary.startsWith("\"") && boundary.endsWith("\"")) {
+                    boundary = boundary.substring(1, boundary.length() - 1);
+                }
+                break;
+            }
+        }
+
+        if (boundary == null) {
+            sendJsonResponse(out, 400, "{\"success\":false,\"error\":\"Missing boundary in content type\"}");
+            return;
+        }
+
+        // Read full body
+        byte[] bodyBytes = new byte[contentLength];
+        int totalRead = 0;
+        while (totalRead < contentLength) {
+            int read = socketIn.read(bodyBytes, totalRead, contentLength - totalRead);
+            if (read < 0) break;
+            totalRead += read;
+        }
+
+        // Parse multipart data
+        String boundaryPrefix = "--" + boundary;
+        byte[] boundaryBytes = boundaryPrefix.getBytes(StandardCharsets.UTF_8);
+
+        // Find file data
+        int pos = 0;
+        String fileName = null;
+        byte[] fileData = null;
+
+        while (pos < bodyBytes.length) {
+            // Find next boundary
+            int boundaryStart = indexOf(bodyBytes, boundaryBytes, pos);
+            if (boundaryStart < 0) break;
+
+            pos = boundaryStart + boundaryBytes.length;
+            if (pos >= bodyBytes.length) break;
+
+            // Skip CRLF
+            if (bodyBytes[pos] == '\r') pos++;
+            if (pos < bodyBytes.length && bodyBytes[pos] == '\n') pos++;
+
+            // Check for closing boundary
+            if (pos + 1 < bodyBytes.length && bodyBytes[pos] == '-' && bodyBytes[pos + 1] == '-') {
+                break;
+            }
+
+            // Read headers until empty line
+            StringBuilder headerBuilder = new StringBuilder();
+            while (pos < bodyBytes.length) {
+                int lineEnd = pos;
+                while (lineEnd < bodyBytes.length && bodyBytes[lineEnd] != '\n') lineEnd++;
+
+                String line = new String(bodyBytes, pos, lineEnd - pos, StandardCharsets.UTF_8).trim();
+                pos = lineEnd + 1;
+
+                if (line.isEmpty()) break;
+                headerBuilder.append(line).append("\n");
+            }
+
+            String partHeaders = headerBuilder.toString();
+
+            // Extract filename from Content-Disposition
+            if (partHeaders.contains("filename=\"")) {
+                int fnStart = partHeaders.indexOf("filename=\"") + 10;
+                int fnEnd = partHeaders.indexOf("\"", fnStart);
+                if (fnEnd > fnStart) {
+                    fileName = partHeaders.substring(fnStart, fnEnd);
+                }
+            }
+
+            // Find end of this part (next boundary)
+            int nextBoundary = indexOf(bodyBytes, boundaryBytes, pos);
+            if (nextBoundary < 0) nextBoundary = bodyBytes.length;
+
+            // Extract file data (minus trailing CRLF before boundary)
+            int dataEnd = nextBoundary;
+            if (dataEnd > pos && bodyBytes[dataEnd - 1] == '\n') dataEnd--;
+            if (dataEnd > pos && bodyBytes[dataEnd - 1] == '\r') dataEnd--;
+
+            if (fileName != null && dataEnd > pos) {
+                fileData = new byte[dataEnd - pos];
+                System.arraycopy(bodyBytes, pos, fileData, 0, dataEnd - pos);
+                break;
+            }
+
+            pos = nextBoundary;
+        }
+
+        if (fileName == null || fileData == null || fileData.length == 0) {
+            sendJsonResponse(out, 400, "{\"success\":false,\"error\":\"No file found in request\"}");
+            return;
+        }
+
+        // Upload through evidence manager
+        try {
+            com.blockforge.moderex.evidence.Evidence evidence = plugin.getEvidenceManager()
+                    .uploadEvidence(authSession.playerUuid, authSession.playerName, fileName,
+                            new java.io.ByteArrayInputStream(fileData), fileData.length)
+                    .get();
+
+            if (evidence == null) {
+                sendJsonResponse(out, 400, "{\"success\":false,\"error\":\"Failed to save evidence. Check file type and size.\"}");
+                return;
+            }
+
+            // Return success with evidence info
+            JsonObject response = new JsonObject();
+            response.addProperty("success", true);
+            response.add("evidence", evidence.toJson());
+            sendJsonResponse(out, 200, GSON.toJson(response));
+
+        } catch (Exception e) {
+            plugin.logError("Evidence upload failed", e);
+            sendJsonResponse(out, 500, "{\"success\":false,\"error\":\"Server error during upload\"}");
+        }
+    }
+
+    /**
+     * Handle player punishment portal requests.
+     * URL format: /moderex/punishment/{case-id}/{auth-session}
+     */
+    private void handlePlayerPortalRequest(OutputStream out, String path) throws IOException {
+        // Check if portal is enabled
+        if (!plugin.getConfigManager().getSettings().isPlayerPortalEnabled()) {
+            sendHtmlError(out, 503, "Player Portal Disabled", "The punishment portal is currently disabled.");
+            return;
+        }
+
+        // Parse path: /moderex/punishment/{case-id}/{auth-session}
+        String[] pathParts = path.substring("/moderex/punishment/".length()).split("/");
+        if (pathParts.length < 2) {
+            sendHtmlError(out, 400, "Invalid URL", "The URL format is invalid. Please use the link provided in your punishment message.");
+            return;
+        }
+
+        String caseId = pathParts[0];
+        String sessionId = pathParts[1];
+
+        // Validate session
+        com.blockforge.moderex.portal.PlayerAuthSession authSession = plugin.getAuthSessionManager().validateSession(sessionId);
+        if (authSession == null) {
+            sendHtmlError(out, 401, "Session Expired", "Your session has expired or is invalid. Please use a new link from your punishment message.");
+            return;
+        }
+
+        // Load punishment by case ID
+        plugin.getPunishmentManager().getPunishmentByCaseId(caseId).thenAccept(punishment -> {
+            try {
+                if (punishment == null) {
+                    sendHtmlError(out, 404, "Punishment Not Found", "The punishment case was not found.");
+                    return;
+                }
+
+                // Verify the player owns this punishment
+                if (!punishment.getPlayerUuid().equals(authSession.getPlayerUuid())) {
+                    sendHtmlError(out, 403, "Access Denied", "You do not have permission to view this punishment.");
+                    return;
+                }
+
+                // Build the portal HTML page
+                String html = buildPlayerPortalHtml(punishment, authSession);
+                sendHtmlResponse(out, 200, html);
+
+            } catch (IOException e) {
+                plugin.logError("Failed to send portal response", e);
+            }
+        });
+    }
+
+    /**
+     * Build the HTML page for the player punishment portal.
+     */
+    private String buildPlayerPortalHtml(com.blockforge.moderex.punishment.Punishment punishment, com.blockforge.moderex.portal.PlayerAuthSession session) {
+        String serverName = plugin.getConfigManager().getSettings().getServerName();
+        String primaryColor = "#2d7aed";
+        String status = punishment.isActive() ? "Active" : (punishment.isExpired() ? "Expired" : "Revoked");
+        String statusColor = punishment.isActive() ? "#ef4444" : (punishment.isExpired() ? "#6b7280" : "#22c55e");
+
+        String expiresAt = punishment.getExpiresAt() > 0
+                ? new java.text.SimpleDateFormat("yyyy-MM-dd HH:mm:ss").format(new java.util.Date(punishment.getExpiresAt()))
+                : "Permanent";
+        String issuedAt = new java.text.SimpleDateFormat("yyyy-MM-dd HH:mm:ss").format(new java.util.Date(punishment.getCreatedAt()));
+
+        StringBuilder html = new StringBuilder();
+        html.append("<!DOCTYPE html>");
+        html.append("<html lang=\"en\">");
+        html.append("<head>");
+        html.append("<meta charset=\"UTF-8\">");
+        html.append("<meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\">");
+        html.append("<title>").append(serverName).append(" - Punishment Details</title>");
+        html.append("<style>");
+        html.append("* { margin: 0; padding: 0; box-sizing: border-box; }");
+        html.append("body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #0f172a; color: #e2e8f0; min-height: 100vh; }");
+        html.append("header { background: #1e293b; border-bottom: 1px solid #334155; padding: 16px 24px; display: flex; justify-content: space-between; align-items: center; }");
+        html.append(".server-name { font-size: 20px; font-weight: 600; color: ").append(primaryColor).append("; }");
+        html.append(".player-info { font-size: 14px; color: #94a3b8; }");
+        html.append("main { max-width: 800px; margin: 40px auto; padding: 0 20px; }");
+        html.append(".card { background: #1e293b; border: 1px solid #334155; border-radius: 12px; padding: 24px; margin-bottom: 24px; }");
+        html.append(".card-title { font-size: 18px; font-weight: 600; margin-bottom: 16px; display: flex; align-items: center; gap: 10px; }");
+        html.append(".row { display: flex; justify-content: space-between; padding: 12px 0; border-bottom: 1px solid #334155; }");
+        html.append(".row:last-child { border-bottom: none; }");
+        html.append(".label { color: #94a3b8; font-size: 14px; }");
+        html.append(".value { font-size: 14px; text-align: right; }");
+        html.append(".badge { display: inline-block; padding: 4px 10px; border-radius: 4px; font-size: 12px; font-weight: 600; }");
+        html.append(".type-badge { background: rgba(239, 68, 68, 0.2); color: #ef4444; }");
+        html.append(".status-badge { background: rgba(").append(statusColor.equals("#ef4444") ? "239, 68, 68" : (statusColor.equals("#22c55e") ? "34, 197, 94" : "107, 114, 128")).append(", 0.2); color: ").append(statusColor).append("; }");
+        html.append(".reason-box { background: #0f172a; border-radius: 8px; padding: 16px; margin-top: 12px; font-size: 14px; line-height: 1.6; }");
+        html.append("</style>");
+        html.append("</head>");
+        html.append("<body>");
+
+        // Header
+        html.append("<header>");
+        html.append("<div class=\"server-name\">").append(escapeHtml(serverName)).append("</div>");
+        html.append("<div class=\"player-info\">Logged in as <strong>").append(escapeHtml(punishment.getPlayerName())).append("</strong></div>");
+        html.append("</header>");
+
+        // Main content
+        html.append("<main>");
+
+        // Punishment details card
+        html.append("<div class=\"card\">");
+        html.append("<div class=\"card-title\"><span class=\"badge type-badge\">").append(punishment.getType().name()).append("</span> Punishment Details</div>");
+
+        html.append("<div class=\"row\"><span class=\"label\">Case ID</span><span class=\"value\">#").append(escapeHtml(punishment.getCaseId())).append("</span></div>");
+        html.append("<div class=\"row\"><span class=\"label\">Status</span><span class=\"value\"><span class=\"badge status-badge\">").append(status).append("</span></span></div>");
+        html.append("<div class=\"row\"><span class=\"label\">Issued By</span><span class=\"value\">").append(escapeHtml(punishment.getStaffName())).append("</span></div>");
+        html.append("<div class=\"row\"><span class=\"label\">Issued At</span><span class=\"value\">").append(issuedAt).append("</span></div>");
+        html.append("<div class=\"row\"><span class=\"label\">Expires At</span><span class=\"value\">").append(expiresAt).append("</span></div>");
+
+        html.append("<div style=\"margin-top: 20px;\"><span class=\"label\">Reason</span>");
+        html.append("<div class=\"reason-box\">").append(escapeHtml(punishment.getReason())).append("</div></div>");
+
+        html.append("</div>");
+
+        // Footer message
+        html.append("<div style=\"text-align: center; color: #64748b; font-size: 13px; margin-top: 40px;\">");
+        html.append("If you believe this punishment was issued in error, please contact server staff.");
+        html.append("</div>");
+
+        html.append("</main>");
+        html.append("</body>");
+        html.append("</html>");
+
+        return html.toString();
+    }
+
+    private void sendHtmlResponse(OutputStream out, int statusCode, String html) throws IOException {
+        byte[] body = html.getBytes(StandardCharsets.UTF_8);
+        String response = "HTTP/1.1 " + statusCode + " OK\r\n" +
+                "Content-Type: text/html; charset=UTF-8\r\n" +
+                "Content-Length: " + body.length + "\r\n" +
+                "Connection: close\r\n" +
+                "\r\n";
+        out.write(response.getBytes(StandardCharsets.UTF_8));
+        out.write(body);
+        out.flush();
+    }
+
+    private void sendHtmlError(OutputStream out, int statusCode, String title, String message) throws IOException {
+        String html = "<!DOCTYPE html><html><head><title>" + title + "</title><style>" +
+                "body{font-family:sans-serif;background:#0f172a;color:#e2e8f0;display:flex;justify-content:center;align-items:center;min-height:100vh;margin:0;}" +
+                ".error{text-align:center;padding:40px;background:#1e293b;border-radius:12px;border:1px solid #334155;}" +
+                "h1{color:#ef4444;margin-bottom:16px;}" +
+                "p{color:#94a3b8;}</style></head><body>" +
+                "<div class=\"error\"><h1>" + title + "</h1><p>" + message + "</p></div></body></html>";
+        sendHtmlResponse(out, statusCode, html);
+    }
+
+    private String escapeHtml(String text) {
+        if (text == null) return "";
+        return text.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+                .replace("\"", "&quot;").replace("'", "&#39;");
+    }
+
+    /**
+     * Find byte array within another byte array
+     */
+    private int indexOf(byte[] data, byte[] pattern, int start) {
+        outer:
+        for (int i = start; i <= data.length - pattern.length; i++) {
+            for (int j = 0; j < pattern.length; j++) {
+                if (data[i + j] != pattern[j]) continue outer;
+            }
+            return i;
+        }
+        return -1;
     }
 
     private String readStream(InputStream in) throws IOException {
@@ -1381,6 +1738,7 @@ public class HybridPanelServer {
             case "GET_CHAT_LOGS" -> sendChatLogs(conn, data, session);
             case "GET_AUTOMOD_LOGS" -> sendAutomodLogs(conn, data, session);
             case "GET_ACTIVITY_LOGS" -> sendActivityLogs(conn, data, session);
+            case "GET_EVIDENCE_ACTIVITY_LOGS" -> sendEvidenceActivityLogs(conn, data, session);
             case "GET_AUTOMOD_RULES" -> sendAutomodRules(conn);
             case "UPDATE_AUTOMOD_RULE" -> updateAutomodRule(conn, data, session);
             case "CREATE_AUTOMOD_RULE" -> createAutomodRule(conn, data, session);
@@ -2079,6 +2437,8 @@ public class HybridPanelServer {
                 int limit = filters.has("limit") ? filters.get("limit").getAsInt() : 50;
                 String playerFilter = filters.has("player") ? filters.get("player").getAsString().trim() : "";
                 String typeFilter = filters.has("type") ? filters.get("type").getAsString().trim().toUpperCase() : "";
+                String beforeDate = filters.has("before") && !filters.get("before").isJsonNull() ? filters.get("before").getAsString().trim() : "";
+                String afterDate = filters.has("after") && !filters.get("after").isJsonNull() ? filters.get("after").getAsString().trim() : "";
                 int offset = (page - 1) * limit;
 
                 // Parse enabledTypes filter (user's toggle preferences)
@@ -2130,6 +2490,31 @@ public class HybridPanelServer {
                     params.add("%" + playerFilter + "%");
                 }
 
+                // Add before date filter (timestamp < end of that day)
+                if (!beforeDate.isEmpty()) {
+                    try {
+                        java.time.LocalDate date = java.time.LocalDate.parse(beforeDate);
+                        // End of day = start of next day
+                        long beforeTimestamp = date.plusDays(1).atStartOfDay(java.time.ZoneId.systemDefault()).toInstant().toEpochMilli();
+                        whereClause.append(" AND timestamp < ?");
+                        params.add(beforeTimestamp);
+                    } catch (Exception e) {
+                        plugin.logDebug("[ActivityLog] Invalid before date format: " + beforeDate);
+                    }
+                }
+
+                // Add after date filter (timestamp >= start of that day)
+                if (!afterDate.isEmpty()) {
+                    try {
+                        java.time.LocalDate date = java.time.LocalDate.parse(afterDate);
+                        long afterTimestamp = date.atStartOfDay(java.time.ZoneId.systemDefault()).toInstant().toEpochMilli();
+                        whereClause.append(" AND timestamp >= ?");
+                        params.add(afterTimestamp);
+                    } catch (Exception e) {
+                        plugin.logDebug("[ActivityLog] Invalid after date format: " + afterDate);
+                    }
+                }
+
                 // Add type filter (must be in allowed types)
                 if (!typeFilter.isEmpty() && allowedTypes.contains(typeFilter)) {
                     // Override to single type
@@ -2139,6 +2524,23 @@ public class HybridPanelServer {
                     if (!playerFilter.isEmpty()) {
                         whereClause.append(" AND player_name LIKE ?");
                         params.add("%" + playerFilter + "%");
+                    }
+                    // Re-add date filters
+                    if (!beforeDate.isEmpty()) {
+                        try {
+                            java.time.LocalDate date = java.time.LocalDate.parse(beforeDate);
+                            long beforeTimestamp = date.plusDays(1).atStartOfDay(java.time.ZoneId.systemDefault()).toInstant().toEpochMilli();
+                            whereClause.append(" AND timestamp < ?");
+                            params.add(beforeTimestamp);
+                        } catch (Exception ignored) {}
+                    }
+                    if (!afterDate.isEmpty()) {
+                        try {
+                            java.time.LocalDate date = java.time.LocalDate.parse(afterDate);
+                            long afterTimestamp = date.atStartOfDay(java.time.ZoneId.systemDefault()).toInstant().toEpochMilli();
+                            whereClause.append(" AND timestamp >= ?");
+                            params.add(afterTimestamp);
+                        } catch (Exception ignored) {}
                     }
                 }
 
@@ -2203,6 +2605,145 @@ public class HybridPanelServer {
                 sendError(conn, "DATABASE_ERROR", "Failed to fetch activity logs");
             }
         });
+    }
+
+    /**
+     * Send activity logs for evidence selection in punishment form.
+     * Fetches logs for specific players with optional date filters.
+     */
+    private void sendEvidenceActivityLogs(WebSocketConnection conn, JsonObject filters, WebPanelSession session) {
+        plugin.getServer().getScheduler().runTaskAsynchronously(plugin, () -> {
+            try {
+                if (plugin.getActivityLogManager() == null || !plugin.getActivityLogManager().isEnabled()) {
+                    sendEmptyEvidenceLogs(conn);
+                    return;
+                }
+
+                // Build list of allowed activity types based on user permissions
+                List<String> allowedTypes = new java.util.ArrayList<>();
+                UUID userUuid = session.playerUuid;
+
+                if (hasViewPermission(userUuid, "moderex.history.chat")) {
+                    allowedTypes.add("CHAT");
+                }
+                if (hasViewPermission(userUuid, "moderex.history.commands")) {
+                    allowedTypes.add("COMMAND");
+                }
+                if (hasViewPermission(userUuid, "moderex.history.automod")) {
+                    allowedTypes.add("AUTOMOD_TRIGGER");
+                    allowedTypes.add("ANTICHEAT_ALERT");
+                }
+
+                if (allowedTypes.isEmpty()) {
+                    sendEmptyEvidenceLogs(conn);
+                    return;
+                }
+
+                // Parse filters
+                int limit = filters.has("limit") ? filters.get("limit").getAsInt() : 50;
+                String beforeDate = filters.has("before") && !filters.get("before").isJsonNull()
+                        ? filters.get("before").getAsString().trim() : "";
+                String afterDate = filters.has("after") && !filters.get("after").isJsonNull()
+                        ? filters.get("after").getAsString().trim() : "";
+
+                // Get player IDs
+                List<String> playerIds = new java.util.ArrayList<>();
+                if (filters.has("playerIds") && filters.get("playerIds").isJsonArray()) {
+                    JsonArray idsArray = filters.getAsJsonArray("playerIds");
+                    for (int i = 0; i < idsArray.size(); i++) {
+                        playerIds.add(idsArray.get(i).getAsString());
+                    }
+                }
+
+                if (playerIds.isEmpty()) {
+                    sendEmptyEvidenceLogs(conn);
+                    return;
+                }
+
+                // Build WHERE clause for player UUIDs
+                StringBuilder whereClause = new StringBuilder("WHERE type IN (");
+                List<Object> params = new java.util.ArrayList<>();
+
+                for (int i = 0; i < allowedTypes.size(); i++) {
+                    whereClause.append(i > 0 ? ",?" : "?");
+                    params.add(allowedTypes.get(i));
+                }
+                whereClause.append(") AND player_uuid IN (");
+
+                for (int i = 0; i < playerIds.size(); i++) {
+                    whereClause.append(i > 0 ? ",?" : "?");
+                    params.add(playerIds.get(i));
+                }
+                whereClause.append(")");
+
+                // Add date filters
+                if (!beforeDate.isEmpty()) {
+                    try {
+                        java.time.LocalDate date = java.time.LocalDate.parse(beforeDate);
+                        long beforeTimestamp = date.plusDays(1).atStartOfDay(java.time.ZoneId.systemDefault()).toInstant().toEpochMilli();
+                        whereClause.append(" AND timestamp < ?");
+                        params.add(beforeTimestamp);
+                    } catch (Exception ignored) {}
+                }
+
+                if (!afterDate.isEmpty()) {
+                    try {
+                        java.time.LocalDate date = java.time.LocalDate.parse(afterDate);
+                        long afterTimestamp = date.atStartOfDay(java.time.ZoneId.systemDefault()).toInstant().toEpochMilli();
+                        whereClause.append(" AND timestamp >= ?");
+                        params.add(afterTimestamp);
+                    } catch (Exception ignored) {}
+                }
+
+                String dataQuery = "SELECT * FROM moderex_activity_log " + whereClause +
+                        " ORDER BY timestamp DESC LIMIT ?";
+                params.add(limit);
+
+                // Get data
+                List<JsonObject> logs = plugin.getDatabaseManager().query(dataQuery, rs -> {
+                    List<JsonObject> list = new java.util.ArrayList<>();
+                    while (rs.next()) {
+                        JsonObject log = new JsonObject();
+                        log.addProperty("id", rs.getLong("id"));
+                        log.addProperty("timestamp", rs.getLong("timestamp"));
+                        log.addProperty("playerUuid", rs.getString("player_uuid"));
+                        log.addProperty("playerName", rs.getString("player_name"));
+                        log.addProperty("type", rs.getString("type"));
+                        log.addProperty("content", rs.getString("content"));
+                        log.addProperty("extra", rs.getString("extra"));
+                        log.addProperty("server", rs.getString("server"));
+                        list.add(log);
+                    }
+                    return list;
+                }, params.toArray());
+
+                // Build response
+                JsonObject response = new JsonObject();
+                response.addProperty("type", "EVIDENCE_ACTIVITY_LOGS_DATA");
+
+                JsonObject data = new JsonObject();
+                JsonArray logsArray = new JsonArray();
+                for (JsonObject log : logs) {
+                    logsArray.add(log);
+                }
+                data.add("logs", logsArray);
+                response.add("data", data);
+                conn.send(GSON.toJson(response));
+
+            } catch (Exception e) {
+                plugin.getLogger().warning("Failed to fetch evidence activity logs: " + e.getMessage());
+                sendEmptyEvidenceLogs(conn);
+            }
+        });
+    }
+
+    private void sendEmptyEvidenceLogs(WebSocketConnection conn) {
+        JsonObject response = new JsonObject();
+        response.addProperty("type", "EVIDENCE_ACTIVITY_LOGS_DATA");
+        JsonObject data = new JsonObject();
+        data.add("logs", new JsonArray());
+        response.add("data", data);
+        conn.send(GSON.toJson(response));
     }
 
     private void sendAutomodRules(WebSocketConnection conn) {

@@ -21,7 +21,7 @@ general:
 mute:
   success: "<green>Successfully muted <yellow><player></yellow> for <white><duration></white>."
   broadcast: "<gradient:#FF6B6B:#4ECDC4>[ModereX]</gradient> <gray><staff></gray> <gold>muted</gold> <yellow><player></yellow> <gray>for</gray> <white><duration></white> <dark_gray>|</dark_gray> <gray>Case:</gray> <yellow><case_id></yellow>\n<gray>Reason: <white><reason>"
-  message: "<red>You have been muted for <white><duration></white>.\n<gray>Reason: <white><reason>"
+  message: "<red>You have been muted for <white><duration></white>.\n<gray>Reason: <white><reason><evidence>"
   already-muted: "<red><player> is already muted."
   chat-attempt: "<red>You are muted for <white><duration></white>.\n<gray>Reason: <white><reason>"
 
@@ -45,7 +45,7 @@ ban:
     <gray>Banned on: <white><date></white>
     <gray>Banned by: <white><staff></white>
     <gray>Duration: <white><duration></white>
-    <gray>Reason: <white><reason></white>
+    <gray>Reason: <white><reason></white><evidence>
 
     <yellow>Appeal at: discord.gg/example
 
@@ -68,7 +68,7 @@ ipban:
     <gray>Banned on: <white><date></white>
     <gray>Banned by: <white><staff></white>
     <gray>Duration: <white><duration></white>
-    <gray>Reason: <white><reason></white>
+    <gray>Reason: <white><reason></white><evidence>
 
     <yellow>Appeal at: discord.gg/example
 
@@ -84,7 +84,7 @@ kick:
     <red><bold>You have been Kicked!</bold></red>
 
     <gray>Kicked by: <white><staff></white>
-    <gray>Reason: <white><reason></white>
+    <gray>Reason: <white><reason></white><evidence>
 
 # ============================================
 # WARN
@@ -92,7 +92,7 @@ kick:
 warn:
   success: "<green>Successfully warned <yellow><player></yellow>."
   broadcast: "<gradient:#FF6B6B:#4ECDC4>[ModereX]</gradient> <gray><staff></gray> <gold>warned</gold> <yellow><player></yellow> <dark_gray>|</dark_gray> <gray>Case:</gray> <yellow><case_id></yellow>\n<gray>Reason: <white><reason>"
-  message: "<red><bold>WARNING!</bold></red> <gray>You have been warned.\n<gray>Reason: <white><reason>"
+  message: "<red><bold>WARNING!</bold></red> <gray>You have been warned.\n<gray>Reason: <white><reason><evidence>"
   cleared: "<green>Successfully cleared all warnings for <yellow><player></yellow>."
   cleared-broadcast: "<gradient:#FF6B6B:#4ECDC4>[ModereX]</gradient> <gray><staff></gray> <gray>cleared all warnings for</gray> <yellow><player></yellow>"
 

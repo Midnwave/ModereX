@@ -51,7 +51,16 @@ public class PunishmentManager {
 
     public CompletableFuture<Punishment> mute(UUID playerUuid, String playerName, UUID staffUuid,
                                                String staffName, long duration, String reason) {
-        return createPunishment(playerUuid, playerName, PunishmentType.MUTE, staffUuid, staffName, duration, reason, null);
+        return createPunishment(playerUuid, playerName, PunishmentType.MUTE, staffUuid, staffName, duration, reason, null)
+                .thenApply(punishment -> {
+                    // Notify player if online
+                    Player player = Bukkit.getPlayer(playerUuid);
+                    if (player != null) {
+                        Component message = buildMuteWarnMessage(punishment, MessageKey.MUTE_MESSAGE, duration);
+                        Bukkit.getScheduler().runTask(plugin, () -> player.sendMessage(message));
+                    }
+                    return punishment;
+                });
     }
 
     public CompletableFuture<Punishment> ban(UUID playerUuid, String playerName, UUID staffUuid,
@@ -103,12 +112,54 @@ public class PunishmentManager {
                     // Notify player if online
                     Player player = Bukkit.getPlayer(playerUuid);
                     if (player != null) {
-                        Component message = plugin.getLanguageManager().getPrefixed(MessageKey.WARN_MESSAGE,
-                                "reason", reason != null ? reason : "No reason specified");
+                        Component message = buildMuteWarnMessage(punishment, MessageKey.WARN_MESSAGE, duration);
                         Bukkit.getScheduler().runTask(plugin, () -> player.sendMessage(message));
                     }
                     return punishment;
                 });
+    }
+
+    /**
+     * Build a mute or warn message for the player, including portal link if evidence exists.
+     */
+    private Component buildMuteWarnMessage(Punishment punishment, MessageKey messageKey, long duration) {
+        String template = plugin.getLanguageManager().getRaw(messageKey);
+        String prefix = plugin.getLanguageManager().getRaw(MessageKey.PREFIX);
+
+        // Replace basic placeholders
+        template = template
+                .replace("<prefix>", prefix)
+                .replace("<reason>", punishment.getReason())
+                .replace("<duration>", duration == -1 ? "Permanent" : DurationParser.format(duration));
+
+        // Add evidence section if applicable
+        String evidenceSection = buildEvidenceSectionChat(punishment);
+        template = template.replace("<evidence>", evidenceSection);
+
+        return TextUtil.parse(template);
+    }
+
+    /**
+     * Build evidence section for chat messages (mute/warn).
+     * Shorter format than disconnect screen.
+     */
+    private String buildEvidenceSectionChat(Punishment punishment) {
+        if (!plugin.getConfigManager().getSettings().isPlayerPortalEnabled()) {
+            return "";
+        }
+
+        List<PunishmentEvidence> evidence = getPunishmentEvidence(punishment.getCaseId());
+        if (evidence.isEmpty()) {
+            return "";
+        }
+
+        // For chat messages, just show the portal link
+        String portalUrl = buildPortalUrl(punishment);
+        if (portalUrl != null) {
+            return "\n<gray>View details: <click:open_url:'" + portalUrl + "'><aqua><underlined>" + portalUrl + "</underlined></aqua></click>";
+        }
+
+        return "";
     }
 
     private CompletableFuture<Punishment> createPunishment(UUID playerUuid, String playerName,
@@ -732,6 +783,10 @@ public class PunishmentManager {
                 .replace("<duration>", duration)
                 .replace("<reason>", punishment.getReason());
 
+        // Check for evidence and add portal link if applicable
+        String evidenceSection = buildEvidenceSection(punishment);
+        template = template.replace("<evidence>", evidenceSection);
+
         return TextUtil.parse(template);
     }
 
@@ -744,7 +799,128 @@ public class PunishmentManager {
                 .replace("<staff>", punishment.getStaffName())
                 .replace("<reason>", punishment.getReason());
 
+        // Check for evidence and add portal link if applicable
+        String evidenceSection = buildEvidenceSection(punishment);
+        template = template.replace("<evidence>", evidenceSection);
+
         return TextUtil.parse(template);
+    }
+
+    /**
+     * Build the evidence section for disconnect messages.
+     * Shows up to 3 activity log entries and a link to the player portal for more.
+     */
+    private String buildEvidenceSection(Punishment punishment) {
+        if (!plugin.getConfigManager().getSettings().isPlayerPortalEnabled()) {
+            return "";
+        }
+
+        List<PunishmentEvidence> evidence = getPunishmentEvidence(punishment.getCaseId());
+        if (evidence.isEmpty()) {
+            return "";
+        }
+
+        StringBuilder section = new StringBuilder();
+        section.append("\n\n<gray>Evidence:</gray>");
+
+        // Show up to 3 activity log entries
+        int shown = 0;
+        int activityLogCount = 0;
+        int fileCount = 0;
+
+        for (PunishmentEvidence e : evidence) {
+            if (e.isActivityLog()) {
+                activityLogCount++;
+                if (shown < 3) {
+                    section.append("\n<dark_gray>• </dark_gray><white>").append(e.getSummary()).append("</white>");
+                    shown++;
+                }
+            } else if (e.isFile()) {
+                fileCount++;
+            }
+        }
+
+        // If there's more evidence or files, show portal link
+        boolean hasMore = activityLogCount > 3 || fileCount > 0;
+        if (hasMore) {
+            String portalUrl = buildPortalUrl(punishment);
+            if (portalUrl != null) {
+                section.append("\n\n<yellow>View full evidence at:</yellow>");
+                section.append("\n<aqua>").append(portalUrl).append("</aqua>");
+            }
+        }
+
+        return section.toString();
+    }
+
+    /**
+     * Build portal URL for a punishment.
+     * Creates an auth session and returns the full URL.
+     */
+    private String buildPortalUrl(Punishment punishment) {
+        if (plugin.getAuthSessionManager() == null) {
+            return null;
+        }
+
+        try {
+            // Create auth session synchronously for disconnect message
+            String sessionId = plugin.getAuthSessionManager()
+                    .createSession(punishment.getPlayerUuid(), punishment.getCaseId())
+                    .join();
+
+            String host = plugin.getConfigManager().getSettings().getWebPanelHost();
+            int port = plugin.getConfigManager().getSettings().getWebPanelPort();
+
+            // Build URL
+            if (host == null || host.isEmpty()) {
+                host = "your-server";
+            }
+
+            return String.format("http://%s:%d/moderex/punishment/%s/%s",
+                    host, port, punishment.getCaseId(), sessionId);
+        } catch (Exception e) {
+            plugin.logError("Failed to build portal URL", e);
+            return null;
+        }
+    }
+
+    /**
+     * Get all evidence attached to a punishment case.
+     */
+    public List<PunishmentEvidence> getPunishmentEvidence(String caseId) {
+        try {
+            return plugin.getDatabaseManager().query("""
+                    SELECT * FROM moderex_punishment_evidence
+                    WHERE punishment_case_id = ?
+                    ORDER BY added_at ASC
+                    """,
+                    rs -> {
+                        List<PunishmentEvidence> list = new ArrayList<>();
+                        while (rs.next()) {
+                            String typeStr = rs.getString("evidence_type");
+                            PunishmentEvidence.Type type = "FILE".equals(typeStr) ?
+                                    PunishmentEvidence.Type.FILE : PunishmentEvidence.Type.ACTIVITY_LOG;
+
+                            list.add(new PunishmentEvidence(
+                                    rs.getInt("id"),
+                                    rs.getString("punishment_case_id"),
+                                    type,
+                                    rs.getString("evidence_id"),
+                                    rs.getObject("activity_log_id") != null ? rs.getInt("activity_log_id") : null,
+                                    rs.getString("activity_log_snapshot"),
+                                    rs.getString("added_by_uuid"),
+                                    rs.getString("added_by_name"),
+                                    rs.getLong("added_at")
+                            ));
+                        }
+                        return list;
+                    },
+                    caseId
+            );
+        } catch (SQLException e) {
+            plugin.logError("Failed to get punishment evidence", e);
+            return Collections.emptyList();
+        }
     }
 
     // ============================================
