@@ -135,6 +135,10 @@ public class FlagParser {
         return hasFlag("confirm");
     }
 
+    public boolean isEvidence() {
+        return hasFlag("e") || hasFlag("evidence");
+    }
+
     public String getSender() {
         return getFlagValue("sender");
     }

@@ -134,6 +134,9 @@ public class CommandManager {
         registerPaperCommand(commandMap, "massunwarn", new MassUnwarnCommand(plugin), "Mass unwarn by batch ID", List.of());
         registerPaperCommand(commandMap, "massunmute", new MassUnmuteCommand(plugin), "Mass unmute by batch ID", List.of());
         registerPaperCommand(commandMap, "massunban", new MassUnbanCommand(plugin), "Mass unban by batch ID", List.of());
+
+        // Internal commands (for click handlers)
+        registerPaperCommand(commandMap, "mx:evidence", new EvidenceCommand(plugin), "Internal evidence selection", List.of());
     }
 
     private void registerPaperCommand(CommandMap commandMap, String name, BaseCommand executor, String description, List<String> aliases) {
@@ -234,6 +237,12 @@ public class CommandManager {
         registerSpigotCommand("massunwarn", new MassUnwarnCommand(plugin));
         registerSpigotCommand("massunmute", new MassUnmuteCommand(plugin));
         registerSpigotCommand("massunban", new MassUnbanCommand(plugin));
+
+        // Internal commands - need to register via command map for Spigot too
+        CommandMap commandMap = getCommandMap();
+        if (commandMap != null) {
+            registerPaperCommand(commandMap, "mx:evidence", new EvidenceCommand(plugin), "Internal evidence selection", List.of());
+        }
     }
 
     private void registerSpigotCommand(String name, BaseCommand executor) {

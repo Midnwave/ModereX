@@ -48,6 +48,16 @@ public class ChatListener implements Listener {
             return;
         }
 
+        // Check evidence selection session
+        if (plugin.getEvidenceSelectionManager() != null &&
+                plugin.getEvidenceSelectionManager().hasActiveSession(uuid)) {
+            boolean consumed = plugin.getEvidenceSelectionManager().handleChatInput(player, message);
+            if (consumed) {
+                event.setCancelled(true);
+                return;
+            }
+        }
+
         // Check if chat is disabled
         if (!plugin.getConfigManager().getSettings().isChatEnabled()) {
             if (!player.hasPermission("moderex.bypass.chatdisable")) {

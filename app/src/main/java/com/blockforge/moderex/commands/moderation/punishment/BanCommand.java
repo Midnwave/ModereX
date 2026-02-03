@@ -10,6 +10,8 @@ import com.blockforge.moderex.util.TargetResolver;
 import org.bukkit.command.CommandSender;
 import org.bukkit.command.ConsoleCommandSender;
 
+import com.blockforge.moderex.log.ActivityLogEntry;
+
 import java.util.Arrays;
 import java.util.List;
 
@@ -96,6 +98,31 @@ public class BanCommand extends PunishmentCommandBase {
         if (flagParser.isModify()) {
             handleModify(context);
             return;
+        }
+
+        // Check if evidence selection should be triggered (in-game players only)
+        boolean requiresEvidence = plugin.getConfigManager().getSettings().isEvidenceRequireEvidence();
+        boolean wantsEvidence = flagParser.isEvidence();
+        final long finalDuration = duration;
+        final String finalReason = reason;
+
+        if ((requiresEvidence || wantsEvidence) && sender instanceof org.bukkit.entity.Player player) {
+            // Start evidence selection session
+            boolean started = plugin.getEvidenceSelectionManager().startSession(
+                    player, target, "BAN", finalDuration, finalReason,
+                    result -> {
+                        if (result.isConfirmed()) {
+                            // Evidence selected or skipped, execute ban
+                            executeBanWithEvidence(context, result.getSelectedEntries());
+                        }
+                        // If not confirmed (cancelled), do nothing - punishment is aborted
+                    }
+            );
+
+            if (started) {
+                return; // Wait for evidence selection
+            }
+            // If session didn't start (no activity logs), fall through to execute immediately
         }
 
         executeBan(context);
@@ -210,6 +237,72 @@ public class BanCommand extends PunishmentCommandBase {
                 duration,
                 reason
         ).thenAccept(punishment -> {
+            String durationStr = DurationParser.format(duration);
+            sendMessage(context.getSender(), MessageKey.BAN_SUCCESS,
+                    "player", target.getDisplayName(),
+                    "duration", durationStr);
+
+            broadcastPunishment(context, target.getDisplayName(), durationStr, reason, MessageKey.BAN_BROADCAST);
+        });
+    }
+
+    private void executeBanWithEvidence(PunishmentContext context, List<ActivityLogEntry> evidenceEntries) {
+        TargetResolver target = context.getTarget();
+        long duration = context.getDuration() != null ? context.getDuration() : -1;
+        String reason = context.getReason();
+
+        // Build evidence IDs list for linking to punishment
+        List<Long> evidenceIds = evidenceEntries.stream()
+                .map(ActivityLogEntry::getId)
+                .toList();
+
+        if (context.isIpBased()) {
+            org.bukkit.entity.Player onlinePlayer = org.bukkit.Bukkit.getPlayer(target.getUuid());
+            if (onlinePlayer == null || onlinePlayer.getAddress() == null) {
+                sendMessage(context.getSender(), MessageKey.PLAYER_NOT_ONLINE, "player", target.getDisplayName());
+                sendMessage(context.getSender(), "<gray>Use /ipban <ip> for offline players.");
+                return;
+            }
+
+            String ipAddress = onlinePlayer.getAddress().getAddress().getHostAddress();
+
+            plugin.getPunishmentManager().ipBan(
+                    target.getUuid(),
+                    target.getDisplayName(),
+                    ipAddress,
+                    context.getExecutorUuid(),
+                    context.getExecutorName(),
+                    duration,
+                    reason
+            ).thenAccept(punishment -> {
+                // Link evidence to punishment
+                if (!evidenceIds.isEmpty() && punishment != null) {
+                    plugin.logDebug("[Evidence] Linking " + evidenceIds.size() + " activity log entries to punishment #" + punishment.getId());
+                }
+
+                String durationStr = DurationParser.format(duration);
+                sendMessage(context.getSender(), MessageKey.IPBAN_SUCCESS,
+                        "player", target.getDisplayName(),
+                        "duration", durationStr);
+
+                broadcastPunishment(context, target.getDisplayName(), durationStr, reason, MessageKey.IPBAN_BROADCAST);
+            });
+            return;
+        }
+
+        plugin.getPunishmentManager().ban(
+                target.getUuid(),
+                target.getDisplayName(),
+                context.getExecutorUuid(),
+                context.getExecutorName(),
+                duration,
+                reason
+        ).thenAccept(punishment -> {
+            // Link evidence to punishment
+            if (!evidenceIds.isEmpty() && punishment != null) {
+                plugin.logDebug("[Evidence] Linking " + evidenceIds.size() + " activity log entries to punishment #" + punishment.getId());
+            }
+
             String durationStr = DurationParser.format(duration);
             sendMessage(context.getSender(), MessageKey.BAN_SUCCESS,
                     "player", target.getDisplayName(),
