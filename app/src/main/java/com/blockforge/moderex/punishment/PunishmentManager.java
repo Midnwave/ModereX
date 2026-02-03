@@ -921,7 +921,7 @@ public class PunishmentManager {
             snapshot.addProperty("server", entry.getServer());
 
             try {
-                plugin.getDatabaseManager().execute(sql,
+                plugin.getDatabaseManager().update(sql,
                         caseId,
                         (int) entry.getId(),
                         snapshot.toString(),
@@ -958,7 +958,7 @@ public class PunishmentManager {
             """;
 
         try {
-            plugin.getDatabaseManager().execute(sql, caseId, evidenceId, addedByUuid, addedByName, now);
+            plugin.getDatabaseManager().update(sql, caseId, evidenceId, addedByUuid, addedByName, now);
             plugin.logDebug("[Evidence] Linked file evidence " + evidenceId + " to case " + caseId);
         } catch (SQLException e) {
             plugin.logError("Failed to link file evidence to punishment: " + e.getMessage(), e);

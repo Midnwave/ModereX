@@ -579,7 +579,7 @@ public class HybridPanelServer {
         // Get the file
         java.io.File file = new java.io.File(evidence.getFilePath());
         if (!file.exists() || !file.isFile()) {
-            plugin.logError("Evidence file not found on disk: " + evidence.getFilePath());
+            plugin.logDebug("[Evidence] File not found on disk: " + evidence.getFilePath());
             sendJsonResponse(out, 404, "{\"error\":\"Evidence file not found on disk\"}");
             return;
         }
@@ -1111,95 +1111,86 @@ public class HybridPanelServer {
     }
 
     private String getPortalScript(String sessionId) {
-        return """
-            const sessionId = '""" + sessionId + """';
-            let currentColor = localStorage.getItem('portalColor') || '#2d7aed';
-
-            function showTab(tabName) {
-                document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
-                document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
-                document.getElementById('tab-' + tabName).classList.add('active');
-                event.target.closest('.tab').classList.add('active');
-            }
-
-            function showPunishmentDetails(caseId) {
-                document.querySelectorAll('.timeline-item').forEach(i => i.classList.remove('current'));
-                event.target.closest('.timeline-item').classList.add('current');
-                // For now, just highlight - full AJAX loading could be added later
-            }
-
-            function logout() {
-                if (confirm('Are you sure you want to logout?')) {
-                    localStorage.removeItem('deviceTrust');
-                    window.location.href = '/moderex/portal/logout/' + sessionId;
-                }
-            }
-
-            function setColor(color) {
-                currentColor = color;
-                localStorage.setItem('portalColor', color);
-                document.documentElement.style.setProperty('--primary', color);
-                document.querySelectorAll('.color-option').forEach(o => o.classList.remove('active'));
-                event.target.classList.add('active');
-            }
-
-            function toggleNotifications(enabled) {
-                const status = document.getElementById('notification-status');
-                if (enabled) {
-                    if ('Notification' in window) {
-                        Notification.requestPermission().then(perm => {
-                            if (perm === 'granted') {
-                                status.textContent = '✓ Notifications enabled';
-                                status.style.color = '#22c55e';
-                                localStorage.setItem('notifications', 'true');
-                            } else {
-                                document.getElementById('notifications-toggle').checked = false;
-                                status.textContent = '✗ Permission denied by browser';
-                                status.style.color = '#ef4444';
-                            }
-                        });
-                    } else {
-                        document.getElementById('notifications-toggle').checked = false;
-                        status.textContent = '✗ Browser does not support notifications';
-                        status.style.color = '#ef4444';
-                    }
-                } else {
-                    localStorage.removeItem('notifications');
-                    status.textContent = '';
-                }
-            }
-
-            function toggleDeviceTrust(enabled) {
-                const warning = document.getElementById('trust-warning');
-                if (enabled) {
-                    warning.style.display = 'block';
-                    localStorage.setItem('deviceTrust', sessionId);
-                } else {
-                    warning.style.display = 'none';
-                    localStorage.removeItem('deviceTrust');
-                }
-            }
-
-            // Initialize on load
-            document.addEventListener('DOMContentLoaded', () => {
-                // Apply saved color
-                document.documentElement.style.setProperty('--primary', currentColor);
-                document.querySelectorAll('.color-option').forEach(o => {
-                    if (o.style.background === currentColor) o.classList.add('active');
-                });
-
-                // Restore notification state
-                if (localStorage.getItem('notifications') === 'true') {
-                    document.getElementById('notifications-toggle').checked = true;
-                }
-
-                // Restore device trust state
-                if (localStorage.getItem('deviceTrust')) {
-                    document.getElementById('device-trust-toggle').checked = true;
-                    document.getElementById('trust-warning').style.display = 'block';
-                }
-            });
-            """;
+        return "const sessionId = '" + sessionId + "';\n" +
+            "let currentColor = localStorage.getItem('portalColor') || '#2d7aed';\n" +
+            "\n" +
+            "function showTab(tabName) {\n" +
+            "    document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));\n" +
+            "    document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));\n" +
+            "    document.getElementById('tab-' + tabName).classList.add('active');\n" +
+            "    event.target.closest('.tab').classList.add('active');\n" +
+            "}\n" +
+            "\n" +
+            "function showPunishmentDetails(caseId) {\n" +
+            "    document.querySelectorAll('.timeline-item').forEach(i => i.classList.remove('current'));\n" +
+            "    event.target.closest('.timeline-item').classList.add('current');\n" +
+            "}\n" +
+            "\n" +
+            "function logout() {\n" +
+            "    if (confirm('Are you sure you want to logout?')) {\n" +
+            "        localStorage.removeItem('deviceTrust');\n" +
+            "        window.location.href = '/moderex/portal/logout/' + sessionId;\n" +
+            "    }\n" +
+            "}\n" +
+            "\n" +
+            "function setColor(color) {\n" +
+            "    currentColor = color;\n" +
+            "    localStorage.setItem('portalColor', color);\n" +
+            "    document.documentElement.style.setProperty('--primary', color);\n" +
+            "    document.querySelectorAll('.color-option').forEach(o => o.classList.remove('active'));\n" +
+            "    event.target.classList.add('active');\n" +
+            "}\n" +
+            "\n" +
+            "function toggleNotifications(enabled) {\n" +
+            "    const status = document.getElementById('notification-status');\n" +
+            "    if (enabled) {\n" +
+            "        if ('Notification' in window) {\n" +
+            "            Notification.requestPermission().then(perm => {\n" +
+            "                if (perm === 'granted') {\n" +
+            "                    status.textContent = '✓ Notifications enabled';\n" +
+            "                    status.style.color = '#22c55e';\n" +
+            "                    localStorage.setItem('notifications', 'true');\n" +
+            "                } else {\n" +
+            "                    document.getElementById('notifications-toggle').checked = false;\n" +
+            "                    status.textContent = '✗ Permission denied by browser';\n" +
+            "                    status.style.color = '#ef4444';\n" +
+            "                }\n" +
+            "            });\n" +
+            "        } else {\n" +
+            "            document.getElementById('notifications-toggle').checked = false;\n" +
+            "            status.textContent = '✗ Browser does not support notifications';\n" +
+            "            status.style.color = '#ef4444';\n" +
+            "        }\n" +
+            "    } else {\n" +
+            "        localStorage.removeItem('notifications');\n" +
+            "        status.textContent = '';\n" +
+            "    }\n" +
+            "}\n" +
+            "\n" +
+            "function toggleDeviceTrust(enabled) {\n" +
+            "    const warning = document.getElementById('trust-warning');\n" +
+            "    if (enabled) {\n" +
+            "        warning.style.display = 'block';\n" +
+            "        localStorage.setItem('deviceTrust', sessionId);\n" +
+            "    } else {\n" +
+            "        warning.style.display = 'none';\n" +
+            "        localStorage.removeItem('deviceTrust');\n" +
+            "    }\n" +
+            "}\n" +
+            "\n" +
+            "document.addEventListener('DOMContentLoaded', () => {\n" +
+            "    document.documentElement.style.setProperty('--primary', currentColor);\n" +
+            "    document.querySelectorAll('.color-option').forEach(o => {\n" +
+            "        if (o.style.background === currentColor) o.classList.add('active');\n" +
+            "    });\n" +
+            "    if (localStorage.getItem('notifications') === 'true') {\n" +
+            "        document.getElementById('notifications-toggle').checked = true;\n" +
+            "    }\n" +
+            "    if (localStorage.getItem('deviceTrust')) {\n" +
+            "        document.getElementById('device-trust-toggle').checked = true;\n" +
+            "        document.getElementById('trust-warning').style.display = 'block';\n" +
+            "    }\n" +
+            "});\n";
     }
 
     private String truncate(String text, int maxLength) {
