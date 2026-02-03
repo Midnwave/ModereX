@@ -14,6 +14,58 @@
 
 window.MX_CHANGELOGS = [
   {
+    build: 218,
+    version: "2.0dev-218",
+    date: "2026-02-02",
+    title: "Evidence System & Player Portal",
+    sections: [
+      {
+        type: "new",
+        title: "Evidence System",
+        items: [
+          "**Evidence Selector** - Attach activity log entries as evidence when creating punishments",
+          "**File Uploads** - Upload images (PNG, JPG) and videos (MP4, MKV, MOV) as punishment evidence",
+          "**Upload Progress** - Real-time upload progress bar with file size display",
+          "**Custom Video Player** - Themed video player with playback speed control (0.25x-2x)",
+          "**Custom Image Lightbox** - Full-screen image viewer with zoom and download options",
+          "**Search Filters** - Use before:YYYY-MM-DD and after:YYYY-MM-DD in activity log search",
+          "**In-Game Evidence** - Java players use chat UI, Bedrock players use chest GUI"
+        ]
+      },
+      {
+        type: "new",
+        title: "Player Punishment Portal",
+        items: [
+          "**Player Portal** - Punished players can view their punishment details and evidence",
+          "**Auth Sessions** - Secure 10-character session tokens with 12-hour expiry",
+          "**Portal Links** - Ban/kick screens and mute/warn messages include portal links",
+          "**Color Schemes** - Players can customize their portal theme",
+          "**Device Trust** - Option to trust devices for future logins"
+        ]
+      },
+      {
+        type: "improved",
+        title: "Punishment Messages",
+        items: [
+          "**Ban/Kick Screens** - Show up to 3 evidence entries with portal link for more",
+          "**Mute Messages** - Players notified when muted with evidence portal link",
+          "**Warn Messages** - Warning messages include evidence portal link when applicable"
+        ]
+      },
+      {
+        type: "config",
+        title: "New Configuration",
+        items: [
+          "**evidence.max-file-size-mb** - Maximum upload size (default: 250MB, hard limit: 1000MB)",
+          "**evidence.require-evidence** - Require evidence for all punishments (default: false)",
+          "**evidence.max-activity-log-evidence** - Max activity log entries per punishment (default: 5)",
+          "**player-portal.enabled** - Enable/disable player portal (default: true)",
+          "**player-portal.session-expiry-hours** - Session expiry time (default: 12 hours)"
+        ]
+      }
+    ]
+  },
+  {
     build: 216,
     version: "2.0dev-216",
     date: "2026-02-02",
