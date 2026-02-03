@@ -30,6 +30,14 @@
     // Punishment player selection state
     massPlayerIds: [],
     massPlayerNames: [],
+    // Evidence attachment state
+    punishEvidence: {
+      selectedLogs: [],      // Array of activity log IDs
+      uploadedFiles: [],     // Array of uploaded file evidence IDs
+      expanded: false,       // Whether the evidence section is expanded
+      logs: [],              // Fetched activity logs for selected players
+      loading: false         // Loading state
+    },
     punishFilters: { BAN: true, MUTE: true, WARN: true, KICK: true },
     punishPagination: { page: 1, pageSize: 25 },
     playerPagination: { page: 1, pageSize: 25 },

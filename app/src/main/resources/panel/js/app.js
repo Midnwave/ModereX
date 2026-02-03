@@ -2334,6 +2334,9 @@
     state.massPlayerIds = [];
     state.massPlayerNames = [];
 
+    // Reset evidence selection
+    resetEvidenceSelection();
+
     // If a specific player is provided, add them to selection
     if (playerId) {
       const player = state.players.find(x => x.id === playerId);
@@ -2541,6 +2544,17 @@
     renderPunishPlayerTags();
     updatePunishCreateTitle();
     updatePunishExecuteButton();
+
+    // Refresh evidence logs if section is expanded
+    if (state.punishEvidence.expanded) {
+      if (state.massPlayerIds.length > 0) {
+        fetchEvidenceActivityLogs();
+      } else {
+        // No players left, clear evidence logs
+        state.punishEvidence.logs = [];
+        renderEvidenceLogList([]);
+      }
+    }
   };
 
   window.selectPunishCreatePlayer = function(playerId) {
@@ -2568,6 +2582,11 @@
     renderPunishPlayerTags();
     updatePunishCreateTitle();
     updatePunishExecuteButton();
+
+    // Refresh evidence logs if section is expanded
+    if (state.punishEvidence.expanded) {
+      fetchEvidenceActivityLogs();
+    }
   };
 
   window.applyTemplateToPunishCreate = function(templateId) {
@@ -2693,6 +2712,720 @@
     }
   }
 
+  // ===== EVIDENCE ATTACHMENT FUNCTIONS =====
+
+  /**
+   * Toggle the evidence section expand/collapse
+   */
+  window.toggleEvidenceSection = function() {
+    const section = document.getElementById('punishEvidenceSection');
+    const content = document.getElementById('punishEvidenceContent');
+    if (!section || !content) return;
+
+    state.punishEvidence.expanded = !state.punishEvidence.expanded;
+    section.classList.toggle('expanded', state.punishEvidence.expanded);
+    content.style.display = state.punishEvidence.expanded ? 'block' : 'none';
+
+    // Load activity logs for selected players when expanding
+    if (state.punishEvidence.expanded && state.massPlayerIds.length > 0) {
+      fetchEvidenceActivityLogs();
+    }
+  };
+
+  /**
+   * Reset evidence selection state
+   */
+  function resetEvidenceSelection() {
+    state.punishEvidence = {
+      selectedLogs: [],
+      uploadedFiles: [],
+      expanded: false,
+      logs: [],
+      loading: false
+    };
+    const section = document.getElementById('punishEvidenceSection');
+    const content = document.getElementById('punishEvidenceContent');
+    const countBadge = document.getElementById('punishEvidenceCount');
+    const selectedContainer = document.getElementById('punishEvidenceSelected');
+    const logList = document.getElementById('punishEvidenceLogList');
+
+    if (section) section.classList.remove('expanded');
+    if (content) content.style.display = 'none';
+    if (countBadge) countBadge.style.display = 'none';
+    if (selectedContainer) {
+      selectedContainer.style.display = 'none';
+      selectedContainer.innerHTML = '';
+    }
+    if (logList) {
+      logList.innerHTML = `
+        <div class="evidence-log-empty">
+          <i class="fa-solid fa-scroll"></i>
+          <p>Select player(s) to see their activity log</p>
+        </div>
+      `;
+    }
+  }
+
+  /**
+   * Fetch activity logs for evidence selection
+   */
+  function fetchEvidenceActivityLogs() {
+    const ws = window.MX?.ws;
+    if (!ws || !ws.isConnected()) return;
+
+    if (state.massPlayerIds.length === 0) {
+      renderEvidenceLogList([]);
+      return;
+    }
+
+    const searchInput = document.getElementById('punishEvidenceSearch')?.value || '';
+    let beforeDate = '';
+    let afterDate = '';
+
+    // Parse date filters from search
+    const parts = searchInput.split(/\s+/).filter(p => p);
+    for (const part of parts) {
+      const lowerPart = part.toLowerCase();
+      if (lowerPart.startsWith('before:')) {
+        beforeDate = part.substring(7);
+      } else if (lowerPart.startsWith('after:')) {
+        afterDate = part.substring(6);
+      }
+    }
+
+    // Validate dates
+    const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
+    const validBefore = beforeDate && dateRegex.test(beforeDate) ? beforeDate : null;
+    const validAfter = afterDate && dateRegex.test(afterDate) ? afterDate : null;
+
+    state.punishEvidence.loading = true;
+    const logList = document.getElementById('punishEvidenceLogList');
+    if (logList) logList.classList.add('loading');
+
+    // Request logs for all selected players
+    ws.send('GET_EVIDENCE_ACTIVITY_LOGS', {
+      playerIds: state.massPlayerIds,
+      before: validBefore,
+      after: validAfter,
+      limit: 50
+    });
+  }
+
+  /**
+   * Handle evidence activity logs response
+   */
+  window.handleEvidenceActivityLogsData = function(data) {
+    state.punishEvidence.loading = false;
+    state.punishEvidence.logs = data.logs || [];
+    renderEvidenceLogList(state.punishEvidence.logs);
+  };
+
+  /**
+   * Render the evidence log list
+   */
+  function renderEvidenceLogList(logs) {
+    const logList = document.getElementById('punishEvidenceLogList');
+    if (!logList) return;
+
+    logList.classList.remove('loading');
+
+    if (!logs || logs.length === 0) {
+      logList.innerHTML = `
+        <div class="evidence-log-empty">
+          <i class="fa-solid fa-inbox"></i>
+          <p>No activity logs found for selected player(s)</p>
+        </div>
+      `;
+      return;
+    }
+
+    const typeLabels = {
+      'CHAT': 'Chat',
+      'COMMAND': 'Cmd',
+      'AUTOMOD_TRIGGER': 'Automod',
+      'ANTICHEAT_ALERT': 'AC',
+      'PUNISHMENT_BAN': 'Ban',
+      'PUNISHMENT_MUTE': 'Mute',
+      'PUNISHMENT_WARN': 'Warn',
+      'PUNISHMENT_KICK': 'Kick'
+    };
+
+    logList.innerHTML = logs.map(log => {
+      const isSelected = state.punishEvidence.selectedLogs.includes(log.id);
+      const typeClass = log.type.toLowerCase().includes('chat') ? 'chat' :
+                        log.type.toLowerCase().includes('command') ? 'command' :
+                        log.type.toLowerCase().includes('automod') ? 'automod' : '';
+      const typeLabel = typeLabels[log.type] || log.type;
+      const time = formatRelativeTime(log.timestamp);
+
+      return `
+        <div class="evidence-log-item ${isSelected ? 'selected' : ''}" data-log-id="${log.id}" onclick="toggleEvidenceLog(${log.id})">
+          <div class="evidence-checkbox">
+            <i class="fa-solid fa-check"></i>
+          </div>
+          <div class="evidence-log-content">
+            <div class="evidence-log-header">
+              <span class="evidence-log-type ${typeClass}">${escapeHtml(typeLabel)}</span>
+              <span class="evidence-log-time">${escapeHtml(time)} · ${escapeHtml(log.playerName || 'Unknown')}</span>
+            </div>
+            <div class="evidence-log-text">${escapeHtml(log.content || '')}</div>
+          </div>
+        </div>
+      `;
+    }).join('');
+  }
+
+  /**
+   * Format timestamp to relative time
+   */
+  function formatRelativeTime(timestamp) {
+    const diff = Date.now() - timestamp;
+    const minutes = Math.floor(diff / 60000);
+    const hours = Math.floor(diff / 3600000);
+    const days = Math.floor(diff / 86400000);
+
+    if (minutes < 1) return 'Just now';
+    if (minutes < 60) return `${minutes}m ago`;
+    if (hours < 24) return `${hours}h ago`;
+    if (days < 7) return `${days}d ago`;
+    return new Date(timestamp).toLocaleDateString();
+  }
+
+  /**
+   * Toggle selection of an activity log for evidence
+   */
+  window.toggleEvidenceLog = function(logId) {
+    const maxLogs = 5;
+    const idx = state.punishEvidence.selectedLogs.indexOf(logId);
+
+    if (idx >= 0) {
+      // Deselect
+      state.punishEvidence.selectedLogs.splice(idx, 1);
+    } else {
+      // Check max limit
+      if (state.punishEvidence.selectedLogs.length >= maxLogs) {
+        toast('warn', 'Maximum Reached', `You can select up to ${maxLogs} activity log entries.`);
+        return;
+      }
+      // Select
+      state.punishEvidence.selectedLogs.push(logId);
+    }
+
+    // Update UI
+    updateEvidenceLogSelection(logId);
+    renderEvidenceSelectedPills();
+    updateEvidenceCount();
+  };
+
+  /**
+   * Update the visual selection state of a log item
+   */
+  function updateEvidenceLogSelection(logId) {
+    const item = document.querySelector(`.evidence-log-item[data-log-id="${logId}"]`);
+    if (!item) return;
+
+    const isSelected = state.punishEvidence.selectedLogs.includes(logId);
+    item.classList.toggle('selected', isSelected);
+  }
+
+  /**
+   * Render selected evidence pills
+   */
+  function renderEvidenceSelectedPills() {
+    const container = document.getElementById('punishEvidenceSelected');
+    if (!container) return;
+
+    const selectedLogs = state.punishEvidence.selectedLogs;
+    const uploadedFiles = state.punishEvidence.uploadedFiles;
+    const totalSelected = selectedLogs.length + uploadedFiles.length;
+
+    if (totalSelected === 0) {
+      container.style.display = 'none';
+      container.innerHTML = '';
+      return;
+    }
+
+    container.style.display = 'flex';
+
+    const logPills = selectedLogs.map(logId => {
+      const log = state.punishEvidence.logs.find(l => l.id === logId);
+      const label = log ? (log.type.split('_').pop().toLowerCase() + ': ' + (log.content || '').substring(0, 20)) : `Log #${logId}`;
+      return `
+        <span class="evidence-pill" data-log-id="${logId}">
+          <i class="fa-solid fa-scroll"></i>
+          <span>${escapeHtml(label)}${(log?.content?.length || 0) > 20 ? '...' : ''}</span>
+          <span class="pill-remove" onclick="event.stopPropagation(); removeEvidenceLog(${logId})">
+            <i class="fa-solid fa-xmark"></i>
+          </span>
+        </span>
+      `;
+    });
+
+    const filePills = uploadedFiles.map(file => `
+      <span class="evidence-pill file" data-file-id="${file.id}">
+        <i class="fa-solid fa-${file.type?.startsWith('VIDEO') ? 'video' : 'image'}"></i>
+        <span>${escapeHtml(file.name || 'File')}</span>
+        <span class="pill-remove" onclick="event.stopPropagation(); removeEvidenceFile('${file.id}')">
+          <i class="fa-solid fa-xmark"></i>
+        </span>
+      </span>
+    `);
+
+    container.innerHTML = [...logPills, ...filePills].join('');
+  }
+
+  /**
+   * Remove an activity log from evidence selection
+   */
+  window.removeEvidenceLog = function(logId) {
+    const idx = state.punishEvidence.selectedLogs.indexOf(logId);
+    if (idx >= 0) {
+      state.punishEvidence.selectedLogs.splice(idx, 1);
+      updateEvidenceLogSelection(logId);
+      renderEvidenceSelectedPills();
+      updateEvidenceCount();
+    }
+  };
+
+  /**
+   * Remove an uploaded file from evidence selection
+   */
+  window.removeEvidenceFile = function(fileId) {
+    const idx = state.punishEvidence.uploadedFiles.findIndex(f => f.id === fileId);
+    if (idx >= 0) {
+      state.punishEvidence.uploadedFiles.splice(idx, 1);
+      renderEvidenceSelectedPills();
+      updateEvidenceCount();
+    }
+  };
+
+  /**
+   * Update the evidence count badge
+   */
+  function updateEvidenceCount() {
+    const countBadge = document.getElementById('punishEvidenceCount');
+    if (!countBadge) return;
+
+    const total = state.punishEvidence.selectedLogs.length + state.punishEvidence.uploadedFiles.length;
+    if (total > 0) {
+      countBadge.textContent = total;
+      countBadge.style.display = 'inline-flex';
+    } else {
+      countBadge.style.display = 'none';
+    }
+  }
+
+  /**
+   * Open evidence upload modal
+   */
+  window.openEvidenceUploadModal = function() {
+    const overlay = document.getElementById('evidenceUploadOverlay');
+    if (!overlay) return;
+
+    // Reset state
+    clearEvidenceFile();
+    document.getElementById('evidenceUploadStatus').style.display = 'none';
+    document.getElementById('evidenceUploadProgress').style.display = 'none';
+
+    overlay.classList.add('show');
+
+    // Setup drag and drop
+    setupEvidenceDropzone();
+  };
+
+  window.closeEvidenceUploadModal = function() {
+    const overlay = document.getElementById('evidenceUploadOverlay');
+    if (!overlay) return;
+
+    overlay.classList.add('fade-out');
+    setTimeout(() => {
+      overlay.classList.remove('show', 'fade-out');
+    }, 220);
+  };
+
+  /**
+   * Setup dropzone event listeners
+   */
+  function setupEvidenceDropzone() {
+    const dropzone = document.getElementById('evidenceDropzone');
+    const fileInput = document.getElementById('evidenceFileInput');
+    if (!dropzone || !fileInput) return;
+
+    // Remove old listeners by replacing the element
+    const newDropzone = dropzone.cloneNode(true);
+    dropzone.parentNode.replaceChild(newDropzone, dropzone);
+
+    const newFileInput = newDropzone.querySelector('input[type="file"]') || document.getElementById('evidenceFileInput');
+
+    // Click to browse
+    newDropzone.addEventListener('click', () => {
+      newFileInput.click();
+    });
+
+    // File selected via input
+    newFileInput.addEventListener('change', (e) => {
+      if (e.target.files.length > 0) {
+        handleEvidenceFileSelect(e.target.files[0]);
+      }
+    });
+
+    // Drag events
+    newDropzone.addEventListener('dragover', (e) => {
+      e.preventDefault();
+      newDropzone.classList.add('dragover');
+    });
+
+    newDropzone.addEventListener('dragleave', (e) => {
+      e.preventDefault();
+      newDropzone.classList.remove('dragover');
+    });
+
+    newDropzone.addEventListener('drop', (e) => {
+      e.preventDefault();
+      newDropzone.classList.remove('dragover');
+      if (e.dataTransfer.files.length > 0) {
+        handleEvidenceFileSelect(e.dataTransfer.files[0]);
+      }
+    });
+  }
+
+  /**
+   * Handle file selection
+   */
+  let selectedEvidenceFile = null;
+
+  function handleEvidenceFileSelect(file) {
+    // Validate file type
+    const allowedTypes = ['image/png', 'image/jpeg', 'image/jpg', 'video/mp4', 'video/x-matroska', 'video/quicktime'];
+    const allowedExtensions = ['png', 'jpg', 'jpeg', 'mp4', 'mkv', 'mov'];
+
+    const ext = file.name.split('.').pop().toLowerCase();
+    if (!allowedTypes.includes(file.type) && !allowedExtensions.includes(ext)) {
+      toast('warn', 'Invalid File Type', 'Only PNG, JPG, MP4, MKV, and MOV files are allowed.');
+      return;
+    }
+
+    // Validate file size (250 MB default, could be configurable)
+    const maxSize = 250 * 1024 * 1024;
+    if (file.size > maxSize) {
+      toast('warn', 'File Too Large', `Maximum file size is 250 MB. Your file is ${formatFileSize(file.size)}.`);
+      return;
+    }
+
+    selectedEvidenceFile = file;
+
+    // Show preview
+    const dropzone = document.getElementById('evidenceDropzone');
+    const preview = document.getElementById('evidenceFilePreview');
+    const icon = document.getElementById('evidenceFileIcon');
+    const fileName = document.getElementById('evidenceFileName');
+    const fileSize = document.getElementById('evidenceFileSize');
+    const uploadBtn = document.getElementById('evidenceUploadBtn');
+
+    if (dropzone) dropzone.style.display = 'none';
+    if (preview) preview.style.display = 'block';
+
+    // Set icon based on type
+    const isVideo = file.type.startsWith('video') || ['mp4', 'mkv', 'mov'].includes(ext);
+    if (icon) {
+      icon.className = isVideo ? 'fa-solid fa-video video' : 'fa-solid fa-image';
+    }
+
+    if (fileName) fileName.textContent = file.name;
+    if (fileSize) fileSize.textContent = formatFileSize(file.size);
+    if (uploadBtn) uploadBtn.disabled = false;
+
+    // Hide any previous status
+    document.getElementById('evidenceUploadStatus').style.display = 'none';
+    document.getElementById('evidenceUploadProgress').style.display = 'none';
+  }
+
+  /**
+   * Clear selected file
+   */
+  window.clearEvidenceFile = function() {
+    selectedEvidenceFile = null;
+
+    const dropzone = document.getElementById('evidenceDropzone');
+    const preview = document.getElementById('evidenceFilePreview');
+    const uploadBtn = document.getElementById('evidenceUploadBtn');
+    const fileInput = document.getElementById('evidenceFileInput');
+
+    if (dropzone) dropzone.style.display = 'flex';
+    if (preview) preview.style.display = 'none';
+    if (uploadBtn) uploadBtn.disabled = true;
+    if (fileInput) fileInput.value = '';
+  };
+
+  /**
+   * Format file size
+   */
+  function formatFileSize(bytes) {
+    if (bytes < 1024) return bytes + ' B';
+    if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+    if (bytes < 1024 * 1024 * 1024) return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
+    return (bytes / (1024 * 1024 * 1024)).toFixed(2) + ' GB';
+  }
+
+  /**
+   * Upload the selected evidence file
+   */
+  window.uploadEvidenceFile = async function() {
+    if (!selectedEvidenceFile) {
+      toast('warn', 'No File', 'Please select a file first.');
+      return;
+    }
+
+    const progressContainer = document.getElementById('evidenceUploadProgress');
+    const progressFill = document.getElementById('evidenceProgressFill');
+    const progressText = document.getElementById('evidenceProgressText');
+    const uploadBtn = document.getElementById('evidenceUploadBtn');
+    const statusEl = document.getElementById('evidenceUploadStatus');
+
+    // Show progress
+    if (progressContainer) progressContainer.style.display = 'block';
+    if (progressFill) progressFill.style.width = '0%';
+    if (progressText) progressText.textContent = '0%';
+    if (uploadBtn) uploadBtn.disabled = true;
+    if (statusEl) statusEl.style.display = 'none';
+
+    try {
+      // Get auth token from session
+      const token = state.authToken || localStorage.getItem('moderex_auth_token');
+      if (!token) {
+        showUploadError('Authentication required. Please log in again.');
+        return;
+      }
+
+      // Create FormData
+      const formData = new FormData();
+      formData.append('file', selectedEvidenceFile);
+
+      // Create XMLHttpRequest for progress tracking
+      const xhr = new XMLHttpRequest();
+
+      xhr.upload.addEventListener('progress', (e) => {
+        if (e.lengthComputable) {
+          const percent = Math.round((e.loaded / e.total) * 100);
+          if (progressFill) progressFill.style.width = percent + '%';
+          if (progressText) progressText.textContent = percent + '%';
+        }
+      });
+
+      xhr.addEventListener('load', () => {
+        if (xhr.status === 200) {
+          try {
+            const response = JSON.parse(xhr.responseText);
+            if (response.success && response.evidence) {
+              showUploadSuccess('File uploaded successfully!');
+
+              // Add to evidence selection
+              state.punishEvidence.uploadedFiles.push({
+                id: response.evidence.id,
+                name: selectedEvidenceFile.name,
+                type: response.evidence.fileType
+              });
+              renderEvidenceSelectedPills();
+              updateEvidenceCount();
+
+              // Close modal after brief delay
+              setTimeout(() => {
+                closeEvidenceUploadModal();
+              }, 1000);
+            } else {
+              showUploadError(response.error || 'Upload failed.');
+            }
+          } catch (e) {
+            showUploadError('Invalid response from server.');
+          }
+        } else {
+          showUploadError('Upload failed. Status: ' + xhr.status);
+        }
+      });
+
+      xhr.addEventListener('error', () => {
+        showUploadError('Network error. Please check your connection.');
+      });
+
+      xhr.addEventListener('abort', () => {
+        showUploadError('Upload was cancelled.');
+      });
+
+      // Get the panel URL
+      const wsUrl = window.MX?.ws?.url || '';
+      const httpUrl = wsUrl.replace('ws://', 'http://').replace('wss://', 'https://').replace(/\/ws\/?$/, '');
+
+      xhr.open('POST', httpUrl + '/api/evidence/upload');
+      xhr.setRequestHeader('Authorization', 'Bearer ' + token);
+      xhr.send(formData);
+
+    } catch (error) {
+      showUploadError('Upload error: ' + error.message);
+    }
+  };
+
+  function showUploadSuccess(message) {
+    const statusEl = document.getElementById('evidenceUploadStatus');
+    if (statusEl) {
+      statusEl.className = 'evidence-upload-status success';
+      statusEl.innerHTML = `<i class="fa-solid fa-check-circle"></i> ${escapeHtml(message)}`;
+      statusEl.style.display = 'flex';
+    }
+    document.getElementById('evidenceUploadBtn').disabled = true;
+  }
+
+  function showUploadError(message) {
+    const statusEl = document.getElementById('evidenceUploadStatus');
+    if (statusEl) {
+      statusEl.className = 'evidence-upload-status error';
+      statusEl.innerHTML = `<i class="fa-solid fa-exclamation-circle"></i> ${escapeHtml(message)}`;
+      statusEl.style.display = 'flex';
+    }
+    document.getElementById('evidenceUploadBtn').disabled = false;
+  };
+
+  // ===== END EVIDENCE ATTACHMENT FUNCTIONS =====
+
+  // ===== IMAGE LIGHTBOX =====
+  window.openImageLightbox = function(imageUrl) {
+    // Create lightbox overlay
+    let overlay = document.getElementById('imageLightboxOverlay');
+    if (!overlay) {
+      overlay = document.createElement('div');
+      overlay.id = 'imageLightboxOverlay';
+      overlay.className = 'overlay image-lightbox-overlay';
+      overlay.innerHTML = `
+        <div class="image-lightbox" onclick="event.stopPropagation()">
+          <button class="lightbox-close" onclick="closeImageLightbox()"><i class="fa-solid fa-xmark"></i></button>
+          <img id="lightboxImage" src="" alt="Evidence">
+          <div class="lightbox-controls">
+            <button class="btn ghost" onclick="downloadLightboxImage()"><i class="fa-solid fa-download"></i> Download</button>
+          </div>
+        </div>
+      `;
+      overlay.onclick = () => closeImageLightbox();
+      document.body.appendChild(overlay);
+    }
+
+    const img = document.getElementById('lightboxImage');
+    if (img) img.src = imageUrl;
+    overlay.classList.add('show');
+  };
+
+  window.closeImageLightbox = function() {
+    const overlay = document.getElementById('imageLightboxOverlay');
+    if (overlay) {
+      overlay.classList.add('fade-out');
+      setTimeout(() => {
+        overlay.classList.remove('show', 'fade-out');
+      }, 220);
+    }
+  };
+
+  window.downloadLightboxImage = function() {
+    const img = document.getElementById('lightboxImage');
+    if (img && img.src) {
+      const a = document.createElement('a');
+      a.href = img.src;
+      a.download = 'evidence.png';
+      a.click();
+    }
+  };
+
+  // ===== VIDEO PLAYER =====
+  window.openVideoPlayer = function(videoUrl) {
+    // Create video player overlay
+    let overlay = document.getElementById('videoPlayerOverlay');
+    if (!overlay) {
+      overlay = document.createElement('div');
+      overlay.id = 'videoPlayerOverlay';
+      overlay.className = 'overlay video-player-overlay';
+      overlay.innerHTML = `
+        <div class="video-player-container" onclick="event.stopPropagation()">
+          <div class="video-player-header">
+            <span>Evidence Video</span>
+            <button class="mini" onclick="closeVideoPlayer()"><i class="fa-solid fa-xmark"></i></button>
+          </div>
+          <div class="video-player-wrapper">
+            <video id="evidenceVideo" controls>
+              <source src="" type="video/mp4">
+              Your browser does not support video playback.
+            </video>
+          </div>
+          <div class="video-player-controls">
+            <div class="video-speed-controls">
+              <span>Speed:</span>
+              <button class="mini" onclick="setVideoSpeed(0.25)">0.25x</button>
+              <button class="mini" onclick="setVideoSpeed(0.5)">0.5x</button>
+              <button class="mini" onclick="setVideoSpeed(0.75)">0.75x</button>
+              <button class="mini active" onclick="setVideoSpeed(1)">1x</button>
+              <button class="mini" onclick="setVideoSpeed(1.25)">1.25x</button>
+              <button class="mini" onclick="setVideoSpeed(1.5)">1.5x</button>
+              <button class="mini" onclick="setVideoSpeed(1.75)">1.75x</button>
+              <button class="mini" onclick="setVideoSpeed(2)">2x</button>
+            </div>
+            <button class="btn ghost" onclick="downloadVideo()"><i class="fa-solid fa-download"></i> Download</button>
+          </div>
+        </div>
+      `;
+      overlay.onclick = () => closeVideoPlayer();
+      document.body.appendChild(overlay);
+    }
+
+    const video = document.getElementById('evidenceVideo');
+    if (video) {
+      video.src = videoUrl;
+      video.playbackRate = 1;
+    }
+
+    // Reset speed button states
+    overlay.querySelectorAll('.video-speed-controls .mini').forEach(btn => {
+      btn.classList.toggle('active', btn.textContent === '1x');
+    });
+
+    overlay.classList.add('show');
+  };
+
+  window.closeVideoPlayer = function() {
+    const overlay = document.getElementById('videoPlayerOverlay');
+    const video = document.getElementById('evidenceVideo');
+    if (video) {
+      video.pause();
+      video.src = '';
+    }
+    if (overlay) {
+      overlay.classList.add('fade-out');
+      setTimeout(() => {
+        overlay.classList.remove('show', 'fade-out');
+      }, 220);
+    }
+  };
+
+  window.setVideoSpeed = function(speed) {
+    const video = document.getElementById('evidenceVideo');
+    if (video) video.playbackRate = speed;
+
+    // Update button states
+    const overlay = document.getElementById('videoPlayerOverlay');
+    if (overlay) {
+      overlay.querySelectorAll('.video-speed-controls .mini').forEach(btn => {
+        btn.classList.toggle('active', btn.textContent === speed + 'x');
+      });
+    }
+  };
+
+  window.downloadVideo = function() {
+    const video = document.getElementById('evidenceVideo');
+    if (video && video.src) {
+      const a = document.createElement('a');
+      a.href = video.src;
+      a.download = 'evidence.mp4';
+      a.click();
+    }
+  };
+
+  // ===== END VIDEO PLAYER =====
+
   window.applyTemplateToPunish = function(templateId) {
     if (!templateId || templateId === 'none') {
       dom().punishReason.value = '';
@@ -2770,6 +3503,63 @@
     const ev = pun.evidenceId ? state.evidence.find(e => e.id === pun.evidenceId) : null;
 
     dom().detailsCaseId.innerHTML = `<i class="fa-solid fa-hashtag"></i> ${escapeHtml(caseId.slice(-8))}`;
+
+    // Get evidence attached to this punishment
+    const punishmentEvidence = pun.evidence || [];
+    const hasEvidence = punishmentEvidence.length > 0 || ev;
+
+    // Build evidence HTML
+    let evidenceHtml = '';
+    if (hasEvidence) {
+      evidenceHtml = `<div class="card"><h3><i class="fa-solid fa-paperclip" style="color:var(--accent-light)"></i> Evidence</h3>
+        <div class="evidence-list" style="margin-top:12px;display:flex;flex-direction:column;gap:12px">`;
+
+      // Legacy evidence
+      if (ev) {
+        evidenceHtml += `<div class="evidence-item">
+          <div class="evidence-item-header"><span class="badge gray"><i class="fa-solid fa-robot"></i> Automod</span></div>
+          <div class="evidence-item-content" style="margin-top:8px">
+            <div><b>Trigger:</b> ${escapeHtml(ev.trigger)}</div>
+            <div><b>Message:</b> ${escapeHtml(ev.message)}</div>
+          </div>
+        </div>`;
+      }
+
+      // New evidence (activity logs and files)
+      for (const evidence of punishmentEvidence) {
+        if (evidence.type === 'ACTIVITY_LOG') {
+          evidenceHtml += `<div class="evidence-item">
+            <div class="evidence-item-header">
+              <span class="badge gray"><i class="fa-solid fa-scroll"></i> ${escapeHtml(evidence.logType || 'Log')}</span>
+              <span class="evidence-item-time">${escapeHtml(fmtShort(evidence.timestamp))}</span>
+            </div>
+            <div class="evidence-item-content" style="margin-top:8px;padding:10px;background:rgba(0,0,0,0.2);border-radius:var(--radius-sm)">
+              <div style="font-size:12px;color:var(--muted)">Player: ${escapeHtml(evidence.playerName || 'Unknown')}</div>
+              <div style="margin-top:4px">${escapeHtml(evidence.content || '')}</div>
+            </div>
+          </div>`;
+        } else if (evidence.type === 'FILE') {
+          const isVideo = evidence.fileType?.startsWith('VIDEO');
+          const isImage = evidence.fileType?.startsWith('IMAGE');
+          evidenceHtml += `<div class="evidence-item">
+            <div class="evidence-item-header">
+              <span class="badge ${isVideo ? 'purple' : 'blue'}"><i class="fa-solid fa-${isVideo ? 'video' : 'image'}"></i> ${isVideo ? 'Video' : 'Image'}</span>
+              <span class="evidence-item-time">${escapeHtml(evidence.fileName || 'file')}</span>
+            </div>
+            <div class="evidence-item-content" style="margin-top:8px">
+              ${isImage ? `<img src="/api/evidence/${evidence.fileId}" alt="Evidence" class="evidence-image" onclick="openImageLightbox('/api/evidence/${evidence.fileId}')" style="max-width:100%;max-height:200px;border-radius:var(--radius-sm);cursor:pointer">` : ''}
+              ${isVideo ? `<div class="evidence-video-preview" onclick="openVideoPlayer('/api/evidence/${evidence.fileId}')" style="cursor:pointer;padding:20px;background:rgba(0,0,0,0.3);border-radius:var(--radius-sm);text-align:center">
+                <i class="fa-solid fa-play-circle" style="font-size:32px;color:var(--primary-light)"></i>
+                <div style="margin-top:8px;font-size:12px;color:var(--muted)">Click to play video</div>
+              </div>` : ''}
+            </div>
+          </div>`;
+        }
+      }
+
+      evidenceHtml += '</div></div>';
+    }
+
     dom().detailsBody.innerHTML = `
       <div class="grid cols-2">
         <div class="card" style="margin:0">
@@ -2791,8 +3581,7 @@
           </div>
         </div>
       </div>
-      ${ev ? `<div class="card"><h3><i class="fa-solid fa-paperclip" style="color:var(--accent-light)"></i> Evidence</h3>
-        <div style="margin-top:12px"><b>Trigger:</b> ${escapeHtml(ev.trigger)}<br><b>Message:</b> ${escapeHtml(ev.message)}</div></div>` : ''}
+      ${evidenceHtml}
     `;
 
     // Kicks cannot be revoked - they are instant actions
@@ -4382,14 +5171,21 @@
     // Parse search input for filters
     let playerFilter = '';
     let typeFilter = '';
+    let beforeDate = '';
+    let afterDate = '';
     const parts = searchInput.split(/\s+/).filter(p => p);
     const freeText = [];
 
     for (const part of parts) {
-      if (part.toLowerCase().startsWith('player:')) {
+      const lowerPart = part.toLowerCase();
+      if (lowerPart.startsWith('player:')) {
         playerFilter = part.substring(7);
-      } else if (part.toLowerCase().startsWith('type:')) {
+      } else if (lowerPart.startsWith('type:')) {
         typeFilter = part.substring(5).toUpperCase();
+      } else if (lowerPart.startsWith('before:')) {
+        beforeDate = part.substring(7);
+      } else if (lowerPart.startsWith('after:')) {
+        afterDate = part.substring(6);
       } else {
         freeText.push(part);
       }
@@ -4400,6 +5196,11 @@
       playerFilter = freeText.join(' ');
     }
 
+    // Validate date formats (YYYY-MM-DD)
+    const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
+    const validBefore = beforeDate && dateRegex.test(beforeDate) ? beforeDate : null;
+    const validAfter = afterDate && dateRegex.test(afterDate) ? afterDate : null;
+
     // Get enabled types from filter toggles (only include types that are enabled)
     const enabledTypes = state.activityLogs.filters.enabledTypes || {};
     const enabledTypesList = Object.keys(enabledTypes).filter(type => enabledTypes[type] !== false);
@@ -4409,6 +5210,8 @@
       limit: pageSize,
       player: playerFilter,
       type: typeFilter,
+      before: validBefore,
+      after: validAfter,
       enabledTypes: enabledTypesList.length > 0 ? enabledTypesList : null
     });
   };
@@ -4559,6 +5362,25 @@
       });
     }
 
+    // Date filter suggestions
+    const today = new Date().toISOString().split('T')[0];
+    if (!query.includes('before:') && (lowerQuery.startsWith('b') || lowerQuery.startsWith('bef'))) {
+      suggestions.push({
+        icon: 'fa-calendar-minus',
+        text: '<b>before:</b>YYYY-MM-DD',
+        hint: 'Show entries before date',
+        value: `before:${today}`
+      });
+    }
+    if (!query.includes('after:') && (lowerQuery.startsWith('a') || lowerQuery.startsWith('aft'))) {
+      suggestions.push({
+        icon: 'fa-calendar-plus',
+        text: '<b>after:</b>YYYY-MM-DD',
+        hint: 'Show entries after date',
+        value: `after:${today}`
+      });
+    }
+
     // Type-specific suggestions
     const allowedTypes = state.activityLogs.allowedTypes || [];
     const typeMap = {
@@ -4619,6 +5441,79 @@
     });
 
     suggestionBox.style.display = 'block';
+  }
+
+  /**
+   * Update filter highlighting overlay for activity search
+   * Shows recognized filter keywords in blue, invalid dates in red
+   */
+  function updateActivitySearchHighlight(inputEl) {
+    if (!inputEl) return;
+
+    const container = inputEl.closest('.activity-search');
+    if (!container) return;
+
+    let overlay = container.querySelector('.filter-highlight-overlay');
+    if (!overlay) {
+      overlay = document.createElement('div');
+      overlay.className = 'filter-highlight-overlay';
+      container.appendChild(overlay);
+    }
+
+    const value = inputEl.value;
+    if (!value) {
+      overlay.innerHTML = '';
+      inputEl.classList.remove('has-filters');
+      return;
+    }
+
+    const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
+    const validFilters = ['player:', 'type:', 'before:', 'after:'];
+    const parts = value.split(/(\s+)/); // Keep spaces
+    let hasFilters = false;
+    let highlighted = '';
+
+    for (const part of parts) {
+      if (/^\s+$/.test(part)) {
+        highlighted += part;
+        continue;
+      }
+
+      const lowerPart = part.toLowerCase();
+      let matched = false;
+
+      for (const filter of validFilters) {
+        if (lowerPart.startsWith(filter)) {
+          hasFilters = true;
+          const keyword = part.substring(0, filter.length);
+          const filterValue = part.substring(filter.length);
+
+          // Check if date filters have valid format
+          if ((filter === 'before:' || filter === 'after:') && filterValue) {
+            if (dateRegex.test(filterValue)) {
+              highlighted += `<span class="filter-keyword">${escapeHtml(keyword)}</span><span class="filter-value">${escapeHtml(filterValue)}</span>`;
+            } else {
+              highlighted += `<span class="filter-keyword">${escapeHtml(keyword)}</span><span class="filter-invalid">${escapeHtml(filterValue)}</span>`;
+            }
+          } else {
+            highlighted += `<span class="filter-keyword">${escapeHtml(keyword)}</span><span class="filter-value">${escapeHtml(filterValue)}</span>`;
+          }
+          matched = true;
+          break;
+        }
+      }
+
+      if (!matched) {
+        highlighted += `<span class="filter-value">${escapeHtml(part)}</span>`;
+      }
+    }
+
+    overlay.innerHTML = highlighted;
+    if (hasFilters) {
+      inputEl.classList.add('has-filters');
+    } else {
+      inputEl.classList.remove('has-filters');
+    }
   }
 
   /**
@@ -5390,6 +6285,8 @@
     if (activitySearchEl) {
       let searchTimeout = null;
       activitySearchEl.addEventListener('input', (e) => {
+        // Update filter highlighting
+        updateActivitySearchHighlight(activitySearchEl);
         // Show suggestions while typing
         showActivitySearchSuggestions(e.target.value);
         // Debounce the actual search
@@ -5397,6 +6294,7 @@
         searchTimeout = setTimeout(() => fetchActivityLogs(1), 500);
       });
       activitySearchEl.addEventListener('focus', () => {
+        updateActivitySearchHighlight(activitySearchEl);
         if (activitySearchEl.value) {
           showActivitySearchSuggestions(activitySearchEl.value);
         }
@@ -5407,6 +6305,28 @@
           const suggestionBox = document.getElementById('activitySearchSuggestions');
           if (suggestionBox) suggestionBox.style.display = 'none';
         }, 200);
+      });
+      // Initialize highlight on page load
+      updateActivitySearchHighlight(activitySearchEl);
+    }
+
+    // Evidence search event listener (in punishment form)
+    const evidenceSearchEl = document.getElementById('punishEvidenceSearch');
+    if (evidenceSearchEl) {
+      let evidenceSearchTimeout = null;
+      evidenceSearchEl.addEventListener('input', (e) => {
+        // Update filter highlighting
+        updateActivitySearchHighlight(evidenceSearchEl);
+        // Debounce the search
+        clearTimeout(evidenceSearchTimeout);
+        evidenceSearchTimeout = setTimeout(() => {
+          if (state.punishEvidence.expanded && state.massPlayerIds.length > 0) {
+            fetchEvidenceActivityLogs();
+          }
+        }, 500);
+      });
+      evidenceSearchEl.addEventListener('focus', () => {
+        updateActivitySearchHighlight(evidenceSearchEl);
       });
     }
 
@@ -6455,6 +7375,12 @@
       }
 
       renderActivityLogs();
+    });
+
+    // Handle evidence activity logs data (for punishment form evidence selector)
+    ws.on('EVIDENCE_ACTIVITY_LOGS_DATA', (data) => {
+      if (!isLiveMode) return;
+      handleEvidenceActivityLogsData(data);
     });
 
     // Handle anticheat alerts data (list of all checks)

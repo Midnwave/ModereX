@@ -2085,6 +2085,41 @@
           <div class="hintline" style="margin-top:0;display:flex;justify-content:space-between">Reason <span id="punishCreateReasonCount" style="color:var(--text-secondary);font-weight:normal">0/100</span></div>
           <textarea class="input" id="punishCreateReason" placeholder="Enter reason for punishment..." rows="2" maxlength="100" oninput="updateCharCount(this, 'punishCreateReasonCount', 100)"></textarea>
         </div>
+
+        <!-- Evidence Attachment Section -->
+        <div class="evidence-section" id="punishEvidenceSection" style="margin-top:16px">
+          <div class="evidence-header" onclick="toggleEvidenceSection()">
+            <div style="display:flex;align-items:center;gap:8px">
+              <i class="fa-solid fa-paperclip"></i>
+              <span>Attach Evidence</span>
+              <span class="badge gray" id="punishEvidenceCount" style="display:none">0</span>
+            </div>
+            <i class="fa-solid fa-chevron-down evidence-toggle-icon" id="evidenceToggleIcon"></i>
+          </div>
+          <div class="evidence-content" id="punishEvidenceContent" style="display:none">
+            <!-- Selected Evidence Pills -->
+            <div class="evidence-selected" id="punishEvidenceSelected" style="display:none"></div>
+
+            <!-- Activity Log Search -->
+            <div class="evidence-search-container">
+              <div class="gsearch activity-search evidence-search">
+                <i class="fa-solid fa-magnifying-glass"></i>
+                <input type="text" id="punishEvidenceSearch" placeholder="Search activity log... (before:YYYY-MM-DD, after:YYYY-MM-DD)" autocomplete="off">
+              </div>
+              <button class="btn" onclick="openEvidenceUploadModal()" title="Upload file">
+                <i class="fa-solid fa-cloud-arrow-up"></i>
+              </button>
+            </div>
+
+            <!-- Activity Log Entries -->
+            <div class="evidence-log-list" id="punishEvidenceLogList">
+              <div class="evidence-log-empty">
+                <i class="fa-solid fa-scroll"></i>
+                <p>Select player(s) to see their activity log</p>
+              </div>
+            </div>
+          </div>
+        </div>
       </div>
       <div class="modal-foot">
         <span class="badge gray" id="punishCreateStatus"><i class="fa-solid fa-circle-info"></i> Review before submitting</span>
@@ -2138,7 +2173,62 @@
       </div>
     </div>
   </div>
-  
+
+  <!-- Evidence Upload Modal -->
+  <div class="overlay" id="evidenceUploadOverlay">
+    <div class="modal" style="max-width:520px" onclick="event.stopPropagation()">
+      <div class="modal-top">
+        <div style="display:flex;align-items:center;gap:10px">
+          <i class="fa-solid fa-cloud-arrow-up" style="color:var(--ok)"></i>
+          <b>Upload Evidence</b>
+        </div>
+        <button class="mini" onclick="closeEvidenceUploadModal()"><i class="fa-solid fa-xmark"></i></button>
+      </div>
+      <div class="modal-body">
+        <!-- Dropzone -->
+        <div class="evidence-dropzone" id="evidenceDropzone">
+          <i class="fa-solid fa-cloud-arrow-up"></i>
+          <p class="dropzone-title">Drag & drop files here</p>
+          <p class="dropzone-hint">or click to browse</p>
+          <input type="file" id="evidenceFileInput" accept="image/png,image/jpeg,image/jpg,video/mp4,video/x-matroska,video/quicktime" style="display:none">
+          <div class="dropzone-formats">
+            <span><i class="fa-solid fa-image"></i> PNG, JPG</span>
+            <span><i class="fa-solid fa-video"></i> MP4, MKV, MOV</span>
+          </div>
+        </div>
+
+        <!-- Selected File Preview -->
+        <div class="evidence-file-preview" id="evidenceFilePreview" style="display:none">
+          <div class="file-preview-info">
+            <i class="fa-solid fa-file" id="evidenceFileIcon"></i>
+            <div class="file-preview-details">
+              <div class="file-preview-name" id="evidenceFileName">filename.png</div>
+              <div class="file-preview-size" id="evidenceFileSize">2.4 MB</div>
+            </div>
+            <button class="mini" onclick="clearEvidenceFile()" title="Remove file"><i class="fa-solid fa-xmark"></i></button>
+          </div>
+          <!-- Progress Bar -->
+          <div class="evidence-upload-progress" id="evidenceUploadProgress" style="display:none">
+            <div class="progress-bar">
+              <div class="progress-fill" id="evidenceProgressFill"></div>
+            </div>
+            <div class="progress-text" id="evidenceProgressText">0%</div>
+          </div>
+        </div>
+
+        <!-- Upload Status -->
+        <div class="evidence-upload-status" id="evidenceUploadStatus" style="display:none"></div>
+      </div>
+      <div class="modal-foot">
+        <span class="badge gray" id="evidenceUploadHint"><i class="fa-solid fa-circle-info"></i> Max file size: 250 MB</span>
+        <div style="display:flex;gap:10px">
+          <button class="btn ghost" onclick="closeEvidenceUploadModal()"><i class="fa-solid fa-xmark"></i> Cancel</button>
+          <button class="btn primary" id="evidenceUploadBtn" onclick="uploadEvidenceFile()" disabled><i class="fa-solid fa-cloud-arrow-up"></i> Upload</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <!-- Support Button -->
   <button class="fab" id="supportFab" onclick="openSupport()"><i class="fa-solid fa-headset"></i></button>
 
