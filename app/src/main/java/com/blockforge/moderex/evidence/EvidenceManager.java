@@ -4,8 +4,13 @@ import com.blockforge.moderex.ModereX;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 
+import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.InputStreamReader;
+import java.io.OutputStream;
+import java.net.HttpURLConnection;
+import java.net.URL;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
@@ -13,6 +18,9 @@ import java.sql.SQLException;
 import java.util.*;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.function.Consumer;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 /**
  * Manages evidence files and metadata for the ModereX evidence system.
@@ -27,6 +35,15 @@ public class EvidenceManager {
 
     // Allowed file extensions
     private static final Set<String> ALLOWED_EXTENSIONS = Set.of("mp4", "mkv", "mov", "png", "jpg", "jpeg");
+
+    // Medal.tv URL patterns
+    private static final Pattern MEDAL_URL_PATTERN = Pattern.compile(
+            "https?://(?:www\\.)?medal\\.tv/(?:clips/|games/[^/]+/clips/|u/[^/]+/clips/)([a-zA-Z0-9]+)"
+    );
+    private static final Pattern MEDAL_VIDEO_URL_PATTERN = Pattern.compile(
+            "\"contentUrl\"\\s*:\\s*\"([^\"]+\\.mp4[^\"]*)\""
+    );
+    private static final int MEDAL_DOWNLOAD_TIMEOUT_MS = 60000; // 60 seconds
 
     public EvidenceManager(ModereX plugin) {
         this.plugin = plugin;
@@ -162,6 +179,258 @@ public class EvidenceManager {
                 return null;
             }
         });
+    }
+
+    /**
+     * Import a video clip from Medal.tv.
+     *
+     * @param medalUrl The Medal.tv URL
+     * @param uploaderUuid The UUID of the uploader
+     * @param uploaderName The name of the uploader
+     * @param progressCallback Optional callback for download progress (0-100)
+     * @return CompletableFuture with the result containing Evidence or error message
+     */
+    public CompletableFuture<MedalImportResult> importFromMedal(String medalUrl, UUID uploaderUuid,
+                                                                  String uploaderName, Consumer<Integer> progressCallback) {
+        return CompletableFuture.supplyAsync(() -> {
+            plugin.logDebug("[Medal] Starting import from: " + medalUrl);
+
+            // Parse Medal URL to extract clip ID
+            String clipId = parseMedalUrl(medalUrl);
+            if (clipId == null) {
+                return MedalImportResult.error("Invalid Medal.tv URL format. Supported formats: " +
+                        "medal.tv/clips/xxx, medal.tv/games/xxx/clips/xxx, medal.tv/u/xxx/clips/xxx");
+            }
+
+            plugin.logDebug("[Medal] Extracted clip ID: " + clipId);
+
+            // Fetch the Medal page to find the video URL
+            String videoUrl;
+            try {
+                videoUrl = fetchMedalVideoUrl(medalUrl);
+                if (videoUrl == null) {
+                    return MedalImportResult.error("Could not find video URL. The clip may be private or deleted.");
+                }
+            } catch (IOException e) {
+                plugin.logError("Failed to fetch Medal page", e);
+                return MedalImportResult.error("Failed to fetch Medal page: " + e.getMessage());
+            }
+
+            plugin.logDebug("[Medal] Found video URL: " + videoUrl);
+
+            // Download the video
+            try {
+                Evidence evidence = downloadMedalVideo(videoUrl, clipId, uploaderUuid, uploaderName, progressCallback);
+                if (evidence == null) {
+                    return MedalImportResult.error("Failed to download video. File may be too large.");
+                }
+
+                // Tag it with Medal metadata
+                evidence.setSource(Evidence.Source.MEDAL_IMPORT);
+                evidence.addTag("medal");
+                evidence.addTag("clip:" + clipId);
+                evidence.setDescription("Imported from Medal.tv: " + medalUrl);
+
+                // Update in database
+                saveEvidence(evidence);
+
+                plugin.logDebug("[Medal] Successfully imported: " + evidence.getId());
+                return MedalImportResult.success(evidence);
+
+            } catch (IOException e) {
+                plugin.logError("Failed to download Medal video", e);
+                return MedalImportResult.error("Failed to download video: " + e.getMessage());
+            }
+        });
+    }
+
+    /**
+     * Parse a Medal.tv URL to extract the clip ID.
+     *
+     * @param url The Medal URL
+     * @return The clip ID, or null if invalid
+     */
+    public String parseMedalUrl(String url) {
+        if (url == null || url.isEmpty()) {
+            return null;
+        }
+
+        Matcher matcher = MEDAL_URL_PATTERN.matcher(url);
+        if (matcher.find()) {
+            return matcher.group(1);
+        }
+        return null;
+    }
+
+    /**
+     * Check if a URL is a valid Medal.tv URL.
+     */
+    public boolean isMedalUrl(String url) {
+        return parseMedalUrl(url) != null;
+    }
+
+    /**
+     * Fetch the Medal page and extract the direct video URL.
+     */
+    private String fetchMedalVideoUrl(String medalUrl) throws IOException {
+        URL url = new URL(medalUrl);
+        HttpURLConnection conn = (HttpURLConnection) url.openConnection();
+        conn.setRequestMethod("GET");
+        conn.setRequestProperty("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36");
+        conn.setConnectTimeout(10000);
+        conn.setReadTimeout(10000);
+
+        try {
+            int responseCode = conn.getResponseCode();
+            if (responseCode != 200) {
+                plugin.logDebug("[Medal] HTTP response code: " + responseCode);
+                return null;
+            }
+
+            StringBuilder content = new StringBuilder();
+            try (BufferedReader reader = new BufferedReader(new InputStreamReader(conn.getInputStream()))) {
+                String line;
+                while ((line = reader.readLine()) != null) {
+                    content.append(line);
+                }
+            }
+
+            // Look for video URL in JSON-LD or og:video meta tag
+            String html = content.toString();
+
+            // Try JSON-LD contentUrl first
+            Matcher matcher = MEDAL_VIDEO_URL_PATTERN.matcher(html);
+            if (matcher.find()) {
+                String videoUrl = matcher.group(1).replace("\\u0026", "&");
+                return videoUrl;
+            }
+
+            // Try og:video meta tag
+            Pattern ogVideoPattern = Pattern.compile("<meta[^>]+property=\"og:video\"[^>]+content=\"([^\"]+)\"");
+            matcher = ogVideoPattern.matcher(html);
+            if (matcher.find()) {
+                return matcher.group(1);
+            }
+
+            // Try data-video-src attribute
+            Pattern dataSrcPattern = Pattern.compile("data-video-src=\"([^\"]+\\.mp4[^\"]*)\"");
+            matcher = dataSrcPattern.matcher(html);
+            if (matcher.find()) {
+                return matcher.group(1);
+            }
+
+            return null;
+        } finally {
+            conn.disconnect();
+        }
+    }
+
+    /**
+     * Download a Medal video and create evidence record.
+     */
+    private Evidence downloadMedalVideo(String videoUrl, String clipId, UUID uploaderUuid,
+                                         String uploaderName, Consumer<Integer> progressCallback) throws IOException {
+        URL url = new URL(videoUrl);
+        HttpURLConnection conn = (HttpURLConnection) url.openConnection();
+        conn.setRequestMethod("GET");
+        conn.setRequestProperty("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36");
+        conn.setConnectTimeout(MEDAL_DOWNLOAD_TIMEOUT_MS);
+        conn.setReadTimeout(MEDAL_DOWNLOAD_TIMEOUT_MS);
+
+        try {
+            int responseCode = conn.getResponseCode();
+            if (responseCode != 200) {
+                plugin.logDebug("[Medal] Video download HTTP response: " + responseCode);
+                return null;
+            }
+
+            long contentLength = conn.getContentLengthLong();
+
+            // Check file size
+            if (contentLength > Evidence.MAX_FILE_SIZE) {
+                plugin.logDebug("[Medal] Video too large: " + contentLength + " bytes");
+                return null;
+            }
+
+            // Generate unique file name
+            String uniqueFileName = UUID.randomUUID().toString() + ".mp4";
+            Path targetPath = evidenceDirectory.resolve(uniqueFileName);
+
+            // Download with progress tracking
+            try (InputStream in = conn.getInputStream();
+                 OutputStream out = Files.newOutputStream(targetPath)) {
+
+                byte[] buffer = new byte[8192];
+                long totalRead = 0;
+                int lastProgress = 0;
+                int read;
+
+                while ((read = in.read(buffer)) != -1) {
+                    out.write(buffer, 0, read);
+                    totalRead += read;
+
+                    // Report progress
+                    if (progressCallback != null && contentLength > 0) {
+                        int progress = (int) ((totalRead * 100) / contentLength);
+                        if (progress > lastProgress) {
+                            lastProgress = progress;
+                            progressCallback.accept(progress);
+                        }
+                    }
+                }
+            }
+
+            // Verify download
+            long actualSize = Files.size(targetPath);
+            if (actualSize == 0) {
+                Files.deleteIfExists(targetPath);
+                return null;
+            }
+
+            // Create evidence record
+            String originalFileName = "medal_" + clipId + ".mp4";
+            Evidence evidence = new Evidence(
+                    uploaderUuid, uploaderName, originalFileName,
+                    uniqueFileName, Evidence.FileType.VIDEO_MP4, actualSize, "video/mp4"
+            );
+
+            // Save to database and cache
+            saveEvidence(evidence);
+            cache.put(evidence.getId(), evidence);
+
+            plugin.logDebug("[Medal] Downloaded: " + evidence.getId() + " (" + evidence.getFormattedSize() + ")");
+            return evidence;
+
+        } finally {
+            conn.disconnect();
+        }
+    }
+
+    /**
+     * Result class for Medal import operations.
+     */
+    public static class MedalImportResult {
+        private final boolean success;
+        private final Evidence evidence;
+        private final String error;
+
+        private MedalImportResult(boolean success, Evidence evidence, String error) {
+            this.success = success;
+            this.evidence = evidence;
+            this.error = error;
+        }
+
+        public static MedalImportResult success(Evidence evidence) {
+            return new MedalImportResult(true, evidence, null);
+        }
+
+        public static MedalImportResult error(String message) {
+            return new MedalImportResult(false, null, message);
+        }
+
+        public boolean isSuccess() { return success; }
+        public Evidence getEvidence() { return evidence; }
+        public String getError() { return error; }
     }
 
     /**

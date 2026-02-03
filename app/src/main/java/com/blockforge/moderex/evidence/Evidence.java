@@ -82,7 +82,8 @@ public class Evidence {
         CHAT_HISTORY,     // Imported from chat history
         COMMAND_HISTORY,  // Imported from command history
         REPLAY_EXPORT,    // Exported from replay system
-        EXTERNAL          // External source (URL, etc.)
+        EXTERNAL,         // External source (URL, etc.)
+        MEDAL_IMPORT      // Imported from Medal.tv
     }
 
     // Maximum file size - configurable up to HARD_LIMIT

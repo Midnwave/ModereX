@@ -251,11 +251,6 @@ public class BanCommand extends PunishmentCommandBase {
         long duration = context.getDuration() != null ? context.getDuration() : -1;
         String reason = context.getReason();
 
-        // Build evidence IDs list for linking to punishment
-        List<Long> evidenceIds = evidenceEntries.stream()
-                .map(ActivityLogEntry::getId)
-                .toList();
-
         if (context.isIpBased()) {
             org.bukkit.entity.Player onlinePlayer = org.bukkit.Bukkit.getPlayer(target.getUuid());
             if (onlinePlayer == null || onlinePlayer.getAddress() == null) {
@@ -276,8 +271,14 @@ public class BanCommand extends PunishmentCommandBase {
                     reason
             ).thenAccept(punishment -> {
                 // Link evidence to punishment
-                if (!evidenceIds.isEmpty() && punishment != null) {
-                    plugin.logDebug("[Evidence] Linking " + evidenceIds.size() + " activity log entries to punishment #" + punishment.getId());
+                if (punishment != null && !evidenceEntries.isEmpty()) {
+                    plugin.getPunishmentManager().linkActivityLogEvidence(
+                            punishment.getCaseId(),
+                            evidenceEntries,
+                            context.getExecutorUuid() != null ? context.getExecutorUuid().toString() : "CONSOLE",
+                            context.getExecutorName()
+                    );
+                    plugin.logDebug("[Evidence] Linked " + evidenceEntries.size() + " activity log entries to case " + punishment.getCaseId());
                 }
 
                 String durationStr = DurationParser.format(duration);
@@ -299,8 +300,14 @@ public class BanCommand extends PunishmentCommandBase {
                 reason
         ).thenAccept(punishment -> {
             // Link evidence to punishment
-            if (!evidenceIds.isEmpty() && punishment != null) {
-                plugin.logDebug("[Evidence] Linking " + evidenceIds.size() + " activity log entries to punishment #" + punishment.getId());
+            if (punishment != null && !evidenceEntries.isEmpty()) {
+                plugin.getPunishmentManager().linkActivityLogEvidence(
+                        punishment.getCaseId(),
+                        evidenceEntries,
+                        context.getExecutorUuid() != null ? context.getExecutorUuid().toString() : "CONSOLE",
+                        context.getExecutorName()
+                );
+                plugin.logDebug("[Evidence] Linked " + evidenceEntries.size() + " activity log entries to case " + punishment.getCaseId());
             }
 
             String durationStr = DurationParser.format(duration);

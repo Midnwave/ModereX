@@ -3576,17 +3576,26 @@
       evidenceHtml += '</div></div>';
     }
 
+    // Build list of players involved (for mass punishments, there could be multiple)
+    const involvedPlayers = pun.players || (pl ? [pl] : [{ name: pun.playerName || 'Unknown', uuid: pun.playerId || 'N/A' }]);
+    const playersHtml = involvedPlayers.map(p => `
+      <div class="pwrap" style="padding:8px;background:rgba(0,0,0,0.2);border-radius:var(--radius-sm);margin-top:8px">
+        <div class="phead" style="width:40px;height:40px"><img src="${avatarUrl(p)}" alt="" onerror="this.onerror=null;this.src='https://minotar.net/helm/${encodeURIComponent(p.name || 'Player')}/64.png'"></div>
+        <div><b style="font-size:14px">${escapeHtml(p.name || 'Unknown')}</b><div style="font-size:11px;color:var(--text-secondary)">${escapeHtml(p.uuid || p.id || 'N/A')}</div></div>
+      </div>
+    `).join('');
+
     dom().detailsBody.innerHTML = `
-      <div class="grid cols-2">
+      <div style="display:flex;flex-direction:column;gap:16px;max-height:60vh;overflow-y:auto;padding-right:8px">
+        <!-- Section 1: Players -->
         <div class="card" style="margin:0">
-          <h3><i class="fa-solid fa-user" style="color:var(--primary-light)"></i> Player</h3>
-          <div style="margin-top:12px" class="pwrap">
-            <div class="phead" style="width:48px;height:48px"><img src="${avatarUrl(pl || { name: 'Player' })}" alt="" onerror="this.onerror=null;this.src='https://minotar.net/helm/${encodeURIComponent(pl?.name || 'Player')}/64.png'"></div>
-            <div><b style="font-size:15px">${escapeHtml(pl?.name || 'Unknown')}</b><div style="font-size:12px;color:var(--text-secondary)">${escapeHtml(pl?.uuid || 'N/A')}</div></div>
-          </div>
+          <h3><i class="fa-solid fa-users" style="color:var(--primary-light)"></i> Players (${involvedPlayers.length})</h3>
+          <div style="margin-top:8px">${playersHtml}</div>
         </div>
+
+        <!-- Section 2: Information -->
         <div class="card" style="margin:0">
-          <h3><i class="fa-solid fa-gavel" style="color:var(--warn)"></i> Details</h3>
+          <h3><i class="fa-solid fa-gavel" style="color:var(--warn)"></i> Information</h3>
           <div style="margin-top:12px;display:flex;flex-direction:column;gap:6px">
             <div><b>Type:</b> ${escapeHtml(pun.type)}</div>
             <div style="word-break:break-word;white-space:pre-wrap"><b>Reason:</b> ${escapeHtml(pun.reason || 'No reason')}</div>
@@ -3596,8 +3605,10 @@
             <div><b>Status:</b> ${pun.active && !pun.revoked ? '<span class="badge red">Active</span>' : '<span class="badge gray">Closed</span>'}</div>
           </div>
         </div>
+
+        <!-- Section 3: Evidence -->
+        ${hasEvidence ? evidenceHtml.replace('<div class="card">', '<div class="card" style="margin:0">') : ''}
       </div>
-      ${evidenceHtml}
     `;
 
     // Kicks cannot be revoked - they are instant actions

@@ -6,6 +6,7 @@ import com.blockforge.moderex.commands.moderation.base.PunishmentContext;
 import com.blockforge.moderex.config.lang.MessageKey;
 import com.blockforge.moderex.util.FlagParser;
 import com.blockforge.moderex.util.TargetResolver;
+import com.blockforge.moderex.log.ActivityLogEntry;
 import org.bukkit.Bukkit;
 import org.bukkit.command.CommandSender;
 import org.bukkit.command.ConsoleCommandSender;
@@ -58,6 +59,27 @@ public class KickCommand extends PunishmentCommandBase {
                 .reason(reason)
                 .build();
 
+        // Check if evidence selection should be triggered (in-game players only)
+        boolean requiresEvidence = plugin.getConfigManager().getSettings().isEvidenceRequireEvidence();
+        boolean wantsEvidence = flagParser.isEvidence();
+        final String finalReason = reason;
+
+        if ((requiresEvidence || wantsEvidence) && sender instanceof Player player) {
+            TargetResolver targetResolver = new TargetResolver(target.getName());
+            boolean started = plugin.getEvidenceSelectionManager().startSession(
+                    player, targetResolver, "KICK", 0, finalReason,
+                    result -> {
+                        if (result.isConfirmed()) {
+                            executeKickWithEvidence(context, target, result.getSelectedEntries());
+                        }
+                    }
+            );
+
+            if (started) {
+                return;
+            }
+        }
+
         executeKick(context, target);
     }
 
@@ -71,6 +93,33 @@ public class KickCommand extends PunishmentCommandBase {
                 context.getExecutorName(),
                 reason
         ).thenAccept(punishment -> {
+            sendMessage(context.getSender(), MessageKey.KICK_SUCCESS,
+                    "player", target.getName());
+
+            broadcastPunishment(context, target.getName(), reason);
+        });
+    }
+
+    private void executeKickWithEvidence(PunishmentContext context, Player target, List<ActivityLogEntry> evidenceEntries) {
+        String reason = context.getReason();
+
+        plugin.getPunishmentManager().kick(
+                target.getUniqueId(),
+                target.getName(),
+                context.getExecutorUuid(),
+                context.getExecutorName(),
+                reason
+        ).thenAccept(punishment -> {
+            // Link evidence to punishment
+            if (punishment != null && !evidenceEntries.isEmpty()) {
+                plugin.getPunishmentManager().linkActivityLogEvidence(
+                        punishment.getCaseId(),
+                        evidenceEntries,
+                        context.getExecutorUuid() != null ? context.getExecutorUuid().toString() : "CONSOLE",
+                        context.getExecutorName()
+                );
+            }
+
             sendMessage(context.getSender(), MessageKey.KICK_SUCCESS,
                     "player", target.getName());
 

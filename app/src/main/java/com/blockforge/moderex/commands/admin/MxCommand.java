@@ -88,6 +88,7 @@ public class MxCommand extends BaseCommand {
             case "staffchat", "sc" -> handleStaffChat(sender, subArgs);
             case "vanish", "v" -> handleVanish(sender);
             case "update", "checkupdate" -> handleUpdate(sender);
+            case "debug" -> handleDebug(sender, subArgs);
 
             default -> sendMessage(sender, "<red>Unknown subcommand: " + subcommand + ". Use /mx help for a list.");
         }
@@ -124,6 +125,97 @@ public class MxCommand extends BaseCommand {
                     }
                 }
             });
+        });
+    }
+
+    private void handleDebug(CommandSender sender, String[] args) {
+        if (!sender.hasPermission("moderex.admin")) {
+            sendMessage(sender, MessageKey.NO_PERMISSION);
+            return;
+        }
+
+        if (args.length == 0) {
+            sendMessage(sender, "<red>Usage: /mx debug <authsession>");
+            sendMessage(sender, "<gray>/mx debug authsession <player> [caseId] <white>- Generate portal session for player");
+            return;
+        }
+
+        String action = args[0].toLowerCase();
+        String[] actionArgs = args.length > 1 ? Arrays.copyOfRange(args, 1, args.length) : new String[0];
+
+        switch (action) {
+            case "authsession" -> handleDebugAuthSession(sender, actionArgs);
+            default -> {
+                sendMessage(sender, "<red>Unknown debug action: " + action);
+                sendMessage(sender, "<gray>Available: authsession");
+            }
+        }
+    }
+
+    private void handleDebugAuthSession(CommandSender sender, String[] args) {
+        if (args.length == 0) {
+            sendMessage(sender, "<red>Usage: /mx debug authsession <player> [caseId]");
+            sendMessage(sender, "<gray>Generates an auth session for the player portal.");
+            sendMessage(sender, "<gray>Optionally specify a caseId to link the session to a specific punishment.");
+            return;
+        }
+
+        String targetName = args[0];
+        String caseId = args.length > 1 ? args[1] : null;
+
+        // Resolve player
+        @SuppressWarnings("deprecation")
+        OfflinePlayer target = Bukkit.getOfflinePlayer(targetName);
+
+        if (!target.hasPlayedBefore() && !target.isOnline()) {
+            sendMessage(sender, MessageKey.PLAYER_NOT_FOUND, "player", targetName);
+            return;
+        }
+
+        UUID targetUuid = target.getUniqueId();
+        String displayName = target.getName() != null ? target.getName() : targetName;
+
+        // Check if auth session manager is available
+        if (plugin.getAuthSessionManager() == null) {
+            sendMessage(sender, "<red>Auth session manager is not initialized. Is the player portal enabled?");
+            return;
+        }
+
+        sendMessage(sender, "<yellow>Generating auth session for " + displayName + "...");
+
+        plugin.getAuthSessionManager().createSession(targetUuid, caseId).thenAccept(sessionId -> {
+            plugin.getServer().getScheduler().runTask(plugin, () -> {
+                // Build portal URL
+                int port = plugin.getConfigManager().getSettings().getWebPanelPort();
+                String host = plugin.getConfigManager().getSettings().getWebPanelHost();
+                if (host == null || host.isEmpty()) {
+                    host = "your-server-ip";
+                }
+
+                String url = "http://" + host + ":" + port + "/moderex/portal/" + sessionId;
+
+                sendMessage(sender, "");
+                sendMessage(sender, "<gradient:#a855f7:#ec4899>━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━</gradient>");
+                sendMessage(sender, "<white>      <bold>Player Portal Session</bold>");
+                sendMessage(sender, "");
+                sendMessage(sender, "<gray>Player: <white>" + displayName);
+                sendMessage(sender, "<gray>Session ID: <white>" + sessionId);
+                if (caseId != null) {
+                    sendMessage(sender, "<gray>Linked Case: <white>" + caseId);
+                }
+                sendMessage(sender, "");
+                sendMessage(sender, "<gray>Portal URL:");
+                sendMessage(sender, "<aqua>" + url);
+                sendMessage(sender, "");
+                sendMessage(sender, "<yellow>Session expires in <white>12 hours<yellow>.");
+                sendMessage(sender, "<gradient:#a855f7:#ec4899>━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━</gradient>");
+                sendMessage(sender, "");
+            });
+        }).exceptionally(ex -> {
+            plugin.getServer().getScheduler().runTask(plugin, () -> {
+                sendMessage(sender, "<red>Failed to create auth session: " + ex.getMessage());
+            });
+            return null;
         });
     }
 
@@ -1403,6 +1495,9 @@ public class MxCommand extends BaseCommand {
                 completions.add("replays");
                 completions.add("sendalert");
             }
+            if (sender.hasPermission("moderex.admin")) {
+                completions.add("debug");
+            }
             if (sender.hasPermission("moderex.webpanel")) {
                 completions.add("connect");
                 completions.add("gettoken");
@@ -1428,10 +1523,21 @@ public class MxCommand extends BaseCommand {
                 case "sendalert" -> {
                     return filterCompletions(getOnlinePlayerNames(sender), args[1]);
                 }
+                case "debug" -> {
+                    if (sender.hasPermission("moderex.admin")) {
+                        return filterCompletions(Arrays.asList("authsession"), args[1]);
+                    }
+                }
             }
         }
         if (args.length == 3) {
             String sub = args[0].toLowerCase();
+            if (sub.equals("debug")) {
+                String action = args[1].toLowerCase();
+                if (action.equals("authsession") && sender.hasPermission("moderex.admin")) {
+                    return filterCompletions(getOnlinePlayerNames(sender), args[2]);
+                }
+            }
             if (sub.equals("sendalert")) {
                 // Show alert types
                 return filterCompletions(Arrays.asList("ban", "kick", "mute", "warn", "pardon", "anticheat", "automod", "command", "nickname", "joinleave", "lag", "watchlist", "staffchat", "custom"), args[2]);

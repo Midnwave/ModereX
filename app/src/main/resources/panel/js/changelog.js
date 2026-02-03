@@ -14,6 +14,49 @@
 
 window.MX_CHANGELOGS = [
   {
+    build: 221,
+    version: "2.0dev-221",
+    date: "2026-02-03",
+    title: "Evidence System & Portal Update",
+    sections: [
+      {
+        type: "fixed",
+        title: "Bug Fixes",
+        items: [
+          "**Evidence Persistence** - Fixed activity log evidence not being saved to database when creating punishments",
+          "**Evidence Retrieval** - Added endpoint to serve uploaded evidence files with proper MIME types",
+          "**Player Portal Evidence** - Added evidence display section to player punishment portal"
+        ]
+      },
+      {
+        type: "improved",
+        title: "Improvements",
+        items: [
+          "**Punishment Details** - Reorganized into 3 vertical sections (Players, Info, Evidence) with scrollbar",
+          "**Evidence Display** - Activity log evidence now shows timestamp, type icon, and content preview"
+        ]
+      },
+      {
+        type: "new",
+        title: "New Features",
+        items: [
+          "**Medal Clip Import** - Import video clips from Medal.tv as evidence via URL",
+          "**Player Portal Tabs** - Portal now has Punishments and Settings tabs",
+          "**Punishment Timeline** - Visual timeline showing all player's punishment history",
+          "**Portal Settings** - Color scheme picker, browser notifications, device trust options",
+          "**Debug Command** - Added /mx debug authsession command for testing player portal sessions"
+        ]
+      },
+      {
+        type: "permissions",
+        title: "Permissions",
+        items: [
+          "**moderex.admin** - Required for /mx debug authsession command"
+        ]
+      }
+    ]
+  },
+  {
     build: 219,
     version: "2.0dev-219",
     date: "2026-02-03",

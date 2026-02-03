@@ -2,6 +2,7 @@ package com.blockforge.moderex.punishment;
 
 import com.blockforge.moderex.ModereX;
 import com.blockforge.moderex.config.lang.MessageKey;
+import com.blockforge.moderex.log.ActivityLogEntry;
 import com.blockforge.moderex.webpanel.debug.WebPanelDebugger;
 import com.blockforge.moderex.util.DurationParser;
 import com.blockforge.moderex.util.TextUtil;
@@ -881,6 +882,86 @@ public class PunishmentManager {
         } catch (Exception e) {
             plugin.logError("Failed to build portal URL", e);
             return null;
+        }
+    }
+
+    /**
+     * Link activity log entries as evidence to a punishment case.
+     * Creates JSON snapshots of each log entry for historical preservation.
+     *
+     * @param caseId The punishment case ID
+     * @param entries The activity log entries to link
+     * @param addedByUuid UUID of staff who added the evidence
+     * @param addedByName Name of staff who added the evidence
+     */
+    public void linkActivityLogEvidence(String caseId, List<ActivityLogEntry> entries,
+                                         String addedByUuid, String addedByName) {
+        if (entries == null || entries.isEmpty() || caseId == null) {
+            return;
+        }
+
+        long now = System.currentTimeMillis();
+        String sql = """
+            INSERT INTO moderex_punishment_evidence
+            (punishment_case_id, evidence_type, evidence_id, activity_log_id, activity_log_snapshot,
+             added_by_uuid, added_by_name, added_at)
+            VALUES (?, 'ACTIVITY_LOG', NULL, ?, ?, ?, ?, ?)
+            """;
+
+        for (ActivityLogEntry entry : entries) {
+            // Create JSON snapshot of the activity log entry
+            com.google.gson.JsonObject snapshot = new com.google.gson.JsonObject();
+            snapshot.addProperty("id", entry.getId());
+            snapshot.addProperty("playerUuid", entry.getPlayerUuid() != null ? entry.getPlayerUuid().toString() : null);
+            snapshot.addProperty("playerName", entry.getPlayerName());
+            snapshot.addProperty("type", entry.getType() != null ? entry.getType().name() : null);
+            snapshot.addProperty("content", entry.getContent());
+            snapshot.addProperty("extra", entry.getExtra());
+            snapshot.addProperty("timestamp", entry.getTimestamp());
+            snapshot.addProperty("server", entry.getServer());
+
+            try {
+                plugin.getDatabaseManager().execute(sql,
+                        caseId,
+                        (int) entry.getId(),
+                        snapshot.toString(),
+                        addedByUuid,
+                        addedByName,
+                        now
+                );
+                plugin.logDebug("[Evidence] Linked activity log #" + entry.getId() + " to case " + caseId);
+            } catch (SQLException e) {
+                plugin.logError("Failed to link evidence to punishment: " + e.getMessage(), e);
+            }
+        }
+    }
+
+    /**
+     * Link a file evidence to a punishment case.
+     *
+     * @param caseId The punishment case ID
+     * @param evidenceId The evidence file ID
+     * @param addedByUuid UUID of staff who added the evidence
+     * @param addedByName Name of staff who added the evidence
+     */
+    public void linkFileEvidence(String caseId, String evidenceId, String addedByUuid, String addedByName) {
+        if (caseId == null || evidenceId == null) {
+            return;
+        }
+
+        long now = System.currentTimeMillis();
+        String sql = """
+            INSERT INTO moderex_punishment_evidence
+            (punishment_case_id, evidence_type, evidence_id, activity_log_id, activity_log_snapshot,
+             added_by_uuid, added_by_name, added_at)
+            VALUES (?, 'FILE', ?, NULL, NULL, ?, ?, ?)
+            """;
+
+        try {
+            plugin.getDatabaseManager().execute(sql, caseId, evidenceId, addedByUuid, addedByName, now);
+            plugin.logDebug("[Evidence] Linked file evidence " + evidenceId + " to case " + caseId);
+        } catch (SQLException e) {
+            plugin.logError("Failed to link file evidence to punishment: " + e.getMessage(), e);
         }
     }
 

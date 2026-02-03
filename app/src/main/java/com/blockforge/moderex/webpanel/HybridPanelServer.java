@@ -238,9 +238,23 @@ public class HybridPanelServer {
                 return;
             }
 
-            // Player portal route: /moderex/punishment/{case-id}/{auth-session}
+            // Player portal routes
             if (path.startsWith("/moderex/punishment/")) {
                 handlePlayerPortalRequest(out, path);
+                return;
+            }
+            if (path.startsWith("/moderex/portal/logout/")) {
+                handlePortalLogout(out, path);
+                return;
+            }
+            if (path.startsWith("/moderex/portal/")) {
+                handlePortalSessionRequest(out, path);
+                return;
+            }
+
+            // Evidence file retrieval: /api/evidence/{fileId}
+            if (path.startsWith("/api/evidence/") && !path.equals("/api/evidence/upload")) {
+                handleEvidenceFileRequest(out, path, headers);
                 return;
             }
 
@@ -500,6 +514,113 @@ public class HybridPanelServer {
     }
 
     /**
+     * Handle evidence file retrieval requests.
+     * URL format: /api/evidence/{fileId}
+     */
+    private void handleEvidenceFileRequest(OutputStream out, String path, Map<String, String> headers) throws IOException {
+        // Extract file ID from path
+        String fileId = path.substring("/api/evidence/".length());
+        if (fileId.isEmpty()) {
+            sendJsonResponse(out, 400, "{\"error\":\"Evidence ID required\"}");
+            return;
+        }
+
+        // Remove any trailing slashes or query params
+        if (fileId.contains("/")) {
+            fileId = fileId.substring(0, fileId.indexOf("/"));
+        }
+
+        // Check authorization - either staff session or player portal session
+        String authHeader = headers.get("authorization");
+        boolean isAuthorized = false;
+
+        if (authHeader != null && authHeader.toLowerCase().startsWith("bearer ")) {
+            String sessionId = authHeader.substring(7);
+            WebAuthManager authManager = plugin.getWebAuthManager();
+            if (authManager != null) {
+                WebAuthManager.AuthenticatedSession authSession = authManager.validateSession(sessionId);
+                if (authSession != null) {
+                    isAuthorized = true;
+                }
+            }
+        }
+
+        // Also allow cookie-based auth for web panel
+        String cookieHeader = headers.get("cookie");
+        if (!isAuthorized && cookieHeader != null) {
+            String[] cookies = cookieHeader.split(";");
+            for (String cookie : cookies) {
+                String[] parts = cookie.trim().split("=", 2);
+                if (parts.length == 2 && "mx_session".equals(parts[0])) {
+                    WebAuthManager authManager = plugin.getWebAuthManager();
+                    if (authManager != null) {
+                        WebAuthManager.AuthenticatedSession authSession = authManager.validateSession(parts[1]);
+                        if (authSession != null) {
+                            isAuthorized = true;
+                            break;
+                        }
+                    }
+                }
+            }
+        }
+
+        if (!isAuthorized) {
+            sendJsonResponse(out, 401, "{\"error\":\"Authorization required\"}");
+            return;
+        }
+
+        // Get evidence from manager
+        com.blockforge.moderex.evidence.Evidence evidence = plugin.getEvidenceManager().getEvidence(fileId);
+        if (evidence == null) {
+            sendJsonResponse(out, 404, "{\"error\":\"Evidence not found\"}");
+            return;
+        }
+
+        // Get the file
+        java.io.File file = new java.io.File(evidence.getFilePath());
+        if (!file.exists() || !file.isFile()) {
+            plugin.logError("Evidence file not found on disk: " + evidence.getFilePath());
+            sendJsonResponse(out, 404, "{\"error\":\"Evidence file not found on disk\"}");
+            return;
+        }
+
+        // Stream the file with proper content type
+        String mimeType = evidence.getMimeType();
+        if (mimeType == null || mimeType.isEmpty()) {
+            // Fallback based on file extension
+            String name = file.getName().toLowerCase();
+            if (name.endsWith(".mp4")) mimeType = "video/mp4";
+            else if (name.endsWith(".mkv")) mimeType = "video/x-matroska";
+            else if (name.endsWith(".mov")) mimeType = "video/quicktime";
+            else if (name.endsWith(".png")) mimeType = "image/png";
+            else if (name.endsWith(".jpg") || name.endsWith(".jpeg")) mimeType = "image/jpeg";
+            else mimeType = "application/octet-stream";
+        }
+
+        // Build HTTP response headers
+        StringBuilder response = new StringBuilder();
+        response.append("HTTP/1.1 200 OK\r\n");
+        response.append("Content-Type: ").append(mimeType).append("\r\n");
+        response.append("Content-Length: ").append(file.length()).append("\r\n");
+        response.append("Content-Disposition: inline; filename=\"").append(evidence.getFileName()).append("\"\r\n");
+        response.append("Access-Control-Allow-Origin: *\r\n");
+        response.append("Cache-Control: private, max-age=3600\r\n");
+        response.append("\r\n");
+
+        out.write(response.toString().getBytes(StandardCharsets.UTF_8));
+
+        // Stream file content
+        try (java.io.FileInputStream fis = new java.io.FileInputStream(file)) {
+            byte[] buffer = new byte[8192];
+            int bytesRead;
+            while ((bytesRead = fis.read(buffer)) != -1) {
+                out.write(buffer, 0, bytesRead);
+            }
+        }
+        out.flush();
+    }
+
+    /**
      * Handle player punishment portal requests.
      * URL format: /moderex/punishment/{case-id}/{auth-session}
      */
@@ -552,18 +673,114 @@ public class HybridPanelServer {
     }
 
     /**
+     * Handle portal session requests.
+     * URL format: /moderex/portal/{auth-session}
+     */
+    private void handlePortalSessionRequest(OutputStream out, String path) throws IOException {
+        if (!plugin.getConfigManager().getSettings().isPlayerPortalEnabled()) {
+            sendHtmlError(out, 503, "Portal Disabled", "The player portal is currently disabled.");
+            return;
+        }
+
+        String sessionId = path.substring("/moderex/portal/".length());
+        if (sessionId.isEmpty() || sessionId.contains("/")) {
+            sendHtmlError(out, 400, "Invalid URL", "Invalid session URL format.");
+            return;
+        }
+
+        com.blockforge.moderex.portal.PlayerAuthSession authSession = plugin.getAuthSessionManager().validateSession(sessionId);
+        if (authSession == null) {
+            sendHtmlError(out, 401, "Session Expired", "Your session has expired or is invalid.");
+            return;
+        }
+
+        // Get the most recent punishment for this player to show
+        plugin.getPunishmentManager().getPunishments(authSession.getPlayerUuid()).thenAccept(punishments -> {
+            try {
+                if (punishments == null || punishments.isEmpty()) {
+                    sendHtmlError(out, 404, "No Punishments", "You have no punishments on record.");
+                    return;
+                }
+
+                // Get the most recent or linked punishment
+                com.blockforge.moderex.punishment.Punishment punishment = punishments.get(0);
+                if (authSession.getCaseId() != null) {
+                    for (com.blockforge.moderex.punishment.Punishment p : punishments) {
+                        if (p.getCaseId().equals(authSession.getCaseId())) {
+                            punishment = p;
+                            break;
+                        }
+                    }
+                }
+
+                String html = buildPlayerPortalHtml(punishment, authSession);
+                sendHtmlResponse(out, 200, html);
+
+            } catch (IOException e) {
+                plugin.logError("Failed to send portal response", e);
+            }
+        });
+    }
+
+    /**
+     * Handle portal logout requests.
+     * URL format: /moderex/portal/logout/{session-id}
+     */
+    private void handlePortalLogout(OutputStream out, String path) throws IOException {
+        String sessionId = path.substring("/moderex/portal/logout/".length());
+
+        if (!sessionId.isEmpty()) {
+            plugin.getAuthSessionManager().invalidateSession(sessionId);
+        }
+
+        String serverName = plugin.getConfigManager().getSettings().getServerName();
+        String html = """
+            <!DOCTYPE html>
+            <html lang="en">
+            <head>
+                <meta charset="UTF-8">
+                <meta name="viewport" content="width=device-width, initial-scale=1.0">
+                <title>%s - Logged Out</title>
+                <style>
+                    * { margin: 0; padding: 0; box-sizing: border-box; }
+                    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #0f172a; color: #e2e8f0; min-height: 100vh; display: flex; justify-content: center; align-items: center; }
+                    .container { text-align: center; padding: 40px; background: #1e293b; border-radius: 12px; border: 1px solid #334155; max-width: 400px; }
+                    h1 { color: #22c55e; margin-bottom: 16px; font-size: 24px; }
+                    p { color: #94a3b8; margin-bottom: 24px; }
+                    .server { font-size: 18px; font-weight: 600; color: #2d7aed; margin-top: 24px; }
+                </style>
+            </head>
+            <body>
+                <div class="container">
+                    <h1>✓ Logged Out</h1>
+                    <p>You have been successfully logged out of the punishment portal.</p>
+                    <p style="font-size: 13px;">To access your punishments again, you will need a new link from the disconnect screen.</p>
+                    <div class="server">%s</div>
+                </div>
+            </body>
+            </html>
+            """.formatted(escapeHtml(serverName), escapeHtml(serverName));
+
+        sendHtmlResponse(out, 200, html);
+    }
+
+    /**
      * Build the HTML page for the player punishment portal.
      */
     private String buildPlayerPortalHtml(com.blockforge.moderex.punishment.Punishment punishment, com.blockforge.moderex.portal.PlayerAuthSession session) {
         String serverName = plugin.getConfigManager().getSettings().getServerName();
-        String primaryColor = "#2d7aed";
-        String status = punishment.isActive() ? "Active" : (punishment.isExpired() ? "Expired" : "Revoked");
-        String statusColor = punishment.isActive() ? "#ef4444" : (punishment.isExpired() ? "#6b7280" : "#22c55e");
+        UUID playerUuid = session.getPlayerUuid();
 
-        String expiresAt = punishment.getExpiresAt() > 0
-                ? new java.text.SimpleDateFormat("yyyy-MM-dd HH:mm:ss").format(new java.util.Date(punishment.getExpiresAt()))
-                : "Permanent";
-        String issuedAt = new java.text.SimpleDateFormat("yyyy-MM-dd HH:mm:ss").format(new java.util.Date(punishment.getCreatedAt()));
+        // Get all punishments for this player
+        java.util.List<com.blockforge.moderex.punishment.Punishment> allPunishments = new java.util.ArrayList<>();
+        try {
+            allPunishments = plugin.getPunishmentManager().getPunishments(playerUuid).get();
+        } catch (Exception e) {
+            plugin.logError("Failed to load punishments for portal", e);
+        }
+
+        // Count active punishments
+        long activePunishments = allPunishments.stream().filter(p -> p.isActive()).count();
 
         StringBuilder html = new StringBuilder();
         html.append("<!DOCTYPE html>");
@@ -571,62 +788,424 @@ public class HybridPanelServer {
         html.append("<head>");
         html.append("<meta charset=\"UTF-8\">");
         html.append("<meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\">");
-        html.append("<title>").append(serverName).append(" - Punishment Details</title>");
+        html.append("<title>").append(escapeHtml(serverName)).append(" - Player Portal</title>");
         html.append("<style>");
-        html.append("* { margin: 0; padding: 0; box-sizing: border-box; }");
-        html.append("body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #0f172a; color: #e2e8f0; min-height: 100vh; }");
-        html.append("header { background: #1e293b; border-bottom: 1px solid #334155; padding: 16px 24px; display: flex; justify-content: space-between; align-items: center; }");
-        html.append(".server-name { font-size: 20px; font-weight: 600; color: ").append(primaryColor).append("; }");
-        html.append(".player-info { font-size: 14px; color: #94a3b8; }");
-        html.append("main { max-width: 800px; margin: 40px auto; padding: 0 20px; }");
-        html.append(".card { background: #1e293b; border: 1px solid #334155; border-radius: 12px; padding: 24px; margin-bottom: 24px; }");
-        html.append(".card-title { font-size: 18px; font-weight: 600; margin-bottom: 16px; display: flex; align-items: center; gap: 10px; }");
-        html.append(".row { display: flex; justify-content: space-between; padding: 12px 0; border-bottom: 1px solid #334155; }");
-        html.append(".row:last-child { border-bottom: none; }");
-        html.append(".label { color: #94a3b8; font-size: 14px; }");
-        html.append(".value { font-size: 14px; text-align: right; }");
-        html.append(".badge { display: inline-block; padding: 4px 10px; border-radius: 4px; font-size: 12px; font-weight: 600; }");
-        html.append(".type-badge { background: rgba(239, 68, 68, 0.2); color: #ef4444; }");
-        html.append(".status-badge { background: rgba(").append(statusColor.equals("#ef4444") ? "239, 68, 68" : (statusColor.equals("#22c55e") ? "34, 197, 94" : "107, 114, 128")).append(", 0.2); color: ").append(statusColor).append("; }");
-        html.append(".reason-box { background: #0f172a; border-radius: 8px; padding: 16px; margin-top: 12px; font-size: 14px; line-height: 1.6; }");
+        html.append(getPortalStyles());
         html.append("</style>");
         html.append("</head>");
         html.append("<body>");
 
         // Header
         html.append("<header>");
+        html.append("<div class=\"header-left\">");
         html.append("<div class=\"server-name\">").append(escapeHtml(serverName)).append("</div>");
-        html.append("<div class=\"player-info\">Logged in as <strong>").append(escapeHtml(punishment.getPlayerName())).append("</strong></div>");
+        html.append("</div>");
+        html.append("<div class=\"header-right\">");
+        html.append("<span class=\"player-info\">").append(escapeHtml(punishment.getPlayerName())).append("</span>");
+        html.append("<button class=\"logout-btn\" onclick=\"logout()\">Logout</button>");
+        html.append("</div>");
         html.append("</header>");
+
+        // Tab navigation
+        html.append("<nav class=\"tabs\">");
+        html.append("<button class=\"tab active\" onclick=\"showTab('punishments')\">📋 My Punishments");
+        if (activePunishments > 0) {
+            html.append("<span class=\"badge-count\">").append(activePunishments).append("</span>");
+        }
+        html.append("</button>");
+        html.append("<button class=\"tab\" onclick=\"showTab('settings')\">⚙️ My Settings</button>");
+        html.append("</nav>");
 
         // Main content
         html.append("<main>");
 
-        // Punishment details card
-        html.append("<div class=\"card\">");
-        html.append("<div class=\"card-title\"><span class=\"badge type-badge\">").append(punishment.getType().name()).append("</span> Punishment Details</div>");
-
-        html.append("<div class=\"row\"><span class=\"label\">Case ID</span><span class=\"value\">#").append(escapeHtml(punishment.getCaseId())).append("</span></div>");
-        html.append("<div class=\"row\"><span class=\"label\">Status</span><span class=\"value\"><span class=\"badge status-badge\">").append(status).append("</span></span></div>");
-        html.append("<div class=\"row\"><span class=\"label\">Issued By</span><span class=\"value\">").append(escapeHtml(punishment.getStaffName())).append("</span></div>");
-        html.append("<div class=\"row\"><span class=\"label\">Issued At</span><span class=\"value\">").append(issuedAt).append("</span></div>");
-        html.append("<div class=\"row\"><span class=\"label\">Expires At</span><span class=\"value\">").append(expiresAt).append("</span></div>");
-
-        html.append("<div style=\"margin-top: 20px;\"><span class=\"label\">Reason</span>");
-        html.append("<div class=\"reason-box\">").append(escapeHtml(punishment.getReason())).append("</div></div>");
-
+        // Punishments tab
+        html.append("<div id=\"tab-punishments\" class=\"tab-content active\">");
+        buildPunishmentsTab(html, allPunishments, punishment);
         html.append("</div>");
 
-        // Footer message
-        html.append("<div style=\"text-align: center; color: #64748b; font-size: 13px; margin-top: 40px;\">");
-        html.append("If you believe this punishment was issued in error, please contact server staff.");
+        // Settings tab
+        html.append("<div id=\"tab-settings\" class=\"tab-content\">");
+        buildSettingsTab(html, session);
         html.append("</div>");
 
         html.append("</main>");
+
+        // JavaScript
+        html.append("<script>");
+        html.append(getPortalScript(session.getId()));
+        html.append("</script>");
+
         html.append("</body>");
         html.append("</html>");
 
         return html.toString();
+    }
+
+    private void buildPunishmentsTab(StringBuilder html, java.util.List<com.blockforge.moderex.punishment.Punishment> punishments, com.blockforge.moderex.punishment.Punishment currentPunishment) {
+        // Timeline view
+        html.append("<div class=\"card\">");
+        html.append("<div class=\"card-title\">📊 Punishment History</div>");
+
+        if (punishments.isEmpty()) {
+            html.append("<div class=\"empty-state\">No punishments on record</div>");
+        } else {
+            html.append("<div class=\"timeline\">");
+            java.text.SimpleDateFormat dateFormat = new java.text.SimpleDateFormat("MMM dd, yyyy");
+            java.text.SimpleDateFormat timeFormat = new java.text.SimpleDateFormat("HH:mm");
+
+            for (com.blockforge.moderex.punishment.Punishment p : punishments) {
+                String status = p.isActive() ? "active" : (p.isExpired() ? "expired" : "revoked");
+                boolean isCurrent = p.getCaseId().equals(currentPunishment.getCaseId());
+
+                html.append("<div class=\"timeline-item ").append(status);
+                if (isCurrent) html.append(" current");
+                html.append("\" onclick=\"showPunishmentDetails('").append(p.getCaseId()).append("')\">");
+
+                html.append("<div class=\"timeline-date\">");
+                html.append("<span class=\"date\">").append(dateFormat.format(new java.util.Date(p.getCreatedAt()))).append("</span>");
+                html.append("<span class=\"time\">").append(timeFormat.format(new java.util.Date(p.getCreatedAt()))).append("</span>");
+                html.append("</div>");
+
+                html.append("<div class=\"timeline-dot\"></div>");
+
+                html.append("<div class=\"timeline-content\">");
+                html.append("<div class=\"timeline-header\">");
+                html.append("<span class=\"badge type-badge\">").append(p.getType().name()).append("</span>");
+                html.append("<span class=\"badge status-badge ").append(status).append("\">").append(status.substring(0, 1).toUpperCase()).append(status.substring(1)).append("</span>");
+                html.append("</div>");
+                html.append("<div class=\"timeline-reason\">").append(escapeHtml(truncate(p.getReason(), 80))).append("</div>");
+                html.append("<div class=\"timeline-staff\">by ").append(escapeHtml(p.getStaffName())).append("</div>");
+                html.append("</div>");
+
+                html.append("</div>");
+            }
+            html.append("</div>");
+        }
+        html.append("</div>");
+
+        // Current punishment details
+        html.append("<div id=\"punishment-details\" class=\"card\">");
+        buildPunishmentDetails(html, currentPunishment);
+        html.append("</div>");
+    }
+
+    private void buildPunishmentDetails(StringBuilder html, com.blockforge.moderex.punishment.Punishment punishment) {
+        String status = punishment.isActive() ? "Active" : (punishment.isExpired() ? "Expired" : "Revoked");
+        String statusClass = punishment.isActive() ? "active" : (punishment.isExpired() ? "expired" : "revoked");
+
+        String expiresAt = punishment.getExpiresAt() > 0
+                ? new java.text.SimpleDateFormat("yyyy-MM-dd HH:mm:ss").format(new java.util.Date(punishment.getExpiresAt()))
+                : "Permanent";
+        String issuedAt = new java.text.SimpleDateFormat("yyyy-MM-dd HH:mm:ss").format(new java.util.Date(punishment.getCreatedAt()));
+
+        html.append("<div class=\"card-title\"><span class=\"badge type-badge\">").append(punishment.getType().name()).append("</span> Punishment Details</div>");
+
+        html.append("<div class=\"details-grid\">");
+        html.append("<div class=\"detail-item\"><span class=\"label\">Case ID</span><span class=\"value\">#").append(escapeHtml(punishment.getCaseId())).append("</span></div>");
+        html.append("<div class=\"detail-item\"><span class=\"label\">Status</span><span class=\"value\"><span class=\"badge status-badge ").append(statusClass).append("\">").append(status).append("</span></span></div>");
+        html.append("<div class=\"detail-item\"><span class=\"label\">Issued By</span><span class=\"value\">").append(escapeHtml(punishment.getStaffName())).append("</span></div>");
+        html.append("<div class=\"detail-item\"><span class=\"label\">Issued At</span><span class=\"value\">").append(issuedAt).append("</span></div>");
+        html.append("<div class=\"detail-item\"><span class=\"label\">Expires At</span><span class=\"value\">").append(expiresAt).append("</span></div>");
+        html.append("</div>");
+
+        html.append("<div class=\"reason-section\">");
+        html.append("<span class=\"label\">Reason</span>");
+        html.append("<div class=\"reason-box\">").append(escapeHtml(punishment.getReason())).append("</div>");
+        html.append("</div>");
+
+        // Evidence section
+        java.util.List<com.blockforge.moderex.punishment.PunishmentEvidence> evidenceList =
+                plugin.getPunishmentManager().getPunishmentEvidence(punishment.getCaseId());
+
+        if (!evidenceList.isEmpty()) {
+            html.append("<div class=\"evidence-section\">");
+            html.append("<span class=\"label\">📎 Evidence (").append(evidenceList.size()).append(")</span>");
+
+            for (com.blockforge.moderex.punishment.PunishmentEvidence evidence : evidenceList) {
+                html.append("<div class=\"evidence-item\">");
+
+                if (evidence.isActivityLog()) {
+                    com.google.gson.JsonObject snapshot = evidence.getActivityLogAsJson();
+                    if (snapshot != null) {
+                        String type = snapshot.has("type") ? snapshot.get("type").getAsString() : "UNKNOWN";
+                        String content = snapshot.has("content") ? snapshot.get("content").getAsString() : "";
+                        long timestamp = snapshot.has("timestamp") ? snapshot.get("timestamp").getAsLong() : 0;
+                        String timeStr = timestamp > 0
+                                ? new java.text.SimpleDateFormat("yyyy-MM-dd HH:mm:ss").format(new java.util.Date(timestamp))
+                                : "Unknown time";
+
+                        html.append("<div class=\"evidence-header\">");
+                        html.append("<span class=\"badge\" style=\"background: rgba(45, 122, 237, 0.2); color: #2d7aed;\">").append(type).append("</span>");
+                        html.append("<span class=\"evidence-time\">").append(timeStr).append("</span>");
+                        html.append("</div>");
+                        html.append("<div class=\"evidence-content\">").append(escapeHtml(content)).append("</div>");
+                    }
+                } else if (evidence.isFile()) {
+                    com.blockforge.moderex.evidence.Evidence fileEvidence = plugin.getEvidenceManager().getEvidence(evidence.getEvidenceId());
+                    if (fileEvidence != null) {
+                        String fileType = fileEvidence.getFileType().name();
+                        boolean isImage = fileType.startsWith("IMAGE");
+                        boolean isVideo = fileType.startsWith("VIDEO");
+
+                        html.append("<div class=\"evidence-header\">");
+                        html.append("<span class=\"badge\" style=\"background: rgba(168, 85, 247, 0.2); color: #a855f7;\">");
+                        html.append(isImage ? "📷 Image" : (isVideo ? "🎬 Video" : "📁 File"));
+                        html.append("</span>");
+                        html.append("<span class=\"evidence-time\">").append(escapeHtml(fileEvidence.getFileName())).append("</span>");
+                        html.append("</div>");
+
+                        if (isImage) {
+                            html.append("<div class=\"evidence-media\">");
+                            html.append("<img src=\"/api/evidence/").append(fileEvidence.getId()).append("\" onclick=\"window.open(this.src)\" alt=\"Evidence\">");
+                            html.append("</div>");
+                        } else if (isVideo) {
+                            html.append("<div class=\"evidence-media\">");
+                            html.append("<video controls><source src=\"/api/evidence/").append(fileEvidence.getId()).append("\" type=\"").append(fileEvidence.getMimeType()).append("\"></video>");
+                            html.append("</div>");
+                        }
+                    }
+                }
+                html.append("</div>");
+            }
+            html.append("</div>");
+        }
+    }
+
+    private void buildSettingsTab(StringBuilder html, com.blockforge.moderex.portal.PlayerAuthSession session) {
+        html.append("<div class=\"card\">");
+        html.append("<div class=\"card-title\">🎨 Appearance</div>");
+        html.append("<div class=\"setting-item\">");
+        html.append("<div class=\"setting-info\">");
+        html.append("<span class=\"setting-label\">Color Scheme</span>");
+        html.append("<span class=\"setting-desc\">Choose your preferred accent color</span>");
+        html.append("</div>");
+        html.append("<div class=\"color-picker\">");
+        html.append("<button class=\"color-option\" style=\"background:#2d7aed\" onclick=\"setColor('#2d7aed')\" title=\"Blue\"></button>");
+        html.append("<button class=\"color-option\" style=\"background:#a855f7\" onclick=\"setColor('#a855f7')\" title=\"Purple\"></button>");
+        html.append("<button class=\"color-option\" style=\"background:#ec4899\" onclick=\"setColor('#ec4899')\" title=\"Pink\"></button>");
+        html.append("<button class=\"color-option\" style=\"background:#22c55e\" onclick=\"setColor('#22c55e')\" title=\"Green\"></button>");
+        html.append("<button class=\"color-option\" style=\"background:#f59e0b\" onclick=\"setColor('#f59e0b')\" title=\"Orange\"></button>");
+        html.append("<button class=\"color-option\" style=\"background:#ef4444\" onclick=\"setColor('#ef4444')\" title=\"Red\"></button>");
+        html.append("</div>");
+        html.append("</div>");
+        html.append("</div>");
+
+        html.append("<div class=\"card\">");
+        html.append("<div class=\"card-title\">🔔 Notifications</div>");
+        html.append("<div class=\"setting-item\">");
+        html.append("<div class=\"setting-info\">");
+        html.append("<span class=\"setting-label\">Browser Notifications</span>");
+        html.append("<span class=\"setting-desc\">Get notified when punishments are revoked or expire</span>");
+        html.append("</div>");
+        html.append("<label class=\"toggle\">");
+        html.append("<input type=\"checkbox\" id=\"notifications-toggle\" onchange=\"toggleNotifications(this.checked)\">");
+        html.append("<span class=\"toggle-slider\"></span>");
+        html.append("</label>");
+        html.append("</div>");
+        html.append("<div id=\"notification-status\" class=\"notification-status\"></div>");
+        html.append("</div>");
+
+        html.append("<div class=\"card\">");
+        html.append("<div class=\"card-title\">🔐 Device Trust</div>");
+        html.append("<div class=\"setting-item\">");
+        html.append("<div class=\"setting-info\">");
+        html.append("<span class=\"setting-label\">Trust This Device</span>");
+        html.append("<span class=\"setting-desc\">Skip authentication on future visits from this device</span>");
+        html.append("</div>");
+        html.append("<label class=\"toggle\">");
+        html.append("<input type=\"checkbox\" id=\"device-trust-toggle\" onchange=\"toggleDeviceTrust(this.checked)\">");
+        html.append("<span class=\"toggle-slider\"></span>");
+        html.append("</label>");
+        html.append("</div>");
+        html.append("<div class=\"warning-box\" id=\"trust-warning\" style=\"display:none;\">");
+        html.append("<strong>⚠️ Warning:</strong> Only enable this on your personal device. Anyone with access to this device will be able to view your punishments.");
+        html.append("</div>");
+        html.append("</div>");
+
+        html.append("<div class=\"card\">");
+        html.append("<div class=\"card-title\">ℹ️ Session Info</div>");
+        html.append("<div class=\"session-info\">");
+        html.append("<div class=\"detail-item\"><span class=\"label\">Session ID</span><span class=\"value\">").append(session.getId().substring(0, 4)).append("...").append(session.getId().substring(6)).append("</span></div>");
+        html.append("<div class=\"detail-item\"><span class=\"label\">Expires</span><span class=\"value\">").append(new java.text.SimpleDateFormat("yyyy-MM-dd HH:mm").format(new java.util.Date(session.getExpiresAt()))).append("</span></div>");
+        html.append("</div>");
+        html.append("</div>");
+    }
+
+    private String getPortalStyles() {
+        return """
+            * { margin: 0; padding: 0; box-sizing: border-box; }
+            :root { --primary: #2d7aed; --bg: #0f172a; --card: #1e293b; --border: #334155; --text: #e2e8f0; --muted: #94a3b8; }
+            body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; }
+            header { background: var(--card); border-bottom: 1px solid var(--border); padding: 16px 24px; display: flex; justify-content: space-between; align-items: center; }
+            .header-left { display: flex; align-items: center; gap: 16px; }
+            .header-right { display: flex; align-items: center; gap: 16px; }
+            .server-name { font-size: 20px; font-weight: 600; color: var(--primary); }
+            .player-info { font-size: 14px; color: var(--muted); }
+            .logout-btn { background: transparent; border: 1px solid #ef4444; color: #ef4444; padding: 8px 16px; border-radius: 6px; cursor: pointer; font-size: 13px; transition: all 0.2s; }
+            .logout-btn:hover { background: rgba(239, 68, 68, 0.1); }
+            .tabs { display: flex; gap: 8px; padding: 16px 24px; background: var(--card); border-bottom: 1px solid var(--border); }
+            .tab { background: transparent; border: none; color: var(--muted); padding: 10px 20px; border-radius: 8px; cursor: pointer; font-size: 14px; display: flex; align-items: center; gap: 8px; transition: all 0.2s; }
+            .tab:hover { background: rgba(255,255,255,0.05); color: var(--text); }
+            .tab.active { background: var(--primary); color: white; }
+            .badge-count { background: #ef4444; color: white; font-size: 11px; padding: 2px 6px; border-radius: 10px; }
+            main { max-width: 900px; margin: 24px auto; padding: 0 20px; }
+            .tab-content { display: none; }
+            .tab-content.active { display: block; }
+            .card { background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 24px; margin-bottom: 20px; }
+            .card-title { font-size: 16px; font-weight: 600; margin-bottom: 20px; display: flex; align-items: center; gap: 10px; }
+            .badge { display: inline-block; padding: 4px 10px; border-radius: 4px; font-size: 12px; font-weight: 600; }
+            .type-badge { background: rgba(239, 68, 68, 0.2); color: #ef4444; }
+            .status-badge { padding: 3px 8px; font-size: 11px; }
+            .status-badge.active { background: rgba(239, 68, 68, 0.2); color: #ef4444; }
+            .status-badge.expired { background: rgba(107, 114, 128, 0.2); color: #6b7280; }
+            .status-badge.revoked { background: rgba(34, 197, 94, 0.2); color: #22c55e; }
+            .timeline { position: relative; padding-left: 120px; }
+            .timeline-item { position: relative; padding: 16px 0 16px 30px; border-left: 2px solid var(--border); margin-left: 10px; cursor: pointer; transition: all 0.2s; }
+            .timeline-item:hover { background: rgba(255,255,255,0.02); }
+            .timeline-item.current { background: rgba(45, 122, 237, 0.1); border-left-color: var(--primary); }
+            .timeline-item.active .timeline-dot { background: #ef4444; box-shadow: 0 0 0 4px rgba(239, 68, 68, 0.2); }
+            .timeline-item.expired .timeline-dot { background: #6b7280; }
+            .timeline-item.revoked .timeline-dot { background: #22c55e; }
+            .timeline-date { position: absolute; left: -120px; top: 16px; text-align: right; width: 100px; }
+            .timeline-date .date { display: block; font-size: 13px; color: var(--text); }
+            .timeline-date .time { font-size: 11px; color: var(--muted); }
+            .timeline-dot { position: absolute; left: -7px; top: 20px; width: 12px; height: 12px; border-radius: 50%; background: var(--border); }
+            .timeline-content { }
+            .timeline-header { display: flex; gap: 8px; margin-bottom: 8px; }
+            .timeline-reason { font-size: 14px; color: var(--text); margin-bottom: 4px; }
+            .timeline-staff { font-size: 12px; color: var(--muted); }
+            .details-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 16px; }
+            .detail-item { display: flex; flex-direction: column; gap: 4px; }
+            .label { color: var(--muted); font-size: 12px; text-transform: uppercase; letter-spacing: 0.5px; }
+            .value { font-size: 14px; }
+            .reason-section { margin-top: 20px; }
+            .reason-box { background: var(--bg); border-radius: 8px; padding: 16px; margin-top: 8px; font-size: 14px; line-height: 1.6; }
+            .evidence-section { margin-top: 24px; padding-top: 20px; border-top: 1px solid var(--border); }
+            .evidence-item { background: var(--bg); border-radius: 8px; padding: 16px; margin-top: 12px; }
+            .evidence-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
+            .evidence-time { font-size: 12px; color: var(--muted); }
+            .evidence-content { font-size: 14px; }
+            .evidence-media { margin-top: 12px; text-align: center; }
+            .evidence-media img, .evidence-media video { max-width: 100%; max-height: 300px; border-radius: 8px; cursor: pointer; }
+            .empty-state { text-align: center; padding: 40px; color: var(--muted); }
+            .setting-item { display: flex; justify-content: space-between; align-items: center; padding: 16px 0; border-bottom: 1px solid var(--border); }
+            .setting-item:last-child { border-bottom: none; }
+            .setting-info { flex: 1; }
+            .setting-label { display: block; font-size: 14px; font-weight: 500; margin-bottom: 4px; }
+            .setting-desc { font-size: 13px; color: var(--muted); }
+            .color-picker { display: flex; gap: 8px; }
+            .color-option { width: 32px; height: 32px; border-radius: 50%; border: 2px solid transparent; cursor: pointer; transition: all 0.2s; }
+            .color-option:hover { transform: scale(1.1); }
+            .color-option.active { border-color: white; box-shadow: 0 0 0 2px var(--bg); }
+            .toggle { position: relative; width: 50px; height: 26px; }
+            .toggle input { opacity: 0; width: 0; height: 0; }
+            .toggle-slider { position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; background: var(--border); border-radius: 26px; transition: 0.3s; }
+            .toggle-slider:before { position: absolute; content: ""; height: 20px; width: 20px; left: 3px; bottom: 3px; background: white; border-radius: 50%; transition: 0.3s; }
+            .toggle input:checked + .toggle-slider { background: var(--primary); }
+            .toggle input:checked + .toggle-slider:before { transform: translateX(24px); }
+            .warning-box { background: rgba(245, 158, 11, 0.1); border: 1px solid rgba(245, 158, 11, 0.3); border-radius: 8px; padding: 12px; margin-top: 12px; font-size: 13px; color: #f59e0b; }
+            .notification-status { font-size: 13px; color: var(--muted); margin-top: 8px; padding: 0 16px; }
+            .session-info { }
+            """;
+    }
+
+    private String getPortalScript(String sessionId) {
+        return """
+            const sessionId = '""" + sessionId + """';
+            let currentColor = localStorage.getItem('portalColor') || '#2d7aed';
+
+            function showTab(tabName) {
+                document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
+                document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+                document.getElementById('tab-' + tabName).classList.add('active');
+                event.target.closest('.tab').classList.add('active');
+            }
+
+            function showPunishmentDetails(caseId) {
+                document.querySelectorAll('.timeline-item').forEach(i => i.classList.remove('current'));
+                event.target.closest('.timeline-item').classList.add('current');
+                // For now, just highlight - full AJAX loading could be added later
+            }
+
+            function logout() {
+                if (confirm('Are you sure you want to logout?')) {
+                    localStorage.removeItem('deviceTrust');
+                    window.location.href = '/moderex/portal/logout/' + sessionId;
+                }
+            }
+
+            function setColor(color) {
+                currentColor = color;
+                localStorage.setItem('portalColor', color);
+                document.documentElement.style.setProperty('--primary', color);
+                document.querySelectorAll('.color-option').forEach(o => o.classList.remove('active'));
+                event.target.classList.add('active');
+            }
+
+            function toggleNotifications(enabled) {
+                const status = document.getElementById('notification-status');
+                if (enabled) {
+                    if ('Notification' in window) {
+                        Notification.requestPermission().then(perm => {
+                            if (perm === 'granted') {
+                                status.textContent = '✓ Notifications enabled';
+                                status.style.color = '#22c55e';
+                                localStorage.setItem('notifications', 'true');
+                            } else {
+                                document.getElementById('notifications-toggle').checked = false;
+                                status.textContent = '✗ Permission denied by browser';
+                                status.style.color = '#ef4444';
+                            }
+                        });
+                    } else {
+                        document.getElementById('notifications-toggle').checked = false;
+                        status.textContent = '✗ Browser does not support notifications';
+                        status.style.color = '#ef4444';
+                    }
+                } else {
+                    localStorage.removeItem('notifications');
+                    status.textContent = '';
+                }
+            }
+
+            function toggleDeviceTrust(enabled) {
+                const warning = document.getElementById('trust-warning');
+                if (enabled) {
+                    warning.style.display = 'block';
+                    localStorage.setItem('deviceTrust', sessionId);
+                } else {
+                    warning.style.display = 'none';
+                    localStorage.removeItem('deviceTrust');
+                }
+            }
+
+            // Initialize on load
+            document.addEventListener('DOMContentLoaded', () => {
+                // Apply saved color
+                document.documentElement.style.setProperty('--primary', currentColor);
+                document.querySelectorAll('.color-option').forEach(o => {
+                    if (o.style.background === currentColor) o.classList.add('active');
+                });
+
+                // Restore notification state
+                if (localStorage.getItem('notifications') === 'true') {
+                    document.getElementById('notifications-toggle').checked = true;
+                }
+
+                // Restore device trust state
+                if (localStorage.getItem('deviceTrust')) {
+                    document.getElementById('device-trust-toggle').checked = true;
+                    document.getElementById('trust-warning').style.display = 'block';
+                }
+            });
+            """;
+    }
+
+    private String truncate(String text, int maxLength) {
+        if (text == null) return "";
+        if (text.length() <= maxLength) return text;
+        return text.substring(0, maxLength - 3) + "...";
     }
 
     private void sendHtmlResponse(OutputStream out, int statusCode, String html) throws IOException {
@@ -1802,6 +2381,7 @@ public class HybridPanelServer {
             case "DEV_STRESS_CLEANUP" -> handleDevStressCleanup(conn);
             case "DEV_STRESS_STOP" -> handleDevStressStop(conn);
             case "GET_DATABASE_DEBUG" -> sendDatabaseDebug(conn, data);
+            case "IMPORT_MEDAL_CLIP" -> importMedalClip(conn, data, session);
             default -> sendError(conn, "UNKNOWN_TYPE", "Unknown message type: " + type);
         }
     }
@@ -2746,6 +3326,77 @@ public class HybridPanelServer {
         data.add("logs", new JsonArray());
         response.add("data", data);
         conn.send(GSON.toJson(response));
+    }
+
+    /**
+     * Import a video clip from Medal.tv as evidence.
+     */
+    private void importMedalClip(WebSocketConnection conn, JsonObject data, WebPanelSession session) {
+        String medalUrl = data.has("url") ? data.get("url").getAsString() : null;
+
+        if (medalUrl == null || medalUrl.isEmpty()) {
+            sendError(conn, "INVALID_URL", "Medal.tv URL is required");
+            return;
+        }
+
+        // Validate URL format
+        if (!plugin.getEvidenceManager().isMedalUrl(medalUrl)) {
+            sendError(conn, "INVALID_URL", "Invalid Medal.tv URL format. Supported: medal.tv/clips/xxx, medal.tv/games/xxx/clips/xxx");
+            return;
+        }
+
+        // Send starting progress
+        JsonObject progressResponse = new JsonObject();
+        progressResponse.addProperty("type", "MEDAL_IMPORT_PROGRESS");
+        JsonObject progressData = new JsonObject();
+        progressData.addProperty("status", "starting");
+        progressData.addProperty("progress", 0);
+        progressData.addProperty("message", "Fetching Medal clip...");
+        progressResponse.add("data", progressData);
+        conn.send(GSON.toJson(progressResponse));
+
+        // Import the clip asynchronously
+        plugin.getEvidenceManager().importFromMedal(
+                medalUrl,
+                session.playerUuid,
+                session.playerName,
+                progress -> {
+                    // Send progress updates
+                    JsonObject pr = new JsonObject();
+                    pr.addProperty("type", "MEDAL_IMPORT_PROGRESS");
+                    JsonObject pd = new JsonObject();
+                    pd.addProperty("status", "downloading");
+                    pd.addProperty("progress", progress);
+                    pd.addProperty("message", "Downloading... " + progress + "%");
+                    pr.add("data", pd);
+                    conn.send(GSON.toJson(pr));
+                }
+        ).thenAccept(result -> {
+            JsonObject response = new JsonObject();
+            response.addProperty("type", "MEDAL_IMPORT_RESULT");
+            JsonObject resultData = new JsonObject();
+
+            if (result.isSuccess()) {
+                resultData.addProperty("success", true);
+                resultData.add("evidence", result.getEvidence().toJson());
+                resultData.addProperty("message", "Medal clip imported successfully!");
+            } else {
+                resultData.addProperty("success", false);
+                resultData.addProperty("error", result.getError());
+            }
+
+            response.add("data", resultData);
+            conn.send(GSON.toJson(response));
+        }).exceptionally(ex -> {
+            JsonObject response = new JsonObject();
+            response.addProperty("type", "MEDAL_IMPORT_RESULT");
+            JsonObject resultData = new JsonObject();
+            resultData.addProperty("success", false);
+            resultData.addProperty("error", "Failed to import clip: " + ex.getMessage());
+            response.add("data", resultData);
+            conn.send(GSON.toJson(response));
+            return null;
+        });
     }
 
     private void sendAutomodRules(WebSocketConnection conn) {

@@ -7,6 +7,7 @@ import com.blockforge.moderex.config.lang.MessageKey;
 import com.blockforge.moderex.util.DurationParser;
 import com.blockforge.moderex.util.FlagParser;
 import com.blockforge.moderex.util.TargetResolver;
+import com.blockforge.moderex.log.ActivityLogEntry;
 import org.bukkit.command.CommandSender;
 import org.bukkit.command.ConsoleCommandSender;
 
@@ -97,6 +98,28 @@ public class MuteCommand extends PunishmentCommandBase {
         if (flagParser.isModify()) {
             handleModify(context);
             return;
+        }
+
+        // Check if evidence selection should be triggered (in-game players only)
+        boolean requiresEvidence = plugin.getConfigManager().getSettings().isEvidenceRequireEvidence();
+        boolean wantsEvidence = flagParser.isEvidence();
+        final long finalDuration = duration;
+        final String finalReason = reason;
+
+        if ((requiresEvidence || wantsEvidence) && sender instanceof org.bukkit.entity.Player player) {
+            // Start evidence selection session
+            boolean started = plugin.getEvidenceSelectionManager().startSession(
+                    player, target, "MUTE", finalDuration, finalReason,
+                    result -> {
+                        if (result.isConfirmed()) {
+                            executeMuteWithEvidence(context, result.getSelectedEntries());
+                        }
+                    }
+            );
+
+            if (started) {
+                return; // Wait for evidence selection
+            }
         }
 
         executeMute(context);
@@ -211,6 +234,77 @@ public class MuteCommand extends PunishmentCommandBase {
                 duration,
                 reason
         ).thenAccept(punishment -> {
+            String durationStr = DurationParser.format(duration);
+            sendMessage(context.getSender(), MessageKey.MUTE_SUCCESS,
+                    "player", target.getDisplayName(),
+                    "duration", durationStr);
+
+            broadcastPunishment(context, target.getDisplayName(), durationStr, reason, MessageKey.MUTE_BROADCAST);
+        });
+    }
+
+    private void executeMuteWithEvidence(PunishmentContext context, List<ActivityLogEntry> evidenceEntries) {
+        TargetResolver target = context.getTarget();
+        long duration = context.getDuration() != null ? context.getDuration() : -1;
+        String reason = context.getReason();
+
+        if (context.isIpBased()) {
+            org.bukkit.entity.Player onlinePlayer = org.bukkit.Bukkit.getPlayer(target.getUuid());
+            if (onlinePlayer == null || onlinePlayer.getAddress() == null) {
+                sendMessage(context.getSender(), MessageKey.PLAYER_NOT_ONLINE, "player", target.getDisplayName());
+                sendMessage(context.getSender(), "<gray>Use /ipmute <player> for online players only.");
+                return;
+            }
+
+            String ipAddress = onlinePlayer.getAddress().getAddress().getHostAddress();
+
+            plugin.getPunishmentManager().ipMute(
+                    target.getUuid(),
+                    target.getDisplayName(),
+                    ipAddress,
+                    context.getExecutorUuid(),
+                    context.getExecutorName(),
+                    duration,
+                    reason
+            ).thenAccept(punishment -> {
+                // Link evidence to punishment
+                if (punishment != null && !evidenceEntries.isEmpty()) {
+                    plugin.getPunishmentManager().linkActivityLogEvidence(
+                            punishment.getCaseId(),
+                            evidenceEntries,
+                            context.getExecutorUuid() != null ? context.getExecutorUuid().toString() : "CONSOLE",
+                            context.getExecutorName()
+                    );
+                }
+
+                String durationStr = DurationParser.format(duration);
+                sendMessage(context.getSender(), MessageKey.IPMUTE_SUCCESS,
+                        "player", target.getDisplayName(),
+                        "duration", durationStr);
+
+                broadcastPunishment(context, target.getDisplayName(), durationStr, reason, MessageKey.IPMUTE_BROADCAST);
+            });
+            return;
+        }
+
+        plugin.getPunishmentManager().mute(
+                target.getUuid(),
+                target.getDisplayName(),
+                context.getExecutorUuid(),
+                context.getExecutorName(),
+                duration,
+                reason
+        ).thenAccept(punishment -> {
+            // Link evidence to punishment
+            if (punishment != null && !evidenceEntries.isEmpty()) {
+                plugin.getPunishmentManager().linkActivityLogEvidence(
+                        punishment.getCaseId(),
+                        evidenceEntries,
+                        context.getExecutorUuid() != null ? context.getExecutorUuid().toString() : "CONSOLE",
+                        context.getExecutorName()
+                );
+            }
+
             String durationStr = DurationParser.format(duration);
             sendMessage(context.getSender(), MessageKey.MUTE_SUCCESS,
                     "player", target.getDisplayName(),

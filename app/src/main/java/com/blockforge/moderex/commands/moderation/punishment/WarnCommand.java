@@ -7,6 +7,7 @@ import com.blockforge.moderex.config.lang.MessageKey;
 import com.blockforge.moderex.util.DurationParser;
 import com.blockforge.moderex.util.FlagParser;
 import com.blockforge.moderex.util.TargetResolver;
+import com.blockforge.moderex.log.ActivityLogEntry;
 import org.bukkit.command.CommandSender;
 import org.bukkit.command.ConsoleCommandSender;
 
@@ -84,6 +85,27 @@ public class WarnCommand extends PunishmentCommandBase {
         if (flagParser.isModify()) {
             handleModify(context);
             return;
+        }
+
+        // Check if evidence selection should be triggered (in-game players only)
+        boolean requiresEvidence = plugin.getConfigManager().getSettings().isEvidenceRequireEvidence();
+        boolean wantsEvidence = flagParser.isEvidence();
+        final long finalDuration = duration;
+        final String finalReason = reason;
+
+        if ((requiresEvidence || wantsEvidence) && sender instanceof org.bukkit.entity.Player player) {
+            boolean started = plugin.getEvidenceSelectionManager().startSession(
+                    player, target, "WARN", finalDuration, finalReason,
+                    result -> {
+                        if (result.isConfirmed()) {
+                            executeWarnWithEvidence(context, result.getSelectedEntries());
+                        }
+                    }
+            );
+
+            if (started) {
+                return;
+            }
         }
 
         executeWarn(context);
@@ -179,6 +201,41 @@ public class WarnCommand extends PunishmentCommandBase {
                 duration,
                 reason
         ).thenAccept(punishment -> {
+            sendMessage(context.getSender(), MessageKey.WARN_SUCCESS,
+                    "player", target.getDisplayName());
+
+            broadcastPunishment(context, target.getDisplayName(), reason);
+        });
+    }
+
+    private void executeWarnWithEvidence(PunishmentContext context, List<ActivityLogEntry> evidenceEntries) {
+        TargetResolver target = context.getTarget();
+        long duration = context.getDuration() != null ? context.getDuration() : DurationParser.parse("30d");
+        String reason = context.getReason();
+
+        if (context.isIpBased()) {
+            sendMessage(context.getSender(), "<yellow>IP warn functionality not supported. Use regular warn.");
+            return;
+        }
+
+        plugin.getPunishmentManager().warn(
+                target.getUuid(),
+                target.getDisplayName(),
+                context.getExecutorUuid(),
+                context.getExecutorName(),
+                duration,
+                reason
+        ).thenAccept(punishment -> {
+            // Link evidence to punishment
+            if (punishment != null && !evidenceEntries.isEmpty()) {
+                plugin.getPunishmentManager().linkActivityLogEvidence(
+                        punishment.getCaseId(),
+                        evidenceEntries,
+                        context.getExecutorUuid() != null ? context.getExecutorUuid().toString() : "CONSOLE",
+                        context.getExecutorName()
+                );
+            }
+
             sendMessage(context.getSender(), MessageKey.WARN_SUCCESS,
                     "player", target.getDisplayName());
 
