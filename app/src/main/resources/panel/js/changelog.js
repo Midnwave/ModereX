@@ -14,6 +14,23 @@
 
 window.MX_CHANGELOGS = [
   {
+    build: 219,
+    version: "2.0dev-219",
+    date: "2026-02-03",
+    title: "Evidence Display Fix",
+    sections: [
+      {
+        type: "fixed",
+        title: "Bug Fixes",
+        items: [
+          "**Evidence Display** - Fixed evidence not appearing in punishment details modal",
+          "**Backend Evidence Data** - Punishments now include evidence array in API responses",
+          "**Activity Log Evidence** - Properly parse activity log snapshots for display"
+        ]
+      }
+    ]
+  },
+  {
     build: 218,
     version: "2.0dev-218",
     date: "2026-02-02",

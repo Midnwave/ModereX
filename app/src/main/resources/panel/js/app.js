@@ -3529,27 +3529,42 @@
       // New evidence (activity logs and files)
       for (const evidence of punishmentEvidence) {
         if (evidence.type === 'ACTIVITY_LOG') {
+          // Parse the snapshot JSON to get activity log details
+          let snapshot = {};
+          try {
+            if (evidence.snapshot) {
+              snapshot = typeof evidence.snapshot === 'string' ? JSON.parse(evidence.snapshot) : evidence.snapshot;
+            }
+          } catch (e) { console.warn('Failed to parse evidence snapshot:', e); }
+
+          const logType = snapshot.type || 'LOG';
+          const content = snapshot.content || '';
+          const playerName = snapshot.playerName || evidence.addedBy || 'Unknown';
+          const timestamp = snapshot.timestamp || evidence.addedAt;
+
           evidenceHtml += `<div class="evidence-item">
             <div class="evidence-item-header">
-              <span class="badge gray"><i class="fa-solid fa-scroll"></i> ${escapeHtml(evidence.logType || 'Log')}</span>
-              <span class="evidence-item-time">${escapeHtml(fmtShort(evidence.timestamp))}</span>
+              <span class="badge gray"><i class="fa-solid fa-scroll"></i> ${escapeHtml(logType)}</span>
+              <span class="evidence-item-time">${escapeHtml(fmtShort(timestamp))}</span>
             </div>
             <div class="evidence-item-content" style="margin-top:8px;padding:10px;background:rgba(0,0,0,0.2);border-radius:var(--radius-sm)">
-              <div style="font-size:12px;color:var(--muted)">Player: ${escapeHtml(evidence.playerName || 'Unknown')}</div>
-              <div style="margin-top:4px">${escapeHtml(evidence.content || '')}</div>
+              <div style="font-size:12px;color:var(--muted)">Player: ${escapeHtml(playerName)}</div>
+              <div style="margin-top:4px">${escapeHtml(content)}</div>
             </div>
           </div>`;
         } else if (evidence.type === 'FILE') {
-          const isVideo = evidence.fileType?.startsWith('VIDEO');
-          const isImage = evidence.fileType?.startsWith('IMAGE');
+          const fileType = evidence.fileType || '';
+          const isVideo = fileType.startsWith('VIDEO') || ['MP4', 'MKV', 'MOV'].includes(fileType);
+          const isImage = fileType.startsWith('IMAGE') || ['PNG', 'JPG', 'JPEG'].includes(fileType);
+          const fileId = evidence.evidenceId || evidence.id;
           evidenceHtml += `<div class="evidence-item">
             <div class="evidence-item-header">
               <span class="badge ${isVideo ? 'purple' : 'blue'}"><i class="fa-solid fa-${isVideo ? 'video' : 'image'}"></i> ${isVideo ? 'Video' : 'Image'}</span>
               <span class="evidence-item-time">${escapeHtml(evidence.fileName || 'file')}</span>
             </div>
             <div class="evidence-item-content" style="margin-top:8px">
-              ${isImage ? `<img src="/api/evidence/${evidence.fileId}" alt="Evidence" class="evidence-image" onclick="openImageLightbox('/api/evidence/${evidence.fileId}')" style="max-width:100%;max-height:200px;border-radius:var(--radius-sm);cursor:pointer">` : ''}
-              ${isVideo ? `<div class="evidence-video-preview" onclick="openVideoPlayer('/api/evidence/${evidence.fileId}')" style="cursor:pointer;padding:20px;background:rgba(0,0,0,0.3);border-radius:var(--radius-sm);text-align:center">
+              ${isImage ? `<img src="/api/evidence/${fileId}" alt="Evidence" class="evidence-image" onclick="openImageLightbox('/api/evidence/${fileId}')" style="max-width:100%;max-height:200px;border-radius:var(--radius-sm);cursor:pointer">` : ''}
+              ${isVideo ? `<div class="evidence-video-preview" onclick="openVideoPlayer('/api/evidence/${fileId}')" style="cursor:pointer;padding:20px;background:rgba(0,0,0,0.3);border-radius:var(--radius-sm);text-align:center">
                 <i class="fa-solid fa-play-circle" style="font-size:32px;color:var(--primary-light)"></i>
                 <div style="margin-top:8px;font-size:12px;color:var(--muted)">Click to play video</div>
               </div>` : ''}
@@ -7053,7 +7068,8 @@
         createdAt: p.createdAt,
         expiresAt: p.expiresAt,
         active: p.active,
-        revoked: !!p.removedAt
+        revoked: !!p.removedAt,
+        evidence: p.evidence || []
       }));
       ui.renderPunishments();
       ui.renderDashboard();

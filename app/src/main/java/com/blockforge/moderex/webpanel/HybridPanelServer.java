@@ -6,7 +6,9 @@ import com.blockforge.moderex.automod.AutomodRule;
 import com.blockforge.moderex.log.ActivityLogEntry;
 import com.blockforge.moderex.log.ActivityLogEntry.ActivityType;
 import com.blockforge.moderex.punishment.Punishment;
+import com.blockforge.moderex.punishment.PunishmentEvidence;
 import com.blockforge.moderex.punishment.PunishmentType;
+import com.blockforge.moderex.evidence.Evidence;
 import com.blockforge.moderex.util.DurationParser;
 import com.blockforge.moderex.util.PermissionUtil;
 import com.blockforge.moderex.util.TextUtil;
@@ -5964,6 +5966,57 @@ public class HybridPanelServer {
         } else {
             json.addProperty("duration", "Unknown");
         }
+
+        // Add evidence array
+        JsonArray evidenceArray = new JsonArray();
+
+        // Get activity log evidence (PunishmentEvidence)
+        List<PunishmentEvidence> activityEvidence = plugin.getPunishmentManager().getPunishmentEvidence(p.getCaseId());
+        for (PunishmentEvidence pe : activityEvidence) {
+            JsonObject ev = new JsonObject();
+            ev.addProperty("id", pe.getId());
+            ev.addProperty("type", pe.getEvidenceType().name());
+            if (pe.isFile()) {
+                ev.addProperty("evidenceId", pe.getEvidenceId());
+                // Get file evidence details
+                Evidence fileEvidence = plugin.getEvidenceManager().getEvidence(pe.getEvidenceId());
+                if (fileEvidence != null) {
+                    ev.addProperty("fileName", fileEvidence.getFileName());
+                    ev.addProperty("fileType", fileEvidence.getFileType().name());
+                    ev.addProperty("fileSize", fileEvidence.getFileSize());
+                    ev.addProperty("mimeType", fileEvidence.getMimeType());
+                }
+            } else if (pe.isActivityLog()) {
+                ev.addProperty("activityLogId", pe.getActivityLogId());
+                ev.addProperty("snapshot", pe.getActivityLogSnapshot());
+            }
+            ev.addProperty("addedBy", pe.getAddedByName());
+            ev.addProperty("addedAt", pe.getAddedAt());
+            evidenceArray.add(ev);
+        }
+
+        // Also get file evidence directly linked to punishment (fallback for direct links)
+        List<Evidence> fileEvidence = plugin.getEvidenceManager().getEvidenceByPunishment(p.getCaseId());
+        for (Evidence fe : fileEvidence) {
+            // Check if not already added via PunishmentEvidence
+            boolean alreadyAdded = activityEvidence.stream()
+                    .anyMatch(pe -> pe.isFile() && fe.getId().equals(pe.getEvidenceId()));
+            if (!alreadyAdded) {
+                JsonObject ev = new JsonObject();
+                ev.addProperty("id", fe.getId());
+                ev.addProperty("type", "FILE");
+                ev.addProperty("evidenceId", fe.getId());
+                ev.addProperty("fileName", fe.getFileName());
+                ev.addProperty("fileType", fe.getFileType().name());
+                ev.addProperty("fileSize", fe.getFileSize());
+                ev.addProperty("mimeType", fe.getMimeType());
+                ev.addProperty("addedBy", fe.getUploaderName());
+                ev.addProperty("addedAt", fe.getCreatedAt());
+                evidenceArray.add(ev);
+            }
+        }
+
+        json.add("evidence", evidenceArray);
 
         return json;
     }
