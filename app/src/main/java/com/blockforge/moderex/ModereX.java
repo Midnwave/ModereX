@@ -81,6 +81,9 @@ public final class ModereX extends JavaPlugin {
     private WebPanelDebugger webPanelDebugger;
     private com.blockforge.moderex.util.GitHubAutoUpdater githubAutoUpdater;
     private com.blockforge.moderex.alert.AlertManager alertManager;
+    private com.blockforge.moderex.evidence.EvidenceManager evidenceManager;
+    private com.blockforge.moderex.evidence.EvidenceSelectionManager evidenceSelectionManager;
+    private com.blockforge.moderex.portal.AuthSessionManager authSessionManager;
 
     // Lockdown state
     private boolean globalLockdown = false;
@@ -213,6 +216,19 @@ public final class ModereX extends JavaPlugin {
         this.activityLogManager = new ActivityLogManager(this);
         activityLogManager.initialize();
 
+        logStartup("Initializing evidence system...");
+        // Apply evidence max file size from config
+        com.blockforge.moderex.evidence.Evidence.setMaxFileSizeMB(configManager.getSettings().getEvidenceMaxFileSizeMb());
+        this.evidenceManager = new com.blockforge.moderex.evidence.EvidenceManager(this);
+        evidenceManager.initialize();
+        this.evidenceSelectionManager = new com.blockforge.moderex.evidence.EvidenceSelectionManager(this);
+        evidenceSelectionManager.initialize();
+
+        logStartup("Initializing player auth session manager...");
+        this.authSessionManager = new com.blockforge.moderex.portal.AuthSessionManager(this);
+        authSessionManager.setSessionExpiryHours(configManager.getSettings().getPlayerPortalSessionExpiryHours());
+        authSessionManager.initialize();
+
         logStartup("Initializing server status monitor...");
         this.serverStatusManager = new com.blockforge.moderex.monitor.ServerStatusManager(this);
         if (configManager.getSettings().isServerStatusEnabled()) {
@@ -331,6 +347,21 @@ public final class ModereX extends JavaPlugin {
         // Stop activity log system
         if (activityLogManager != null) {
             activityLogManager.shutdown();
+        }
+
+        // Stop evidence system
+        if (evidenceManager != null) {
+            evidenceManager.shutdown();
+        }
+
+        // Stop evidence selection manager
+        if (evidenceSelectionManager != null) {
+            evidenceSelectionManager.shutdown();
+        }
+
+        // Stop auth session manager
+        if (authSessionManager != null) {
+            authSessionManager.shutdown();
         }
 
         // Stop punishment scheduler
@@ -646,6 +677,18 @@ public final class ModereX extends JavaPlugin {
 
     public ActivityLogManager getActivityLogManager() {
         return activityLogManager;
+    }
+
+    public com.blockforge.moderex.evidence.EvidenceManager getEvidenceManager() {
+        return evidenceManager;
+    }
+
+    public com.blockforge.moderex.evidence.EvidenceSelectionManager getEvidenceSelectionManager() {
+        return evidenceSelectionManager;
+    }
+
+    public com.blockforge.moderex.portal.AuthSessionManager getAuthSessionManager() {
+        return authSessionManager;
     }
 
     public BlockLogManager getBlockLogManager() {
