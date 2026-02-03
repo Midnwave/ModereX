@@ -3190,8 +3190,9 @@
     if (statusEl) statusEl.style.display = 'none';
 
     try {
-      // Get auth token from session
-      const token = state.authToken || localStorage.getItem('moderex_auth_token');
+      // Get session ID for upload authentication
+      // Priority: MX.auth session > localStorage mx_session
+      const token = (window.MX?.auth?.getSession()?.sessionId) || localStorage.getItem('mx_session');
       if (!token) {
         showUploadError('Authentication required. Please log in again.');
         return;
