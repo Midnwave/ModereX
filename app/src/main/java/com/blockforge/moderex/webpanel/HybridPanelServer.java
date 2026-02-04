@@ -8690,12 +8690,14 @@ public class HybridPanelServer implements com.blockforge.moderex.gateway.Gateway
             // Check if authenticated for all other requests
             WebPanelSession session = gatewaySessions.get(clientId);
             if (session == null) {
+                plugin.getLogger().warning("[Gateway] Session not found for client " + clientId + " - request type: " + type);
                 sendError(wrapper, "NOT_AUTHENTICATED", "Please authenticate first");
                 return;
             }
 
             // Update activity
             session.lastActivity = System.currentTimeMillis();
+            plugin.getLogger().info("[Gateway] Handling request: " + type + " for " + session.playerName);
 
             // Route to request handler
             handleGatewayRequest(type, data, session, wrapper);
