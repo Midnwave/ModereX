@@ -576,10 +576,17 @@ public class HybridPanelServer {
             return;
         }
 
-        // Get the file
-        java.io.File file = new java.io.File(evidence.getFilePath());
+        // Get the file - resolve relative path against evidence directory
+        java.nio.file.Path filePath = plugin.getEvidenceManager().getEvidenceFile(fileId);
+        if (filePath == null) {
+            plugin.logDebug("[Evidence] Could not resolve file path for: " + fileId);
+            sendJsonResponse(out, 404, "{\"error\":\"Evidence file path not found\"}");
+            return;
+        }
+
+        java.io.File file = filePath.toFile();
         if (!file.exists() || !file.isFile()) {
-            plugin.logDebug("[Evidence] File not found on disk: " + evidence.getFilePath());
+            plugin.logDebug("[Evidence] File not found on disk: " + filePath);
             sendJsonResponse(out, 404, "{\"error\":\"Evidence file not found on disk\"}");
             return;
         }

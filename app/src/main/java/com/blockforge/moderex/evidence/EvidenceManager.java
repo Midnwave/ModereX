@@ -513,17 +513,48 @@ public class EvidenceManager {
     }
 
     /**
-     * Get evidence by ID.
+     * Get evidence by ID. Checks cache first, falls back to database.
      */
     public Evidence getEvidence(String id) {
-        return cache.get(id);
+        if (id == null) return null;
+
+        // Check cache first
+        Evidence cached = cache.get(id);
+        if (cached != null) {
+            return cached;
+        }
+
+        // Fallback to database lookup
+        try {
+            Evidence evidence = plugin.getDatabaseManager().query(
+                    "SELECT * FROM moderex_evidence WHERE id = ?",
+                    rs -> {
+                        if (rs.next()) {
+                            return evidenceFromResultSet(rs);
+                        }
+                        return null;
+                    },
+                    id
+            );
+
+            if (evidence != null) {
+                // Add to cache for future lookups
+                cache.put(id, evidence);
+                plugin.logDebug("[Evidence] Loaded from database (cache miss): " + id);
+            }
+
+            return evidence;
+        } catch (java.sql.SQLException e) {
+            plugin.logError("Failed to load evidence from database: " + id, e);
+            return null;
+        }
     }
 
     /**
      * Get the file path for evidence.
      */
     public Path getEvidenceFile(String id) {
-        Evidence evidence = cache.get(id);
+        Evidence evidence = getEvidence(id);  // Uses cache with database fallback
         if (evidence == null) return null;
         return evidenceDirectory.resolve(evidence.getFilePath());
     }
