@@ -26,6 +26,8 @@ Thumbs.db
 *.swp
 *~
 nul
+tmpclaud*
+*.zip
 
 # Build outputs (keep source, exclude compiled)
 app/bin/
@@ -69,6 +71,12 @@ PENDING_COMMITS.md
 .ai/
 CLAUDE.md
 .claude/
+INFRASTRUCTURE.md
+ModereX-Complete-Setup-Guide.md
+start-gateway.ps1
+start-gateway.bat
+gateway/
+website/
 
 # External API sources
 CitizensAPI-master/
