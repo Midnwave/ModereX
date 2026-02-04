@@ -8596,11 +8596,15 @@ public class HybridPanelServer implements com.blockforge.moderex.gateway.Gateway
             if (gatewayClient != null && gatewayClient.isConnected()) {
                 try {
                     JsonObject response = GSON.fromJson(message, JsonObject.class);
+                    String responseType = response.has("type") ? response.get("type").getAsString() : "unknown";
+                    plugin.getLogger().info("[Gateway] Sending response type '" + responseType + "' to client " + clientId);
                     gatewayClient.sendToClient(clientId, response);
                     return true;
                 } catch (Exception e) {
-                    plugin.logDebug("[Gateway] Failed to send to client " + clientId + ": " + e.getMessage());
+                    plugin.getLogger().warning("[Gateway] Failed to send to client " + clientId + ": " + e.getMessage());
                 }
+            } else {
+                plugin.getLogger().warning("[Gateway] Cannot send to client " + clientId + " - gateway not connected");
             }
             return false;
         }
@@ -8662,6 +8666,7 @@ public class HybridPanelServer implements com.blockforge.moderex.gateway.Gateway
 
             // Handle PING/PONG without authentication
             if ("PING".equals(type)) {
+                plugin.getLogger().info("[Gateway] Received PING from " + clientId + ", sending PONG");
                 JsonObject pong = new JsonObject();
                 pong.addProperty("type", "PONG");
                 pong.addProperty("timestamp", System.currentTimeMillis());

@@ -78,7 +78,7 @@ public class GatewayClient {
         shuttingDown.set(false);
         scheduler = Executors.newScheduledThreadPool(2);
 
-        log("Starting gateway client, connecting to: " + gatewayUrl);
+        logImportant("Connecting to gateway: " + gatewayUrl);
         connect();
     }
 
@@ -172,7 +172,7 @@ public class GatewayClient {
         connectedSince.set(System.currentTimeMillis());
         reconnectAttempts.set(0);
 
-        log("Connected to gateway");
+        logImportant("Connected to gateway!");
 
         // Send registration message
         sendRegistration();
@@ -204,7 +204,10 @@ public class GatewayClient {
                 default -> {
                     // Forward to message handler (panel requests)
                     if (messageHandler != null) {
+                        logImportant("Forwarding message type '" + type + "' to panel handler");
                         messageHandler.handleMessage(type, json);
+                    } else {
+                        logWarning("No message handler registered for type: " + type);
                     }
                 }
             }
@@ -272,9 +275,8 @@ public class GatewayClient {
             plugin.getServerIdentity().setUrlPrefixGroups(prefixGroups);
         }
 
-        log("Registered with gateway. Server ID: " + serverId + ", URL prefix: " + urlPrefix);
-        plugin.getLogger().info("[Gateway] Connected to ModereX Gateway");
-        plugin.getLogger().info("[Gateway] Panel URL: " + plugin.getServerIdentity().getPanelUrl("moderex.net"));
+        logImportant("Registered! Server ID: " + serverId + ", URL prefix: " + urlPrefix);
+        logImportant("Panel URL: " + plugin.getServerIdentity().getPanelUrl("moderex.net"));
     }
 
     /**
@@ -467,5 +469,19 @@ public class GatewayClient {
         } else {
             plugin.logDebug("[Gateway] " + message);
         }
+    }
+
+    /**
+     * Log an important message (always visible).
+     */
+    private void logImportant(String message) {
+        plugin.getLogger().info("[Gateway] " + message);
+    }
+
+    /**
+     * Log a warning message (always visible).
+     */
+    private void logWarning(String message) {
+        plugin.getLogger().warning("[Gateway] " + message);
     }
 }
