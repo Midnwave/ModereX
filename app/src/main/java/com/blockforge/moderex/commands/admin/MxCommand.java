@@ -89,6 +89,8 @@ public class MxCommand extends BaseCommand {
             case "vanish", "v" -> handleVanish(sender);
             case "update", "checkupdate" -> handleUpdate(sender);
             case "debug" -> handleDebug(sender, subArgs);
+            case "panel" -> handlePanel(sender);
+            case "gateway" -> handleGateway(sender, subArgs);
 
             default -> sendMessage(sender, "<red>Unknown subcommand: " + subcommand + ". Use /mx help for a list.");
         }
@@ -135,8 +137,9 @@ public class MxCommand extends BaseCommand {
         }
 
         if (args.length == 0) {
-            sendMessage(sender, "<red>Usage: /mx debug <authsession>");
+            sendMessage(sender, "<red>Usage: /mx debug <subcommand>");
             sendMessage(sender, "<gray>/mx debug authsession <player> [caseId] <white>- Generate portal session for player");
+            sendMessage(sender, "<gray>/mx debug serverid <white>- Show this server's unique ID");
             return;
         }
 
@@ -145,9 +148,10 @@ public class MxCommand extends BaseCommand {
 
         switch (action) {
             case "authsession" -> handleDebugAuthSession(sender, actionArgs);
+            case "serverid" -> handleDebugServerId(sender);
             default -> {
                 sendMessage(sender, "<red>Unknown debug action: " + action);
-                sendMessage(sender, "<gray>Available: authsession");
+                sendMessage(sender, "<gray>Available: authsession, serverid");
             }
         }
     }
@@ -217,6 +221,233 @@ public class MxCommand extends BaseCommand {
             });
             return null;
         });
+    }
+
+    private void handleDebugServerId(CommandSender sender) {
+        var identity = plugin.getServerIdentity();
+        if (identity == null) {
+            sendMessage(sender, "<red>Server identity not initialized yet.");
+            return;
+        }
+
+        String serverId = identity.getServerId();
+        String serverName = identity.getServerName();
+        long createdAt = identity.getCreatedAt();
+
+        sendMessage(sender, "");
+        sendMessage(sender, "<gradient:#3b82f6:#8b5cf6>━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━</gradient>");
+        sendMessage(sender, "<white>      <bold>Server Identity</bold>");
+        sendMessage(sender, "");
+        sendMessage(sender, "<gray>Server ID: <white><bold>" + serverId + "</bold>");
+        sendMessage(sender, "<gray>Server Name: <white>" + serverName);
+        sendMessage(sender, "<gray>Created: <white>" + new java.text.SimpleDateFormat("yyyy-MM-dd HH:mm:ss").format(new java.util.Date(createdAt)));
+        sendMessage(sender, "");
+
+        // Show gateway info
+        var gateway = plugin.getGatewayClient();
+        if (gateway != null) {
+            sendMessage(sender, "<gray>Gateway URL: <aqua>panel.moderex.net/" + identity.getUrlPrefix() + "/");
+        } else if (!plugin.getConfigManager().getSettings().isGatewayEnabled()) {
+            sendMessage(sender, "<gray>Gateway: <yellow>Disabled (opt-out)");
+        } else {
+            sendMessage(sender, "<gray>Gateway: <red>Not connected");
+        }
+        sendMessage(sender, "<gradient:#3b82f6:#8b5cf6>━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━</gradient>");
+        sendMessage(sender, "");
+    }
+
+    private void handlePanel(CommandSender sender) {
+        if (!sender.hasPermission("moderex.staff")) {
+            sendMessage(sender, MessageKey.NO_PERMISSION);
+            return;
+        }
+
+        var identity = plugin.getServerIdentity();
+        if (identity == null) {
+            sendMessage(sender, "<red>Server identity not initialized yet.");
+            return;
+        }
+
+        var settings = plugin.getConfigManager().getSettings();
+        var gateway = plugin.getGatewayClient();
+
+        sendMessage(sender, "");
+        sendMessage(sender, "<gradient:#3b82f6:#8b5cf6>━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━</gradient>");
+        sendMessage(sender, "<white>      <bold>Web Panel Access</bold>");
+        sendMessage(sender, "");
+
+        // Show gateway URL if connected
+        if (gateway != null && gateway.isConnected()) {
+            String urlPrefix = identity.getUrlPrefix();
+            String gatewayUrl = "https://panel.moderex.net/" + urlPrefix + "/";
+
+            sendMessage(sender, "<green><bold>Gateway Mode</bold> <gray>(Recommended)");
+            sendMessage(sender, "");
+
+            if (sender instanceof Player player) {
+                Component clickableUrl = TextUtil.parse("<aqua><bold>[CLICK TO OPEN]</bold></aqua> <white>" + gatewayUrl)
+                        .clickEvent(ClickEvent.openUrl(gatewayUrl))
+                        .hoverEvent(HoverEvent.showText(TextUtil.parse("<gray>Click to open web panel")));
+                player.sendMessage(clickableUrl);
+            } else {
+                sendMessage(sender, "<aqua>" + gatewayUrl);
+            }
+        } else if (!settings.isGatewayEnabled()) {
+            sendMessage(sender, "<yellow>Gateway is disabled (opt-out mode)");
+        } else {
+            sendMessage(sender, "<yellow>Gateway not connected. Use <white>/mx gateway reconnect");
+        }
+
+        // Show direct URL if web panel is enabled
+        if (settings.isWebPanelEnabled()) {
+            sendMessage(sender, "");
+            sendMessage(sender, "<gray><bold>Direct Mode</bold> <dark_gray>(Requires port forwarding)");
+
+            String host = settings.getWebPanelHost();
+            int port = settings.getWebPanelPort();
+            if (host == null || host.isEmpty()) {
+                host = "your-server-ip";
+            }
+            String directUrl = "http://" + host + ":" + port + "/";
+            sendMessage(sender, "<gray>" + directUrl);
+        }
+
+        sendMessage(sender, "");
+        sendMessage(sender, "<gradient:#3b82f6:#8b5cf6>━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━</gradient>");
+        sendMessage(sender, "");
+    }
+
+    private void handleGateway(CommandSender sender, String[] args) {
+        if (!sender.hasPermission("moderex.command.admin")) {
+            sendMessage(sender, MessageKey.NO_PERMISSION);
+            return;
+        }
+
+        if (args.length == 0) {
+            sendMessage(sender, "<red>Usage: /mx gateway <status|reconnect>");
+            sendMessage(sender, "<gray>/mx gateway status <white>- Show gateway connection status");
+            sendMessage(sender, "<gray>/mx gateway reconnect <white>- Force reconnect to gateway");
+            return;
+        }
+
+        String action = args[0].toLowerCase();
+
+        switch (action) {
+            case "status" -> handleGatewayStatus(sender);
+            case "reconnect" -> handleGatewayReconnect(sender);
+            default -> {
+                sendMessage(sender, "<red>Unknown gateway action: " + action);
+                sendMessage(sender, "<gray>Available: status, reconnect");
+            }
+        }
+    }
+
+    private void handleGatewayStatus(CommandSender sender) {
+        var settings = plugin.getConfigManager().getSettings();
+        var identity = plugin.getServerIdentity();
+        var gateway = plugin.getGatewayClient();
+
+        sendMessage(sender, "");
+        sendMessage(sender, "<gradient:#3b82f6:#8b5cf6>━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━</gradient>");
+        sendMessage(sender, "<white>      <bold>Gateway Status</bold>");
+        sendMessage(sender, "");
+
+        // Enabled/disabled
+        sendMessage(sender, "<gray>Gateway Enabled: " + (settings.isGatewayEnabled() ? "<green>Yes" : "<red>No (opt-out)"));
+
+        if (!settings.isGatewayEnabled()) {
+            sendMessage(sender, "");
+            sendMessage(sender, "<yellow>Gateway is disabled in config.yml");
+            sendMessage(sender, "<gray>Set <white>gateway.enabled: true<gray> to connect.");
+            sendMessage(sender, "<gradient:#3b82f6:#8b5cf6>━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━</gradient>");
+            sendMessage(sender, "");
+            return;
+        }
+
+        // Connection status
+        if (gateway == null) {
+            sendMessage(sender, "<gray>Connection: <red>Not initialized");
+        } else if (gateway.isConnected()) {
+            sendMessage(sender, "<gray>Connection: <green>Connected");
+
+            // Server identity info
+            if (identity != null) {
+                sendMessage(sender, "<gray>Server ID: <white>" + identity.getServerId());
+                sendMessage(sender, "<gray>URL Prefix: <white>" + identity.getUrlPrefix());
+                sendMessage(sender, "<gray>Panel URL: <aqua>panel.moderex.net/" + identity.getUrlPrefix() + "/");
+            }
+
+            // Uptime
+            long connectedAt = gateway.getConnectedAt();
+            if (connectedAt > 0) {
+                long uptimeMs = System.currentTimeMillis() - connectedAt;
+                String uptime = formatUptime(uptimeMs);
+                sendMessage(sender, "<gray>Uptime: <white>" + uptime);
+            }
+        } else {
+            sendMessage(sender, "<gray>Connection: <yellow>Disconnected");
+            sendMessage(sender, "<gray>Reconnecting: " + (gateway.isReconnecting() ? "<yellow>Yes" : "<gray>No"));
+        }
+
+        // Gateway URL
+        sendMessage(sender, "<gray>Gateway URL: <dark_gray>" + settings.getGatewayUrl());
+
+        // Debug logging
+        sendMessage(sender, "<gray>Debug Logging: " + (settings.isGatewayDebugLogging() ? "<green>On" : "<gray>Off"));
+
+        sendMessage(sender, "");
+        sendMessage(sender, "<gradient:#3b82f6:#8b5cf6>━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━</gradient>");
+        sendMessage(sender, "");
+    }
+
+    private void handleGatewayReconnect(CommandSender sender) {
+        var settings = plugin.getConfigManager().getSettings();
+
+        if (!settings.isGatewayEnabled()) {
+            sendMessage(sender, "<red>Gateway is disabled in config.yml");
+            sendMessage(sender, "<gray>Set <white>gateway.enabled: true<gray> to use gateway features.");
+            return;
+        }
+
+        var gateway = plugin.getGatewayClient();
+        if (gateway == null) {
+            sendMessage(sender, "<red>Gateway client not initialized. Try reloading the plugin.");
+            return;
+        }
+
+        sendMessage(sender, "<yellow>Reconnecting to gateway...");
+
+        gateway.reconnect();
+
+        // Check status after a short delay
+        plugin.getServer().getScheduler().runTaskLater(plugin, () -> {
+            if (gateway.isConnected()) {
+                var identity = plugin.getServerIdentity();
+                sendMessage(sender, "<green>Successfully connected to gateway!");
+                if (identity != null) {
+                    sendMessage(sender, "<gray>Panel URL: <aqua>panel.moderex.net/" + identity.getUrlPrefix() + "/");
+                }
+            } else {
+                sendMessage(sender, "<yellow>Connection in progress... Check <white>/mx gateway status<yellow> in a moment.");
+            }
+        }, 40L); // 2 seconds
+    }
+
+    private String formatUptime(long ms) {
+        long seconds = ms / 1000;
+        long minutes = seconds / 60;
+        long hours = minutes / 60;
+        long days = hours / 24;
+
+        if (days > 0) {
+            return days + "d " + (hours % 24) + "h " + (minutes % 60) + "m";
+        } else if (hours > 0) {
+            return hours + "h " + (minutes % 60) + "m " + (seconds % 60) + "s";
+        } else if (minutes > 0) {
+            return minutes + "m " + (seconds % 60) + "s";
+        } else {
+            return seconds + "s";
+        }
     }
 
     private void handleTestReplay(CommandSender sender) {
@@ -1438,10 +1669,15 @@ public class MxCommand extends BaseCommand {
         sendMessage(sender, "<yellow>/mx vanish <gray>- Toggle vanish mode");
         sendMessage(sender, "<yellow>/mx templates <gray>- View punishment templates");
         sendMessage(sender, "");
-        sendMessage(sender, "<gold><bold>Admin:</bold>");
-        sendMessage(sender, "<yellow>/mx reload <gray>- Reload configuration");
+        sendMessage(sender, "<gold><bold>Web Panel:</bold>");
+        sendMessage(sender, "<yellow>/mx panel <gray>- Show clickable panel URL");
+        sendMessage(sender, "<yellow>/mx gateway status <gray>- Show gateway connection status");
+        sendMessage(sender, "<yellow>/mx gateway reconnect <gray>- Reconnect to gateway");
         sendMessage(sender, "<yellow>/mx connect <gray>- Get quick web panel link (30m expiry)");
         sendMessage(sender, "<yellow>/mx gettoken <gray>- Generate permanent web access token");
+        sendMessage(sender, "");
+        sendMessage(sender, "<gold><bold>Admin:</bold>");
+        sendMessage(sender, "<yellow>/mx reload <gray>- Reload configuration");
         sendMessage(sender, "<yellow>/mx revoketoken <gray>- Revoke your permanent token");
         sendMessage(sender, "<yellow>/mx sessions <gray>- View web session status");
         sendMessage(sender, "<yellow>/mx chat <enable|disable|slowmode|clear> <gray>- Chat control");
@@ -1498,6 +1734,12 @@ public class MxCommand extends BaseCommand {
             if (sender.hasPermission("moderex.admin")) {
                 completions.add("debug");
             }
+            if (sender.hasPermission("moderex.staff")) {
+                completions.add("panel");
+            }
+            if (sender.hasPermission("moderex.command.admin")) {
+                completions.add("gateway");
+            }
             if (sender.hasPermission("moderex.webpanel")) {
                 completions.add("connect");
                 completions.add("gettoken");
@@ -1517,6 +1759,9 @@ public class MxCommand extends BaseCommand {
                 case "chat" -> {
                     return filterCompletions(Arrays.asList("enable", "disable", "slowmode", "clear"), args[1]);
                 }
+                case "gateway" -> {
+                    return filterCompletions(Arrays.asList("status", "reconnect"), args[1]);
+                }
                 case "replay", "replays", "rec", "recording" -> {
                     return filterCompletions(Arrays.asList("start", "stop", "play", "list", "search", "delete", "status", "help"), args[1]);
                 }
@@ -1525,7 +1770,7 @@ public class MxCommand extends BaseCommand {
                 }
                 case "debug" -> {
                     if (sender.hasPermission("moderex.admin")) {
-                        return filterCompletions(Arrays.asList("authsession"), args[1]);
+                        return filterCompletions(Arrays.asList("authsession", "serverid"), args[1]);
                     }
                 }
             }
