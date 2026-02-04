@@ -195,12 +195,18 @@ public class ServerIdentity {
         writeIdToFile(primaryPath);
 
         // Backup 1: plugins/.moderex-server-id (survives ModereX folder deletion)
-        Path backupPath = plugin.getDataFolder().toPath().getParent().resolve(ID_FILE_NAME);
-        writeIdToFile(backupPath);
+        Path parent = plugin.getDataFolder().toPath().getParent();
+        if (parent != null) {
+            Path backupPath = parent.resolve(ID_FILE_NAME);
+            writeIdToFile(backupPath);
 
-        // Backup 2: server root/.moderex-server-id (survives plugins folder deletion)
-        Path serverRootPath = plugin.getDataFolder().toPath().getParent().getParent().resolve(ID_FILE_NAME);
-        writeIdToFile(serverRootPath);
+            // Backup 2: server root/.moderex-server-id (survives plugins folder deletion)
+            Path grandparent = parent.getParent();
+            if (grandparent != null) {
+                Path serverRootPath = grandparent.resolve(ID_FILE_NAME);
+                writeIdToFile(serverRootPath);
+            }
+        }
     }
 
     /**
