@@ -124,6 +124,40 @@
   async function startConnection() {
     authState.connectionPhase = 'connecting';
     authState.status = AuthStatus.PENDING_VERIFICATION;
+
+    // Check if we're in gateway mode
+    const isGateway = ws.isGatewayDomain();
+
+    if (isGateway) {
+      // Gateway mode: connect directly to gateway without config fetch
+      const serverId = ws.getServerIdFromPath();
+      if (!serverId) {
+        authState.connectionPhase = 'idle';
+        authState.status = AuthStatus.UNAUTHENTICATED;
+        authState.lastError = 'No server ID found in URL. Expected format: /serverid/';
+        showConnectionToast('bad', 'Invalid URL', authState.lastError);
+        showGatewayError('Invalid Server URL', 'Please check the URL and try again.');
+        return;
+      }
+
+      updateStatus('Connecting...', 'Connecting to server via gateway');
+      console.log('[Auth] Gateway mode - connecting to server:', serverId);
+
+      try {
+        await connectGatewayWebSocket(serverId);
+      } catch (err) {
+        console.error('[Auth] Gateway connection failed:', err);
+        authState.connectionPhase = 'idle';
+        authState.status = AuthStatus.UNAUTHENTICATED;
+        authState.lastError = err.message || 'Gateway connection failed';
+
+        showConnectionToast('bad', 'Connection Failed', authState.lastError);
+        showGatewayError('Connection Failed', authState.lastError);
+      }
+      return;
+    }
+
+    // Direct mode: fetch config and connect
     updateStatus('Connecting...', 'Loading server configuration');
 
     try {
@@ -162,6 +196,114 @@
       showConnectionToast('bad', 'Connection Failed', authState.lastError);
       showManualAuth(authState.lastError);
       scheduleReconnect();
+    }
+  }
+
+  /**
+   * Connect to gateway WebSocket
+   */
+  function connectGatewayWebSocket(serverId) {
+    return new Promise((resolve, reject) => {
+      let connectionTimeout = null;
+      let resolved = false;
+
+      const cleanup = () => {
+        if (connectionTimeout) clearTimeout(connectionTimeout);
+        ws.off('connected', onConnected);
+        ws.off('gateway_connected', onGatewayConnected);
+        ws.off('server_not_found', onServerNotFound);
+        ws.off('gateway_error', onGatewayError);
+        ws.off('error', onError);
+      };
+
+      const onConnected = () => {
+        console.log('[Auth] WebSocket connected, waiting for gateway confirmation...');
+      };
+
+      const onGatewayConnected = (data) => {
+        if (resolved) return;
+        resolved = true;
+        cleanup();
+        authState.connected = true;
+        authState.serverName = data.serverName;
+        console.log('[Auth] Gateway connected to server:', data.serverName);
+        resolve();
+
+        // Now try to authenticate
+        tryAuthenticate();
+      };
+
+      const onServerNotFound = (data) => {
+        if (resolved) return;
+        resolved = true;
+        cleanup();
+        reject(new Error('Server not found. It may be offline or the ID is incorrect.'));
+      };
+
+      const onGatewayError = (data) => {
+        if (resolved) return;
+        resolved = true;
+        cleanup();
+        reject(new Error(data.message || 'Gateway error'));
+      };
+
+      const onError = (err) => {
+        if (resolved) return;
+        resolved = true;
+        cleanup();
+        reject(new Error('WebSocket connection failed'));
+      };
+
+      ws.on('connected', onConnected);
+      ws.on('gateway_connected', onGatewayConnected);
+      ws.on('server_not_found', onServerNotFound);
+      ws.on('gateway_error', onGatewayError);
+      ws.on('error', onError);
+
+      // Set connection timeout
+      connectionTimeout = setTimeout(() => {
+        if (resolved) return;
+        resolved = true;
+        cleanup();
+        reject(new Error('Connection timed out'));
+      }, 15000); // Longer timeout for gateway
+
+      // Start gateway connection
+      ws.connectGateway(serverId);
+    });
+  }
+
+  /**
+   * Show gateway-specific error screen
+   */
+  function showGatewayError(title, message) {
+    authState.connectionPhase = 'idle';
+    authState.status = AuthStatus.UNAUTHENTICATED;
+
+    if (dom.authStatusArea) {
+      dom.authStatusArea.innerHTML = `
+        <div class="auth-error">
+          <div class="auth-error-icon">
+            <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <circle cx="12" cy="12" r="10"/>
+              <line x1="12" y1="8" x2="12" y2="12"/>
+              <line x1="12" y1="16" x2="12.01" y2="16"/>
+            </svg>
+          </div>
+          <h2>${title}</h2>
+          <p>${message}</p>
+          <p class="auth-error-hint">
+            Check that the server is online and connected to the gateway.<br>
+            You can also try accessing the panel directly via the server's IP and port.
+          </p>
+          <button class="btn btn-primary" onclick="location.reload()">Try Again</button>
+        </div>
+      `;
+      dom.authStatusArea.style.display = 'block';
+    }
+
+    if (dom.authManualSection) {
+      dom.authManualSection.style.display = 'none';
     }
   }
 
@@ -508,6 +650,47 @@
     ws.on('ping_update', (data) => {
       if (data.ping === -1) {
         console.warn('[Auth] Connection unstable');
+      }
+    });
+
+    // Gateway-specific events (when connected via panel.moderex.net)
+    ws.on('server_offline', (data) => {
+      console.log('[Auth] Server went offline via gateway');
+      if (window.devtoolsLog) window.devtoolsLog('GATEWAY', 'Minecraft server disconnected from gateway', 'warn');
+
+      authState.connected = false;
+      authState.authenticated = false;
+      authState.tokenValid = false;
+      stopTokenValidation();
+
+      // Show server offline overlay
+      showServerOffline(data?.lastSeen);
+    });
+
+    ws.on('server_online', (data) => {
+      console.log('[Auth] Server came back online via gateway');
+      if (window.devtoolsLog) window.devtoolsLog('GATEWAY', 'Minecraft server reconnected to gateway', 'success');
+
+      // Hide offline overlay and attempt reconnect
+      hideServerOffline();
+
+      // Try to re-authenticate if we have a saved token
+      if (authState.token) {
+        console.log('[Auth] Attempting re-authentication after server reconnect');
+        authenticate();
+      }
+    });
+
+    ws.on('gateway_error', (data) => {
+      console.error('[Auth] Gateway error:', data?.code, data?.message);
+      if (window.devtoolsLog) window.devtoolsLog('GATEWAY', `Error: ${data?.message || data?.code}`, 'error');
+
+      if (data?.code === 'SERVER_NOT_FOUND') {
+        showGatewayError('Server Not Found', 'The server ID in the URL is invalid or the server has never connected to the gateway.');
+      } else if (data?.code === 'SERVER_OFFLINE') {
+        showServerOffline(data?.lastSeen);
+      } else {
+        showGatewayError('Gateway Error', data?.message || 'An error occurred connecting to the server.');
       }
     });
   }
@@ -858,6 +1041,106 @@
 
     clearSavedAuth();
     ws.disconnect();
+  }
+
+  /**
+   * Gateway-specific UI functions
+   */
+  function showServerOffline(lastSeen) {
+    // Create or show the server offline overlay
+    let overlay = document.getElementById('serverOfflineOverlay');
+    if (!overlay) {
+      overlay = document.createElement('div');
+      overlay.id = 'serverOfflineOverlay';
+      overlay.className = 'auth-overlay show';
+      overlay.innerHTML = `
+        <div class="auth-modal" style="text-align: center;">
+          <div class="status-icon" style="color: var(--warning); margin-bottom: 1rem;">
+            <i class="fa-solid fa-plug-circle-xmark fa-3x"></i>
+          </div>
+          <h2 style="margin-bottom: 0.5rem;">Server Offline</h2>
+          <p style="color: var(--text-secondary); margin-bottom: 1rem;">
+            The Minecraft server has disconnected from the gateway.
+          </p>
+          <p id="serverOfflineLastSeen" style="color: var(--text-muted); font-size: 0.9rem;">
+            ${lastSeen ? `Last seen: ${formatLastSeen(lastSeen)}` : 'Waiting for server to reconnect...'}
+          </p>
+          <div class="spinner" style="margin: 1.5rem auto; width: 32px; height: 32px;"></div>
+          <p style="color: var(--text-muted); font-size: 0.85rem;">
+            The panel will automatically reconnect when the server comes back online.
+          </p>
+        </div>
+      `;
+      document.body.appendChild(overlay);
+    } else {
+      overlay.classList.add('show');
+      const lastSeenEl = overlay.querySelector('#serverOfflineLastSeen');
+      if (lastSeenEl && lastSeen) {
+        lastSeenEl.textContent = `Last seen: ${formatLastSeen(lastSeen)}`;
+      }
+    }
+  }
+
+  function hideServerOffline() {
+    const overlay = document.getElementById('serverOfflineOverlay');
+    if (overlay) {
+      overlay.classList.remove('show');
+      setTimeout(() => overlay.remove(), 300);
+    }
+  }
+
+  function showGatewayError(title, message) {
+    // Create or show the gateway error overlay
+    let overlay = document.getElementById('gatewayErrorOverlay');
+    if (!overlay) {
+      overlay = document.createElement('div');
+      overlay.id = 'gatewayErrorOverlay';
+      overlay.className = 'auth-overlay show';
+      overlay.innerHTML = `
+        <div class="auth-modal" style="text-align: center;">
+          <div class="status-icon" style="color: var(--danger); margin-bottom: 1rem;">
+            <i class="fa-solid fa-triangle-exclamation fa-3x"></i>
+          </div>
+          <h2 id="gatewayErrorTitle" style="margin-bottom: 0.5rem;">${escapeHtml(title)}</h2>
+          <p id="gatewayErrorMessage" style="color: var(--text-secondary); margin-bottom: 1.5rem;">
+            ${escapeHtml(message)}
+          </p>
+          <a href="/" class="btn btn-primary">
+            <i class="fa-solid fa-home"></i> Return Home
+          </a>
+        </div>
+      `;
+      document.body.appendChild(overlay);
+    } else {
+      overlay.classList.add('show');
+      const titleEl = overlay.querySelector('#gatewayErrorTitle');
+      const msgEl = overlay.querySelector('#gatewayErrorMessage');
+      if (titleEl) titleEl.textContent = title;
+      if (msgEl) msgEl.textContent = message;
+    }
+  }
+
+  function formatLastSeen(timestamp) {
+    if (!timestamp) return 'Unknown';
+    const date = new Date(timestamp);
+    const now = new Date();
+    const diffMs = now - date;
+    const diffMins = Math.floor(diffMs / 60000);
+
+    if (diffMins < 1) return 'Just now';
+    if (diffMins < 60) return `${diffMins} minute${diffMins !== 1 ? 's' : ''} ago`;
+
+    const diffHours = Math.floor(diffMins / 60);
+    if (diffHours < 24) return `${diffHours} hour${diffHours !== 1 ? 's' : ''} ago`;
+
+    const diffDays = Math.floor(diffHours / 24);
+    return `${diffDays} day${diffDays !== 1 ? 's' : ''} ago`;
+  }
+
+  function escapeHtml(text) {
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
   }
 
   /**

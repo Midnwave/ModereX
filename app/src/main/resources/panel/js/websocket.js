@@ -1,5 +1,6 @@
 /* ============================================
    ModereX Control Panel - WebSocket Manager
+   Supports both direct and gateway modes
    ============================================ */
 (function() {
   'use strict';
@@ -10,6 +11,15 @@
   const WS_PING_INTERVAL = 15000; // Measure latency every 15s
   const WS_PING_TIMEOUT = 45000; // Allow 45s for very high-ping/unstable connections
 
+  // Gateway configuration - domains that indicate we're using gateway mode
+  const GATEWAY_DOMAINS = [
+    'panel.moderex.net',       // Future custom domain
+    'panel-moderex.pages.dev', // Cloudflare Pages subdomain (current)
+    'trycloudflare.com'        // Quick Tunnel domain (temporary testing)
+  ];
+  // Gateway WebSocket URL - update this after deploying your gateway with Cloudflare Tunnel
+  const GATEWAY_WS_URL = 'wss://neighbors-steps-unable-stop.trycloudflare.com/panel';
+
   let ws = null;
   let heartbeatTimer = null;
   let reconnectTimer = null;
@@ -19,6 +29,8 @@
   let sessionData = null;
   let currentHost = null;
   let currentPort = null;
+  let currentServerId = null; // Server ID when in gateway mode
+  let gatewayMode = false; // True if connected via gateway
   let lastPing = 0;
   let lastPingTime = 0;
   let reconnectAttempts = 0;
@@ -35,9 +47,33 @@
   let requestIdCounter = 0;
 
   /**
+   * Detect if running in gateway mode based on hostname
+   */
+  function isGatewayDomain() {
+    const hostname = window.location.hostname.toLowerCase();
+    return GATEWAY_DOMAINS.some(domain => hostname === domain || hostname.endsWith('.' + domain));
+  }
+
+  /**
+   * Extract server ID from URL path (gateway mode)
+   * Path format: /{serverPrefix}/ where serverPrefix is lowercase
+   * Examples: /abc12/ or /abc12-def34/
+   */
+  function getServerIdFromPath() {
+    const path = window.location.pathname;
+    // Match server ID prefix: 5 chars or 5-5 chars with dash, etc.
+    const match = path.match(/^\/([a-z0-9]{5}(?:-[a-z0-9]{5})*)\/?/i);
+    if (match) {
+      return match[1].toLowerCase();
+    }
+    return null;
+  }
+
+  /**
    * Connect to the WebSocket server
-   * @param {string} host - Server host (e.g., 'localhost')
-   * @param {number} port - Server port
+   * Automatically detects gateway mode based on hostname
+   * @param {string} host - Server host (e.g., 'localhost') - ignored in gateway mode
+   * @param {number} port - Server port - ignored in gateway mode
    */
   function connect(host, port) {
     if (ws && ws.readyState === WebSocket.OPEN) {
@@ -45,79 +81,41 @@
       return;
     }
 
-    currentHost = host;
-    currentPort = port;
+    // Detect gateway mode
+    gatewayMode = isGatewayDomain();
+    let url;
 
-    const url = `ws://${host}:${port}`;
-    console.log('[WS] Connecting to', url);
+    if (gatewayMode) {
+      // Gateway mode: connect to gateway server with server ID in path
+      const serverId = getServerIdFromPath();
+      if (!serverId) {
+        console.error('[WS] No server ID found in URL path');
+        emit('error', { message: 'No server ID found in URL. Expected format: /serverid/' });
+        return;
+      }
+      currentServerId = serverId;
+      url = `${GATEWAY_WS_URL}/${serverId}`;
+      console.log('[WS] Gateway mode - connecting to', url);
+    } else {
+      // Direct mode: connect to server's WebSocket port
+      currentHost = host;
+      currentPort = port;
+      url = `ws://${host}:${port}`;
+      console.log('[WS] Direct mode - connecting to', url);
+    }
 
     try {
       ws = new WebSocket(url);
+      setupWebSocketHandlers();
     } catch (e) {
       console.error('[WS] Failed to create WebSocket:', e);
-      scheduleReconnect(host, port);
-      return;
-    }
-
-    ws.onopen = () => {
-      console.log('[WS] Connected');
-      isConnected = true;
-      connectionStatus = 'connected';
-      reconnectAttempts = 0; // Reset on successful connection
-      clearTimeout(reconnectTimer);
-      startHeartbeat();
-      startPingMeasurement();
-      emit('connected');
-      emit('status_change', { status: connectionStatus, ping: lastPing });
-      if (window.debugLog) window.debugLog('WS', 'Connected to server', 'success');
-    };
-
-    ws.onclose = (event) => {
-      console.log('[WS] Disconnected:', event.code, event.reason);
-      isConnected = false;
-      connectionStatus = 'disconnected';
-      sessionData = null;
-      stopHeartbeat();
-      stopPingMeasurement();
-      emit('disconnected', { code: event.code, reason: event.reason });
-      emit('status_change', { status: connectionStatus, ping: 0 });
-      if (window.debugLog) window.debugLog('WS', `Disconnected (${event.code}: ${event.reason || 'No reason'})`, 'warn');
-
-      // Don't reconnect if we were denied access
-      if (event.code !== 4001 && event.code !== 4003) {
+      if (gatewayMode) {
+        scheduleGatewayReconnect();
+      } else {
         scheduleReconnect(host, port);
       }
-    };
-
-    ws.onerror = (error) => {
-      console.error('[WS] Error:', error);
-      emit('error', error);
-      // Show actual error details
-      const errorMsg = error.message || error.type || 'Connection error';
-      if (window.debugLog) window.debugLog('WS', `Error: ${errorMsg}`, 'error');
-    };
-
-    ws.onmessage = (event) => {
-      try {
-        const message = JSON.parse(event.data);
-        // Filter out spammy messages from debug log
-        const silentTypes = ['PONG', 'SERVER_STATUS', 'HEARTBEAT_ACK'];
-        if (!silentTypes.includes(message.type)) {
-          // Show detailed error messages
-          if (message.type === 'ERROR' && message.data) {
-            const code = message.data.code || 'UNKNOWN';
-            const errorMsg = message.data.message || 'Unknown error';
-            if (window.debugLog) window.debugLog('WS', `Error [${code}]: ${errorMsg}`, 'error');
-          } else {
-            if (window.debugLog) window.debugLog('WS', `Received: ${message.type}`, 'info');
-          }
-        }
-        handleMessage(message);
-      } catch (e) {
-        console.error('[WS] Failed to parse message:', e);
-        if (window.debugLog) window.debugLog('WS', `Parse error: ${e.message}`, 'error');
-      }
-    };
+      return;
+    }
   }
 
   /**
@@ -401,6 +399,35 @@
       return;
     }
 
+    // Handle gateway-specific messages (in gateway mode)
+    if (gatewayMode) {
+      if (type === 'connected') {
+        // Gateway confirmed connection to MC server
+        console.log('[WS] Gateway connected to server:', data.serverName);
+        emit('gateway_connected', data);
+        return;
+      }
+
+      if (type === 'server_disconnected') {
+        // MC server disconnected from gateway
+        console.error('[WS] Server disconnected from gateway:', data.message);
+        emit('server_offline', data);
+        if (window.debugLog) window.debugLog('WS', 'Server went offline', 'error');
+        return;
+      }
+
+      if (type === 'error') {
+        // Gateway error (e.g., server not found)
+        console.error('[WS] Gateway error:', data.code, data.message);
+        emit('gateway_error', data);
+        if (data.code === 'SERVER_NOT_FOUND') {
+          emit('server_not_found', data);
+        }
+        if (window.debugLog) window.debugLog('WS', `Gateway error: ${data.message}`, 'error');
+        return;
+      }
+    }
+
     // Handle authentication responses
     if (type === 'AUTH_SUCCESS') {
       sessionData = data;
@@ -445,6 +472,113 @@
       console.log('[WS] Attempting reconnect...');
       connect(host, port);
     }, delay);
+  }
+
+  /**
+   * Schedule a gateway reconnection attempt with exponential backoff
+   */
+  function scheduleGatewayReconnect() {
+    clearTimeout(reconnectTimer);
+    // Exponential backoff: 2s, 4s, 8s, 16s, max 30s
+    const delay = Math.min(WS_RECONNECT_DELAY_MIN * Math.pow(2, reconnectAttempts), WS_RECONNECT_DELAY_MAX);
+    reconnectAttempts++;
+    console.log(`[WS] Gateway reconnecting in ${delay}ms (attempt ${reconnectAttempts})...`);
+    reconnectTimer = setTimeout(() => {
+      console.log('[WS] Attempting gateway reconnect...');
+      connectGateway(currentServerId);
+    }, delay);
+  }
+
+  /**
+   * Connect to gateway with specific server ID
+   * @param {string} serverId - Server ID prefix
+   */
+  function connectGateway(serverId) {
+    if (ws && ws.readyState === WebSocket.OPEN) {
+      console.log('[WS] Already connected');
+      return;
+    }
+
+    gatewayMode = true;
+    currentServerId = serverId;
+    const url = `${GATEWAY_WS_URL}/${serverId}`;
+    console.log('[WS] Gateway mode - connecting to', url);
+
+    try {
+      ws = new WebSocket(url);
+      setupWebSocketHandlers();
+    } catch (e) {
+      console.error('[WS] Failed to create WebSocket:', e);
+      scheduleGatewayReconnect();
+    }
+  }
+
+  /**
+   * Setup WebSocket event handlers (called after creating new WebSocket)
+   */
+  function setupWebSocketHandlers() {
+    if (!ws) return;
+
+    ws.onopen = () => {
+      console.log('[WS] Connected' + (gatewayMode ? ' (gateway mode)' : ''));
+      isConnected = true;
+      connectionStatus = 'connected';
+      reconnectAttempts = 0;
+      clearTimeout(reconnectTimer);
+      startHeartbeat();
+      startPingMeasurement();
+      emit('connected', { gatewayMode, serverId: currentServerId });
+      emit('status_change', { status: connectionStatus, ping: lastPing });
+      if (window.debugLog) window.debugLog('WS', 'Connected to server' + (gatewayMode ? ' via gateway' : ''), 'success');
+    };
+
+    ws.onclose = (event) => {
+      console.log('[WS] Disconnected:', event.code, event.reason);
+      isConnected = false;
+      connectionStatus = 'disconnected';
+      sessionData = null;
+      stopHeartbeat();
+      stopPingMeasurement();
+      emit('disconnected', { code: event.code, reason: event.reason, gatewayMode });
+      emit('status_change', { status: connectionStatus, ping: 0 });
+      if (window.debugLog) window.debugLog('WS', `Disconnected (${event.code}: ${event.reason || 'No reason'})`, 'warn');
+
+      // Don't reconnect if we were denied access or server not found
+      if (event.code !== 4001 && event.code !== 4003 && event.code !== 4004) {
+        if (gatewayMode) {
+          scheduleGatewayReconnect();
+        } else {
+          scheduleReconnect(currentHost, currentPort);
+        }
+      }
+    };
+
+    ws.onerror = (error) => {
+      console.error('[WS] Error:', error);
+      emit('error', error);
+      const errorMsg = error.message || error.type || 'Connection error';
+      if (window.debugLog) window.debugLog('WS', `Error: ${errorMsg}`, 'error');
+    };
+
+    ws.onmessage = (event) => {
+      try {
+        const message = JSON.parse(event.data);
+        const silentTypes = ['PONG', 'SERVER_STATUS', 'HEARTBEAT_ACK'];
+        if (!silentTypes.includes(message.type)) {
+          if (message.type === 'ERROR' && message.data) {
+            const code = message.data.code || 'UNKNOWN';
+            const errorMsg = message.data.message || 'Unknown error';
+            if (window.debugLog) window.debugLog('WS', `Error [${code}]: ${errorMsg}`, 'error');
+          } else {
+            if (window.debugLog) window.debugLog('WS', `Received: ${message.type}`, 'info');
+          }
+        }
+        handleMessage(message);
+      } catch (e) {
+        console.error('[WS] Failed to parse message:', e);
+        if (window.debugLog) window.debugLog('WS', `Parse error: ${e.message}`, 'error');
+      }
+    };
   }
 
   /**
@@ -758,11 +892,16 @@
   window.MX = window.MX || {};
   window.MX.ws = {
     connect,
+    connectGateway,
     disconnect,
     send,
     on,
     off,
     isConnected: () => isConnected,
+    isGatewayMode: () => gatewayMode,
+    isGatewayDomain,
+    getServerIdFromPath,
+    getServerId: () => currentServerId,
     getSession: () => sessionData,
     getHost: () => currentHost,
     getPort: () => currentPort,
