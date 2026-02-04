@@ -299,9 +299,14 @@ public final class ModereX extends JavaPlugin {
             logStartup("Initializing gateway client...");
             this.gatewayClient = new com.blockforge.moderex.gateway.GatewayClient(this);
             // Connect gateway to panel server for handling requests
-            if (hybridPanelServer != null) {
-                gatewayClient.setMessageHandler(hybridPanelServer);
+            // If same-port mode is active, hybridPanelServer may be null - create one for gateway use
+            if (hybridPanelServer == null) {
+                logStartup("Creating panel server for gateway message handling...");
+                // Create HybridPanelServer on port 0 (won't actually bind - just for gateway message handling)
+                this.hybridPanelServer = new HybridPanelServer(this, 0);
+                // Don't call start() - we just need the message handler functionality
             }
+            gatewayClient.setMessageHandler(hybridPanelServer);
             gatewayClient.start();
         } else {
             logStartup("Gateway disabled (opt-out mode) - panel only accessible via direct IP:port");
