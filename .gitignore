@@ -75,8 +75,8 @@ INFRASTRUCTURE.md
 ModereX-Complete-Setup-Guide.md
 start-gateway.ps1
 start-gateway.bat
-gateway/
-website/
+/gateway/
+/website/
 
 # External API sources
 CitizensAPI-master/
