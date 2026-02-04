@@ -221,6 +221,13 @@ public class Settings {
     private boolean playerPortalEnabled = true;
     private int playerPortalSessionExpiryHours = 12;
 
+    // Gateway settings
+    private boolean gatewayEnabled = true;
+    private String gatewayUrl = "wss://gateway.moderex.net/server";
+    private int gatewayReconnectDelaySeconds = 5;
+    private int gatewayMaxReconnectAttempts = -1; // -1 = infinite
+    private boolean gatewayDebugLogging = false;
+
     // Config version for migration
     private int configVersion = 2;
 
@@ -1002,6 +1009,25 @@ public class Settings {
 
     public int getPlayerPortalSessionExpiryHours() { return playerPortalSessionExpiryHours; }
     public void setPlayerPortalSessionExpiryHours(int v) { this.playerPortalSessionExpiryHours = v; }
+
+    // Gateway getters/setters
+    public boolean isGatewayEnabled() { return gatewayEnabled; }
+    public void setGatewayEnabled(boolean v) { this.gatewayEnabled = v; }
+
+    public String getGatewayUrl() { return gatewayUrl; }
+    public void setGatewayUrl(String v) { this.gatewayUrl = v; }
+
+    public int getGatewayReconnectDelaySeconds() { return gatewayReconnectDelaySeconds; }
+    public void setGatewayReconnectDelaySeconds(int v) { this.gatewayReconnectDelaySeconds = v; }
+
+    /** Alias for GatewayClient compatibility */
+    public int getGatewayReconnectDelay() { return gatewayReconnectDelaySeconds; }
+
+    public int getGatewayMaxReconnectAttempts() { return gatewayMaxReconnectAttempts; }
+    public void setGatewayMaxReconnectAttempts(int v) { this.gatewayMaxReconnectAttempts = v; }
+
+    public boolean isGatewayDebugLogging() { return gatewayDebugLogging; }
+    public void setGatewayDebugLogging(boolean v) { this.gatewayDebugLogging = v; }
 
     /**
      * Get the server name (uses web panel server name).

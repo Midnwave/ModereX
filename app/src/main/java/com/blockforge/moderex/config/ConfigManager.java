@@ -274,6 +274,13 @@ public class ConfigManager {
         settings.setPlayerPortalEnabled(config.getBoolean("player-portal.enabled", true));
         settings.setPlayerPortalSessionExpiryHours(config.getInt("player-portal.session-expiry-hours", 12));
 
+        // Gateway settings
+        settings.setGatewayEnabled(config.getBoolean("gateway.enabled", true));
+        settings.setGatewayUrl(config.getString("gateway.url", "wss://gateway.moderex.net/server"));
+        settings.setGatewayReconnectDelaySeconds(config.getInt("gateway.reconnect-delay-seconds", 5));
+        settings.setGatewayMaxReconnectAttempts(config.getInt("gateway.max-reconnect-attempts", -1));
+        settings.setGatewayDebugLogging(config.getBoolean("gateway.debug-logging", false));
+
         // Command blacklist settings
         settings.setCmdBlacklistAllowModerexCommands(config.getBoolean("command-blacklist.allow-moderex-commands", false));
         settings.setCmdBlacklistProtectedCommands(config.getStringList("command-blacklist.protected-commands"));
