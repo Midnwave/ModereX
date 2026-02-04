@@ -9038,10 +9038,50 @@ public class HybridPanelServer implements com.blockforge.moderex.gateway.Gateway
 
             // Other alert types
             data.addProperty("automodAlerts", staffSettings.getAutomodAlerts().name().toLowerCase());
+            data.addProperty("anticheatAlerts", staffSettings.getAnticheatAlerts().name().toLowerCase());
+            data.addProperty("anticheatMinVL", staffSettings.getAnticheatMinVL());
+            data.addProperty("nicknameAlerts", staffSettings.getNicknameAlerts().name().toLowerCase());
+            data.addProperty("commandAlerts", staffSettings.getCommandAlerts().name().toLowerCase());
+            data.addProperty("joinLeaveAlerts", staffSettings.getJoinLeaveAlerts().name().toLowerCase());
+            data.addProperty("lagAlerts", staffSettings.isLagAlerts());
+
+            // Web panel notification modes
+            data.addProperty("webNotifyPunishments", staffSettings.getWebNotifyPunishments().name().toLowerCase());
+            data.addProperty("webNotifyAutomod", staffSettings.getWebNotifyAutomod().name().toLowerCase());
+            data.addProperty("webNotifyAnticheat", staffSettings.getWebNotifyAnticheat().name().toLowerCase());
+            data.addProperty("webNotifyWatchlist", staffSettings.getWebNotifyWatchlist().name().toLowerCase());
+            data.addProperty("webNotifyStaffChat", staffSettings.getWebNotifyStaffChat().name().toLowerCase());
+            data.addProperty("webNotifyCommands", staffSettings.getWebNotifyCommands().name().toLowerCase());
+            data.addProperty("webNotifyNickname", staffSettings.getWebNotifyNickname().name().toLowerCase());
+            data.addProperty("webNotifyLag", staffSettings.getWebNotifyLag().name().toLowerCase());
+
+            // Web panel display settings
+            data.addProperty("webToastPosition", staffSettings.getWebToastPosition().getCssClass());
+            data.addProperty("webAlertDurationSeconds", staffSettings.getWebAlertDurationSeconds());
+
+            // Web panel sound settings
+            data.addProperty("webSoundPunishments", staffSettings.isWebSoundPunishments());
+            data.addProperty("webSoundAutomod", staffSettings.isWebSoundAutomod());
+            data.addProperty("webSoundAnticheat", staffSettings.isWebSoundAnticheat());
+            data.addProperty("webSoundWatchlist", staffSettings.isWebSoundWatchlist());
+            data.addProperty("webSoundStaffChat", staffSettings.isWebSoundStaffChat());
+            data.addProperty("webSoundCommands", staffSettings.isWebSoundCommands());
+            data.addProperty("webSoundNickname", staffSettings.isWebSoundNickname());
+            data.addProperty("webSoundLag", staffSettings.isWebSoundLag());
         }
+
+        // Include read changelog builds
+        JsonArray readChangelogs = getReadChangelogBuilds(session.playerUuid);
+        data.add("readChangelogs", readChangelogs);
+
+        // Include user permissions for alert type checks
+        JsonArray permissions = getUserPermissions(session.playerUuid);
+        data.add("permissions", permissions);
+        plugin.logDebug("[Gateway] User " + session.playerName + " permissions: " + permissions);
 
         response.add("data", data);
         wrapper.send(GSON.toJson(response));
+        plugin.logDebug("[Gateway] Sent user settings with " + readChangelogs.size() + " read changelogs to " + session.playerName);
     }
 
     /**

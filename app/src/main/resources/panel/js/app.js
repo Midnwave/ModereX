@@ -7305,7 +7305,13 @@
       state.staffSettings.warnAlertsLevel = data.warnAlertsLevel ?? 'EVERYONE';
 
       // Helper to convert alert level to uppercase (DB may store as lowercase)
-      const toUpper = (val, def) => (val || def).toUpperCase().replace(/-/g, '_');
+      // Handle cases where value might not be a string (gateway may send objects)
+      const toUpper = (val, def) => {
+        const v = val || def;
+        if (typeof v === 'string') return v.toUpperCase().replace(/-/g, '_');
+        if (v && typeof v === 'object' && v.value) return String(v.value).toUpperCase().replace(/-/g, '_');
+        return String(def).toUpperCase().replace(/-/g, '_');
+      };
 
       // Punishment alert levels (new system) - ensure uppercase for UI display
       state.staffSettings.banAlerts = toUpper(data.banAlerts, 'EVERYONE');
