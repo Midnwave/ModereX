@@ -439,6 +439,11 @@
       dom.authManualSection.style.display = 'block';
     }
 
+    // In gateway mode, hide the server connection section (server is determined by URL)
+    if (ws.isGatewayMode() && dom.serverSection) {
+      dom.serverSection.style.display = 'none';
+    }
+
     if (errorMsg) {
       showError(errorMsg);
     }

@@ -8710,6 +8710,7 @@ public class HybridPanelServer implements com.blockforge.moderex.gateway.Gateway
      * Handle authentication requests from gateway.
      */
     private void handleGatewayAuth(String clientId, GatewayConnectionWrapper wrapper, String type, JsonObject data) {
+        plugin.getLogger().info("[Gateway] Auth request: " + type + " from " + clientId + ", data: " + data.toString());
         switch (type) {
             case "AUTH_CONNECT_CODE" -> {
                 String code = data.has("code") ? data.get("code").getAsString().toUpperCase().trim() : "";
