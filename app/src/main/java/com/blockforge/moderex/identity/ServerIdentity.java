@@ -89,19 +89,25 @@ public class ServerIdentity {
         }
 
         // Fallback: parent of plugin folder (survives plugin folder deletion)
-        Path fallbackPath = plugin.getDataFolder().toPath().getParent().resolve(ID_FILE_NAME);
-        id = readIdFromFile(fallbackPath);
-        if (id != null) {
-            plugin.logDebug("[Identity] Loaded server ID from plugins folder: " + id);
-            return id;
-        }
+        Path parent = plugin.getDataFolder().toPath().getParent();
+        if (parent != null) {
+            Path fallbackPath = parent.resolve(ID_FILE_NAME);
+            id = readIdFromFile(fallbackPath);
+            if (id != null) {
+                plugin.logDebug("[Identity] Loaded server ID from plugins folder: " + id);
+                return id;
+            }
 
-        // Secondary fallback: server root folder
-        Path serverRootPath = plugin.getDataFolder().toPath().getParent().getParent().resolve(ID_FILE_NAME);
-        id = readIdFromFile(serverRootPath);
-        if (id != null) {
-            plugin.logDebug("[Identity] Loaded server ID from server root: " + id);
-            return id;
+            // Secondary fallback: server root folder
+            Path grandparent = parent.getParent();
+            if (grandparent != null) {
+                Path serverRootPath = grandparent.resolve(ID_FILE_NAME);
+                id = readIdFromFile(serverRootPath);
+                if (id != null) {
+                    plugin.logDebug("[Identity] Loaded server ID from server root: " + id);
+                    return id;
+                }
+            }
         }
 
         return null;
