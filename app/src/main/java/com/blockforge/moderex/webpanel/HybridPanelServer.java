@@ -6039,6 +6039,12 @@ public class HybridPanelServer implements com.blockforge.moderex.gateway.Gateway
         response.addProperty("type", "SERVER_SETTINGS");
         JsonObject data = new JsonObject();
 
+        // Server info
+        data.addProperty("serverName", settings.getWebPanelServerName());
+        data.addProperty("pluginVersion", plugin.getDescription().getVersion());
+        data.addProperty("onlinePlayers", plugin.getServer().getOnlinePlayers().size());
+        data.addProperty("maxPlayers", plugin.getServer().getMaxPlayers());
+
         // Chat settings
         data.addProperty("chatEnabled", settings.isChatEnabled());
         data.addProperty("slowmodeSeconds", settings.getDefaultSlowmodeSeconds());
@@ -8939,10 +8945,18 @@ public class HybridPanelServer implements com.blockforge.moderex.gateway.Gateway
         JsonObject authData = new JsonObject();
         authData.addProperty("playerName", session.playerName);
         authData.addProperty("uuid", session.playerUuid.toString());
+        authData.addProperty("playerUuid", session.playerUuid.toString());
         authData.addProperty("sessionId", session.authSessionId);
         authData.addProperty("prefix", session.prefix != null ? session.prefix : "");
         authData.addProperty("suffix", session.suffix != null ? session.suffix : "");
         authData.addProperty("authMethod", session.authMethod);
+
+        // Include server info (same as regular auth success)
+        authData.addProperty("serverName", plugin.getConfigManager().getSettings().getWebPanelServerName());
+        authData.addProperty("pluginVersion", plugin.getDescription().getVersion());
+        authData.addProperty("onlinePlayers", plugin.getServer().getOnlinePlayers().size());
+        authData.addProperty("maxPlayers", plugin.getServer().getMaxPlayers());
+
         response.add("data", authData);
 
         wrapper.send(GSON.toJson(response));
@@ -8950,58 +8964,120 @@ public class HybridPanelServer implements com.blockforge.moderex.gateway.Gateway
 
     /**
      * Handle authenticated requests from gateway.
+     * This should mirror all handlers in the main handleMessage switch.
      */
     private void handleGatewayRequest(String type, JsonObject data, WebPanelSession session, GatewayConnectionWrapper wrapper) {
         try {
             switch (type) {
+                // Player data
                 case "GET_PLAYERS" -> sendPlayerList(wrapper);
                 case "GET_PLAYER_DETAILS" -> sendPlayerDetails(wrapper, data);
+
+                // Punishments
                 case "GET_PUNISHMENTS" -> sendPunishments(wrapper, data, session);
+                case "CREATE_PUNISHMENT" -> createPunishment(wrapper, data, session);
+                case "REVOKE_PUNISHMENT" -> revokePunishment(wrapper, data, session);
+
+                // Logs
                 case "GET_COMMAND_HISTORY" -> sendCommandHistory(wrapper, data, session);
                 case "GET_CHAT_LOGS" -> sendChatLogs(wrapper, data, session);
                 case "GET_AUTOMOD_LOGS" -> sendAutomodLogs(wrapper, data, session);
-                case "GET_AUTOMOD_RULES" -> sendAutomodRules(wrapper);
-                case "GET_USER_SETTINGS" -> sendUserSettingsForGateway(wrapper, session);
-                case "GET_TEMPLATES" -> sendTemplates(wrapper);
-                case "GET_STATS" -> sendStats(wrapper);
-                case "GET_CHAT_STATUS" -> sendChatStatus(wrapper);
-                case "GET_SERVER_STATUS" -> sendServerStatus(wrapper);
-                case "GET_LUCKPERMS_STATUS" -> sendLuckPermsStatus(wrapper);
-                case "GET_GEYSER_STATUS" -> sendGeyserStatus(wrapper);
-                case "GET_MODERATION_PLUGINS" -> sendModerationPlugins(wrapper);
-                case "GET_SERVER_SETTINGS" -> sendServerSettings(wrapper);
-                case "GET_DEV_CHECKLIST" -> sendDevChecklist(wrapper);
-                case "GET_WATCHLIST" -> sendWatchlist(wrapper);
-                case "GET_ANTICHEAT_INFO" -> sendAnticheatInfo(wrapper);
-                case "GET_ANTICHEAT_ALERTS" -> sendAnticheatAlerts(wrapper);
-                case "GET_ANTICHEAT_CHECKS" -> sendAnticheatChecks(wrapper);
-                case "GET_ALERT_PRESETS" -> sendAlertPresets(wrapper);
                 case "GET_ACTIVITY_LOGS" -> sendActivityLogs(wrapper, data, session);
-                case "SEND_STAFFCHAT", "STAFFCHAT_MESSAGE" -> {
-                    String msg = data.has("message") ? data.get("message").getAsString() : "";
-                    plugin.getStaffChatManager().broadcastFromWebPanel(session.playerName, msg);
-                    sendSuccess(wrapper, "Message sent");
-                }
+                case "GET_EVIDENCE_ACTIVITY_LOGS" -> sendEvidenceActivityLogs(wrapper, data, session);
+
+                // Automod rules
+                case "GET_AUTOMOD_RULES" -> sendAutomodRules(wrapper);
                 case "UPDATE_AUTOMOD_RULE" -> updateAutomodRule(wrapper, data, session);
                 case "CREATE_AUTOMOD_RULE" -> createAutomodRule(wrapper, data, session);
                 case "DELETE_AUTOMOD_RULE" -> deleteAutomodRule(wrapper, data, session);
                 case "ADD_RULE" -> addServerRule(wrapper, data, session);
                 case "DELETE_RULE" -> deleteServerRule(wrapper, data, session);
                 case "UPDATE_RULES" -> updateServerRules(wrapper, data, session);
-                case "CREATE_PUNISHMENT" -> createPunishment(wrapper, data, session);
-                case "REVOKE_PUNISHMENT" -> revokePunishment(wrapper, data, session);
-                case "ADD_TO_WATCHLIST" -> addToWatchlist(wrapper, data, session);
-                case "REMOVE_FROM_WATCHLIST" -> removeFromWatchlist(wrapper, data);
-                case "DELETE_TEMPLATE" -> deleteTemplate(wrapper, data, session);
+
+                // Settings
+                case "GET_USER_SETTINGS" -> sendUserSettingsForGateway(wrapper, session);
                 case "UPDATE_USER_SETTINGS" -> updateUserSettings(wrapper, data, session);
-                case "MARK_CHANGELOG_READ" -> markChangelogRead(wrapper, data, session);
+                case "GET_SETTINGS" -> sendSettings(wrapper);
+                case "GET_SERVER_SETTINGS" -> sendServerSettings(wrapper);
+                case "UPDATE_MUTE_SETTINGS" -> updateMuteSettings(wrapper, data, session);
+                case "UPDATE_WARN_SETTINGS" -> updateWarnSettings(wrapper, data, session);
+                case "UPDATE_ANTICHEAT_SETTINGS" -> updateAnticheatSettings(wrapper, data, session);
+                case "GET_STAFF_ANTICHEAT_SETTINGS" -> sendStaffAnticheatSettings(wrapper, session);
+                case "UPDATE_STAFF_ANTICHEAT_SETTING" -> updateStaffAnticheatSetting(wrapper, data, session);
+                case "GET_STAFF_ALERT_PREFS" -> sendStaffAlertPrefs(wrapper, session);
+                case "UPDATE_STAFF_ALERT_PREF" -> updateStaffAlertPref(wrapper, data, session);
+                case "GET_ALERT_PRESETS" -> sendAlertPresets(wrapper);
+
+                // Templates
+                case "GET_TEMPLATES" -> sendTemplates(wrapper);
+                case "CREATE_TEMPLATE" -> createTemplate(wrapper, data, session);
+                case "UPDATE_TEMPLATE" -> updateTemplate(wrapper, data, session);
+                case "DELETE_TEMPLATE" -> deleteTemplate(wrapper, data, session);
+
+                // Watchlist - support both old and new naming
+                case "GET_WATCHLIST" -> sendWatchlist(wrapper);
+                case "ADD_WATCHLIST", "WATCHLIST_ADD", "ADD_TO_WATCHLIST" -> addToWatchlist(wrapper, data, session);
+                case "REMOVE_WATCHLIST", "WATCHLIST_REMOVE", "REMOVE_FROM_WATCHLIST" -> removeFromWatchlist(wrapper, data);
+
+                // Staff chat
+                case "SEND_STAFFCHAT", "STAFFCHAT_MESSAGE" -> {
+                    String msg = data.has("message") ? data.get("message").getAsString() : "";
+                    plugin.getStaffChatManager().broadcastFromWebPanel(session.playerName, msg);
+                    sendSuccess(wrapper, "Message sent");
+                }
+                case "GET_STAFFCHAT_HISTORY" -> sendStaffChatHistory(wrapper, data, session);
+
+                // Chat controls
+                case "GET_CHAT_STATUS" -> sendChatStatus(wrapper);
                 case "SET_CHAT_LOCK" -> setChatLock(wrapper, data, session);
                 case "SET_SLOWMODE" -> setSlowmode(wrapper, data, session);
+                case "CLEAR_CHAT" -> clearChat(wrapper, session);
+
+                // Player actions
+                case "KICK_PLAYER" -> kickPlayer(wrapper, data, session);
+                case "KICK_ALL" -> kickAllPlayers(wrapper, data, session);
+
+                // Stats and status
+                case "GET_STATS" -> sendStats(wrapper);
+                case "GET_SERVER_STATUS" -> sendServerStatus(wrapper);
+                case "GET_LUCKPERMS_STATUS" -> sendLuckPermsStatus(wrapper);
+                case "GET_GEYSER_STATUS" -> sendGeyserStatus(wrapper);
+                case "GET_MODERATION_PLUGINS" -> sendModerationPlugins(wrapper);
+
+                // Anticheat
+                case "GET_ANTICHEAT_INFO" -> sendAnticheatInfo(wrapper);
+                case "GET_ANTICHEAT_ALERTS" -> sendAnticheatAlerts(wrapper);
+                case "GET_ANTICHEAT_CHECKS" -> sendAnticheatChecks(wrapper);
+
+                // Dev checklist
+                case "GET_DEV_CHECKLIST" -> sendDevChecklist(wrapper);
+                case "TOGGLE_CHECKLIST_ITEM" -> toggleChecklistItem(wrapper, data, session);
+                case "ADD_CHECKLIST_ITEM" -> addChecklistItem(wrapper, data, session);
+
+                // Replays
+                case "GET_REPLAYS" -> sendReplayList(wrapper);
+                case "GET_REPLAY" -> sendReplayData(wrapper, data);
+
+                // Trusted devices
+                case "CLEAR_TRUSTED_DEVICES" -> clearTrustedDevices(wrapper, session);
+                case "GET_TRUSTED_DEVICE_COUNT" -> sendTrustedDeviceCount(wrapper, session);
+
+                // Changelog
+                case "MARK_CHANGELOG_READ" -> markChangelogRead(wrapper, data, session);
+
+                // External imports
+                case "GET_EXTERNAL_PUNISHMENTS" -> getExternalPunishments(wrapper, data);
+                case "IMPORT_EXTERNAL_PUNISHMENTS" -> importExternalPunishments(wrapper, data, session);
+                case "IMPORT_MEDAL_CLIP" -> importMedalClip(wrapper, data, session);
+
+                // Debug
+                case "GET_DATABASE_DEBUG" -> sendDatabaseDebug(wrapper, data);
+
                 default -> sendError(wrapper, "UNKNOWN_TYPE", "Unknown message type: " + type);
             }
         } catch (Exception e) {
             plugin.logError("[Gateway] Error handling request type " + type + ": " + e.getMessage(), e);
-            sendError(wrapper, "INTERNAL_ERROR", "An error occurred processing your request");
+            sendError(wrapper, "INTERNAL_ERROR", "An error occurred: " + e.getMessage());
         }
     }
 
