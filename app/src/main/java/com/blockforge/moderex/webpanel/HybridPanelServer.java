@@ -8841,6 +8841,71 @@ public class HybridPanelServer implements com.blockforge.moderex.gateway.Gateway
                 }
                 sendAuthFailed(wrapper, "SESSION_EXPIRED", "Session not found or expired");
             }
+            case "AUTH_DEV_UUID_LOGIN" -> {
+                // Dev mode: allow login by UUID (for testing)
+                String uuidStr = data.has("uuid") ? data.get("uuid").getAsString().trim() : "";
+
+                if (uuidStr.isEmpty()) {
+                    sendAuthFailed(wrapper, "INVALID_UUID", "UUID is required");
+                    return;
+                }
+
+                UUID playerUuid;
+                try {
+                    playerUuid = UUID.fromString(uuidStr);
+                } catch (IllegalArgumentException e) {
+                    sendAuthFailed(wrapper, "INVALID_UUID", "Invalid UUID format. Use: xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx");
+                    return;
+                }
+
+                // Get player info
+                OfflinePlayer offlinePlayer = Bukkit.getOfflinePlayer(playerUuid);
+                String playerName = offlinePlayer.getName();
+
+                if (playerName == null) {
+                    sendAuthFailed(wrapper, "PLAYER_NOT_FOUND", "No player found with this UUID. They must have joined the server at least once.");
+                    return;
+                }
+
+                // Check if player has webpanel permission
+                boolean hasPermission = false;
+                String prefix = "", suffix = "";
+
+                if (offlinePlayer.isOnline()) {
+                    Player onlinePlayer = offlinePlayer.getPlayer();
+                    hasPermission = onlinePlayer.hasPermission("moderex.webpanel");
+                    if (plugin.getHookManager().isLuckPermsEnabled()) {
+                        prefix = plugin.getHookManager().getLuckPermsHook().getPrefix(onlinePlayer);
+                        suffix = plugin.getHookManager().getLuckPermsHook().getSuffix(onlinePlayer);
+                    }
+                } else if (plugin.getHookManager().isLuckPermsEnabled()) {
+                    hasPermission = plugin.getHookManager().getLuckPermsHook()
+                            .hasPermission(playerUuid, "moderex.webpanel");
+                    prefix = plugin.getHookManager().getLuckPermsHook().getPrefix(playerUuid);
+                    suffix = plugin.getHookManager().getLuckPermsHook().getSuffix(playerUuid);
+                }
+
+                if (!hasPermission) {
+                    sendAccessDenied(wrapper);
+                    return;
+                }
+
+                // Create session
+                WebPanelSession session = new WebPanelSession();
+                session.playerUuid = playerUuid;
+                session.playerName = playerName;
+                session.authMethod = "dev_uuid";
+                session.authSessionId = UUID.randomUUID().toString();
+                session.hasPermission = true;
+                session.prefix = prefix;
+                session.suffix = suffix;
+                session.connectedAt = System.currentTimeMillis();
+                session.lastActivity = System.currentTimeMillis();
+
+                gatewaySessions.put(clientId, session);
+                sendGatewayAuthSuccess(wrapper, session);
+                plugin.getLogger().info("[Gateway] Dev UUID auth for: " + playerName + " (" + playerUuid + ")");
+            }
             default -> sendAuthFailed(wrapper, "UNSUPPORTED_AUTH", "Authentication method not supported via gateway: " + type);
         }
     }
