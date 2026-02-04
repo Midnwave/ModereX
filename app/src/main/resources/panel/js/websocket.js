@@ -18,7 +18,7 @@
     'trycloudflare.com'        // Quick Tunnel domain (temporary testing)
   ];
   // Gateway WebSocket URL - update this after deploying your gateway with Cloudflare Tunnel
-  const GATEWAY_WS_URL = 'wss://neighbors-steps-unable-stop.trycloudflare.com/panel';
+  const GATEWAY_WS_URL = 'wss://satisfaction-aberdeen-leg-deck.trycloudflare.com/panel';
 
   let ws = null;
   let heartbeatTimer = null;
@@ -370,7 +370,9 @@
    * Handle incoming messages
    */
   function handleMessage(message) {
-    const { type, data } = message;
+    const type = message.type;
+    // Gateway messages have data at root level, plugin messages use data property
+    const data = message.data !== undefined ? message.data : message;
 
     // Hide loading bar for data responses
     if (pendingLoadingRequests > 0 && shouldHideLoadingBar(type)) {
@@ -403,14 +405,15 @@
     if (gatewayMode) {
       if (type === 'connected') {
         // Gateway confirmed connection to MC server
-        console.log('[WS] Gateway connected to server:', data.serverName);
-        emit('gateway_connected', data);
+        // Gateway sends: { type, serverId, serverName, urlPrefix } (no data wrapper)
+        console.log('[WS] Gateway connected to server:', message.serverName);
+        emit('gateway_connected', { serverId: message.serverId, serverName: message.serverName, urlPrefix: message.urlPrefix });
         return;
       }
 
       if (type === 'server_disconnected') {
         // MC server disconnected from gateway
-        console.error('[WS] Server disconnected from gateway:', data.message);
+        console.error('[WS] Server disconnected from gateway:', message.message || data.message);
         emit('server_offline', data);
         if (window.debugLog) window.debugLog('WS', 'Server went offline', 'error');
         return;
@@ -418,12 +421,15 @@
 
       if (type === 'error') {
         // Gateway error (e.g., server not found)
-        console.error('[WS] Gateway error:', data.code, data.message);
-        emit('gateway_error', data);
-        if (data.code === 'SERVER_NOT_FOUND') {
-          emit('server_not_found', data);
+        // Gateway sends: { type, code, message } (no data wrapper)
+        const code = message.code || data.code;
+        const errorMsg = message.message || data.message;
+        console.error('[WS] Gateway error:', code, errorMsg);
+        emit('gateway_error', { code, message: errorMsg });
+        if (code === 'SERVER_NOT_FOUND') {
+          emit('server_not_found', { code, message: errorMsg });
         }
-        if (window.debugLog) window.debugLog('WS', `Gateway error: ${data.message}`, 'error');
+        if (window.debugLog) window.debugLog('WS', `Gateway error: ${errorMsg}`, 'error');
         return;
       }
     }
