@@ -14,6 +14,50 @@
 
 window.MX_CHANGELOGS = [
   {
+    build: 226,
+    version: "2.0dev-226",
+    date: "2026-02-04",
+    title: "Gateway Infrastructure",
+    sections: [
+      {
+        type: "new",
+        title: "New Features",
+        items: [
+          "**ModereX Gateway** - Panel now accessible via panel.moderex.net without port forwarding or SSL setup",
+          "**UUID-style Server ID** - New server ID format: XXXXX-XXXXX-XXXXX-XXXXX-XXXXX for better uniqueness",
+          "**Progressive URL Shortening** - Access panel via short URLs like panel.moderex.net/abc12/ that auto-expand if needed",
+          "**Gateway Commands** - New /mx panel, /mx gateway status, /mx gateway reconnect commands"
+        ]
+      },
+      {
+        type: "improved",
+        title: "Improvements",
+        items: [
+          "**Panel Frontend** - Auto-detects gateway mode vs direct connection mode",
+          "**Server Offline Handling** - Shows friendly overlay when MC server disconnects from gateway",
+          "**Opt-out Support** - Set gateway.enabled: false in config to disable ModereX.net integration"
+        ]
+      },
+      {
+        type: "config",
+        title: "Configuration",
+        items: [
+          "**gateway.enabled** - Enable/disable gateway connection (default: true)",
+          "**gateway.url** - Gateway WebSocket URL (default: wss://gateway.moderex.net/server)",
+          "**gateway.reconnect-delay-seconds** - Base delay between reconnection attempts",
+          "**gateway.debug-logging** - Enable verbose gateway logs in console"
+        ]
+      },
+      {
+        type: "permissions",
+        title: "Permissions",
+        items: [
+          "**moderex.command.gateway** - Required for /mx gateway commands"
+        ]
+      }
+    ]
+  },
+  {
     build: 221,
     version: "2.0dev-221",
     date: "2026-02-03",
