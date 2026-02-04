@@ -84,6 +84,8 @@ public final class ModereX extends JavaPlugin {
     private com.blockforge.moderex.evidence.EvidenceManager evidenceManager;
     private com.blockforge.moderex.evidence.EvidenceSelectionManager evidenceSelectionManager;
     private com.blockforge.moderex.portal.AuthSessionManager authSessionManager;
+    private com.blockforge.moderex.identity.ServerIdentity serverIdentity;
+    private com.blockforge.moderex.gateway.GatewayClient gatewayClient;
 
     // Lockdown state
     private boolean globalLockdown = false;
@@ -126,6 +128,11 @@ public final class ModereX extends JavaPlugin {
             getServer().getPluginManager().disablePlugin(this);
             return;
         }
+
+        // Initialize server identity (unique persistent ID for this server)
+        logStartup("Initializing server identity...");
+        this.serverIdentity = new com.blockforge.moderex.identity.ServerIdentity(this);
+        serverIdentity.initialize();
 
         // Initialize hook manager (connects to other plugins)
         logStartup("Initializing plugin hooks...");
@@ -287,6 +294,19 @@ public final class ModereX extends JavaPlugin {
             }
         }
 
+        // Initialize gateway client if enabled (connects to gateway.moderex.net)
+        if (configManager.getSettings().isGatewayEnabled()) {
+            logStartup("Initializing gateway client...");
+            this.gatewayClient = new com.blockforge.moderex.gateway.GatewayClient(this);
+            // Connect gateway to panel server for handling requests
+            if (hybridPanelServer != null) {
+                gatewayClient.setMessageHandler(hybridPanelServer);
+            }
+            gatewayClient.start();
+        } else {
+            logStartup("Gateway disabled (opt-out mode) - panel only accessible via direct IP:port");
+        }
+
         // Register commands
         logStartup("Registering commands...");
         this.commandManager = new CommandManager(this);
@@ -317,6 +337,11 @@ public final class ModereX extends JavaPlugin {
     @Override
     public void onDisable() {
         logStartup("Disabling ModereX...");
+
+        // Stop gateway client
+        if (gatewayClient != null) {
+            gatewayClient.stop();
+        }
 
         // Stop web panel debugger
         if (webPanelDebugger != null) {
@@ -418,6 +443,28 @@ public final class ModereX extends JavaPlugin {
         configManager.load();
         languageManager.load();
         automodManager.load();
+
+        // Handle gateway client based on new config
+        if (configManager.getSettings().isGatewayEnabled()) {
+            if (gatewayClient == null) {
+                // Gateway was disabled, now enabled - create new client
+                this.gatewayClient = new com.blockforge.moderex.gateway.GatewayClient(this);
+                // Connect gateway to panel server for handling requests
+                if (hybridPanelServer != null) {
+                    gatewayClient.setMessageHandler(hybridPanelServer);
+                }
+                gatewayClient.start();
+            } else {
+                // Gateway was already enabled - reconnect to apply any config changes
+                gatewayClient.reconnect();
+            }
+        } else {
+            // Gateway disabled - stop client if running
+            if (gatewayClient != null) {
+                gatewayClient.stop();
+                gatewayClient = null;
+            }
+        }
 
         // Re-register anticheat automod rules (cleared during automodManager.load())
         if (hookManager != null && hookManager.getAnticheatManager() != null) {
@@ -689,6 +736,14 @@ public final class ModereX extends JavaPlugin {
 
     public com.blockforge.moderex.portal.AuthSessionManager getAuthSessionManager() {
         return authSessionManager;
+    }
+
+    public com.blockforge.moderex.identity.ServerIdentity getServerIdentity() {
+        return serverIdentity;
+    }
+
+    public com.blockforge.moderex.gateway.GatewayClient getGatewayClient() {
+        return gatewayClient;
     }
 
     public BlockLogManager getBlockLogManager() {
