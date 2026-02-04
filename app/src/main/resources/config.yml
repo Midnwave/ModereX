@@ -649,10 +649,33 @@ player-portal:
   session-expiry-hours: 12
 
 # ============================================
+# GATEWAY CONNECTION
+# ============================================
+# Connect to the ModereX Gateway for easy web panel access
+# When enabled, your panel is accessible at: panel.moderex.net/{server-id}/
+# No port forwarding, SSL certificates, or Cloudflare Tunnel setup required!
+gateway:
+  # Enable gateway connection (set to false to opt-out of moderex.net hosting)
+  # When disabled, panel is only accessible via direct IP:port
+  enabled: true
+
+  # Gateway server URL (you shouldn't need to change this)
+  url: wss://neighbors-steps-unable-stop.trycloudflare.com/server
+
+  # Delay between reconnection attempts (seconds)
+  reconnect-delay-seconds: 5
+
+  # Maximum reconnection attempts (-1 = infinite, keeps trying forever)
+  max-reconnect-attempts: -1
+
+  # Enable verbose gateway logging in console (for debugging)
+  debug-logging: false
+
+# ============================================
 # CONFIGURATION VERSION
 # ============================================
 # DO NOT MODIFY - Used for automatic config migration
-config-version: 14
+config-version: 16
 
 
 
