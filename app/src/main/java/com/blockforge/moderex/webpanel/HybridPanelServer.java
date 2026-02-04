@@ -47,7 +47,7 @@ import java.util.concurrent.*;
  * - Search result preview with quick actions
  * - Filter by date ranges, punishment types, etc.
  */
-public class HybridPanelServer {
+public class HybridPanelServer implements com.blockforge.moderex.gateway.GatewayMessageHandler {
 
     private static final Gson GSON = new Gson();
     private static final long CONNECT_CODE_EXPIRY = 5 * 60 * 1000; // 5 minutes
@@ -84,6 +84,10 @@ public class HybridPanelServer {
     // Same-port (Netty) WebSocket connections
     private final Map<String, WebSocketFrameHandler> samePortConnections = new ConcurrentHashMap<>();
     private final Map<String, WebPanelSession> samePortSessions = new ConcurrentHashMap<>();
+
+    // Gateway-relayed connections (panel.moderex.net via gateway)
+    private final Map<String, GatewayConnection> gatewayConnections = new ConcurrentHashMap<>();
+    private final Map<String, WebPanelSession> gatewaySessions = new ConcurrentHashMap<>();
 
     public HybridPanelServer(ModereX plugin, int port) {
         this.plugin = plugin;
@@ -8548,5 +8552,446 @@ public class HybridPanelServer {
         String getRemoteAddress() {
             return handler.getRemoteAddress();
         }
+    }
+
+    // ==================== Gateway Connection Support ====================
+
+    /**
+     * Holds information about a gateway-relayed connection.
+     */
+    private static class GatewayConnection {
+        final String clientId;
+        final String clientIp;
+        final long connectedAt;
+
+        GatewayConnection(String clientId, String clientIp) {
+            this.clientId = clientId;
+            this.clientIp = clientIp;
+            this.connectedAt = System.currentTimeMillis();
+        }
+    }
+
+    /**
+     * Wrapper class to make gateway connections compatible with existing handlers.
+     * Sends responses back through the gateway client.
+     */
+    private class GatewayConnectionWrapper extends WebSocketConnection {
+        private final String clientId;
+        private final String clientIp;
+
+        GatewayConnectionWrapper(String clientId, String clientIp) {
+            super(); // Use protected no-arg constructor
+            this.clientId = clientId;
+            this.clientIp = clientIp;
+        }
+
+        @Override
+        void send(String message) {
+            sendAsync(message);
+        }
+
+        @Override
+        boolean sendAsync(String message) {
+            var gatewayClient = plugin.getGatewayClient();
+            if (gatewayClient != null && gatewayClient.isConnected()) {
+                try {
+                    JsonObject response = GSON.fromJson(message, JsonObject.class);
+                    gatewayClient.sendToClient(clientId, response);
+                    return true;
+                } catch (Exception e) {
+                    plugin.logDebug("[Gateway] Failed to send to client " + clientId + ": " + e.getMessage());
+                }
+            }
+            return false;
+        }
+
+        @Override
+        void close() {
+            // Remove from tracking
+            gatewayConnections.remove(clientId);
+            gatewaySessions.remove(clientId);
+        }
+
+        @Override
+        String getRemoteAddress() {
+            return clientIp;
+        }
+    }
+
+    /**
+     * Implementation of GatewayMessageHandler interface.
+     * Handles messages forwarded from the gateway server.
+     */
+    @Override
+    public void handleMessage(String type, com.google.gson.JsonObject message) {
+        String clientId = message.has("clientId") ? message.get("clientId").getAsString() : null;
+        String clientIp = message.has("clientIp") ? message.get("clientIp").getAsString() : "unknown";
+
+        if (clientId == null) {
+            plugin.logDebug("[Gateway] Received message without clientId: " + type);
+            return;
+        }
+
+        // Create wrapper for sending responses
+        GatewayConnectionWrapper wrapper = new GatewayConnectionWrapper(clientId, clientIp);
+
+        // Get or create connection tracking
+        gatewayConnections.computeIfAbsent(clientId, id -> new GatewayConnection(id, clientIp));
+
+        // Extract the actual data/payload
+        JsonObject data = message.has("data") ? message.getAsJsonObject("data") : new JsonObject();
+
+        try {
+            // Handle special gateway-specific types
+            if ("browser_connected".equals(type)) {
+                plugin.logDebug("[Gateway] Browser connected: " + clientId + " from " + clientIp);
+                return;
+            }
+            if ("browser_disconnected".equals(type)) {
+                gatewayConnections.remove(clientId);
+                gatewaySessions.remove(clientId);
+                plugin.logDebug("[Gateway] Browser disconnected: " + clientId);
+                return;
+            }
+
+            // Handle authentication types
+            if (type.startsWith("AUTH_")) {
+                handleGatewayAuth(clientId, wrapper, type, data);
+                return;
+            }
+
+            // Handle PING/PONG without authentication
+            if ("PING".equals(type)) {
+                JsonObject pong = new JsonObject();
+                pong.addProperty("type", "PONG");
+                pong.addProperty("timestamp", System.currentTimeMillis());
+                wrapper.send(GSON.toJson(pong));
+                return;
+            }
+            if ("PONG".equals(type) || "HEARTBEAT".equals(type)) {
+                WebPanelSession session = gatewaySessions.get(clientId);
+                if (session != null) {
+                    session.lastActivity = System.currentTimeMillis();
+                }
+                return;
+            }
+
+            // Allow GET_SERVER_STATUS before authentication
+            if ("GET_SERVER_STATUS".equals(type)) {
+                sendServerStatus(wrapper);
+                return;
+            }
+
+            // Check if authenticated for all other requests
+            WebPanelSession session = gatewaySessions.get(clientId);
+            if (session == null) {
+                sendError(wrapper, "NOT_AUTHENTICATED", "Please authenticate first");
+                return;
+            }
+
+            // Update activity
+            session.lastActivity = System.currentTimeMillis();
+
+            // Route to request handler
+            handleGatewayRequest(type, data, session, wrapper);
+
+        } catch (Exception e) {
+            plugin.logDebug("[Gateway] Error handling message type " + type + ": " + e.getMessage());
+            sendError(wrapper, "INTERNAL_ERROR", "An error occurred processing your request");
+        }
+    }
+
+    /**
+     * Handle authentication requests from gateway.
+     */
+    private void handleGatewayAuth(String clientId, GatewayConnectionWrapper wrapper, String type, JsonObject data) {
+        switch (type) {
+            case "AUTH_CONNECT_CODE" -> {
+                String code = data.has("code") ? data.get("code").getAsString().toUpperCase().trim() : "";
+                cleanExpiredCodes();
+
+                // Rate limit connect code attempts
+                String clientIp = wrapper.getRemoteAddress();
+                WebAuthManager authManager = plugin.getWebAuthManager();
+                if (authManager != null && authManager.isRateLimited(clientIp)) {
+                    long remaining = authManager.getRemainingLockoutSeconds(clientIp);
+                    sendAuthFailed(wrapper, "RATE_LIMITED",
+                            "Too many failed attempts. Try again in " + remaining + " seconds.");
+                    return;
+                }
+
+                PendingConnection pending = pendingCodes.remove(code);
+                if (pending == null) {
+                    if (authManager != null) {
+                        authManager.recordFailedAttempt(clientIp);
+                    }
+                    sendAuthFailed(wrapper, "INVALID_CODE", "Invalid or expired connect code. Use /mx connect in-game.");
+                    return;
+                }
+
+                if (!pending.hasPermission) {
+                    sendAccessDenied(wrapper);
+                    return;
+                }
+
+                // Create session
+                WebPanelSession session = createGatewaySession(pending);
+                gatewaySessions.put(clientId, session);
+                sendGatewayAuthSuccess(wrapper, session);
+                plugin.getLogger().info("[Gateway] Authenticated: " + session.playerName + " via connect code");
+            }
+            case "AUTH_PERMANENT_TOKEN" -> {
+                String token = data.has("token") ? data.get("token").getAsString() : "";
+                String clientIp = wrapper.getRemoteAddress();
+
+                if (token.isEmpty()) {
+                    sendAuthFailed(wrapper, "INVALID_TOKEN", "No token provided");
+                    return;
+                }
+
+                WebAuthManager authManager = plugin.getWebAuthManager();
+                if (authManager == null) {
+                    sendAuthFailed(wrapper, "AUTH_UNAVAILABLE", "Authentication service unavailable");
+                    return;
+                }
+
+                // Check rate limiting
+                if (authManager.isRateLimited(clientIp)) {
+                    long remaining = authManager.getRemainingLockoutSeconds(clientIp);
+                    sendAuthFailed(wrapper, "RATE_LIMITED",
+                            "Too many failed attempts. Try again in " + remaining + " seconds.");
+                    return;
+                }
+
+                // Validate token - returns player UUID if valid
+                UUID playerUuid = authManager.validatePermanentToken(token, clientIp);
+                if (playerUuid == null) {
+                    sendAuthFailed(wrapper, "INVALID_TOKEN", "Invalid or expired token");
+                    return;
+                }
+
+                // Check permission
+                OfflinePlayer offlinePlayer = Bukkit.getOfflinePlayer(playerUuid);
+                boolean hasPermission = false;
+                String prefix = "", suffix = "";
+                String playerName = offlinePlayer.getName() != null ? offlinePlayer.getName() : playerUuid.toString();
+
+                if (offlinePlayer.isOnline()) {
+                    Player onlinePlayer = offlinePlayer.getPlayer();
+                    hasPermission = onlinePlayer.hasPermission("moderex.webpanel");
+                    if (plugin.getHookManager().isLuckPermsEnabled()) {
+                        prefix = plugin.getHookManager().getLuckPermsHook().getPrefix(onlinePlayer);
+                        suffix = plugin.getHookManager().getLuckPermsHook().getSuffix(onlinePlayer);
+                    }
+                } else if (plugin.getHookManager().isLuckPermsEnabled()) {
+                    hasPermission = plugin.getHookManager().getLuckPermsHook()
+                            .hasPermission(playerUuid, "moderex.webpanel");
+                    prefix = plugin.getHookManager().getLuckPermsHook().getPrefix(playerUuid);
+                    suffix = plugin.getHookManager().getLuckPermsHook().getSuffix(playerUuid);
+                }
+
+                if (!hasPermission) {
+                    sendAccessDenied(wrapper);
+                    return;
+                }
+
+                // Create session
+                WebPanelSession session = new WebPanelSession();
+                session.playerUuid = playerUuid;
+                session.playerName = playerName;
+                session.authMethod = "token";
+                session.authSessionId = UUID.randomUUID().toString();
+                session.hasPermission = true;
+                session.prefix = prefix;
+                session.suffix = suffix;
+                session.connectedAt = System.currentTimeMillis();
+                session.lastActivity = System.currentTimeMillis();
+
+                gatewaySessions.put(clientId, session);
+                sendGatewayAuthSuccess(wrapper, session);
+                plugin.logDebug("[Gateway] Authenticated: " + session.playerName + " via permanent token");
+            }
+            case "AUTH_SESSION" -> {
+                String sessionId = data.has("sessionId") ? data.get("sessionId").getAsString() : "";
+                // Look up existing session by ID
+                for (Map.Entry<String, WebPanelSession> entry : gatewaySessions.entrySet()) {
+                    if (entry.getValue().authSessionId != null && entry.getValue().authSessionId.equals(sessionId)) {
+                        WebPanelSession existingSession = entry.getValue();
+                        // Transfer to new client ID
+                        gatewaySessions.put(clientId, existingSession);
+                        sendGatewayAuthSuccess(wrapper, existingSession);
+                        plugin.logDebug("[Gateway] Session resumed for: " + existingSession.playerName);
+                        return;
+                    }
+                }
+                // Also check regular sessions
+                for (WebPanelSession s : sessions.values()) {
+                    if (s.authSessionId != null && s.authSessionId.equals(sessionId)) {
+                        gatewaySessions.put(clientId, s);
+                        sendGatewayAuthSuccess(wrapper, s);
+                        plugin.logDebug("[Gateway] Session transferred for: " + s.playerName);
+                        return;
+                    }
+                }
+                sendAuthFailed(wrapper, "SESSION_EXPIRED", "Session not found or expired");
+            }
+            default -> sendAuthFailed(wrapper, "UNSUPPORTED_AUTH", "Authentication method not supported via gateway: " + type);
+        }
+    }
+
+    /**
+     * Create a session from pending connection data for gateway.
+     */
+    private WebPanelSession createGatewaySession(PendingConnection pending) {
+        WebPanelSession session = new WebPanelSession();
+        session.playerUuid = pending.playerUuid;
+        session.playerName = pending.playerName;
+        session.authMethod = "code";
+        session.authSessionId = UUID.randomUUID().toString();
+        session.hasPermission = pending.hasPermission;
+        session.prefix = pending.prefix;
+        session.suffix = pending.suffix;
+        session.connectedAt = System.currentTimeMillis();
+        session.lastActivity = System.currentTimeMillis();
+        return session;
+    }
+
+    /**
+     * Send auth success response for gateway connection.
+     */
+    private void sendGatewayAuthSuccess(GatewayConnectionWrapper wrapper, WebPanelSession session) {
+        JsonObject response = new JsonObject();
+        response.addProperty("type", "AUTH_SUCCESS");
+
+        JsonObject authData = new JsonObject();
+        authData.addProperty("playerName", session.playerName);
+        authData.addProperty("uuid", session.playerUuid.toString());
+        authData.addProperty("sessionId", session.authSessionId);
+        authData.addProperty("prefix", session.prefix != null ? session.prefix : "");
+        authData.addProperty("suffix", session.suffix != null ? session.suffix : "");
+        authData.addProperty("authMethod", session.authMethod);
+        response.add("data", authData);
+
+        wrapper.send(GSON.toJson(response));
+    }
+
+    /**
+     * Handle authenticated requests from gateway.
+     */
+    private void handleGatewayRequest(String type, JsonObject data, WebPanelSession session, GatewayConnectionWrapper wrapper) {
+        try {
+            switch (type) {
+                case "GET_PLAYERS" -> sendPlayerList(wrapper);
+                case "GET_PLAYER_DETAILS" -> sendPlayerDetails(wrapper, data);
+                case "GET_PUNISHMENTS" -> sendPunishments(wrapper, data, session);
+                case "GET_COMMAND_HISTORY" -> sendCommandHistory(wrapper, data, session);
+                case "GET_CHAT_LOGS" -> sendChatLogs(wrapper, data, session);
+                case "GET_AUTOMOD_LOGS" -> sendAutomodLogs(wrapper, data, session);
+                case "GET_AUTOMOD_RULES" -> sendAutomodRules(wrapper);
+                case "GET_USER_SETTINGS" -> sendUserSettingsForGateway(wrapper, session);
+                case "GET_TEMPLATES" -> sendTemplates(wrapper);
+                case "GET_STATS" -> sendStats(wrapper);
+                case "GET_CHAT_STATUS" -> sendChatStatus(wrapper);
+                case "GET_SERVER_STATUS" -> sendServerStatus(wrapper);
+                case "GET_LUCKPERMS_STATUS" -> sendLuckPermsStatus(wrapper);
+                case "GET_GEYSER_STATUS" -> sendGeyserStatus(wrapper);
+                case "GET_MODERATION_PLUGINS" -> sendModerationPlugins(wrapper);
+                case "GET_SERVER_SETTINGS" -> sendServerSettings(wrapper);
+                case "GET_DEV_CHECKLIST" -> sendDevChecklist(wrapper);
+                case "GET_WATCHLIST" -> sendWatchlist(wrapper);
+                case "GET_ANTICHEAT_INFO" -> sendAnticheatInfo(wrapper);
+                case "GET_ANTICHEAT_ALERTS" -> sendAnticheatAlerts(wrapper);
+                case "GET_ANTICHEAT_CHECKS" -> sendAnticheatChecks(wrapper);
+                case "GET_ALERT_PRESETS" -> sendAlertPresets(wrapper);
+                case "GET_ACTIVITY_LOGS" -> sendActivityLogs(wrapper, data, session);
+                case "SEND_STAFFCHAT", "STAFFCHAT_MESSAGE" -> {
+                    String msg = data.has("message") ? data.get("message").getAsString() : "";
+                    plugin.getStaffChatManager().broadcastFromWebPanel(session.playerName, msg);
+                    sendSuccess(wrapper, "Message sent");
+                }
+                case "UPDATE_AUTOMOD_RULE" -> updateAutomodRule(wrapper, data, session);
+                case "CREATE_AUTOMOD_RULE" -> createAutomodRule(wrapper, data, session);
+                case "DELETE_AUTOMOD_RULE" -> deleteAutomodRule(wrapper, data, session);
+                case "ADD_RULE" -> addServerRule(wrapper, data, session);
+                case "DELETE_RULE" -> deleteServerRule(wrapper, data, session);
+                case "UPDATE_RULES" -> updateServerRules(wrapper, data, session);
+                case "CREATE_PUNISHMENT" -> createPunishment(wrapper, data, session);
+                case "REVOKE_PUNISHMENT" -> revokePunishment(wrapper, data, session);
+                case "ADD_TO_WATCHLIST" -> addToWatchlist(wrapper, data, session);
+                case "REMOVE_FROM_WATCHLIST" -> removeFromWatchlist(wrapper, data);
+                case "DELETE_TEMPLATE" -> deleteTemplate(wrapper, data, session);
+                case "UPDATE_USER_SETTINGS" -> updateUserSettings(wrapper, data, session);
+                case "MARK_CHANGELOG_READ" -> markChangelogRead(wrapper, data, session);
+                case "SET_CHAT_LOCK" -> setChatLock(wrapper, data, session);
+                case "SET_SLOWMODE" -> setSlowmode(wrapper, data, session);
+                default -> sendError(wrapper, "UNKNOWN_TYPE", "Unknown message type: " + type);
+            }
+        } catch (Exception e) {
+            plugin.logError("[Gateway] Error handling request type " + type + ": " + e.getMessage(), e);
+            sendError(wrapper, "INTERNAL_ERROR", "An error occurred processing your request");
+        }
+    }
+
+    /**
+     * Send user settings for gateway connection.
+     */
+    private void sendUserSettingsForGateway(GatewayConnectionWrapper wrapper, WebPanelSession session) {
+        JsonObject response = new JsonObject();
+        response.addProperty("type", "USER_SETTINGS_DATA");
+        JsonObject data = getUserSettings(session.playerUuid).toJson();
+
+        // Include in-game staff settings
+        var staffSettings = plugin.getStaffSettingsManager().getSettings(session.playerUuid);
+        if (staffSettings != null) {
+            data.addProperty("staffChatEnabled", staffSettings.isStaffChatEnabled());
+            data.addProperty("staffChatSound", staffSettings.isStaffChatSound());
+            data.addProperty("watchlistJoinAlerts", staffSettings.isWatchlistJoinAlerts());
+            data.addProperty("watchlistQuitAlerts", staffSettings.isWatchlistQuitAlerts());
+            data.addProperty("watchlistActivityAlerts", staffSettings.isWatchlistActivityAlerts());
+            data.addProperty("autoVanishOnJoin", staffSettings.isAutoVanishOnJoin());
+            data.addProperty("vanishNightVision", staffSettings.isVanishNightVision());
+            data.addProperty("compactMode", staffSettings.isCompactMode());
+            data.addProperty("inGameSoundEnabled", staffSettings.isSoundEnabled());
+            data.addProperty("actionBarAlerts", staffSettings.isActionBarAlerts());
+            data.addProperty("inGameChatAlerts", staffSettings.isChatAlerts());
+            data.addProperty("bossBarAlerts", staffSettings.isBossBarAlerts());
+
+            // Punishment alert levels
+            data.addProperty("banAlerts", staffSettings.getBanAlerts().name().toLowerCase());
+            data.addProperty("kickAlerts", staffSettings.getKickAlerts().name().toLowerCase());
+            data.addProperty("muteAlerts", staffSettings.getMuteAlerts().name().toLowerCase());
+            data.addProperty("warnAlerts", staffSettings.getWarnAlerts().name().toLowerCase());
+            data.addProperty("pardonAlerts", staffSettings.getPardonAlerts().name().toLowerCase());
+
+            // Other alert types
+            data.addProperty("automodAlerts", staffSettings.getAutomodAlerts().name().toLowerCase());
+        }
+
+        response.add("data", data);
+        wrapper.send(GSON.toJson(response));
+    }
+
+    /**
+     * Broadcast a message to all gateway-connected clients.
+     */
+    public void broadcastToGateway(String jsonMessage) {
+        if (gatewaySessions.isEmpty()) return;
+
+        var gatewayClient = plugin.getGatewayClient();
+        if (gatewayClient == null || !gatewayClient.isConnected()) return;
+
+        try {
+            JsonObject data = GSON.fromJson(jsonMessage, JsonObject.class);
+            gatewayClient.broadcast(data);
+        } catch (Exception e) {
+            plugin.logDebug("[Gateway] Failed to broadcast: " + e.getMessage());
+        }
+    }
+
+    /**
+     * Get the number of connected gateway clients.
+     */
+    public int getGatewayConnectionCount() {
+        return gatewayConnections.size();
     }
 }
