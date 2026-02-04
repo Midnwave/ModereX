@@ -28,7 +28,6 @@ public class GitHubAutoUpdater {
     private static final String API_URL = "https://api.github.com/repos/%s/%s/contents/releases/";
 
     private static final String BUILD_INFO_FILE = "build-info.txt";
-    private static final String JAR_FILE = "ModereX-latest.jar";
     private static final String USER_AGENT = "ModereX-AutoUpdater";
 
     private final ModereX plugin;
@@ -63,12 +62,8 @@ public class GitHubAutoUpdater {
         this.token = plugin.getConfigManager().getSettings().getGithubToken();
         this.isPrivate = token != null && !token.isEmpty();
 
-        // Set download URL based on whether repo is private
-        if (isPrivate) {
-            this.downloadUrl = String.format(API_URL, owner, repo) + JAR_FILE;
-        } else {
-            this.downloadUrl = String.format(RAW_URL, owner, repo) + JAR_FILE;
-        }
+        // Download URL will be set dynamically based on version from build-info.txt
+        this.downloadUrl = null;
     }
 
     /**
@@ -151,11 +146,13 @@ public class GitHubAutoUpdater {
      */
     private String fetchBuildInfo() {
         try {
+            // Add cache-busting parameter to always get fresh build info
+            String cacheBuster = "?t=" + System.currentTimeMillis();
             String url;
             if (isPrivate) {
                 url = String.format(API_URL, owner, repo) + BUILD_INFO_FILE;
             } else {
-                url = String.format(RAW_URL, owner, repo) + BUILD_INFO_FILE;
+                url = String.format(RAW_URL, owner, repo) + BUILD_INFO_FILE + cacheBuster;
             }
 
             HttpURLConnection connection = createConnection(url);
@@ -257,7 +254,23 @@ public class GitHubAutoUpdater {
      */
     public boolean downloadUpdate() {
         try {
-            plugin.getLogger().info("Downloading update from GitHub...");
+            if (latestVersion == null || latestVersion.isEmpty() || latestVersion.equals("unknown")) {
+                plugin.getLogger().warning("Cannot download update: version not detected from build-info.txt");
+                return false;
+            }
+
+            // Construct download URL for versioned JAR (e.g., ModereX-2.0dev-236.jar)
+            // Using versioned filename avoids caching issues with ModereX-latest.jar
+            String jarFileName = "ModereX-" + latestVersion + ".jar";
+            // Add cache-busting parameter to avoid GitHub/CDN caching
+            String cacheBuster = "?t=" + System.currentTimeMillis();
+            if (isPrivate) {
+                this.downloadUrl = String.format(API_URL, owner, repo) + jarFileName;
+            } else {
+                this.downloadUrl = String.format(RAW_URL, owner, repo) + jarFileName + cacheBuster;
+            }
+
+            plugin.getLogger().info("Downloading update from GitHub: " + jarFileName);
 
             File updateFolder = new File(plugin.getDataFolder().getParentFile(), "update");
             if (!updateFolder.exists()) {
