@@ -83,16 +83,83 @@ public class Settings {
     private boolean muteBlocksBroadcast = false;
     private boolean muteBlocksVoice = true;
     private boolean muteBlocksVoiceJoin = true;
+    private boolean muteStaffCanSee = true; // Staff can see muted player messages
 
     // Warn settings
     private boolean warnNotifyStaff = true;
     private boolean warnAutoEscalate = false;
 
+    // Warning escalation settings
+    private boolean warnEscalationEnabled = false;
+    private int warnEscalationWindowDays = 30; // Points counted within X days
+    private int warnResetDays = 90; // Reset points after X days of no warnings
+    private java.util.List<WarnCategory> warnCategories = new java.util.ArrayList<>();
+    private java.util.List<WarnEscalationTier> warnEscalationTiers = new java.util.ArrayList<>();
+
+    // Warning category class
+    public static class WarnCategory {
+        private String id;
+        private String name;
+        private int points;
+
+        public WarnCategory() {}
+        public WarnCategory(String id, String name, int points) {
+            this.id = id;
+            this.name = name;
+            this.points = points;
+        }
+
+        public String getId() { return id; }
+        public void setId(String id) { this.id = id; }
+        public String getName() { return name; }
+        public void setName(String name) { this.name = name; }
+        public int getPoints() { return points; }
+        public void setPoints(int points) { this.points = points; }
+    }
+
+    // Warning escalation tier class
+    public static class WarnEscalationTier {
+        private int pointThreshold;
+        private String punishmentType; // MUTE, BAN, KICK
+        private String duration; // e.g., "1d", "7d", "30d", "permanent"
+        private String reason;
+
+        public WarnEscalationTier() {}
+        public WarnEscalationTier(int pointThreshold, String punishmentType, String duration, String reason) {
+            this.pointThreshold = pointThreshold;
+            this.punishmentType = punishmentType;
+            this.duration = duration;
+            this.reason = reason;
+        }
+
+        public int getPointThreshold() { return pointThreshold; }
+        public void setPointThreshold(int pointThreshold) { this.pointThreshold = pointThreshold; }
+        public String getPunishmentType() { return punishmentType; }
+        public void setPunishmentType(String punishmentType) { this.punishmentType = punishmentType; }
+        public String getDuration() { return duration; }
+        public void setDuration(String duration) { this.duration = duration; }
+        public String getReason() { return reason; }
+        public void setReason(String reason) { this.reason = reason; }
+    }
+
     // Command blacklist settings
+    private boolean cmdBlacklistEnabled = false;
     private boolean cmdBlacklistAllowModerexCommands = false;
     private java.util.List<String> cmdBlacklistProtectedCommands = java.util.List.of(
         "stop", "reload", "op", "deop", "whitelist"
     );
+    private java.util.List<String> blockedCommands = new java.util.ArrayList<>();
+    private String commandBlockMessage = "You cannot use this command.";
+
+    // Server lockdown settings
+    private boolean lockdownEnabled = false;
+    private String lockdownMotd = "";
+    private String lockdownKickMessage = "Server is under maintenance. Please try again later.";
+    private long lockdownExpiresAt = 0;
+
+    // Join/Leave messages enabled
+    private boolean joinLeaveMessagesEnabled = true;
+    private boolean firstJoinMessagesEnabled = true;
 
     // Vanish settings
     private boolean vanishHideFromTablist = true;
@@ -603,6 +670,14 @@ public class Settings {
         this.muteBlocksVoiceJoin = muteBlocksVoiceJoin;
     }
 
+    public boolean isMuteStaffCanSee() {
+        return muteStaffCanSee;
+    }
+
+    public void setMuteStaffCanSee(boolean muteStaffCanSee) {
+        this.muteStaffCanSee = muteStaffCanSee;
+    }
+
     // Warn settings getters and setters
     public boolean isWarnNotifyStaff() {
         return warnNotifyStaff;
@@ -618,6 +693,46 @@ public class Settings {
 
     public void setWarnAutoEscalate(boolean warnAutoEscalate) {
         this.warnAutoEscalate = warnAutoEscalate;
+    }
+
+    public boolean isWarnEscalationEnabled() {
+        return warnEscalationEnabled;
+    }
+
+    public void setWarnEscalationEnabled(boolean warnEscalationEnabled) {
+        this.warnEscalationEnabled = warnEscalationEnabled;
+    }
+
+    public int getWarnEscalationWindowDays() {
+        return warnEscalationWindowDays;
+    }
+
+    public void setWarnEscalationWindowDays(int warnEscalationWindowDays) {
+        this.warnEscalationWindowDays = warnEscalationWindowDays;
+    }
+
+    public int getWarnResetDays() {
+        return warnResetDays;
+    }
+
+    public void setWarnResetDays(int warnResetDays) {
+        this.warnResetDays = warnResetDays;
+    }
+
+    public java.util.List<WarnCategory> getWarnCategories() {
+        return warnCategories;
+    }
+
+    public void setWarnCategories(java.util.List<WarnCategory> warnCategories) {
+        this.warnCategories = warnCategories;
+    }
+
+    public java.util.List<WarnEscalationTier> getWarnEscalationTiers() {
+        return warnEscalationTiers;
+    }
+
+    public void setWarnEscalationTiers(java.util.List<WarnEscalationTier> warnEscalationTiers) {
+        this.warnEscalationTiers = warnEscalationTiers;
     }
 
     public boolean isVanishHideFromTablist() {
@@ -1272,5 +1387,79 @@ public class Settings {
 
     public void setCmdBlacklistProtectedCommands(java.util.List<String> cmdBlacklistProtectedCommands) {
         this.cmdBlacklistProtectedCommands = cmdBlacklistProtectedCommands;
+    }
+
+    public boolean isCommandBlacklistEnabled() {
+        return cmdBlacklistEnabled;
+    }
+
+    public void setCommandBlacklistEnabled(boolean enabled) {
+        this.cmdBlacklistEnabled = enabled;
+    }
+
+    public java.util.List<String> getBlockedCommands() {
+        return blockedCommands;
+    }
+
+    public void setBlockedCommands(java.util.List<String> blockedCommands) {
+        this.blockedCommands = blockedCommands;
+    }
+
+    public String getCommandBlockMessage() {
+        return commandBlockMessage;
+    }
+
+    public void setCommandBlockMessage(String commandBlockMessage) {
+        this.commandBlockMessage = commandBlockMessage;
+    }
+
+    // Server lockdown getters and setters
+    public boolean isLockdownEnabled() {
+        return lockdownEnabled;
+    }
+
+    public void setLockdownEnabled(boolean lockdownEnabled) {
+        this.lockdownEnabled = lockdownEnabled;
+    }
+
+    public String getLockdownMotd() {
+        return lockdownMotd;
+    }
+
+    public void setLockdownMotd(String lockdownMotd) {
+        this.lockdownMotd = lockdownMotd;
+    }
+
+    public String getLockdownKickMessage() {
+        return lockdownKickMessage;
+    }
+
+    public void setLockdownKickMessage(String lockdownKickMessage) {
+        this.lockdownKickMessage = lockdownKickMessage;
+    }
+
+    public long getLockdownExpiresAt() {
+        return lockdownExpiresAt;
+    }
+
+    public void setLockdownExpiresAt(long lockdownExpiresAt) {
+        this.lockdownExpiresAt = lockdownExpiresAt;
+    }
+
+    // Join/Leave messages getters and setters
+    public boolean isJoinLeaveMessagesEnabled() {
+        return joinLeaveMessagesEnabled;
+    }
+
+    public void setJoinLeaveMessagesEnabled(boolean joinLeaveMessagesEnabled) {
+        this.joinLeaveMessagesEnabled = joinLeaveMessagesEnabled;
+    }
+
+    public boolean isFirstJoinMessagesEnabled() {
+        return firstJoinMessagesEnabled;
+    }
+
+    public void setFirstJoinMessagesEnabled(boolean firstJoinMessagesEnabled) {
+        this.firstJoinMessagesEnabled = firstJoinMessagesEnabled;
     }
 }
