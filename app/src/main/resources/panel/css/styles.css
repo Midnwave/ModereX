@@ -944,7 +944,8 @@ body {
   left: 0;
   height: 100%;
   width: 0%;
-  background: linear-gradient(90deg, var(--primary), var(--primary-light), var(--accent-light));
+  /* Consistent blue theme gradient - primary-dark → primary → primary-light */
+  background: linear-gradient(90deg, var(--primary-dark), var(--primary), var(--primary-light));
   box-shadow: 0 0 10px var(--primary-glow), 0 0 5px var(--primary-light);
   transition: width 0.15s ease-out, box-shadow 0.3s ease, height 0.3s ease;
   border-radius: 0 2px 2px 0;
