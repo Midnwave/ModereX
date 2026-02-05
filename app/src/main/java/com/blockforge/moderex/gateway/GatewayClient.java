@@ -201,6 +201,7 @@ public class GatewayClient {
                 case "browser_connected" -> handleBrowserConnected(json);
                 case "browser_disconnected" -> handleBrowserDisconnected(json);
                 case "error" -> handleGatewayError(json);
+                case "admin_announcement" -> handleAdminAnnouncement(json);
                 default -> {
                     // Forward to message handler (panel requests)
                     if (messageHandler != null) {
@@ -326,6 +327,34 @@ public class GatewayClient {
         String message = json.has("message") ? json.get("message").getAsString() : "Unknown error";
 
         plugin.getLogger().warning("[Gateway] Error from gateway: " + code + " - " + message);
+    }
+
+    /**
+     * Handle admin announcement from gateway (broadcast from ModereX admin panel).
+     * This forwards the announcement to all connected web panel clients.
+     */
+    private void handleAdminAnnouncement(JsonObject json) {
+        if (!json.has("data")) {
+            log("Admin announcement missing data");
+            return;
+        }
+
+        JsonObject data = json.getAsJsonObject("data");
+        String announcementId = data.has("id") ? data.get("id").getAsString() : "unknown";
+        String title = data.has("title") ? data.get("title").getAsString() : "";
+
+        logImportant("Received admin announcement: " + title + " (ID: " + announcementId + ")");
+
+        // Forward to HybridPanelServer to broadcast to all connected web panels
+        if (messageHandler != null) {
+            // Create the message to broadcast to web panels
+            JsonObject broadcastMsg = new JsonObject();
+            broadcastMsg.addProperty("type", "ADMIN_ANNOUNCEMENT");
+            broadcastMsg.add("data", data);
+
+            // Use the message handler to broadcast (HybridPanelServer implements this)
+            messageHandler.broadcastToAllClients(broadcastMsg);
+        }
     }
 
     /**
