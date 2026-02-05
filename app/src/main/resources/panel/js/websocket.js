@@ -19,7 +19,7 @@
     'trycloudflare.com'        // Quick Tunnel domain (temporary testing)
   ];
   // Gateway WebSocket URL - update this after deploying your gateway with Cloudflare Tunnel
-  const GATEWAY_WS_URL = 'wss://satisfaction-aberdeen-leg-deck.trycloudflare.com/panel';
+  const GATEWAY_WS_URL = 'wss://data-kid-satisfied-bars.trycloudflare.com/panel';
 
   let ws = null;
   let heartbeatTimer = null;
@@ -806,6 +806,10 @@
     return send('GET_AUTOMOD_RULES');
   }
 
+  function requestTemplates() {
+    return send('GET_TEMPLATES');
+  }
+
   function requestSettings() {
     return send('GET_SETTINGS');
   }
@@ -927,6 +931,10 @@
     return send('GET_STAFFCHAT_HISTORY', { limit, before: beforeTimestamp });
   }
 
+  function requestServerStatus() {
+    return send('GET_SERVER_STATUS');
+  }
+
   // Expose API
   window.MX = window.MX || {};
   window.MX.ws = {
@@ -964,6 +972,7 @@
     requestPunishments,
     requestWatchlist,
     requestAutomodRules,
+    requestTemplates,
     requestSettings,
     requestUserSettings,
     requestChatStatus,
@@ -973,6 +982,7 @@
     requestStaffAlertPrefs,
     requestAlertPresets,
     requestStaffChatHistory,
+    requestServerStatus,
 
     // Actions
     createPunishment,
