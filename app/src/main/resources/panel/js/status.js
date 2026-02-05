@@ -49,7 +49,7 @@
   window.refreshServerStatus = function() {
     const ws = window.MX?.ws;
     if (ws && ws.isConnected()) {
-      ws.send(JSON.stringify({ type: 'GET_SERVER_STATUS' }));
+      ws.requestServerStatus();
     }
   };
 
@@ -96,7 +96,51 @@
     // Update TPS Graph
     addTpsDataPoint(data.tps);
     drawTpsGraph();
+
+    // Update Health Score
+    if (data.healthScore !== undefined) {
+      updateHealthScore(data.healthScore);
+    } else {
+      // Calculate health score if not provided
+      const healthScore = calculateHealthScore(data);
+      updateHealthScore(healthScore);
+    }
+
+    // Update Heat Map (if on resources tab)
+    if (data.laggyChunks && document.getElementById('tab-resources')?.classList.contains('active')) {
+      drawChunkHeatMap(data.laggyChunks);
+    }
   };
+
+  // Calculate health score locally if not provided by server
+  function calculateHealthScore(data) {
+    let score = 100;
+
+    // TPS factor (40% weight)
+    const tps = data.tps || 20;
+    const tpsFactor = Math.min(tps / 20, 1);
+    score -= (1 - tpsFactor) * 40;
+
+    // Memory factor (30% weight)
+    const memPercent = data.memoryPercent || 0;
+    score -= (memPercent / 100) * 30;
+
+    // Entity factor (20% weight) - penalize if over 5000
+    const entities = data.entityCount || 0;
+    if (entities > 5000) {
+      const entityFactor = Math.max(0, 1 - ((entities - 5000) / 10000));
+      score -= (1 - entityFactor) * 20;
+    }
+
+    // Chunk factor (10% weight) - penalize if over 1000
+    const chunks = data.loadedChunks || 0;
+    if (chunks > 1000) {
+      const chunkFactor = Math.max(0, 1 - ((chunks - 1000) / 5000));
+      score -= (1 - chunkFactor) * 10;
+    }
+
+    return Math.max(0, Math.min(100, score));
+  }
 
   function updateTps(tps, avgTps) {
     const tpsEl = document.getElementById('statusTps');
@@ -688,10 +732,7 @@
   window.teleportToChunk = function(world, x, z) {
     const ws = window.MX?.ws;
     if (ws && ws.isConnected()) {
-      ws.send(JSON.stringify({
-        type: 'TELEPORT_TO_CHUNK',
-        data: { world, x, z }
-      }));
+      ws.send('TELEPORT_TO_CHUNK', { world, x, z });
       window.toast('info', 'Teleport', `Teleporting to chunk ${x}, ${z} in ${world}`);
     }
   };
@@ -699,10 +740,7 @@
   window.teleportToPlayer = function(playerName) {
     const ws = window.MX?.ws;
     if (ws && ws.isConnected()) {
-      ws.send(JSON.stringify({
-        type: 'TELEPORT_TO_PLAYER',
-        data: { player: playerName }
-      }));
+      ws.send('TELEPORT_TO_PLAYER', { player: playerName });
       window.toast('info', 'Teleport', `Teleporting to ${playerName}`);
     }
   };
@@ -719,7 +757,392 @@
       handleServerStatus(data);
     });
 
+    ws.on('ENTITY_BREAKDOWN', (data) => {
+      updateEntityBreakdown(data);
+    });
+
+    ws.on('CHUNK_BREAKDOWN', (data) => {
+      updateChunkBreakdown(data);
+    });
+
+    ws.on('SPARK_STATUS', (data) => {
+      updateSparkStatus(data);
+    });
+
+    ws.on('DIAGNOSTICS_DATA', (data) => {
+      updateDiagnostics(data);
+    });
+
+    ws.on('ALERT_HISTORY', (data) => {
+      updateAlertHistory(data);
+    });
+
     console.log('[ModereX Status] Handlers registered');
+  }
+
+  // ====== MONITORING TAB SWITCHING ======
+
+  window.switchMonitoringTab = function(tabName) {
+    // Update tab buttons
+    document.querySelectorAll('.sub-tab').forEach(btn => {
+      btn.classList.toggle('active', btn.dataset.tab === tabName);
+    });
+
+    // Update tab content
+    document.querySelectorAll('.monitoring-tab-content').forEach(content => {
+      content.classList.toggle('active', content.id === 'tab-' + tabName);
+    });
+
+    // Load tab-specific data
+    if (tabName === 'resources') {
+      requestEntityBreakdown();
+      requestChunkBreakdown();
+    } else if (tabName === 'diagnostics') {
+      requestSparkStatus();
+      requestDiagnostics();
+    } else if (tabName === 'alerts') {
+      requestAlertHistory();
+    }
+  };
+
+  // ====== HEALTH SCORE ======
+
+  window.updateHealthScore = function(score) {
+    const badge = document.getElementById('healthScoreBadge');
+    const ring = document.getElementById('healthRingFill');
+    const value = document.getElementById('healthScoreValue');
+
+    if (!badge || !ring || !value) return;
+
+    // Update value
+    value.textContent = Math.round(score);
+
+    // Update ring (stroke-dasharray based on percentage)
+    ring.style.strokeDasharray = `${score}, 100`;
+
+    // Update colors based on score
+    badge.classList.remove('warning', 'critical');
+    if (score < 50) {
+      badge.classList.add('critical');
+    } else if (score < 75) {
+      badge.classList.add('warning');
+    }
+  };
+
+  // ====== ENTITY BREAKDOWN ======
+
+  function requestEntityBreakdown() {
+    const ws = window.MX?.ws;
+    if (ws && ws.isConnected()) {
+      ws.send('GET_ENTITY_BREAKDOWN');
+    }
+  }
+
+  function updateEntityBreakdown(data) {
+    const container = document.getElementById('entityBreakdownList');
+    const totalEl = document.getElementById('totalEntities');
+    if (!container) return;
+
+    const entities = data.entities || [];
+    const total = data.total || 0;
+
+    if (totalEl) totalEl.textContent = total.toLocaleString();
+
+    if (entities.length === 0) {
+      container.innerHTML = `
+        <div class="empty-state small">
+          <i class="fa-solid fa-ghost" style="color:var(--muted)"></i>
+          <p>No entities loaded</p>
+        </div>
+      `;
+      return;
+    }
+
+    const maxCount = Math.max(...entities.map(e => e.count));
+
+    container.innerHTML = entities.slice(0, 20).map(entity => {
+      const percent = (entity.count / maxCount) * 100;
+      return `
+        <div class="entity-item">
+          <div class="entity-item-name">
+            <div class="entity-item-icon"><i class="fa-solid fa-ghost"></i></div>
+            <span>${escapeHtml(entity.type)}</span>
+          </div>
+          <div class="entity-item-count">${entity.count.toLocaleString()}</div>
+        </div>
+      `;
+    }).join('');
+  }
+
+  // ====== CHUNK BREAKDOWN ======
+
+  function requestChunkBreakdown() {
+    const ws = window.MX?.ws;
+    if (ws && ws.isConnected()) {
+      ws.send('GET_CHUNK_BREAKDOWN');
+    }
+  }
+
+  function updateChunkBreakdown(data) {
+    const container = document.getElementById('chunkBreakdownList');
+    if (!container) return;
+
+    const worlds = data.worlds || [];
+
+    if (worlds.length === 0) {
+      container.innerHTML = '<div class="spinner"></div>';
+      return;
+    }
+
+    container.innerHTML = worlds.map(world => {
+      const iconClass = world.name.toLowerCase().includes('nether') ? 'fa-fire' :
+                        world.name.toLowerCase().includes('end') ? 'fa-dragon' : 'fa-globe';
+      return `
+        <div class="chunk-world-item">
+          <div class="chunk-world-header">
+            <div class="chunk-world-name">
+              <i class="fa-solid ${iconClass}"></i>
+              ${escapeHtml(world.name)}
+            </div>
+            <span class="badge gray">${world.chunks} chunks</span>
+          </div>
+          <div class="chunk-world-stats">
+            <span><i class="fa-solid fa-ghost"></i> ${world.entities} entities</span>
+            <span><i class="fa-solid fa-users"></i> ${world.players} players</span>
+          </div>
+        </div>
+      `;
+    }).join('');
+  }
+
+  // ====== HEAT MAP ======
+
+  window.drawChunkHeatMap = function(laggyChunks) {
+    const canvas = document.getElementById('chunkHeatMap');
+    if (!canvas) return;
+
+    const ctx = canvas.getContext('2d');
+    const width = canvas.width;
+    const height = canvas.height;
+
+    // Clear canvas
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.3)';
+    ctx.fillRect(0, 0, width, height);
+
+    if (!laggyChunks || laggyChunks.length === 0) {
+      ctx.fillStyle = 'rgba(255, 255, 255, 0.3)';
+      ctx.font = '14px "Plus Jakarta Sans", sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillText('No laggy chunks to display', width / 2, height / 2);
+      return;
+    }
+
+    // Find bounds
+    const chunks = laggyChunks.slice(0, 50);
+    const minX = Math.min(...chunks.map(c => c.x));
+    const maxX = Math.max(...chunks.map(c => c.x));
+    const minZ = Math.min(...chunks.map(c => c.z));
+    const maxZ = Math.max(...chunks.map(c => c.z));
+
+    const rangeX = Math.max(maxX - minX + 1, 10);
+    const rangeZ = Math.max(maxZ - minZ + 1, 10);
+    const cellWidth = (width - 40) / rangeX;
+    const cellHeight = (height - 40) / rangeZ;
+    const cellSize = Math.min(cellWidth, cellHeight, 30);
+
+    const offsetX = (width - rangeX * cellSize) / 2;
+    const offsetY = (height - rangeZ * cellSize) / 2;
+
+    // Find max severity for color scaling
+    const maxSeverity = Math.max(...chunks.map(c => c.entities + c.tileEntities));
+
+    // Draw chunks
+    chunks.forEach(chunk => {
+      const x = offsetX + (chunk.x - minX) * cellSize;
+      const y = offsetY + (chunk.z - minZ) * cellSize;
+      const severity = (chunk.entities + chunk.tileEntities) / maxSeverity;
+
+      // Color based on severity
+      let color;
+      if (severity > 0.7) {
+        color = 'rgba(239, 68, 68, 0.8)';
+      } else if (severity > 0.4) {
+        color = 'rgba(245, 158, 11, 0.8)';
+      } else {
+        color = 'rgba(16, 185, 129, 0.6)';
+      }
+
+      ctx.fillStyle = color;
+      ctx.fillRect(x + 1, y + 1, cellSize - 2, cellSize - 2);
+
+      // Add border
+      ctx.strokeStyle = 'rgba(255, 255, 255, 0.2)';
+      ctx.strokeRect(x + 1, y + 1, cellSize - 2, cellSize - 2);
+    });
+
+    // Draw axis labels
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.5)';
+    ctx.font = '10px "Plus Jakarta Sans", sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText('X →', width - 15, height / 2);
+    ctx.save();
+    ctx.translate(15, height / 2);
+    ctx.rotate(-Math.PI / 2);
+    ctx.fillText('Z →', 0, 0);
+    ctx.restore();
+  };
+
+  // ====== SPARK INTEGRATION ======
+
+  function requestSparkStatus() {
+    const ws = window.MX?.ws;
+    if (ws && ws.isConnected()) {
+      ws.send('GET_SPARK_STATUS');
+    }
+  }
+
+  function updateSparkStatus(data) {
+    const statusEl = document.getElementById('sparkStatus');
+    const contentEl = document.getElementById('sparkContent');
+    const actionsEl = document.getElementById('sparkActionsPanel');
+
+    if (!statusEl) return;
+
+    if (data.available) {
+      statusEl.innerHTML = `<span class="badge good"><i class="fa-solid fa-check"></i> Spark v${escapeHtml(data.version || 'Unknown')}</span>`;
+      contentEl.innerHTML = `
+        <div style="color:var(--text-secondary)">
+          <p><i class="fa-solid fa-check-circle" style="color:var(--ok)"></i> Spark is installed and ready for profiling.</p>
+          <p style="margin-top:8px">Use the actions below to profile your server performance.</p>
+        </div>
+      `;
+      if (actionsEl) actionsEl.style.display = 'block';
+    } else {
+      statusEl.innerHTML = `<span class="badge gray"><i class="fa-solid fa-times"></i> Not Installed</span>`;
+      contentEl.innerHTML = `
+        <div class="empty-state">
+          <i class="fa-solid fa-plug" style="color:var(--muted)"></i>
+          <p>Spark is not installed</p>
+          <p style="font-size:13px;color:var(--text-secondary);margin-top:8px">
+            Install <a href="https://spark.lucko.me/" target="_blank" style="color:var(--primary-light)">Spark</a> for advanced profiling capabilities.
+          </p>
+        </div>
+      `;
+      if (actionsEl) actionsEl.style.display = 'none';
+    }
+  }
+
+  window.startSparkProfile = function() {
+    const ws = window.MX?.ws;
+    if (ws && ws.isConnected()) {
+      ws.send('SPARK_PROFILE_START');
+      window.toast('info', 'Spark', 'Starting CPU profile... This may take a moment.');
+    }
+  };
+
+  window.sparkHeapDump = function() {
+    const ws = window.MX?.ws;
+    if (ws && ws.isConnected()) {
+      ws.send('SPARK_HEAP_DUMP');
+      window.toast('info', 'Spark', 'Generating heap dump...');
+    }
+  };
+
+  window.sparkGC = function() {
+    const ws = window.MX?.ws;
+    if (ws && ws.isConnected()) {
+      ws.send('SPARK_GC');
+      window.toast('info', 'Spark', 'Triggering garbage collection...');
+    }
+  };
+
+  // ====== DIAGNOSTICS ======
+
+  function requestDiagnostics() {
+    const ws = window.MX?.ws;
+    if (ws && ws.isConnected()) {
+      ws.send('GET_DIAGNOSTICS');
+    }
+  }
+
+  function updateDiagnostics(data) {
+    const els = {
+      jvmArgs: document.getElementById('jvmArgs'),
+      gcType: document.getElementById('gcType'),
+      heapMax: document.getElementById('heapMax'),
+      threadCount: document.getElementById('threadCount'),
+      loadedClasses: document.getElementById('loadedClasses'),
+      gcCollections: document.getElementById('gcCollections')
+    };
+
+    if (els.jvmArgs) els.jvmArgs.textContent = data.jvmArgs || 'N/A';
+    if (els.gcType) els.gcType.textContent = data.gcType || 'Unknown';
+    if (els.heapMax) els.heapMax.textContent = data.heapMax || 'Unknown';
+    if (els.threadCount) els.threadCount.textContent = data.threadCount || '0';
+    if (els.loadedClasses) els.loadedClasses.textContent = data.loadedClasses || '0';
+    if (els.gcCollections) els.gcCollections.textContent = data.gcCollections || '0';
+  }
+
+  // ====== ALERT THRESHOLDS ======
+
+  window.saveAlertThresholds = function() {
+    const ws = window.MX?.ws;
+    if (!ws || !ws.isConnected()) return;
+
+    const thresholds = {
+      tpsWarning: parseFloat(document.getElementById('tpsWarningThreshold')?.value) || 18,
+      tpsCritical: parseFloat(document.getElementById('tpsCriticalThreshold')?.value) || 15,
+      tpsEmergency: parseFloat(document.getElementById('tpsEmergencyThreshold')?.value) || 10,
+      memoryWarning: parseInt(document.getElementById('memoryWarningThreshold')?.value) || 80,
+      memoryCritical: parseInt(document.getElementById('memoryCriticalThreshold')?.value) || 90
+    };
+
+    ws.send('UPDATE_ALERT_THRESHOLDS', thresholds);
+    window.toast('success', 'Saved', 'Alert thresholds updated');
+  };
+
+  // ====== ALERT HISTORY ======
+
+  function requestAlertHistory() {
+    const ws = window.MX?.ws;
+    if (ws && ws.isConnected()) {
+      ws.send('GET_ALERT_HISTORY');
+    }
+  }
+
+  function updateAlertHistory(data) {
+    const container = document.getElementById('alertHistoryList');
+    if (!container) return;
+
+    const alerts = data.alerts || [];
+
+    if (alerts.length === 0) {
+      container.innerHTML = `
+        <div class="empty-state small">
+          <i class="fa-solid fa-check-circle" style="color:var(--ok)"></i>
+          <p>No alerts in the last 24 hours</p>
+        </div>
+      `;
+      return;
+    }
+
+    container.innerHTML = alerts.map(alert => {
+      const levelClass = alert.level === 'EMERGENCY' ? 'emergency' :
+                         alert.level === 'CRITICAL' ? 'critical' : 'warning';
+      const icon = alert.level === 'EMERGENCY' ? 'fa-skull' :
+                   alert.level === 'CRITICAL' ? 'fa-exclamation-triangle' : 'fa-exclamation';
+      return `
+        <div class="alert-history-item ${levelClass}">
+          <div class="alert-history-icon">
+            <i class="fa-solid ${icon}"></i>
+          </div>
+          <div class="alert-history-content">
+            <div class="alert-history-message">${escapeHtml(alert.message)}</div>
+            <div class="alert-history-time">${formatTimeAgo(alert.timestamp)}</div>
+          </div>
+        </div>
+      `;
+    }).join('');
   }
 
   registerHandlers();
