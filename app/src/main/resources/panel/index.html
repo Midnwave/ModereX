@@ -111,6 +111,22 @@
     </div>
   </div>
 
+  <!-- Server Offline Overlay (non-dismissable) -->
+  <div class="serverOfflineOverlay" id="serverOfflineOverlay">
+    <div class="serverOfflineBox">
+      <div class="offlineIcon">
+        <i class="fa-solid fa-server"></i>
+      </div>
+      <h2>Server Offline</h2>
+      <p>The Minecraft server is currently offline or unreachable.</p>
+      <p class="offline-hint">Attempting to reconnect automatically in the background...</p>
+      <div class="offline-status">
+        <span class="spinner small"></span>
+        <span id="offlineReconnectStatus">Reconnecting...</span>
+      </div>
+    </div>
+  </div>
+
   <!-- Alert Bar (slide down for watchlist/anticheat) -->
   <div class="alertBar" id="alertBar">
     <div class="alertBar-content" id="alertBarContent">

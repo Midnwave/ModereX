@@ -14,6 +14,49 @@
 
 window.MX_CHANGELOGS = [
   {
+    build: 240,
+    version: "2.0dev-240",
+    date: "2026-02-04",
+    title: "Gateway Bug Fixes & Improvements",
+    sections: [
+      {
+        type: "fixed",
+        title: "Bug Fixes",
+        items: [
+          "**Panel Version in Gateway** - Fixed panel version showing 'Loading' in gateway mode",
+          "**Rank Display** - Fixed LuckPerms rank not showing in gateway mode authentication",
+          "**Automod Broadcasts** - Fixed automod rule updates not broadcasting to gateway clients"
+        ]
+      },
+      {
+        type: "new",
+        title: "New Features",
+        items: [
+          "**Evidence in Gateway Mode** - Upload and view evidence files through gateway using WebSocket-based Base64 transfer",
+          "**Server Offline Overlay** - Non-dismissable overlay when server goes offline with automatic silent reconnection"
+        ]
+      },
+      {
+        type: "improved",
+        title: "Improvements",
+        items: [
+          "**Silent Reconnection** - Auto-reconnect in background without sounds or toast notifications",
+          "**Reconnect Status** - Shows attempt count and retry timing during reconnection"
+        ]
+      },
+      {
+        type: "technical",
+        title: "Technical Changes",
+        items: [
+          "**GET_PANEL_VERSION Handler** - New WebSocket handler for panel version in gateway mode",
+          "**UPLOAD_EVIDENCE_WS Handler** - New WebSocket handler for evidence upload in gateway mode",
+          "**GET_EVIDENCE_FILE Handler** - New WebSocket handler for evidence file retrieval in gateway mode",
+          "**Max Reconnect Attempts** - Limited auto-reconnect to 100 attempts before showing disconnect overlay"
+        ]
+      }
+    ]
+  },
+  {
     build: 239,
     version: "2.0dev-239",
     date: "2026-02-04",

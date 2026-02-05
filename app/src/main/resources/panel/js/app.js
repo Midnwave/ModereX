@@ -3190,6 +3190,12 @@
     if (statusEl) statusEl.style.display = 'none';
 
     try {
+      // In gateway mode, use WebSocket with Base64 encoding
+      if (window.MX?.ws?.isGatewayMode && window.MX.ws.isGatewayMode()) {
+        await uploadEvidenceViaWebSocket(selectedEvidenceFile, progressFill, progressText);
+        return;
+      }
+
       // Get session ID for upload authentication
       // Priority: MX.auth session > localStorage mx_session
       const token = (window.MX?.auth?.getSession()?.sessionId) || localStorage.getItem('mx_session');
@@ -3265,6 +3271,88 @@
     }
   };
 
+  /**
+   * Upload evidence via WebSocket (for gateway mode)
+   * Uses Base64 encoding to transfer file over WebSocket
+   */
+  async function uploadEvidenceViaWebSocket(file, progressFill, progressText) {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+
+      reader.onprogress = (e) => {
+        if (e.lengthComputable) {
+          const percent = Math.round((e.loaded / e.total) * 50); // Reading is 50% of progress
+          if (progressFill) progressFill.style.width = percent + '%';
+          if (progressText) progressText.textContent = percent + '%';
+        }
+      };
+
+      reader.onload = () => {
+        // Update progress to 50% (file read complete)
+        if (progressFill) progressFill.style.width = '50%';
+        if (progressText) progressText.textContent = '50%';
+
+        // Extract Base64 data (remove data URL prefix)
+        const base64Data = reader.result.split(',')[1];
+
+        // Set up one-time handler for response
+        const handleResponse = (data) => {
+          window.removeEventListener('mx:evidence_uploaded', handleResponse);
+
+          if (progressFill) progressFill.style.width = '100%';
+          if (progressText) progressText.textContent = '100%';
+
+          showUploadSuccess('File uploaded successfully!');
+
+          // Add to evidence selection
+          state.punishEvidence.uploadedFiles.push({
+            id: data.detail.evidenceId,
+            name: file.name,
+            type: data.detail.fileType
+          });
+          renderEvidenceSelectedPills();
+          updateEvidenceCount();
+
+          // Close modal after brief delay
+          setTimeout(() => {
+            closeEvidenceUploadModal();
+          }, 1000);
+
+          resolve(data.detail);
+        };
+
+        window.addEventListener('mx:evidence_uploaded', handleResponse);
+
+        // Set timeout for response
+        setTimeout(() => {
+          window.removeEventListener('mx:evidence_uploaded', handleResponse);
+          showUploadError('Upload timed out. Please try again.');
+          reject(new Error('Upload timeout'));
+        }, 60000); // 60 second timeout
+
+        // Send via WebSocket
+        window.MX.ws.send(JSON.stringify({
+          type: 'UPLOAD_EVIDENCE_WS',
+          data: {
+            fileName: file.name,
+            data: base64Data
+          }
+        }));
+
+        // Update progress to 75% (data sent)
+        if (progressFill) progressFill.style.width = '75%';
+        if (progressText) progressText.textContent = '75%';
+      };
+
+      reader.onerror = () => {
+        showUploadError('Failed to read file.');
+        reject(new Error('File read error'));
+      };
+
+      reader.readAsDataURL(file);
+    });
+  }
+
   function showUploadSuccess(message) {
     const statusEl = document.getElementById('evidenceUploadStatus');
     if (statusEl) {
@@ -3285,10 +3373,55 @@
     document.getElementById('evidenceUploadBtn').disabled = false;
   };
 
+  /**
+   * Fetch evidence file via WebSocket (for gateway mode)
+   * Returns a blob URL that can be used as img/video src
+   */
+  async function fetchEvidenceViaWebSocket(fileId) {
+    return new Promise((resolve, reject) => {
+      // Set up one-time handler for response
+      const handleResponse = (event) => {
+        const data = event.detail;
+        if (data.fileId === fileId) {
+          window.removeEventListener('mx:evidence_file', handleResponse);
+
+          try {
+            // Decode Base64 and create blob URL
+            const byteCharacters = atob(data.data);
+            const byteNumbers = new Array(byteCharacters.length);
+            for (let i = 0; i < byteCharacters.length; i++) {
+              byteNumbers[i] = byteCharacters.charCodeAt(i);
+            }
+            const byteArray = new Uint8Array(byteNumbers);
+            const blob = new Blob([byteArray], { type: data.mimeType });
+            const blobUrl = URL.createObjectURL(blob);
+            resolve(blobUrl);
+          } catch (e) {
+            reject(new Error('Failed to decode evidence data'));
+          }
+        }
+      };
+
+      window.addEventListener('mx:evidence_file', handleResponse);
+
+      // Set timeout for response
+      setTimeout(() => {
+        window.removeEventListener('mx:evidence_file', handleResponse);
+        reject(new Error('Evidence fetch timeout'));
+      }, 30000); // 30 second timeout
+
+      // Request file via WebSocket
+      window.MX.ws.send(JSON.stringify({
+        type: 'GET_EVIDENCE_FILE',
+        data: { fileId: fileId }
+      }));
+    });
+  }
+
   // ===== END EVIDENCE ATTACHMENT FUNCTIONS =====
 
   // ===== IMAGE LIGHTBOX =====
-  window.openImageLightbox = function(imageUrl) {
+  window.openImageLightbox = async function(imageUrl) {
     // Create lightbox overlay
     let overlay = document.getElementById('imageLightboxOverlay');
     if (!overlay) {
@@ -3309,8 +3442,22 @@
     }
 
     const img = document.getElementById('lightboxImage');
-    if (img) img.src = imageUrl;
     overlay.classList.add('show');
+
+    // In gateway mode, fetch via WebSocket
+    if (window.MX?.ws?.isGatewayMode && window.MX.ws.isGatewayMode() && imageUrl.includes('/api/evidence/')) {
+      const fileId = imageUrl.split('/api/evidence/')[1];
+      if (img) img.src = ''; // Clear while loading
+      try {
+        const blobUrl = await fetchEvidenceViaWebSocket(fileId);
+        if (img) img.src = blobUrl;
+      } catch (e) {
+        console.error('[Evidence] Failed to load image:', e);
+        toast('error', 'Error', 'Failed to load image');
+      }
+    } else {
+      if (img) img.src = imageUrl;
+    }
   };
 
   window.closeImageLightbox = function() {
@@ -3334,7 +3481,7 @@
   };
 
   // ===== VIDEO PLAYER =====
-  window.openVideoPlayer = function(videoUrl) {
+  window.openVideoPlayer = async function(videoUrl) {
     // Create video player overlay
     let overlay = document.getElementById('videoPlayerOverlay');
     if (!overlay) {
@@ -3374,17 +3521,33 @@
     }
 
     const video = document.getElementById('evidenceVideo');
-    if (video) {
-      video.src = videoUrl;
-      video.playbackRate = 1;
-    }
+    overlay.classList.add('show');
 
     // Reset speed button states
     overlay.querySelectorAll('.video-speed-controls .mini').forEach(btn => {
       btn.classList.toggle('active', btn.textContent === '1x');
     });
 
-    overlay.classList.add('show');
+    // In gateway mode, fetch via WebSocket
+    if (window.MX?.ws?.isGatewayMode && window.MX.ws.isGatewayMode() && videoUrl.includes('/api/evidence/')) {
+      const fileId = videoUrl.split('/api/evidence/')[1];
+      if (video) video.src = ''; // Clear while loading
+      try {
+        const blobUrl = await fetchEvidenceViaWebSocket(fileId);
+        if (video) {
+          video.src = blobUrl;
+          video.playbackRate = 1;
+        }
+      } catch (e) {
+        console.error('[Evidence] Failed to load video:', e);
+        toast('error', 'Error', 'Failed to load video');
+      }
+    } else {
+      if (video) {
+        video.src = videoUrl;
+        video.playbackRate = 1;
+      }
+    }
   };
 
   window.closeVideoPlayer = function() {
@@ -7025,6 +7188,60 @@
       }
     });
 
+    // Handle successful connection (including reconnects)
+    ws.on('connected', (data) => {
+      // Hide server offline overlay if showing
+      hideServerOffline();
+
+      // Hide disconnect overlay if showing
+      const disconnectOverlay = document.getElementById('disconnectOverlay');
+      if (disconnectOverlay) disconnectOverlay.classList.remove('show');
+
+      // Clear any pending disconnect timeout
+      if (disconnectTimeout) {
+        clearTimeout(disconnectTimeout);
+        disconnectTimeout = null;
+      }
+    });
+
+    // Handle reconnect attempt updates (for status display)
+    ws.on('reconnect_attempt', (data) => {
+      const seconds = Math.ceil(data.delay / 1000);
+      updateOfflineStatus(`Attempt ${data.attempt} - retrying in ${seconds}s...`);
+    });
+
+    // Handle reconnect failure (max attempts reached)
+    ws.on('reconnect_failed', (data) => {
+      updateOfflineStatus(`Failed after ${data.attempts} attempts`);
+      // Optionally show the regular disconnect overlay with reconnect button
+      hideServerOffline();
+      const overlay = document.getElementById('disconnectOverlay');
+      const nameEl = document.getElementById('disconnectServerName');
+      if (nameEl) nameEl.textContent = serverNameForDisconnect || 'Server';
+      if (overlay) overlay.classList.add('show');
+    });
+
+    // Handle panel version response (for gateway mode)
+    ws.on('PANEL_VERSION', (data) => {
+      if (typeof handlePanelVersionData === 'function') {
+        handlePanelVersionData(data);
+      }
+    });
+
+    // Handle evidence upload response (for gateway mode)
+    ws.on('EVIDENCE_UPLOADED', (data) => {
+      console.log('[Evidence] Upload successful:', data.evidenceId, data.fileName);
+      // Emit event for any listeners
+      window.dispatchEvent(new CustomEvent('mx:evidence_uploaded', { detail: data }));
+    });
+
+    // Handle evidence file response (for gateway mode)
+    ws.on('EVIDENCE_FILE', (data) => {
+      console.log('[Evidence] Received file:', data.fileId, data.mimeType, data.fileSize, 'bytes');
+      // Emit event for any listeners
+      window.dispatchEvent(new CustomEvent('mx:evidence_file', { detail: data }));
+    });
+
     // Handle player data
     ws.on('PLAYERS_DATA', (data) => {
       if (!isLiveMode) return;
@@ -8016,16 +8233,54 @@
       disconnectTimeout = null;
     }
 
-    // Delay showing disconnect overlay by 5 seconds
+    // Delay showing disconnect/offline overlay by 5 seconds
     // This gives time for brief network hiccups to resolve
     disconnectTimeout = setTimeout(() => {
-      const overlay = document.getElementById('disconnectOverlay');
-      const nameEl = document.getElementById('disconnectServerName');
-      if (nameEl) nameEl.textContent = serverNameForDisconnect;
-      if (overlay) overlay.classList.add('show');
-      window.MX.sounds?.disconnect();
+      // Check if this is a silent reconnect (auto-reconnect in progress)
+      if (window.MX?.ws?.isSilentReconnect && window.MX.ws.isSilentReconnect()) {
+        // Show server offline overlay (non-dismissable) instead of disconnect
+        showServerOffline();
+        // Don't play disconnect sound during silent reconnect
+      } else {
+        // Show normal disconnect overlay with reconnect button
+        const overlay = document.getElementById('disconnectOverlay');
+        const nameEl = document.getElementById('disconnectServerName');
+        if (nameEl) nameEl.textContent = serverNameForDisconnect;
+        if (overlay) overlay.classList.add('show');
+        window.MX.sounds?.disconnect();
+      }
       disconnectTimeout = null;
     }, 5000);
+  }
+
+  /**
+   * Show the server offline overlay (non-dismissable)
+   */
+  function showServerOffline() {
+    const offlineOverlay = document.getElementById('serverOfflineOverlay');
+    const disconnectOverlay = document.getElementById('disconnectOverlay');
+
+    // Hide disconnect overlay if showing
+    if (disconnectOverlay) disconnectOverlay.classList.remove('show');
+
+    // Show server offline overlay
+    if (offlineOverlay) offlineOverlay.classList.add('show');
+  }
+
+  /**
+   * Hide the server offline overlay
+   */
+  function hideServerOffline() {
+    const offlineOverlay = document.getElementById('serverOfflineOverlay');
+    if (offlineOverlay) offlineOverlay.classList.remove('show');
+  }
+
+  /**
+   * Update the offline status text
+   */
+  function updateOfflineStatus(text) {
+    const statusEl = document.getElementById('offlineReconnectStatus');
+    if (statusEl) statusEl.textContent = text;
   }
 
   function hideDisconnect() {
@@ -10240,24 +10495,37 @@
   let currentBuildNumber = null;
 
   function loadPanelVersion() {
-    // Fetch version from server API (reads from panel-version.properties)
+    // In gateway mode, use WebSocket since HTTP fetch doesn't work
+    if (window.MX?.ws?.isGatewayMode && window.MX.ws.isGatewayMode()) {
+      // Request version via WebSocket
+      window.MX.ws.send(JSON.stringify({ type: 'GET_PANEL_VERSION' }));
+      // Response is handled by the PANEL_VERSION handler below
+      return;
+    }
+
+    // Direct mode: Fetch version from server API (reads from panel-version.properties)
     fetch('/api/panel-version?_=' + Date.now())
       .then(res => res.json())
       .then(data => {
-        panelVersionInfo = data;
-        // Update sidebar version display
-        const versionEl = document.getElementById('panelVersion');
-        if (versionEl && data.version) {
-          versionEl.textContent = data.version;
-        }
-        // Store build number for comparison
-        if (data.buildNumber) {
-          currentBuildNumber = parseInt(data.buildNumber, 10);
-        }
+        handlePanelVersionData(data);
       })
       .catch(() => {
         // Silent fail - version display is optional
       });
+  }
+
+  // Handle panel version data (used by both HTTP and WebSocket responses)
+  function handlePanelVersionData(data) {
+    panelVersionInfo = data;
+    // Update sidebar version display
+    const versionEl = document.getElementById('panelVersion');
+    if (versionEl && data.version) {
+      versionEl.textContent = data.version;
+    }
+    // Store build number for comparison
+    if (data.buildNumber) {
+      currentBuildNumber = parseInt(data.buildNumber, 10);
+    }
   }
 
   function loadCurrentPluginVersion() {

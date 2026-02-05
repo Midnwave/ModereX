@@ -1304,6 +1304,40 @@ public class HybridPanelServer implements com.blockforge.moderex.gateway.Gateway
         sendJson(out, version);
     }
 
+    /**
+     * Send panel version via WebSocket (for gateway mode where HTTP doesn't work).
+     */
+    private void sendPanelVersionWebSocket(WebSocketConnection conn) {
+        JsonObject response = new JsonObject();
+        response.addProperty("type", "PANEL_VERSION");
+
+        JsonObject data = new JsonObject();
+        // Read version from panel-version.properties file
+        try (InputStream in = plugin.getResource("panel-version.properties")) {
+            if (in != null) {
+                Properties props = new Properties();
+                props.load(in);
+                data.addProperty("version", props.getProperty("version", "UNKNOWN"));
+                data.addProperty("buildDate", props.getProperty("buildDate", ""));
+                data.addProperty("buildNumber", Integer.parseInt(props.getProperty("buildNumber", "0")));
+                data.addProperty("notes", props.getProperty("notes", ""));
+            } else {
+                data.addProperty("version", "UNKNOWN");
+                data.addProperty("buildDate", "");
+                data.addProperty("buildNumber", 0);
+                data.addProperty("notes", "Version file not found");
+            }
+        } catch (Exception e) {
+            data.addProperty("version", "ERROR");
+            data.addProperty("buildDate", "");
+            data.addProperty("buildNumber", 0);
+            data.addProperty("notes", "Failed to read version: " + e.getMessage());
+        }
+
+        response.add("data", data);
+        conn.send(GSON.toJson(response));
+    }
+
     private void sendPluginVersionResponse(OutputStream out) throws IOException {
         JsonObject version = new JsonObject();
         String versionStr = plugin.getDescription().getVersion();
@@ -4117,6 +4151,18 @@ public class HybridPanelServer implements com.blockforge.moderex.gateway.Gateway
                     plugin.logDebug("Failed to broadcast rule update to connection: " + e.getMessage());
                 }
             }
+
+            // Broadcast to gateway connections
+            var gatewayClient = plugin.getGatewayClient();
+            if (gatewayClient != null && gatewayClient.isConnected()) {
+                for (String clientId : gatewaySessions.keySet()) {
+                    try {
+                        gatewayClient.sendToClient(clientId, broadcast);
+                    } catch (Exception e) {
+                        plugin.logDebug("Failed to broadcast rule update to gateway client " + clientId + ": " + e.getMessage());
+                    }
+                }
+            }
         } catch (Exception e) {
             plugin.logError("Failed to broadcast single rule update: " + e.getMessage(), e);
         }
@@ -4147,6 +4193,18 @@ public class HybridPanelServer implements com.blockforge.moderex.gateway.Gateway
                     plugin.logDebug("Failed to broadcast rule creation to connection: " + e.getMessage());
                 }
             }
+
+            // Broadcast to gateway connections
+            var gatewayClient = plugin.getGatewayClient();
+            if (gatewayClient != null && gatewayClient.isConnected()) {
+                for (String clientId : gatewaySessions.keySet()) {
+                    try {
+                        gatewayClient.sendToClient(clientId, broadcast);
+                    } catch (Exception e) {
+                        plugin.logDebug("Failed to broadcast rule creation to gateway client " + clientId + ": " + e.getMessage());
+                    }
+                }
+            }
         } catch (Exception e) {
             plugin.logError("Failed to broadcast rule creation: " + e.getMessage(), e);
         }
@@ -4175,6 +4233,18 @@ public class HybridPanelServer implements com.blockforge.moderex.gateway.Gateway
                     conn.send(message);
                 } catch (Exception e) {
                     plugin.logDebug("Failed to broadcast rule deletion to connection: " + e.getMessage());
+                }
+            }
+
+            // Broadcast to gateway connections
+            var gatewayClient = plugin.getGatewayClient();
+            if (gatewayClient != null && gatewayClient.isConnected()) {
+                for (String clientId : gatewaySessions.keySet()) {
+                    try {
+                        gatewayClient.sendToClient(clientId, broadcast);
+                    } catch (Exception e) {
+                        plugin.logDebug("Failed to broadcast rule deletion to gateway client " + clientId + ": " + e.getMessage());
+                    }
                 }
             }
         } catch (Exception e) {
@@ -8516,6 +8586,28 @@ public class HybridPanelServer implements com.blockforge.moderex.gateway.Gateway
         authData.addProperty("onlinePlayers", plugin.getServer().getOnlinePlayers().size());
         authData.addProperty("maxPlayers", plugin.getServer().getMaxPlayers());
 
+        // Add rank information from LuckPerms (same as regular sendAuth)
+        JsonObject rankData = new JsonObject();
+        var luckPermsHook = plugin.getHookManager() != null ? plugin.getHookManager().getLuckPermsHook() : null;
+        if (luckPermsHook != null) {
+            String groupName = luckPermsHook.getPrimaryGroup(session.playerUuid);
+            rankData.addProperty("name", groupName != null && !groupName.isEmpty() ? groupName : "default");
+            rankData.addProperty("weight", luckPermsHook.getGroupWeight(groupName != null ? groupName : "default"));
+            rankData.addProperty("prefix", session.prefix != null ? session.prefix : "");
+
+            // Get rank color from config
+            var rankColors = plugin.getConfigManager().getSettings().getRankColors();
+            String color = rankColors.getOrDefault(groupName != null ? groupName.toLowerCase() : "default",
+                    rankColors.getOrDefault("default", "#8b5cf6"));
+            rankData.addProperty("color", color);
+        } else {
+            rankData.addProperty("name", "Member");
+            rankData.addProperty("weight", 0);
+            rankData.addProperty("prefix", "");
+            rankData.addProperty("color", "#8b5cf6");
+        }
+        authData.add("rank", rankData);
+
         response.add("data", authData);
 
         wrapper.send(GSON.toJson(response));
@@ -8632,6 +8724,13 @@ public class HybridPanelServer implements com.blockforge.moderex.gateway.Gateway
                 // Debug
                 case "GET_DATABASE_DEBUG" -> sendDatabaseDebug(wrapper, data);
 
+                // Panel version (for gateway mode)
+                case "GET_PANEL_VERSION" -> sendPanelVersionWebSocket(wrapper);
+
+                // Evidence (for gateway mode - uses Base64 over WebSocket)
+                case "UPLOAD_EVIDENCE_WS" -> handleEvidenceUploadWebSocket(wrapper, data, session);
+                case "GET_EVIDENCE_FILE" -> handleGetEvidenceFileWebSocket(wrapper, data);
+
                 default -> sendError(wrapper, "UNKNOWN_TYPE", "Unknown message type: " + type);
             }
         } catch (Exception e) {
@@ -8741,5 +8840,126 @@ public class HybridPanelServer implements com.blockforge.moderex.gateway.Gateway
      */
     public int getGatewayConnectionCount() {
         return gatewayConnections.size();
+    }
+
+    // ========== Evidence WebSocket Handlers (for gateway mode) ==========
+
+    /**
+     * Handle evidence upload via WebSocket for gateway mode.
+     * Uses Base64 encoding to transfer binary data over WebSocket.
+     */
+    private void handleEvidenceUploadWebSocket(WebSocketConnection conn, JsonObject data, WebPanelSession session) {
+        try {
+            String fileName = data.has("fileName") ? data.get("fileName").getAsString() : "unknown";
+            String base64Data = data.has("data") ? data.get("data").getAsString() : "";
+            String punishmentId = data.has("punishmentId") ? data.get("punishmentId").getAsString() : null;
+
+            if (base64Data.isEmpty()) {
+                sendError(conn, "INVALID_DATA", "No file data provided");
+                return;
+            }
+
+            // Decode Base64 data
+            byte[] fileBytes;
+            try {
+                fileBytes = java.util.Base64.getDecoder().decode(base64Data);
+            } catch (IllegalArgumentException e) {
+                sendError(conn, "INVALID_DATA", "Invalid Base64 encoding");
+                return;
+            }
+
+            plugin.logDebug("[Evidence] WebSocket upload from " + session.playerName + ": " + fileName + " (" + fileBytes.length + " bytes)");
+
+            // Upload through evidence manager
+            com.blockforge.moderex.evidence.Evidence evidence = plugin.getEvidenceManager()
+                    .uploadEvidence(session.playerUuid, session.playerName, fileName,
+                            new java.io.ByteArrayInputStream(fileBytes), fileBytes.length)
+                    .get();
+
+            if (evidence == null) {
+                sendError(conn, "UPLOAD_FAILED", "Failed to save evidence. Check file type and size.");
+                return;
+            }
+
+            // If punishmentId is provided, link evidence to punishment
+            if (punishmentId != null && !punishmentId.isEmpty()) {
+                evidence.setLinkedPunishmentId(punishmentId);
+                plugin.getEvidenceManager().updateEvidence(evidence);
+            }
+
+            // Send success response
+            JsonObject response = new JsonObject();
+            response.addProperty("type", "EVIDENCE_UPLOADED");
+            JsonObject respData = new JsonObject();
+            respData.addProperty("evidenceId", evidence.getId());
+            respData.addProperty("fileName", evidence.getFileName());
+            respData.addProperty("fileType", evidence.getFileType().name());
+            respData.addProperty("fileSize", evidence.getFileSize());
+            if (punishmentId != null) {
+                respData.addProperty("punishmentId", punishmentId);
+            }
+            response.add("data", respData);
+            conn.send(GSON.toJson(response));
+
+            plugin.logDebug("[Evidence] Upload successful: " + evidence.getId() + " - " + evidence.getFileName());
+        } catch (Exception e) {
+            plugin.logError("[Evidence] WebSocket upload error: " + e.getMessage(), e);
+            sendError(conn, "UPLOAD_FAILED", "Upload failed: " + e.getMessage());
+        }
+    }
+
+    /**
+     * Handle evidence file retrieval via WebSocket for gateway mode.
+     * Sends file data as Base64 over WebSocket.
+     */
+    private void handleGetEvidenceFileWebSocket(WebSocketConnection conn, JsonObject data) {
+        try {
+            String fileId = data.has("fileId") ? data.get("fileId").getAsString() : "";
+
+            if (fileId.isEmpty()) {
+                sendError(conn, "INVALID_REQUEST", "No file ID provided");
+                return;
+            }
+
+            // Get evidence metadata
+            com.blockforge.moderex.evidence.Evidence evidence = plugin.getEvidenceManager().getEvidence(fileId);
+            if (evidence == null) {
+                sendError(conn, "NOT_FOUND", "Evidence not found");
+                return;
+            }
+
+            // Get the file path
+            java.nio.file.Path filePath = plugin.getEvidenceManager().getEvidenceFile(fileId);
+            if (filePath == null || !java.nio.file.Files.exists(filePath)) {
+                sendError(conn, "FILE_NOT_FOUND", "Evidence file not found on disk");
+                return;
+            }
+
+            // Read file and convert to Base64
+            byte[] fileBytes = java.nio.file.Files.readAllBytes(filePath);
+            String base64Data = java.util.Base64.getEncoder().encodeToString(fileBytes);
+
+            // Determine MIME type from FileType enum
+            String mimeType = evidence.getFileType() != null
+                    ? evidence.getFileType().getMimeType()
+                    : "application/octet-stream";
+
+            // Send response
+            JsonObject response = new JsonObject();
+            response.addProperty("type", "EVIDENCE_FILE");
+            JsonObject respData = new JsonObject();
+            respData.addProperty("fileId", fileId);
+            respData.addProperty("fileName", evidence.getFileName());
+            respData.addProperty("mimeType", mimeType);
+            respData.addProperty("fileSize", evidence.getFileSize());
+            respData.addProperty("data", base64Data);
+            response.add("data", respData);
+            conn.send(GSON.toJson(response));
+
+            plugin.logDebug("[Evidence] Sent file via WebSocket: " + fileId + " (" + fileBytes.length + " bytes)");
+        } catch (Exception e) {
+            plugin.logError("[Evidence] WebSocket file retrieval error: " + e.getMessage(), e);
+            sendError(conn, "RETRIEVAL_FAILED", "Failed to retrieve evidence: " + e.getMessage());
+        }
     }
 }

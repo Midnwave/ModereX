@@ -10,6 +10,7 @@
   const WS_HEARTBEAT_INTERVAL = 30000; // Keep connection alive (30s)
   const WS_PING_INTERVAL = 15000; // Measure latency every 15s
   const WS_PING_TIMEOUT = 45000; // Allow 45s for very high-ping/unstable connections
+  const WS_MAX_RECONNECT_ATTEMPTS = 100; // Maximum auto-reconnect attempts before giving up
 
   // Gateway configuration - domains that indicate we're using gateway mode
   const GATEWAY_DOMAINS = [
@@ -36,6 +37,7 @@
   let reconnectAttempts = 0;
   let awaitingPong = false;
   let connectionStatus = 'disconnected'; // 'disconnected', 'connecting', 'connected', 'saving'
+  let silentReconnect = false; // When true, suppress sounds/toasts during reconnect
 
   // Message handlers registered by other modules
   const handlers = new Map();
@@ -470,10 +472,25 @@
    */
   function scheduleReconnect(host, port) {
     clearTimeout(reconnectTimer);
+
+    // Auto-reconnect is always silent (no sounds/toasts)
+    silentReconnect = true;
+
+    // Check max attempts
+    if (reconnectAttempts >= WS_MAX_RECONNECT_ATTEMPTS) {
+      console.log('[WS] Max reconnect attempts reached');
+      emit('reconnect_failed', { attempts: reconnectAttempts });
+      return;
+    }
+
     // Exponential backoff: 2s, 4s, 8s, 16s, max 30s
     const delay = Math.min(WS_RECONNECT_DELAY_MIN * Math.pow(2, reconnectAttempts), WS_RECONNECT_DELAY_MAX);
     reconnectAttempts++;
     console.log(`[WS] Reconnecting in ${delay}ms (attempt ${reconnectAttempts})...`);
+
+    // Emit reconnect status for UI update
+    emit('reconnect_attempt', { attempt: reconnectAttempts, delay: delay });
+
     reconnectTimer = setTimeout(() => {
       console.log('[WS] Attempting reconnect...');
       connect(host, port);
@@ -485,10 +502,25 @@
    */
   function scheduleGatewayReconnect() {
     clearTimeout(reconnectTimer);
+
+    // Auto-reconnect is always silent (no sounds/toasts)
+    silentReconnect = true;
+
+    // Check max attempts
+    if (reconnectAttempts >= WS_MAX_RECONNECT_ATTEMPTS) {
+      console.log('[WS] Max gateway reconnect attempts reached');
+      emit('reconnect_failed', { attempts: reconnectAttempts });
+      return;
+    }
+
     // Exponential backoff: 2s, 4s, 8s, 16s, max 30s
     const delay = Math.min(WS_RECONNECT_DELAY_MIN * Math.pow(2, reconnectAttempts), WS_RECONNECT_DELAY_MAX);
     reconnectAttempts++;
     console.log(`[WS] Gateway reconnecting in ${delay}ms (attempt ${reconnectAttempts})...`);
+
+    // Emit reconnect status for UI update
+    emit('reconnect_attempt', { attempt: reconnectAttempts, delay: delay });
+
     reconnectTimer = setTimeout(() => {
       console.log('[WS] Attempting gateway reconnect...');
       connectGateway(currentServerId);
@@ -530,10 +562,11 @@
       isConnected = true;
       connectionStatus = 'connected';
       reconnectAttempts = 0;
+      silentReconnect = false; // Reset silent mode after successful connection
       clearTimeout(reconnectTimer);
       startHeartbeat();
       startPingMeasurement();
-      emit('connected', { gatewayMode, serverId: currentServerId });
+      emit('connected', { gatewayMode, serverId: currentServerId, wasReconnect: silentReconnect });
       emit('status_change', { status: connectionStatus, ping: lastPing });
       if (window.debugLog) window.debugLog('WS', 'Connected to server' + (gatewayMode ? ' via gateway' : ''), 'success');
     };
@@ -914,6 +947,8 @@
     getPing: () => lastPing,
     getStatus: () => connectionStatus,
     setStatus,
+    isSilentReconnect: () => silentReconnect,
+    getReconnectAttempts: () => reconnectAttempts,
 
     // Auth methods
     authWithCode,
