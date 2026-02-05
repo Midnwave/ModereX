@@ -14,6 +14,169 @@
 
 window.MX_CHANGELOGS = [
   {
+    build: 244,
+    version: "2.0dev-244",
+    date: "2026-02-05",
+    title: "Admin Panel & Announcement System",
+    sections: [
+      {
+        type: "new",
+        title: "New Features",
+        items: [
+          "**Admin Panel System** - Internal dashboard for ModereX developers at admin.moderex.net",
+          "**Global Announcement Banners** - Broadcast announcements to all connected web panels",
+          "**Announcement Types** - 5 banner styles: Info (blue), Feature (green), Warning (orange), Maintenance (purple), Critical (red)",
+          "**Scheduled Announcements** - Create announcements that trigger at a specific time",
+          "**Gateway Admin API** - WebSocket endpoints for admin panel communication",
+          "**Announcement Persistence** - SQLite database for storing announcements on gateway"
+        ]
+      },
+      {
+        type: "improved",
+        title: "Improvements",
+        items: [
+          "**Announcement Banner UI** - Slide-down banner with dismiss button and action links",
+          "**Critical Alert Animation** - Pulsing animation for urgent announcements",
+          "**Gateway Health Dashboard** - Real-time gateway stats for admins",
+          "**Admin Audit Log** - Track all admin actions with timestamps"
+        ]
+      },
+      {
+        type: "technical",
+        title: "Technical Changes",
+        items: [
+          "**GatewayClient** - Added admin_announcement message handler",
+          "**HybridPanelServer** - Added broadcastToAllClients method for global notifications",
+          "**Gateway SQLite** - Database tables for announcements and audit logs",
+          "**LocalStorage** - Dismissed announcements tracked per-panel"
+        ]
+      },
+      {
+        type: "fixed",
+        title: "Bug Fixes",
+        items: [
+          "**Missing World Import** - Fixed compilation error in HybridPanelServer"
+        ]
+      }
+    ]
+  },
+  {
+    build: 243,
+    version: "2.0dev-243",
+    date: "2026-02-05",
+    title: "Configuration Tab Revamp & Staff Commands",
+    sections: [
+      {
+        type: "new",
+        title: "New Features",
+        items: [
+          "**Warning Escalation System** - Customizable point-based warning tiers with automatic punishment escalation",
+          "**Warning Categories** - Define custom warning categories with configurable point values",
+          "**Activity Log Configuration** - Enable/disable logging types and set retention periods per category",
+          "**Evidence Configuration** - Set max file size, activity log entries, and require evidence for punishments",
+          "**Staff Commands** - Added /fly, /broadcast, /invsee, /echest commands"
+        ]
+      },
+      {
+        type: "improved",
+        title: "Improvements",
+        items: [
+          "**Mute Settings** - Added Staff Can See toggle for muted player messages",
+          "**Configuration UI** - Expanded Configuration tab with activity log and evidence settings",
+          "**Settings Sync** - All configuration settings now sync between web panel and config.yml"
+        ]
+      },
+      {
+        type: "permissions",
+        title: "New Permissions",
+        items: [
+          "**moderex.admin.warnings** - Configure warning escalation settings",
+          "**moderex.admin.activitylog** - Configure activity log settings",
+          "**moderex.admin.evidence** - Configure evidence settings",
+          "**moderex.command.fly** - Toggle flight mode",
+          "**moderex.command.fly.others** - Toggle flight for other players",
+          "**moderex.command.broadcast** - Send server broadcasts",
+          "**moderex.command.invsee** - View player inventories",
+          "**moderex.command.echest** - View player ender chests",
+          "**moderex.command.echest.others** - View other players' ender chests"
+        ]
+      }
+    ]
+  },
+  {
+    build: 242,
+    version: "2.0dev-242",
+    date: "2026-02-05",
+    title: "Gateway Mode Fixes & Debug Improvements",
+    sections: [
+      {
+        type: "fixed",
+        title: "Bug Fixes",
+        items: [
+          "**Gateway Broadcasts** - Fixed event broadcasts (automod alerts, punishments, etc.) not reaching gateway-connected clients",
+          "**Panel Version Gateway** - Fixed GET_PANEL_VERSION being blocked before authentication in gateway mode",
+          "**Server Status Gateway** - Added debug logging for server status requests in gateway mode"
+        ]
+      },
+      {
+        type: "improved",
+        title: "Improvements",
+        items: [
+          "**Debug Logging** - Added detailed logging for automod rule saves and loads to trace persistence issues",
+          "**Automod Persistence** - Added logging to trace save/load cycle for troubleshooting"
+        ]
+      }
+    ]
+  },
+  {
+    build: 241,
+    version: "2.0dev-241",
+    date: "2026-02-05",
+    title: "Configuration Tab Revamp & Getting Started Guide",
+    sections: [
+      {
+        type: "new",
+        title: "New Features",
+        items: [
+          "**Getting Started Guide** - Comprehensive guide tab with table of contents, search, and collapsible sections",
+          "**Server Lockdown** - Full lockdown system with timer, custom MOTD, and kick message",
+          "**Command Blacklist** - Block specific commands with custom denial messages",
+          "**Notification Configuration** - Configure join/leave message visibility",
+          "**Discord Support** - New Discord button with links to BlockForge Studios and ADF Industries servers"
+        ]
+      },
+      {
+        type: "improved",
+        title: "Improvements",
+        items: [
+          "**Configuration Tab** - Renamed from Server Actions with expanded features",
+          "**Expired Punishments** - Badge now shows 'Expired' in orange, revoke button disabled",
+          "**Notification Sounds** - Increased volume multiplier from 0.3 to 0.55 for better audibility",
+          "**Gateway Panel Version** - Deferred version request until gateway connection confirmed"
+        ]
+      },
+      {
+        type: "fixed",
+        title: "Bug Fixes",
+        items: [
+          "**Automod Alerts** - Added missing AUTOMOD_ALERT WebSocket handler for activity log display",
+          "**Expired Punishment Revoke** - Backend and frontend now block revoking expired punishments",
+          "**Panel Version Gateway** - Fixed version request failing before gateway connection"
+        ]
+      },
+      {
+        type: "permissions",
+        title: "New Permissions",
+        items: [
+          "**moderex.admin.lockdown** - Enable/disable server lockdown",
+          "**moderex.admin.commandblacklist** - Configure command blacklist",
+          "**moderex.admin.notifications** - Configure notification settings",
+          "**moderex.bypass.commandblacklist** - Bypass command blacklist"
+        ]
+      }
+    ]
+  },
+  {
     build: 240,
     version: "2.0dev-240",
     date: "2026-02-04",
