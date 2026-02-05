@@ -21,6 +21,10 @@
       ws.send('GET_LUCKPERMS_STATUS');
       ws.send('GET_GEYSER_STATUS');
       ws.send('GET_MODERATION_PLUGINS');
+      ws.send('GET_SPARK_STATUS');
+      ws.send('GET_CITIZENS_STATUS');
+      ws.send('GET_ESSENTIALS_STATUS');
+      ws.send('GET_PLACEHOLDERAPI_STATUS');
     }
   };
 
@@ -149,6 +153,121 @@
         if (floodgateDetails) {
           floodgateDetails.textContent = 'Bedrock authentication';
         }
+      }
+    }
+  };
+
+  window.renderSparkStatus = function(status) {
+    const badge = document.getElementById('sparkStatus');
+    const details = document.getElementById('sparkDetails');
+
+    // Update state
+    const state = window.MX?.state;
+    if (state) {
+      state.integrations = state.integrations || {};
+      state.integrations.sparkDetected = status?.available || false;
+      state.integrations.sparkVersion = status?.version || null;
+    }
+
+    if (badge) {
+      if (status?.available) {
+        badge.className = 'badge good';
+        badge.innerHTML = '<i class="fa-solid fa-check"></i> Active';
+        if (details) {
+          details.textContent = `v${status.version || 'Unknown'}`;
+        }
+      } else {
+        badge.className = 'badge gray';
+        badge.innerHTML = '<i class="fa-solid fa-xmark"></i> Not detected';
+        if (details) {
+          details.textContent = 'Performance profiler for diagnostics';
+        }
+      }
+    }
+  };
+
+  window.renderCitizensStatus = function(status) {
+    const badge = document.getElementById('citizensStatus');
+    const details = document.getElementById('citizensDetails');
+
+    // Update state
+    const state = window.MX?.state;
+    if (state) {
+      state.integrations = state.integrations || {};
+      state.integrations.citizensDetected = status?.available || false;
+      state.integrations.citizensVersion = status?.version || null;
+    }
+
+    if (badge) {
+      if (status?.available) {
+        badge.className = 'badge good';
+        badge.innerHTML = '<i class="fa-solid fa-check"></i> Active';
+        if (details) {
+          details.textContent = `v${status.version || 'Unknown'} - Replay system enabled`;
+        }
+      } else {
+        badge.className = 'badge gray';
+        badge.innerHTML = '<i class="fa-solid fa-xmark"></i> Not detected';
+        if (details) {
+          details.textContent = 'Install Citizens to enable replay playback';
+        }
+      }
+    }
+  };
+
+  window.renderEssentialsStatus = function(status) {
+    const badge = document.getElementById('essentialsStatus');
+    const details = document.getElementById('essentialsDetails');
+    const nickSettings = document.getElementById('essentialsNickSettings');
+
+    // Update state
+    const state = window.MX?.state;
+    if (state) {
+      state.integrations = state.integrations || {};
+      state.integrations.essentialsDetected = status?.available || false;
+      state.integrations.essentialsVersion = status?.version || null;
+    }
+
+    if (badge) {
+      if (status?.available) {
+        badge.className = 'badge good';
+        badge.innerHTML = '<i class="fa-solid fa-check"></i> Active';
+        if (details) {
+          details.textContent = `v${status.version || 'Unknown'}`;
+        }
+        if (nickSettings) {
+          nickSettings.style.display = 'block';
+        }
+      } else {
+        badge.className = 'badge gray';
+        badge.innerHTML = '<i class="fa-solid fa-xmark"></i> Not detected';
+        if (details) {
+          details.textContent = 'Nickname integration not available';
+        }
+        if (nickSettings) {
+          nickSettings.style.display = 'none';
+        }
+      }
+    }
+  };
+
+  window.renderPlaceholderAPIStatus = function(status) {
+    const badge = document.getElementById('placeholderAPIStatus');
+
+    // Update state
+    const state = window.MX?.state;
+    if (state) {
+      state.integrations = state.integrations || {};
+      state.integrations.placeholderAPIDetected = status?.available || false;
+    }
+
+    if (badge) {
+      if (status?.available) {
+        badge.className = 'badge good';
+        badge.innerHTML = '<i class="fa-solid fa-check"></i> Active';
+      } else {
+        badge.className = 'badge gray';
+        badge.innerHTML = '<i class="fa-solid fa-xmark"></i> Not detected';
       }
     }
   };
@@ -356,6 +475,30 @@
     ws.on('GEYSER_STATUS', (data) => {
       if (data) {
         renderGeyserStatus(data);
+      }
+    });
+
+    ws.on('SPARK_STATUS', (data) => {
+      if (data) {
+        renderSparkStatus(data);
+      }
+    });
+
+    ws.on('CITIZENS_STATUS', (data) => {
+      if (data) {
+        renderCitizensStatus(data);
+      }
+    });
+
+    ws.on('ESSENTIALS_STATUS', (data) => {
+      if (data) {
+        renderEssentialsStatus(data);
+      }
+    });
+
+    ws.on('PLACEHOLDERAPI_STATUS', (data) => {
+      if (data) {
+        renderPlaceholderAPIStatus(data);
       }
     });
 
