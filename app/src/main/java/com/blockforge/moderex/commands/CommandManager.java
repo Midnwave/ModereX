@@ -105,6 +105,10 @@ public class CommandManager {
         registerPaperCommand(commandMap, "staffhelp", new StaffHelpCommand(plugin), "Request staff help", List.of());
         registerPaperCommand(commandMap, "staffmode", new StaffModeCommand(plugin), "Toggle staff mode", List.of("sm"));
         registerPaperCommand(commandMap, "vanish", new VanishCommand(plugin), "Toggle vanish", List.of("v"));
+        registerPaperCommand(commandMap, "fly", new FlyCommand(plugin), "Toggle flight mode", List.of("flight"));
+        registerPaperCommand(commandMap, "broadcast", new BroadcastCommand(plugin), "Broadcast a message", List.of("bc", "announce"));
+        registerPaperCommand(commandMap, "invsee", new InvseeCommand(plugin), "View player inventory", List.of("openinv"));
+        registerPaperCommand(commandMap, "echest", new EchestCommand(plugin), "View player ender chest", List.of("enderchest", "endersee"));
         registerPaperCommand(commandMap, "cmdblacklist", new CmdBlacklistCommand(plugin), "Blacklist command", List.of());
         registerPaperCommand(commandMap, "cmdunblacklist", new CmdUnblacklistCommand(plugin), "Remove command blacklist", List.of());
         registerPaperCommand(commandMap, "cmdhistory", new CmdHistoryCommand(plugin), "View command history", List.of());
