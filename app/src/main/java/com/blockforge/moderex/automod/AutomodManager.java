@@ -170,20 +170,34 @@ public class AutomodManager {
      */
     private void loadBuiltInRuleConfigs() {
         try {
+            plugin.logDebug("[Automod] Loading built-in rule configs from database...");
             plugin.getDatabaseManager().query("""
                     SELECT * FROM moderex_automod_rules WHERE type IN ('SPAM_PROTECTION', 'CAPS_FILTER', 'LINK_FILTER', 'AFK_KICK', 'SPECIAL_CHARS')
                     """,
                     rs -> {
+                        int count = 0;
                         while (rs.next()) {
+                            count++;
                             String id = rs.getString("rule_id");
-                            if (id == null) id = rs.getString("name").toLowerCase().replace(" ", "_");
+                            String name = rs.getString("name");
+                            String config = rs.getString("config");
+                            boolean enabled = rs.getBoolean("enabled");
+
+                            plugin.logDebug("[Automod] Found DB row: rule_id=" + id + ", name=" + name + ", enabled=" + enabled);
+
+                            if (id == null) id = name.toLowerCase().replace(" ", "_");
 
                             AutomodRule existing = rules.get(id);
                             if (existing != null) {
-                                existing.setEnabled(rs.getBoolean("enabled"));
-                                existing.loadConfigJson(rs.getString("config"));
+                                plugin.logDebug("[Automod] Applying config to in-memory rule: " + id);
+                                existing.setEnabled(enabled);
+                                existing.loadConfigJson(config);
+                                plugin.logDebug("[Automod] After load - rule " + id + " enabled=" + existing.isEnabled());
+                            } else {
+                                plugin.logDebug("[Automod] WARNING: No in-memory rule found for id: " + id);
                             }
                         }
+                        plugin.logDebug("[Automod] Loaded " + count + " built-in rule configs from database");
                         return null;
                     }
             );
@@ -734,7 +748,7 @@ public class AutomodManager {
     /**
      * Save a rule to the database.
      */
-    public void saveRule(AutomodRule rule) {
+    public void saveRule(AutomodRule rule) throws RuntimeException {
         plugin.logDebug("[Automod] saveRule called for: " + rule.getId() + " (type=" + rule.getType() +
                 ", builtIn=" + rule.isBuiltIn() + ")");
 
@@ -755,30 +769,35 @@ public class AutomodManager {
         }
 
         try {
+            String configJson = rule.toConfigJson();
             plugin.logDebug("[Automod] Saving custom rule to database: " + rule.getId());
-            plugin.getDatabaseManager().update("""
+            plugin.logDebug("[Automod] Custom rule config: " + configJson);
+
+            int updated = plugin.getDatabaseManager().update("""
                     UPDATE moderex_automod_rules
                     SET name = ?, enabled = ?, config = ?, updated_at = ?
                     WHERE id = ?
                     """,
-                    rule.getName(), rule.isEnabled(), rule.toConfigJson(),
+                    rule.getName(), rule.isEnabled(), configJson,
                     System.currentTimeMillis(), Integer.parseInt(rule.getId())
             );
 
             // No broadcast here - let caller handle it
-            plugin.logDebug("[Automod] Successfully saved rule: " + rule.getId());
+            plugin.logDebug("[Automod] Successfully saved rule: " + rule.getId() + " (rows updated: " + updated + ")");
         } catch (SQLException e) {
             plugin.logError("Failed to save automod rule", e);
+            throw new RuntimeException("Database error saving automod rule: " + e.getMessage(), e);
         } catch (NumberFormatException e) {
             plugin.logError("Failed to parse rule ID as integer: " + rule.getId() +
                     " (type=" + rule.getType() + ")", e);
+            throw new RuntimeException("Invalid rule ID format: " + rule.getId(), e);
         }
     }
 
     /**
      * Save a built-in rule's settings.
      */
-    private void saveBuiltInRule(AutomodRule rule) {
+    private void saveBuiltInRule(AutomodRule rule) throws RuntimeException {
         // Update settings
         switch (rule.getId()) {
             case "spam_protection" -> {
@@ -794,15 +813,20 @@ public class AutomodManager {
 
         // Save to database for full config
         try {
+            String configJson = rule.toConfigJson();
+            plugin.logDebug("[Automod] Saving built-in rule: " + rule.getId() + ", enabled=" + rule.isEnabled());
+            plugin.logDebug("[Automod] Config JSON: " + configJson);
+
             // Try to update existing
             int updated = plugin.getDatabaseManager().update("""
                     UPDATE moderex_automod_rules
                     SET enabled = ?, config = ?, updated_at = ?
                     WHERE rule_id = ? OR (name = ? AND type = ?)
                     """,
-                    rule.isEnabled(), rule.toConfigJson(), System.currentTimeMillis(),
+                    rule.isEnabled(), configJson, System.currentTimeMillis(),
                     rule.getId(), rule.getName(), rule.getType().name()
             );
+            plugin.logDebug("[Automod] UPDATE affected " + updated + " rows for rule: " + rule.getId());
 
             if (updated == 0) {
                 // Insert new
@@ -811,13 +835,15 @@ public class AutomodManager {
                         VALUES (?, ?, ?, ?, ?, ?, ?)
                         """,
                         rule.getId(), rule.getName(), rule.getType().name(),
-                        rule.isEnabled(), rule.toConfigJson(),
+                        rule.isEnabled(), configJson,
                         System.currentTimeMillis(), System.currentTimeMillis()
                 );
+                plugin.logDebug("[Automod] INSERT new row for rule: " + rule.getId());
             }
+            plugin.logDebug("[Automod] Successfully saved built-in rule: " + rule.getId());
         } catch (SQLException e) {
-            // Column might not exist, try simple approach
-            plugin.logDebug("Could not save built-in rule config: " + e.getMessage());
+            plugin.logError("Failed to save built-in rule: " + rule.getId(), e);
+            throw new RuntimeException("Database error saving built-in rule: " + e.getMessage(), e);
         }
 
         plugin.saveConfig();
@@ -915,7 +941,7 @@ public class AutomodManager {
     /**
      * Save an anticheat rule to the database.
      */
-    private void saveAnticheatRule(AutomodRule rule) {
+    private void saveAnticheatRule(AutomodRule rule) throws RuntimeException {
         try {
             // Check if rule already exists in database
             boolean exists = plugin.getDatabaseManager().query("""
@@ -946,8 +972,10 @@ public class AutomodManager {
                         System.currentTimeMillis(), System.currentTimeMillis()
                 );
             }
+            plugin.logDebug("[Automod] Successfully saved anticheat rule: " + rule.getId());
         } catch (SQLException e) {
             plugin.logError("Failed to save anticheat rule: " + rule.getId(), e);
+            throw new RuntimeException("Database error saving anticheat rule: " + e.getMessage(), e);
         }
     }
 
