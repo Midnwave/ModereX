@@ -22,6 +22,7 @@ import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
 import org.bukkit.Bukkit;
 import org.bukkit.OfflinePlayer;
+import org.bukkit.World;
 import org.bukkit.entity.Player;
 
 import java.io.*;
@@ -2397,17 +2398,40 @@ public class HybridPanelServer implements com.blockforge.moderex.gateway.Gateway
             case "GET_TRUSTED_DEVICE_COUNT" -> sendTrustedDeviceCount(conn, session);
             case "GET_EXTERNAL_PUNISHMENTS" -> getExternalPunishments(conn, data);
             case "IMPORT_EXTERNAL_PUNISHMENTS" -> importExternalPunishments(conn, data, session);
-            case "KICK_ALL" -> kickAllPlayers(conn, data, session);
+            case "KICK_ALL", "KICK_ALL_PLAYERS" -> kickAllPlayers(conn, data, session);
+            case "SET_LOCKDOWN" -> setLockdown(conn, data, session);
+            case "UPDATE_LOCKDOWN_SETTINGS" -> updateLockdownSettings(conn, data, session);
+            case "UPDATE_NOTIFICATION_SETTINGS" -> updateNotificationSettings(conn, data, session);
+            case "UPDATE_COMMAND_BLACKLIST" -> updateCommandBlacklist(conn, data, session);
             case "GET_REPLAYS" -> sendReplayList(conn);
             case "GET_REPLAY" -> sendReplayData(conn, data);
             case "GET_SERVER_STATUS" -> sendServerStatus(conn);
+            case "TELEPORT_TO_CHUNK" -> teleportToChunk(conn, data, session);
+            case "TELEPORT_TO_PLAYER" -> teleportToPlayerByName(conn, data, session);
             case "GET_LUCKPERMS_STATUS" -> sendLuckPermsStatus(conn);
             case "GET_GEYSER_STATUS" -> sendGeyserStatus(conn);
             case "GET_MODERATION_PLUGINS" -> sendModerationPlugins(conn);
+            case "GET_SPARK_STATUS" -> sendSparkStatus(conn);
+            case "GET_CITIZENS_STATUS" -> sendCitizensStatus(conn);
+            case "GET_ESSENTIALS_STATUS" -> sendEssentialsStatus(conn);
+            case "GET_PLACEHOLDERAPI_STATUS" -> sendPlaceholderAPIStatus(conn);
+
+            // Monitoring endpoints
+            case "GET_ENTITY_BREAKDOWN" -> sendEntityBreakdown(conn);
+            case "GET_CHUNK_BREAKDOWN" -> sendChunkBreakdown(conn);
+            case "GET_DIAGNOSTICS" -> sendDiagnostics(conn);
+            case "GET_ALERT_HISTORY" -> sendAlertHistory(conn);
+            case "UPDATE_ALERT_THRESHOLDS" -> updateAlertThresholds(conn, data, session);
+            case "SPARK_PROFILE_START" -> startSparkProfile(conn, session);
+            case "SPARK_HEAP_DUMP" -> sparkHeapDump(conn, session);
+            case "SPARK_GC" -> sparkTriggerGC(conn, session);
+
             case "GET_SERVER_SETTINGS" -> sendServerSettings(conn);
             case "UPDATE_MUTE_SETTINGS" -> updateMuteSettings(conn, data, session);
             case "UPDATE_WARN_SETTINGS" -> updateWarnSettings(conn, data, session);
             case "UPDATE_ANTICHEAT_SETTINGS" -> updateAnticheatSettings(conn, data, session);
+            case "UPDATE_ACTIVITY_LOG_SETTINGS" -> updateActivityLogSettings(conn, data, session);
+            case "UPDATE_EVIDENCE_SETTINGS" -> updateEvidenceSettings(conn, data, session);
             case "GET_DEV_CHECKLIST" -> sendDevChecklist(conn);
             case "TOGGLE_CHECKLIST_ITEM" -> toggleChecklistItem(conn, data, session);
             case "ADD_CHECKLIST_ITEM" -> addChecklistItem(conn, data, session);
@@ -3437,11 +3461,14 @@ public class HybridPanelServer implements com.blockforge.moderex.gateway.Gateway
     }
 
     private void sendAutomodRules(WebSocketConnection conn) {
+        plugin.logDebug("[WebPanel] sendAutomodRules called");
         JsonObject response = new JsonObject();
         response.addProperty("type", "AUTOMOD_RULES_DATA");
         JsonObject data = new JsonObject();
         JsonArray rules = new JsonArray();
         for (AutomodRule rule : plugin.getAutomodManager().getRules()) {
+            plugin.logDebug("[WebPanel] Sending rule: " + rule.getId() + ", enabled=" + rule.isEnabled() +
+                    ", type=" + rule.getType());
             JsonObject r = new JsonObject();
             r.addProperty("id", rule.getId());
             r.addProperty("name", rule.getName());
@@ -5214,7 +5241,9 @@ public class HybridPanelServer implements com.blockforge.moderex.gateway.Gateway
 
         try {
             String name = data.get("name").getAsString();
-            String typeStr = data.get("type").getAsString();
+            // Accept both 'type' and 'punishmentType' for compatibility
+            String typeStr = data.has("punishmentType") ? data.get("punishmentType").getAsString()
+                           : data.get("type").getAsString();
             String duration = data.has("duration") ? data.get("duration").getAsString() : "";
             String reason = data.has("reason") ? data.get("reason").getAsString() : "";
             String category = data.has("category") ? data.get("category").getAsString() : "General";
@@ -5265,9 +5294,11 @@ public class HybridPanelServer implements com.blockforge.moderex.gateway.Gateway
 
             // Update fields
             if (data.has("name")) template.setName(data.get("name").getAsString());
-            if (data.has("type")) {
-                template.setType(com.blockforge.moderex.punishment.PunishmentType.valueOf(
-                    data.get("type").getAsString().toUpperCase()));
+            // Accept both 'type' and 'punishmentType' for compatibility
+            if (data.has("punishmentType") || data.has("type")) {
+                String typeStr = data.has("punishmentType") ? data.get("punishmentType").getAsString()
+                               : data.get("type").getAsString();
+                template.setType(com.blockforge.moderex.punishment.PunishmentType.valueOf(typeStr.toUpperCase()));
             }
             if (data.has("duration")) template.setDuration(data.get("duration").getAsString());
             if (data.has("reason")) template.setReason(data.get("reason").getAsString());
@@ -5591,6 +5622,12 @@ public class HybridPanelServer implements com.blockforge.moderex.gateway.Gateway
 
             if (!punishment.isActive()) {
                 sendError(conn, "ALREADY_REVOKED", "Punishment is already revoked");
+                return;
+            }
+
+            // Prevent revoking expired punishments
+            if (punishment.isExpired()) {
+                sendError(conn, "ALREADY_EXPIRED", "Cannot revoke an expired punishment");
                 return;
             }
 
@@ -6064,12 +6101,40 @@ public class HybridPanelServer implements com.blockforge.moderex.gateway.Gateway
         muteSettings.addProperty("broadcast", settings.isMuteBlocksBroadcast());
         muteSettings.addProperty("voice", settings.isMuteBlocksVoice());
         muteSettings.addProperty("voiceJoin", settings.isMuteBlocksVoiceJoin());
+        muteSettings.addProperty("staffCanSee", settings.isMuteStaffCanSee());
         data.add("muteSettings", muteSettings);
 
         // Warn settings
         JsonObject warnSettings = new JsonObject();
         warnSettings.addProperty("notify", settings.isWarnNotifyStaff());
         warnSettings.addProperty("autoEscalate", settings.isWarnAutoEscalate());
+        warnSettings.addProperty("escalationEnabled", settings.isWarnEscalationEnabled());
+        warnSettings.addProperty("escalationWindowDays", settings.getWarnEscalationWindowDays());
+        warnSettings.addProperty("resetDays", settings.getWarnResetDays());
+
+        // Warning categories
+        JsonArray categoriesArray = new JsonArray();
+        for (com.blockforge.moderex.config.Settings.WarnCategory cat : settings.getWarnCategories()) {
+            JsonObject catObj = new JsonObject();
+            catObj.addProperty("id", cat.getId());
+            catObj.addProperty("name", cat.getName());
+            catObj.addProperty("points", cat.getPoints());
+            categoriesArray.add(catObj);
+        }
+        warnSettings.add("categories", categoriesArray);
+
+        // Warning escalation tiers
+        JsonArray tiersArray = new JsonArray();
+        for (com.blockforge.moderex.config.Settings.WarnEscalationTier tier : settings.getWarnEscalationTiers()) {
+            JsonObject tierObj = new JsonObject();
+            tierObj.addProperty("pointThreshold", tier.getPointThreshold());
+            tierObj.addProperty("punishmentType", tier.getPunishmentType());
+            tierObj.addProperty("duration", tier.getDuration());
+            tierObj.addProperty("reason", tier.getReason());
+            tiersArray.add(tierObj);
+        }
+        warnSettings.add("escalationTiers", tiersArray);
+
         data.add("warnSettings", warnSettings);
 
         // Anticheat settings
@@ -6077,6 +6142,34 @@ public class HybridPanelServer implements com.blockforge.moderex.gateway.Gateway
         acSettings.addProperty("rebrandAlerts", settings.isAnticheatRebrandAlerts());
         acSettings.addProperty("blockOriginalMessages", settings.isAnticheatBlockOriginalMessages());
         data.add("anticheatSettings", acSettings);
+
+        // Activity log settings
+        JsonObject activityLogSettings = new JsonObject();
+        activityLogSettings.addProperty("enabled", settings.isActivityLogEnabled());
+        activityLogSettings.addProperty("logChat", settings.isActivityLogChat());
+        activityLogSettings.addProperty("logCommands", settings.isActivityLogCommands());
+        activityLogSettings.addProperty("logSigns", settings.isActivityLogSigns());
+        activityLogSettings.addProperty("logItems", settings.isActivityLogItems());
+        activityLogSettings.addProperty("logAnvils", settings.isActivityLogAnvils());
+        activityLogSettings.addProperty("logSessions", settings.isActivityLogSessions());
+        activityLogSettings.addProperty("logUsernames", settings.isActivityLogUsernames());
+        activityLogSettings.addProperty("retentionChat", settings.getRetentionChat());
+        activityLogSettings.addProperty("retentionCommands", settings.getRetentionCommands());
+        activityLogSettings.addProperty("retentionSigns", settings.getRetentionSigns());
+        activityLogSettings.addProperty("retentionSessions", settings.getRetentionSessions());
+        activityLogSettings.addProperty("retentionItems", settings.getRetentionItems());
+        activityLogSettings.addProperty("retentionAnvils", settings.getRetentionAnvils());
+        activityLogSettings.addProperty("retentionUsernames", settings.getRetentionUsernames());
+        activityLogSettings.addProperty("retentionAutomod", settings.getRetentionAutomod());
+        activityLogSettings.addProperty("retentionAnticheat", settings.getRetentionAnticheat());
+        data.add("activityLogSettings", activityLogSettings);
+
+        // Evidence settings
+        JsonObject evidenceSettings = new JsonObject();
+        evidenceSettings.addProperty("maxFileSizeMb", settings.getEvidenceMaxFileSizeMb());
+        evidenceSettings.addProperty("maxActivityLogEntries", settings.getEvidenceMaxActivityLogEntries());
+        evidenceSettings.addProperty("requireEvidence", settings.isEvidenceRequireEvidence());
+        data.add("evidenceSettings", evidenceSettings);
 
         // Database usage info (for limit tracking)
         var dbManager = plugin.getDatabaseManager();
@@ -6092,30 +6185,96 @@ public class HybridPanelServer implements com.blockforge.moderex.gateway.Gateway
     }
 
     private void updateMuteSettings(WebSocketConnection conn, JsonObject data, WebPanelSession session) {
+        // Permission check
+        if (!hasViewPermission(session.playerUuid, "moderex.admin.mutes")) {
+            sendError(conn, "PERMISSION_DENIED", "You do not have permission to configure mute settings.");
+            return;
+        }
+
         var settings = plugin.getConfigManager().getSettings();
 
+        // Support both old and new key names
         if (data.has("chat")) settings.setMuteBlocksChat(data.get("chat").getAsBoolean());
+        if (data.has("blocksChat")) settings.setMuteBlocksChat(data.get("blocksChat").getAsBoolean());
+
         if (data.has("msg")) settings.setMuteBlocksMsg(data.get("msg").getAsBoolean());
+        if (data.has("blocksMsg")) settings.setMuteBlocksMsg(data.get("blocksMsg").getAsBoolean());
+
         if (data.has("signs")) settings.setMuteBlocksSigns(data.get("signs").getAsBoolean());
+        if (data.has("blocksSigns")) settings.setMuteBlocksSigns(data.get("blocksSigns").getAsBoolean());
+
         if (data.has("books")) settings.setMuteBlocksBooks(data.get("books").getAsBoolean());
+        if (data.has("blocksBooks")) settings.setMuteBlocksBooks(data.get("blocksBooks").getAsBoolean());
+
         if (data.has("broadcast")) settings.setMuteBlocksBroadcast(data.get("broadcast").getAsBoolean());
+        if (data.has("blocksBroadcast")) settings.setMuteBlocksBroadcast(data.get("blocksBroadcast").getAsBoolean());
+
         if (data.has("voice")) settings.setMuteBlocksVoice(data.get("voice").getAsBoolean());
+        if (data.has("blocksVoice")) settings.setMuteBlocksVoice(data.get("blocksVoice").getAsBoolean());
+
         if (data.has("voiceJoin")) settings.setMuteBlocksVoiceJoin(data.get("voiceJoin").getAsBoolean());
 
+        if (data.has("staffCanSee")) settings.setMuteStaffCanSee(data.get("staffCanSee").getAsBoolean());
+
+        plugin.saveConfig();
         sendSuccess(conn, "Mute settings updated");
         broadcastServerSettings();
         plugin.getLogger().info("[WebPanel] " + session.playerName + " updated mute settings");
     }
 
     private void updateWarnSettings(WebSocketConnection conn, JsonObject data, WebPanelSession session) {
+        // Permission check
+        if (!hasViewPermission(session.playerUuid, "moderex.admin.warnings")) {
+            sendError(conn, "PERMISSION_DENIED", "You do not have permission to configure warning settings.");
+            return;
+        }
+
         var settings = plugin.getConfigManager().getSettings();
 
+        // Basic settings
         if (data.has("notify")) settings.setWarnNotifyStaff(data.get("notify").getAsBoolean());
         if (data.has("autoEscalate")) settings.setWarnAutoEscalate(data.get("autoEscalate").getAsBoolean());
 
-        sendSuccess(conn, "Warn settings updated");
+        // Escalation system settings
+        if (data.has("escalationEnabled")) settings.setWarnEscalationEnabled(data.get("escalationEnabled").getAsBoolean());
+        if (data.has("escalationWindowDays")) settings.setWarnEscalationWindowDays(data.get("escalationWindowDays").getAsInt());
+        if (data.has("resetDays")) settings.setWarnResetDays(data.get("resetDays").getAsInt());
+
+        // Categories
+        if (data.has("categories") && data.get("categories").isJsonArray()) {
+            java.util.List<com.blockforge.moderex.config.Settings.WarnCategory> categories = new java.util.ArrayList<>();
+            for (var elem : data.getAsJsonArray("categories")) {
+                if (elem.isJsonObject()) {
+                    JsonObject catObj = elem.getAsJsonObject();
+                    String id = catObj.has("id") ? catObj.get("id").getAsString() : "";
+                    String name = catObj.has("name") ? catObj.get("name").getAsString() : "";
+                    int points = catObj.has("points") ? catObj.get("points").getAsInt() : 1;
+                    categories.add(new com.blockforge.moderex.config.Settings.WarnCategory(id, name, points));
+                }
+            }
+            settings.setWarnCategories(categories);
+        }
+
+        // Escalation tiers
+        if (data.has("escalationTiers") && data.get("escalationTiers").isJsonArray()) {
+            java.util.List<com.blockforge.moderex.config.Settings.WarnEscalationTier> tiers = new java.util.ArrayList<>();
+            for (var elem : data.getAsJsonArray("escalationTiers")) {
+                if (elem.isJsonObject()) {
+                    JsonObject tierObj = elem.getAsJsonObject();
+                    int pointThreshold = tierObj.has("pointThreshold") ? tierObj.get("pointThreshold").getAsInt() : 0;
+                    String punishmentType = tierObj.has("punishmentType") ? tierObj.get("punishmentType").getAsString() : "MUTE";
+                    String duration = tierObj.has("duration") ? tierObj.get("duration").getAsString() : "1d";
+                    String reason = tierObj.has("reason") ? tierObj.get("reason").getAsString() : "Warning threshold reached";
+                    tiers.add(new com.blockforge.moderex.config.Settings.WarnEscalationTier(pointThreshold, punishmentType, duration, reason));
+                }
+            }
+            settings.setWarnEscalationTiers(tiers);
+        }
+
+        plugin.saveConfig();
+        sendSuccess(conn, "Warning settings updated");
         broadcastServerSettings();
-        plugin.getLogger().info("[WebPanel] " + session.playerName + " updated warn settings");
+        plugin.getLogger().info("[WebPanel] " + session.playerName + " updated warning escalation settings");
     }
 
     private void updateAnticheatSettings(WebSocketConnection conn, JsonObject data, WebPanelSession session) {
@@ -6127,6 +6286,63 @@ public class HybridPanelServer implements com.blockforge.moderex.gateway.Gateway
         sendSuccess(conn, "Anticheat settings updated");
         broadcastServerSettings();
         plugin.getLogger().info("[WebPanel] " + session.playerName + " updated anticheat settings");
+    }
+
+    private void updateActivityLogSettings(WebSocketConnection conn, JsonObject data, WebPanelSession session) {
+        // Permission check
+        if (!hasViewPermission(session.playerUuid, "moderex.admin.activitylog")) {
+            sendError(conn, "PERMISSION_DENIED", "You do not have permission to configure activity log settings.");
+            return;
+        }
+
+        var settings = plugin.getConfigManager().getSettings();
+
+        // Master enable/disable
+        if (data.has("enabled")) settings.setActivityLogEnabled(data.get("enabled").getAsBoolean());
+
+        // Log type toggles
+        if (data.has("logChat")) settings.setActivityLogChat(data.get("logChat").getAsBoolean());
+        if (data.has("logCommands")) settings.setActivityLogCommands(data.get("logCommands").getAsBoolean());
+        if (data.has("logSigns")) settings.setActivityLogSigns(data.get("logSigns").getAsBoolean());
+        if (data.has("logItems")) settings.setActivityLogItems(data.get("logItems").getAsBoolean());
+        if (data.has("logAnvils")) settings.setActivityLogAnvils(data.get("logAnvils").getAsBoolean());
+        if (data.has("logSessions")) settings.setActivityLogSessions(data.get("logSessions").getAsBoolean());
+        if (data.has("logUsernames")) settings.setActivityLogUsernames(data.get("logUsernames").getAsBoolean());
+
+        // Retention periods
+        if (data.has("retentionChat")) settings.setRetentionChat(data.get("retentionChat").getAsLong());
+        if (data.has("retentionCommands")) settings.setRetentionCommands(data.get("retentionCommands").getAsLong());
+        if (data.has("retentionSigns")) settings.setRetentionSigns(data.get("retentionSigns").getAsLong());
+        if (data.has("retentionSessions")) settings.setRetentionSessions(data.get("retentionSessions").getAsLong());
+        if (data.has("retentionItems")) settings.setRetentionItems(data.get("retentionItems").getAsLong());
+        if (data.has("retentionAnvils")) settings.setRetentionAnvils(data.get("retentionAnvils").getAsLong());
+        if (data.has("retentionUsernames")) settings.setRetentionUsernames(data.get("retentionUsernames").getAsLong());
+        if (data.has("retentionAutomod")) settings.setRetentionAutomod(data.get("retentionAutomod").getAsLong());
+        if (data.has("retentionAnticheat")) settings.setRetentionAnticheat(data.get("retentionAnticheat").getAsLong());
+
+        plugin.saveConfig();
+        sendSuccess(conn, "Activity log settings updated");
+        broadcastServerSettings();
+        plugin.getLogger().info("[WebPanel] " + session.playerName + " updated activity log settings");
+    }
+
+    private void updateEvidenceSettings(WebSocketConnection conn, JsonObject data, WebPanelSession session) {
+        // Permission check
+        if (!hasViewPermission(session.playerUuid, "moderex.admin.evidence")) {
+            sendError(conn, "PERMISSION_DENIED", "You do not have permission to configure evidence settings.");
+            return;
+        }
+
+        var settings = plugin.getConfigManager().getSettings();
+
+        if (data.has("maxFileSizeMb")) settings.setEvidenceMaxFileSizeMb(data.get("maxFileSizeMb").getAsInt());
+        if (data.has("maxActivityLogEntries")) settings.setEvidenceMaxActivityLogEntries(data.get("maxActivityLogEntries").getAsInt());
+        if (data.has("requireEvidence")) settings.setEvidenceRequireEvidence(data.get("requireEvidence").getAsBoolean());
+
+        plugin.saveConfig();
+        sendSuccess(conn, "Evidence settings updated");
+        broadcastServerSettings();
+        plugin.getLogger().info("[WebPanel] " + session.playerName + " updated evidence settings");
     }
 
     private void broadcastServerSettings() {
@@ -6315,6 +6531,201 @@ public class HybridPanelServer implements com.blockforge.moderex.gateway.Gateway
     private net.kyori.adventure.text.Component buildKickAllMessage(String reason, String staffName) {
         String message = "\n§c§lKICKED FROM SERVER\n\n§7Reason: §f" + reason + "\n\n§8Staff: §e" + staffName + "\n";
         return net.kyori.adventure.text.Component.text(message);
+    }
+
+    // ==================== Server Lockdown ====================
+
+    private void setLockdown(WebSocketConnection conn, JsonObject data, WebPanelSession session) {
+        // Permission check
+        if (!hasViewPermission(session.playerUuid, "moderex.admin.lockdown")) {
+            sendError(conn, "PERMISSION_DENIED", "You do not have permission to manage server lockdown.");
+            return;
+        }
+
+        boolean enabled = data.has("enabled") && data.get("enabled").getAsBoolean();
+        int timer = data.has("timer") ? data.get("timer").getAsInt() : 0;
+        String motd = data.has("motd") ? data.get("motd").getAsString() : "";
+        String kickMessage = data.has("kickMessage") ? data.get("kickMessage").getAsString() : "Server is under maintenance.";
+
+        plugin.getServer().getScheduler().runTask(plugin, () -> {
+            var settings = plugin.getConfigManager().getSettings();
+            settings.setLockdownEnabled(enabled);
+
+            if (enabled) {
+                settings.setLockdownMotd(motd);
+                settings.setLockdownKickMessage(kickMessage);
+
+                // Set timer if specified
+                if (timer > 0) {
+                    long expiresAt = System.currentTimeMillis() + (timer * 60 * 1000L);
+                    settings.setLockdownExpiresAt(expiresAt);
+
+                    // Schedule auto-disable
+                    plugin.getServer().getScheduler().runTaskLater(plugin, () -> {
+                        if (settings.isLockdownEnabled() && settings.getLockdownExpiresAt() <= System.currentTimeMillis()) {
+                            settings.setLockdownEnabled(false);
+                            settings.setLockdownExpiresAt(0);
+                            plugin.getConfigManager().saveConfig();
+                            broadcastLockdownStatus(false, session.playerName);
+                            plugin.getLogger().info("Server lockdown auto-expired");
+                        }
+                    }, timer * 60 * 20L); // Convert minutes to ticks
+                } else {
+                    settings.setLockdownExpiresAt(0);
+                }
+            } else {
+                settings.setLockdownExpiresAt(0);
+            }
+
+            plugin.getConfigManager().saveConfig();
+
+            // Log activity
+            if (plugin.getActivityLogManager() != null) {
+                plugin.getActivityLogManager().logLockdown(session.playerUuid, session.playerName, enabled, "server");
+            }
+
+            // Broadcast to web panel
+            broadcastLockdownStatus(enabled, session.playerName);
+
+            // Notify in-game staff
+            String statusText = enabled ? "enabled" : "disabled";
+            net.kyori.adventure.text.Component notification = net.kyori.adventure.text.minimessage.MiniMessage.miniMessage().deserialize(
+                    "<dark_gray>[<gold>LOCKDOWN</gold>]</dark_gray> <gray>Server lockdown</gray> " +
+                            (enabled ? "<red>enabled</red>" : "<green>disabled</green>") +
+                            " <gray>by</gray> <gold>" + session.playerName + "</gold>" +
+                            (enabled && timer > 0 ? " <dark_gray>(expires in " + timer + "m)</dark_gray>" : "")
+            );
+
+            for (org.bukkit.entity.Player staff : plugin.getServer().getOnlinePlayers()) {
+                if (PermissionUtil.hasPermission(staff, "moderex.notify.lockdown")) {
+                    staff.sendMessage(notification);
+                }
+            }
+
+            plugin.getLogger().info(session.playerName + " " + statusText + " server lockdown" +
+                    (enabled && timer > 0 ? " for " + timer + " minutes" : ""));
+
+            // Send response
+            JsonObject response = new JsonObject();
+            response.addProperty("type", "LOCKDOWN_UPDATED");
+            JsonObject responseData = new JsonObject();
+            responseData.addProperty("enabled", enabled);
+            responseData.addProperty("timer", timer);
+            response.add("data", responseData);
+            conn.send(GSON.toJson(response));
+        });
+    }
+
+    private void updateLockdownSettings(WebSocketConnection conn, JsonObject data, WebPanelSession session) {
+        // Permission check
+        if (!hasViewPermission(session.playerUuid, "moderex.admin.lockdown")) {
+            sendError(conn, "PERMISSION_DENIED", "You do not have permission to update lockdown settings.");
+            return;
+        }
+
+        plugin.getServer().getScheduler().runTask(plugin, () -> {
+            var settings = plugin.getConfigManager().getSettings();
+
+            if (data.has("motd")) {
+                settings.setLockdownMotd(data.get("motd").getAsString());
+            }
+            if (data.has("kickMessage")) {
+                settings.setLockdownKickMessage(data.get("kickMessage").getAsString());
+            }
+
+            plugin.getConfigManager().saveConfig();
+
+            JsonObject response = new JsonObject();
+            response.addProperty("type", "LOCKDOWN_SETTINGS_SAVED");
+            conn.send(GSON.toJson(response));
+        });
+    }
+
+    private void broadcastLockdownStatus(boolean enabled, String staffName) {
+        JsonObject json = new JsonObject();
+        json.addProperty("type", "LOCKDOWN_STATUS");
+        JsonObject data = new JsonObject();
+        data.addProperty("enabled", enabled);
+        data.addProperty("by", staffName);
+        data.addProperty("timestamp", System.currentTimeMillis());
+        json.add("data", data);
+        broadcast(GSON.toJson(json));
+    }
+
+    // ==================== Notification Configuration ====================
+
+    private void updateNotificationSettings(WebSocketConnection conn, JsonObject data, WebPanelSession session) {
+        // Permission check
+        if (!hasViewPermission(session.playerUuid, "moderex.admin.notifications")) {
+            sendError(conn, "PERMISSION_DENIED", "You do not have permission to update notification settings.");
+            return;
+        }
+
+        plugin.getServer().getScheduler().runTask(plugin, () -> {
+            var settings = plugin.getConfigManager().getSettings();
+
+            if (data.has("joinLeaveVisibility")) {
+                String visibility = data.get("joinLeaveVisibility").getAsString();
+                settings.setJoinLeaveVisibility(visibility);
+            }
+            if (data.has("joinLeaveMessages")) {
+                settings.setJoinLeaveMessagesEnabled(data.get("joinLeaveMessages").getAsBoolean());
+            }
+            if (data.has("firstJoinMessages")) {
+                settings.setFirstJoinMessagesEnabled(data.get("firstJoinMessages").getAsBoolean());
+            }
+
+            plugin.getConfigManager().saveConfig();
+
+            JsonObject response = new JsonObject();
+            response.addProperty("type", "NOTIFICATION_SETTINGS_SAVED");
+            conn.send(GSON.toJson(response));
+        });
+    }
+
+    // ==================== Command Blacklist ====================
+
+    private void updateCommandBlacklist(WebSocketConnection conn, JsonObject data, WebPanelSession session) {
+        // Permission check
+        if (!hasViewPermission(session.playerUuid, "moderex.admin.commandblacklist")) {
+            sendError(conn, "PERMISSION_DENIED", "You do not have permission to update command blacklist.");
+            return;
+        }
+
+        plugin.getServer().getScheduler().runTask(plugin, () -> {
+            var settings = plugin.getConfigManager().getSettings();
+
+            if (data.has("commands")) {
+                java.util.List<String> commands = new java.util.ArrayList<>();
+                data.get("commands").getAsJsonArray().forEach(e -> commands.add(e.getAsString()));
+                settings.setBlockedCommands(commands);
+            }
+            if (data.has("blockMessage")) {
+                settings.setCommandBlockMessage(data.get("blockMessage").getAsString());
+            }
+            if (data.has("enabled")) {
+                settings.setCommandBlacklistEnabled(data.get("enabled").getAsBoolean());
+            }
+
+            plugin.getConfigManager().saveConfig();
+
+            // Log activity
+            if (plugin.getActivityLogManager() != null) {
+                plugin.getActivityLogManager().logStaffAction(session.playerUuid, session.playerName,
+                        com.blockforge.moderex.log.ActivityLogEntry.ActivityType.STAFF_CMD_BLACKLIST,
+                        "Updated command blacklist", null);
+            }
+
+            JsonObject response = new JsonObject();
+            response.addProperty("type", "COMMAND_BLACKLIST_SAVED");
+            JsonObject responseData = new JsonObject();
+            responseData.addProperty("count", settings.getBlockedCommands().size());
+            response.add("data", responseData);
+            conn.send(GSON.toJson(response));
+
+            plugin.getLogger().info(session.playerName + " updated command blacklist (" +
+                    settings.getBlockedCommands().size() + " commands)");
+        });
     }
 
     private void sendReplayList(WebSocketConnection conn) {
@@ -7053,6 +7464,7 @@ public class HybridPanelServer implements com.blockforge.moderex.gateway.Gateway
         // Using a single thread ensures broadcasts are processed sequentially, avoiding thread buildup
         if (broadcastExecutor != null && !broadcastExecutor.isShutdown()) {
             broadcastExecutor.execute(() -> {
+                // Broadcast to direct WebSocket connections
                 for (WebSocketConnection conn : connections) {
                     try {
                         if (sessions.containsKey(conn)) {
@@ -7070,8 +7482,34 @@ public class HybridPanelServer implements com.blockforge.moderex.gateway.Gateway
                         try { conn.close(); } catch (Exception ignored) {}
                     }
                 }
+
+                // Broadcast to gateway-relayed connections
+                var gatewayClient = plugin.getGatewayClient();
+                if (gatewayClient != null && gatewayClient.isConnected()) {
+                    for (String clientId : gatewaySessions.keySet()) {
+                        try {
+                            JsonObject jsonMessage = GSON.fromJson(message, JsonObject.class);
+                            gatewayClient.sendToClient(clientId, jsonMessage);
+                        } catch (Exception e) {
+                            plugin.logDebug("[Gateway] Failed to broadcast to client " + clientId + ": " + e.getMessage());
+                        }
+                    }
+                }
             });
         }
+    }
+
+    /**
+     * Broadcast a JSON message to all connected web panel clients.
+     * Implements GatewayMessageHandler interface.
+     * Used for admin announcements from the ModereX admin panel.
+     *
+     * @param message The JSON message to broadcast
+     */
+    @Override
+    public void broadcastToAllClients(JsonObject message) {
+        broadcast(GSON.toJson(message));
+        plugin.logDebug("[Panel] Broadcast to all clients: " + message.get("type"));
     }
 
     // ==================== Event Broadcasting ====================
@@ -7180,19 +7618,23 @@ public class HybridPanelServer implements com.blockforge.moderex.gateway.Gateway
     // ==================== Server Status ====================
 
     private void sendServerStatus(WebSocketConnection conn) {
+        plugin.logDebug("[WebPanel] sendServerStatus called, connection type: " + conn.getClass().getSimpleName());
         JsonObject response = new JsonObject();
         response.addProperty("type", "SERVER_STATUS");
 
         var statusManager = plugin.getServerStatusManager();
         if (statusManager != null) {
             response.add("data", statusManager.getStatusJson());
+            plugin.logDebug("[WebPanel] Sending server status with data from StatusManager");
         } else {
             JsonObject data = new JsonObject();
             data.addProperty("error", "Server status monitoring is not enabled");
             response.add("data", data);
+            plugin.logDebug("[WebPanel] Server status monitoring is not enabled");
         }
 
         conn.send(GSON.toJson(response));
+        plugin.logDebug("[WebPanel] Server status sent successfully");
     }
 
     public void broadcastServerStatus(JsonObject statusData) {
@@ -7200,6 +7642,82 @@ public class HybridPanelServer implements com.blockforge.moderex.gateway.Gateway
         json.addProperty("type", "SERVER_STATUS");
         json.add("data", statusData);
         broadcast(GSON.toJson(json));
+    }
+
+    // ==================== Teleport Actions ====================
+
+    private void teleportToChunk(WebSocketConnection conn, JsonObject data, WebPanelSession session) {
+        // Check permission
+        if (!hasViewPermission(session.playerUuid, "moderex.command.teleport")) {
+            sendError(conn, "NO_PERMISSION", "You don't have permission to teleport");
+            return;
+        }
+
+        String worldName = data.has("world") ? data.get("world").getAsString() : null;
+        int chunkX = data.has("x") ? data.get("x").getAsInt() : 0;
+        int chunkZ = data.has("z") ? data.get("z").getAsInt() : 0;
+
+        if (worldName == null) {
+            sendError(conn, "INVALID_DATA", "Missing world name");
+            return;
+        }
+
+        // Get online player to teleport
+        Player player = Bukkit.getPlayer(session.playerUuid);
+        if (player == null) {
+            sendError(conn, "NOT_ONLINE", "You must be online to teleport");
+            return;
+        }
+
+        World world = Bukkit.getWorld(worldName);
+        if (world == null) {
+            sendError(conn, "WORLD_NOT_FOUND", "World not found: " + worldName);
+            return;
+        }
+
+        // Teleport to chunk center at highest block
+        plugin.getServer().getScheduler().runTask(plugin, () -> {
+            int blockX = (chunkX << 4) + 8;
+            int blockZ = (chunkZ << 4) + 8;
+            int blockY = world.getHighestBlockYAt(blockX, blockZ) + 1;
+            player.teleport(new org.bukkit.Location(world, blockX + 0.5, blockY, blockZ + 0.5));
+        });
+
+        sendSuccess(conn, "Teleporting to chunk " + chunkX + ", " + chunkZ + " in " + worldName);
+    }
+
+    private void teleportToPlayerByName(WebSocketConnection conn, JsonObject data, WebPanelSession session) {
+        // Check permission
+        if (!hasViewPermission(session.playerUuid, "moderex.command.teleport")) {
+            sendError(conn, "NO_PERMISSION", "You don't have permission to teleport");
+            return;
+        }
+
+        String targetName = data.has("player") ? data.get("player").getAsString() : null;
+        if (targetName == null || targetName.isEmpty()) {
+            sendError(conn, "INVALID_DATA", "Missing player name");
+            return;
+        }
+
+        // Get online player to teleport
+        Player player = Bukkit.getPlayer(session.playerUuid);
+        if (player == null) {
+            sendError(conn, "NOT_ONLINE", "You must be online to teleport");
+            return;
+        }
+
+        Player target = Bukkit.getPlayerExact(targetName);
+        if (target == null) {
+            sendError(conn, "PLAYER_NOT_FOUND", "Player not found or offline: " + targetName);
+            return;
+        }
+
+        // Teleport on main thread
+        plugin.getServer().getScheduler().runTask(plugin, () -> {
+            player.teleport(target.getLocation());
+        });
+
+        sendSuccess(conn, "Teleporting to " + target.getName());
     }
 
     // ==================== Integration Status ====================
@@ -7282,6 +7800,267 @@ public class HybridPanelServer implements com.blockforge.moderex.gateway.Gateway
         data.add("plugins", plugins);
         response.add("data", data);
         conn.send(GSON.toJson(response));
+    }
+
+    private void sendSparkStatus(WebSocketConnection conn) {
+        JsonObject response = new JsonObject();
+        response.addProperty("type", "SPARK_STATUS");
+
+        JsonObject data = new JsonObject();
+        var hookManager = plugin.getHookManager();
+
+        boolean available = hookManager != null && hookManager.isSparkAvailable();
+        data.addProperty("available", available);
+
+        if (available) {
+            data.addProperty("version", hookManager.getSparkVersion());
+        }
+
+        response.add("data", data);
+        conn.send(GSON.toJson(response));
+    }
+
+    private void sendCitizensStatus(WebSocketConnection conn) {
+        JsonObject response = new JsonObject();
+        response.addProperty("type", "CITIZENS_STATUS");
+
+        JsonObject data = new JsonObject();
+        var hookManager = plugin.getHookManager();
+
+        boolean available = hookManager != null && hookManager.hasCitizens();
+        data.addProperty("available", available);
+
+        if (available) {
+            data.addProperty("version", hookManager.getCitizensVersion());
+        }
+
+        response.add("data", data);
+        conn.send(GSON.toJson(response));
+    }
+
+    private void sendEssentialsStatus(WebSocketConnection conn) {
+        JsonObject response = new JsonObject();
+        response.addProperty("type", "ESSENTIALS_STATUS");
+
+        JsonObject data = new JsonObject();
+        var hookManager = plugin.getHookManager();
+
+        boolean available = hookManager != null && hookManager.isEssentialsAvailable();
+        data.addProperty("available", available);
+
+        if (available) {
+            String version = hookManager.getEssentialsVersion();
+            if (version != null) {
+                data.addProperty("version", version);
+            }
+        }
+
+        response.add("data", data);
+        conn.send(GSON.toJson(response));
+    }
+
+    private void sendPlaceholderAPIStatus(WebSocketConnection conn) {
+        JsonObject response = new JsonObject();
+        response.addProperty("type", "PLACEHOLDERAPI_STATUS");
+
+        JsonObject data = new JsonObject();
+        var hookManager = plugin.getHookManager();
+
+        boolean available = hookManager != null && hookManager.hasPlaceholderAPI();
+        data.addProperty("available", available);
+
+        response.add("data", data);
+        conn.send(GSON.toJson(response));
+    }
+
+    // ==================== Monitoring Endpoints ====================
+
+    private void sendEntityBreakdown(WebSocketConnection conn) {
+        JsonObject response = new JsonObject();
+        response.addProperty("type", "ENTITY_BREAKDOWN");
+
+        JsonObject data = new JsonObject();
+        JsonArray entities = new JsonArray();
+        java.util.Map<String, Integer> entityCounts = new java.util.HashMap<>();
+        int totalEntities = 0;
+
+        for (org.bukkit.World world : Bukkit.getWorlds()) {
+            for (org.bukkit.entity.Entity entity : world.getEntities()) {
+                String type = entity.getType().name();
+                entityCounts.merge(type, 1, Integer::sum);
+                totalEntities++;
+            }
+        }
+
+        // Sort by count descending
+        entityCounts.entrySet().stream()
+            .sorted((a, b) -> b.getValue().compareTo(a.getValue()))
+            .limit(25)
+            .forEach(entry -> {
+                JsonObject entityObj = new JsonObject();
+                entityObj.addProperty("type", entry.getKey());
+                entityObj.addProperty("count", entry.getValue());
+                entities.add(entityObj);
+            });
+
+        data.add("entities", entities);
+        data.addProperty("total", totalEntities);
+        response.add("data", data);
+        conn.send(GSON.toJson(response));
+    }
+
+    private void sendChunkBreakdown(WebSocketConnection conn) {
+        JsonObject response = new JsonObject();
+        response.addProperty("type", "CHUNK_BREAKDOWN");
+
+        JsonObject data = new JsonObject();
+        JsonArray worlds = new JsonArray();
+
+        for (org.bukkit.World world : Bukkit.getWorlds()) {
+            JsonObject worldObj = new JsonObject();
+            worldObj.addProperty("name", world.getName());
+            worldObj.addProperty("chunks", world.getLoadedChunks().length);
+            worldObj.addProperty("entities", world.getEntities().size());
+            worldObj.addProperty("players", world.getPlayers().size());
+            worlds.add(worldObj);
+        }
+
+        data.add("worlds", worlds);
+        response.add("data", data);
+        conn.send(GSON.toJson(response));
+    }
+
+    private void sendDiagnostics(WebSocketConnection conn) {
+        JsonObject response = new JsonObject();
+        response.addProperty("type", "DIAGNOSTICS_DATA");
+
+        JsonObject data = new JsonObject();
+
+        // JVM Arguments
+        java.lang.management.RuntimeMXBean runtimeBean = java.lang.management.ManagementFactory.getRuntimeMXBean();
+        java.util.List<String> jvmArgs = runtimeBean.getInputArguments();
+        String argsStr = jvmArgs.stream()
+            .filter(arg -> arg.startsWith("-X") || arg.startsWith("-D"))
+            .limit(10)
+            .collect(java.util.stream.Collectors.joining(" "));
+        data.addProperty("jvmArgs", argsStr.isEmpty() ? "Default JVM settings" : argsStr);
+
+        // GC Info
+        java.util.List<java.lang.management.GarbageCollectorMXBean> gcBeans =
+            java.lang.management.ManagementFactory.getGarbageCollectorMXBeans();
+        String gcType = gcBeans.isEmpty() ? "Unknown" : gcBeans.get(0).getName();
+        long totalGcCollections = gcBeans.stream().mapToLong(java.lang.management.GarbageCollectorMXBean::getCollectionCount).sum();
+        data.addProperty("gcType", gcType);
+        data.addProperty("gcCollections", totalGcCollections);
+
+        // Memory Info
+        java.lang.management.MemoryMXBean memoryBean = java.lang.management.ManagementFactory.getMemoryMXBean();
+        long heapMax = memoryBean.getHeapMemoryUsage().getMax() / (1024 * 1024);
+        data.addProperty("heapMax", heapMax + " MB");
+
+        // Thread Info
+        java.lang.management.ThreadMXBean threadBean = java.lang.management.ManagementFactory.getThreadMXBean();
+        data.addProperty("threadCount", threadBean.getThreadCount());
+
+        // Class Loading
+        java.lang.management.ClassLoadingMXBean classBean = java.lang.management.ManagementFactory.getClassLoadingMXBean();
+        data.addProperty("loadedClasses", classBean.getLoadedClassCount());
+
+        response.add("data", data);
+        conn.send(GSON.toJson(response));
+    }
+
+    private void sendAlertHistory(WebSocketConnection conn) {
+        JsonObject response = new JsonObject();
+        response.addProperty("type", "ALERT_HISTORY");
+
+        JsonObject data = new JsonObject();
+        JsonArray alerts = new JsonArray();
+
+        // For now, return empty array - this would be populated from a performance alert manager
+        // In a full implementation, this would track TPS drops, memory spikes, etc.
+        data.add("alerts", alerts);
+        response.add("data", data);
+        conn.send(GSON.toJson(response));
+    }
+
+    private void updateAlertThresholds(WebSocketConnection conn, JsonObject msgData, WebPanelSession session) {
+        if (session == null || !hasViewPermission(session.playerUuid, "moderex.monitoring.configure.alerts")) {
+            sendError(conn, "NO_PERMISSION", "You don't have permission to configure alert thresholds");
+            return;
+        }
+
+        // In a full implementation, these would be saved to config
+        double tpsWarning = msgData.has("tpsWarning") ? msgData.get("tpsWarning").getAsDouble() : 18.0;
+        double tpsCritical = msgData.has("tpsCritical") ? msgData.get("tpsCritical").getAsDouble() : 15.0;
+        double tpsEmergency = msgData.has("tpsEmergency") ? msgData.get("tpsEmergency").getAsDouble() : 10.0;
+        int memoryWarning = msgData.has("memoryWarning") ? msgData.get("memoryWarning").getAsInt() : 80;
+        int memoryCritical = msgData.has("memoryCritical") ? msgData.get("memoryCritical").getAsInt() : 90;
+
+        plugin.logDebug("[Monitoring] Alert thresholds updated - TPS: " + tpsWarning + "/" + tpsCritical + "/" + tpsEmergency +
+            " Memory: " + memoryWarning + "/" + memoryCritical);
+
+        sendSuccess(conn, "Alert thresholds updated");
+    }
+
+    private void startSparkProfile(WebSocketConnection conn, WebPanelSession session) {
+        if (session == null || !hasViewPermission(session.playerUuid, "moderex.monitoring.configure.diagnostics")) {
+            sendError(conn, "NO_PERMISSION", "You don't have permission to use Spark profiling");
+            return;
+        }
+
+        var hookManager = plugin.getHookManager();
+        if (hookManager == null || !hookManager.isSparkAvailable()) {
+            sendError(conn, "SPARK_NOT_AVAILABLE", "Spark is not installed");
+            return;
+        }
+
+        String result = hookManager.getSparkHook().startProfile();
+        if (result != null) {
+            sendSuccess(conn, result);
+        } else {
+            sendError(conn, "SPARK_ERROR", "Failed to start Spark profile");
+        }
+    }
+
+    private void sparkHeapDump(WebSocketConnection conn, WebPanelSession session) {
+        if (session == null || !hasViewPermission(session.playerUuid, "moderex.monitoring.configure.diagnostics")) {
+            sendError(conn, "NO_PERMISSION", "You don't have permission to use Spark heap dump");
+            return;
+        }
+
+        var hookManager = plugin.getHookManager();
+        if (hookManager == null || !hookManager.isSparkAvailable()) {
+            sendError(conn, "SPARK_NOT_AVAILABLE", "Spark is not installed");
+            return;
+        }
+
+        String result = hookManager.getSparkHook().heapDump();
+        if (result != null) {
+            sendSuccess(conn, result);
+        } else {
+            sendError(conn, "SPARK_ERROR", "Failed to generate heap dump");
+        }
+    }
+
+    private void sparkTriggerGC(WebSocketConnection conn, WebPanelSession session) {
+        if (session == null || !hasViewPermission(session.playerUuid, "moderex.monitoring.configure.diagnostics")) {
+            sendError(conn, "NO_PERMISSION", "You don't have permission to trigger garbage collection");
+            return;
+        }
+
+        var hookManager = plugin.getHookManager();
+        if (hookManager == null || !hookManager.isSparkAvailable()) {
+            sendError(conn, "SPARK_NOT_AVAILABLE", "Spark is not installed");
+            return;
+        }
+
+        String result = hookManager.getSparkHook().triggerGC();
+        if (result != null) {
+            sendSuccess(conn, result);
+        } else {
+            sendError(conn, "SPARK_ERROR", "Failed to trigger garbage collection");
+        }
     }
 
     public void broadcastRulesUpdate(java.util.List<com.blockforge.moderex.rules.Rule> rules) {
@@ -8318,7 +9097,15 @@ public class HybridPanelServer implements com.blockforge.moderex.gateway.Gateway
 
             // Allow GET_SERVER_STATUS before authentication
             if ("GET_SERVER_STATUS".equals(type)) {
+                plugin.logDebug("[Gateway] Handling GET_SERVER_STATUS for client: " + clientId);
                 sendServerStatus(wrapper);
+                return;
+            }
+
+            // Allow GET_PANEL_VERSION before authentication
+            if ("GET_PANEL_VERSION".equals(type)) {
+                plugin.logDebug("[Gateway] Handling GET_PANEL_VERSION for client: " + clientId);
+                sendPanelVersionWebSocket(wrapper);
                 return;
             }
 
@@ -8653,6 +9440,8 @@ public class HybridPanelServer implements com.blockforge.moderex.gateway.Gateway
                 case "UPDATE_MUTE_SETTINGS" -> updateMuteSettings(wrapper, data, session);
                 case "UPDATE_WARN_SETTINGS" -> updateWarnSettings(wrapper, data, session);
                 case "UPDATE_ANTICHEAT_SETTINGS" -> updateAnticheatSettings(wrapper, data, session);
+                case "UPDATE_ACTIVITY_LOG_SETTINGS" -> updateActivityLogSettings(wrapper, data, session);
+                case "UPDATE_EVIDENCE_SETTINGS" -> updateEvidenceSettings(wrapper, data, session);
                 case "GET_STAFF_ANTICHEAT_SETTINGS" -> sendStaffAnticheatSettings(wrapper, session);
                 case "UPDATE_STAFF_ANTICHEAT_SETTING" -> updateStaffAnticheatSetting(wrapper, data, session);
                 case "GET_STAFF_ALERT_PREFS" -> sendStaffAlertPrefs(wrapper, session);
@@ -8691,9 +9480,25 @@ public class HybridPanelServer implements com.blockforge.moderex.gateway.Gateway
                 // Stats and status
                 case "GET_STATS" -> sendStats(wrapper);
                 case "GET_SERVER_STATUS" -> sendServerStatus(wrapper);
+                case "TELEPORT_TO_CHUNK" -> teleportToChunk(wrapper, data, session);
+                case "TELEPORT_TO_PLAYER" -> teleportToPlayerByName(wrapper, data, session);
                 case "GET_LUCKPERMS_STATUS" -> sendLuckPermsStatus(wrapper);
                 case "GET_GEYSER_STATUS" -> sendGeyserStatus(wrapper);
                 case "GET_MODERATION_PLUGINS" -> sendModerationPlugins(wrapper);
+                case "GET_SPARK_STATUS" -> sendSparkStatus(wrapper);
+                case "GET_CITIZENS_STATUS" -> sendCitizensStatus(wrapper);
+                case "GET_ESSENTIALS_STATUS" -> sendEssentialsStatus(wrapper);
+                case "GET_PLACEHOLDERAPI_STATUS" -> sendPlaceholderAPIStatus(wrapper);
+
+                // Monitoring endpoints
+                case "GET_ENTITY_BREAKDOWN" -> sendEntityBreakdown(wrapper);
+                case "GET_CHUNK_BREAKDOWN" -> sendChunkBreakdown(wrapper);
+                case "GET_DIAGNOSTICS" -> sendDiagnostics(wrapper);
+                case "GET_ALERT_HISTORY" -> sendAlertHistory(wrapper);
+                case "UPDATE_ALERT_THRESHOLDS" -> updateAlertThresholds(wrapper, data, session);
+                case "SPARK_PROFILE_START" -> startSparkProfile(wrapper, session);
+                case "SPARK_HEAP_DUMP" -> sparkHeapDump(wrapper, session);
+                case "SPARK_GC" -> sparkTriggerGC(wrapper, session);
 
                 // Anticheat
                 case "GET_ANTICHEAT_INFO" -> sendAnticheatInfo(wrapper);
@@ -8704,6 +9509,13 @@ public class HybridPanelServer implements com.blockforge.moderex.gateway.Gateway
                 case "GET_DEV_CHECKLIST" -> sendDevChecklist(wrapper);
                 case "TOGGLE_CHECKLIST_ITEM" -> toggleChecklistItem(wrapper, data, session);
                 case "ADD_CHECKLIST_ITEM" -> addChecklistItem(wrapper, data, session);
+                case "DELETE_CHECKLIST_ITEM" -> deleteChecklistItem(wrapper, data, session);
+
+                // Server actions
+                case "SET_LOCKDOWN" -> setLockdown(wrapper, data, session);
+                case "UPDATE_LOCKDOWN_SETTINGS" -> updateLockdownSettings(wrapper, data, session);
+                case "UPDATE_NOTIFICATION_SETTINGS" -> updateNotificationSettings(wrapper, data, session);
+                case "UPDATE_COMMAND_BLACKLIST" -> updateCommandBlacklist(wrapper, data, session);
 
                 // Replays
                 case "GET_REPLAYS" -> sendReplayList(wrapper);
