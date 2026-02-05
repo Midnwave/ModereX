@@ -25,6 +25,11 @@ softdepend:
   - Karhu
   - Polar
   - NoCheatPlus
+  - spark
+  - Citizens
+  - CoreProtect
+  - Geyser-Spigot
+  - floodgate
 
 commands:
   # Main Command
@@ -391,6 +396,7 @@ permissions:
       moderex.automod.*: true
       moderex.template.*: true
       moderex.mass.*: true
+      moderex.monitoring.*: true
       moderex.staff: true
 
   moderex.command.*:
@@ -1134,6 +1140,64 @@ permissions:
 
   moderex.massunban:
     description: Remove mass bans by case ID
+    default: op
+
+  # ==================== SERVER MONITORING PERMISSIONS ====================
+  moderex.monitoring.*:
+    description: Full access to server monitoring system
+    default: op
+    children:
+      moderex.monitoring.view.*: true
+      moderex.monitoring.configure.*: true
+
+  moderex.monitoring.view.*:
+    description: View all monitoring tabs
+    default: op
+    children:
+      moderex.monitoring.view.health: true
+      moderex.monitoring.view.alerts: true
+      moderex.monitoring.view.resources: true
+      moderex.monitoring.view.diagnostics: true
+
+  moderex.monitoring.view.health:
+    description: View Server Health tab (TPS, memory, CPU, health score)
+    default: op
+
+  moderex.monitoring.view.alerts:
+    description: View Performance Alerts tab (lag detection history)
+    default: op
+
+  moderex.monitoring.view.resources:
+    description: View Resource Monitor tab (entities, chunks breakdown)
+    default: op
+
+  moderex.monitoring.view.diagnostics:
+    description: View Diagnostics tab (Spark integration, JVM info)
+    default: op
+
+  moderex.monitoring.configure.*:
+    description: Configure all monitoring settings
+    default: op
+    children:
+      moderex.monitoring.configure.health: true
+      moderex.monitoring.configure.alerts: true
+      moderex.monitoring.configure.resources: true
+      moderex.monitoring.configure.diagnostics: true
+
+  moderex.monitoring.configure.health:
+    description: Configure health score weights and thresholds
+    default: op
+
+  moderex.monitoring.configure.alerts:
+    description: Configure alert thresholds (TPS, memory, CPU levels)
+    default: op
+
+  moderex.monitoring.configure.resources:
+    description: Configure resource monitoring settings
+    default: op
+
+  moderex.monitoring.configure.diagnostics:
+    description: Run Spark commands (profile, heap dump, GC)
     default: op
 
   # ==================== WEB PANEL (PROTECTED) ====================
