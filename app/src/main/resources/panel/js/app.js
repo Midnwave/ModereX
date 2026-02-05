@@ -191,6 +191,130 @@
     }
   }
 
+  // ===== ADMIN ANNOUNCEMENT SYSTEM =====
+  const DISMISSED_ANNOUNCEMENTS_KEY = 'moderex_dismissed_announcements';
+
+  /**
+   * Get list of dismissed announcement IDs from localStorage.
+   */
+  function getDismissedAnnouncements() {
+    try {
+      return JSON.parse(localStorage.getItem(DISMISSED_ANNOUNCEMENTS_KEY) || '[]');
+    } catch {
+      return [];
+    }
+  }
+
+  /**
+   * Add announcement ID to dismissed list.
+   */
+  function markAnnouncementDismissed(id) {
+    const dismissed = getDismissedAnnouncements();
+    if (!dismissed.includes(id)) {
+      dismissed.push(id);
+      // Keep only last 50 dismissed IDs to prevent localStorage bloat
+      if (dismissed.length > 50) dismissed.shift();
+      localStorage.setItem(DISMISSED_ANNOUNCEMENTS_KEY, JSON.stringify(dismissed));
+    }
+  }
+
+  /**
+   * Show an admin announcement banner.
+   * @param {object} data - Announcement data from gateway
+   */
+  function showAdminAnnouncement(data) {
+    if (!data || !data.id) return;
+
+    // Check if already dismissed
+    const dismissed = getDismissedAnnouncements();
+    if (data.dismissible !== false && dismissed.includes(data.id)) {
+      console.log('[Announcement] Already dismissed:', data.id);
+      return;
+    }
+
+    // Check if expired
+    if (data.expiresAt && data.expiresAt < Date.now()) {
+      console.log('[Announcement] Expired:', data.id);
+      return;
+    }
+
+    // Store current announcement for dismiss handler
+    window.currentAnnouncement = data;
+
+    const banner = document.getElementById('announcementBanner');
+    if (!banner) {
+      console.warn('[Announcement] Banner element not found');
+      return;
+    }
+
+    // Set content
+    const titleEl = document.getElementById('announcementTitle');
+    const messageEl = document.getElementById('announcementMessage');
+    const iconEl = document.getElementById('announcementIcon');
+    const actionBtn = document.getElementById('announcementAction');
+    const dismissBtn = document.getElementById('announcementDismiss');
+
+    if (titleEl) titleEl.textContent = data.title || 'Announcement';
+    if (messageEl) messageEl.textContent = data.message || '';
+
+    // Set icon based on type
+    const iconMap = {
+      info: 'fa-circle-info',
+      feature: 'fa-sparkles',
+      warning: 'fa-triangle-exclamation',
+      maintenance: 'fa-wrench',
+      critical: 'fa-circle-exclamation'
+    };
+    if (iconEl) {
+      iconEl.className = 'fa-solid ' + (iconMap[data.announcementType] || 'fa-bullhorn');
+    }
+
+    // Set action button
+    if (actionBtn) {
+      if (data.actionUrl && data.actionText) {
+        actionBtn.href = data.actionUrl;
+        actionBtn.textContent = data.actionText;
+        actionBtn.style.display = '';
+      } else {
+        actionBtn.style.display = 'none';
+      }
+    }
+
+    // Set dismiss button visibility
+    if (dismissBtn) {
+      dismissBtn.style.display = data.dismissible === false ? 'none' : '';
+    }
+
+    // Set type class for styling
+    banner.className = 'announcementBanner';
+    banner.classList.add('type-' + (data.announcementType || 'info'));
+    if (data.dismissible === false) {
+      banner.classList.add('non-dismissible');
+    }
+
+    // Show the banner
+    banner.classList.add('show');
+    console.log('[Announcement] Showing:', data.title);
+  }
+
+  /**
+   * Dismiss the current announcement banner.
+   */
+  window.dismissAnnouncement = function() {
+    const banner = document.getElementById('announcementBanner');
+    if (banner) {
+      banner.classList.remove('show');
+    }
+
+    // Mark as dismissed in localStorage
+    if (window.currentAnnouncement?.id) {
+      markAnnouncementDismissed(window.currentAnnouncement.id);
+    }
+  };
+
+  // Expose for external use
+  window.showAdminAnnouncement = showAdminAnnouncement;
+
   /**
    * Check if user can view a specific punishment type in history.
    * @param {string} type - Punishment type (BAN, MUTE, WARN, KICK)
@@ -873,7 +997,30 @@
       if (window.loadDevChecklist) window.loadDevChecklist();
     }
     if (page === 'status' && window.initServerStatus) window.initServerStatus();
-    if (page === 'replay' && window.initReplayViewer) window.initReplayViewer();
+    if (page === 'replay') {
+      // Request replays from server
+      const ws = window.MX?.ws;
+      if (ws && ws.isConnected()) {
+        ws.send('GET_REPLAYS', {});
+        ws.send('GET_REPLAY_SETTINGS', {});
+      }
+      renderReplayList();
+      updateReplayStats();
+      // Check permissions
+      const canView = window.hasPermission ? window.hasPermission('moderex.replays.view') : true;
+      const canConfigure = window.hasPermission ? window.hasPermission('moderex.replays.configure') : true;
+      const overlay = document.getElementById('replayNoPermissionOverlay');
+      const content = document.getElementById('replayContent');
+      const settingsCard = document.getElementById('replaySettingsCard');
+      if (!canView) {
+        if (overlay) overlay.style.display = 'flex';
+        if (content) content.style.display = 'none';
+      } else {
+        if (overlay) overlay.style.display = 'none';
+        if (content) content.style.display = '';
+      }
+      if (settingsCard) settingsCard.style.display = canConfigure ? '' : 'none';
+    }
     if (page === 'staffchat') {
       // Check permission and update overlay
       updateStaffChatPermission();
@@ -3765,7 +3912,13 @@
             <div><b>Duration:</b> ${escapeHtml(pun.duration || 'Instant')}</div>
             <div><b>Staff:</b> ${escapeHtml(pun.staff || 'System')}</div>
             <div><b>Created:</b> ${escapeHtml(fmtShort(pun.createdAt))}</div>
-            <div><b>Status:</b> ${pun.active && !pun.revoked ? '<span class="badge red">Active</span>' : '<span class="badge gray">Closed</span>'}</div>
+            <div><b>Status:</b> ${(() => {
+              const isExpired = pun.expiresAt && pun.expiresAt !== -1 && pun.expiresAt < Date.now();
+              if (pun.revoked) return '<span class="badge gray">Revoked</span>';
+              if (isExpired) return '<span class="badge orange">Expired</span>';
+              if (pun.active) return '<span class="badge red">Active</span>';
+              return '<span class="badge gray">Closed</span>';
+            })()}</div>
           </div>
         </div>
 
@@ -3775,13 +3928,16 @@
     `;
 
     // Kicks cannot be revoked - they are instant actions
-    const canRevoke = !pun.revoked && pun.type !== 'KICK';
+    // Expired punishments cannot be revoked - they naturally ended
+    const isExpired = pun.expiresAt && pun.expiresAt !== -1 && pun.expiresAt < Date.now();
+    const canRevoke = !pun.revoked && !isExpired && pun.type !== 'KICK';
     const hasRevokePerm = canRevokePunishment(pun.type);
     dom().detailsActions.innerHTML = `
       <button class="btn ghost" onclick="openCaseInformation('${pun.id}')"><i class="fa-solid fa-info-circle"></i> Case Information</button>
       ${canRevoke && hasRevokePerm ? `<button class="btn bad" onclick="revokePunishmentConfirm('${pun.id}')"><i class="fa-solid fa-xmark"></i> ${pun.type === 'WARN' ? 'Remove' : 'Revoke'}</button>` : ''}
       ${canRevoke && !hasRevokePerm ? `<button class="btn bad btn-disabled" disabled title="You lack permission to ${pun.type === 'WARN' ? 'remove warnings' : 'revoke this punishment'}"><i class="fa-solid fa-lock"></i> ${pun.type === 'WARN' ? 'Remove' : 'Revoke'}</button>` : ''}
       ${pun.type === 'KICK' && !pun.revoked ? `<span class="badge gray"><i class="fa-solid fa-info-circle"></i> Kicks cannot be revoked</span>` : ''}
+      ${isExpired && !pun.revoked ? `<span class="badge gray"><i class="fa-solid fa-clock"></i> Expired punishments cannot be revoked</span>` : ''}
       <button class="btn ghost" onclick="closeDetailsModal()"><i class="fa-solid fa-xmark"></i> Close</button>
     `;
     dom().detailsOverlay.classList.add('show', 'top');
@@ -3825,6 +3981,13 @@
       return;
     }
 
+    // Expired punishments cannot be revoked
+    const isExpired = pun.expiresAt && pun.expiresAt !== -1 && pun.expiresAt < Date.now();
+    if (isExpired) {
+      toast('warn', 'Cannot Revoke', 'Expired punishments cannot be revoked. The punishment has already naturally ended.');
+      return;
+    }
+
     // Permission check for revocation
     if (!canRevokePunishment(pun.type)) {
       const permName = pun.type === 'BAN' ? 'moderex.unban' : pun.type === 'MUTE' ? 'moderex.unmute' : 'moderex.unwarn';
@@ -3855,15 +4018,40 @@
   };
 
   window.deleteTemplate = function(tplId) {
-    if (tplId === 'none') return;
+    if (tplId === 'none') {
+      toast('warn', 'Cannot Delete', 'The "None" template cannot be deleted.');
+      return;
+    }
     // Permission check
     if (window.hasPermission && !window.hasPermission('moderex.template.delete')) {
       toast('warn', 'No Permission', 'You do not have permission to delete templates');
       return;
     }
-    state.templates = state.templates.filter(t => t.id !== tplId);
-    ui.renderTemplates();
-    toast('info', 'Deleted', 'Template removed.');
+
+    // Confirm before deleting
+    const tpl = state.templates.find(t => t.id === tplId);
+    const name = tpl?.name || tplId;
+
+    openConfirmPanel({
+      title: 'Delete Template',
+      body: `Are you sure you want to delete the template "${name}"? This cannot be undone.`,
+      confirmText: 'Delete',
+      onConfirm: () => {
+        // Send to backend via WebSocket
+        const ws = window.MX?.ws;
+        if (ws && ws.isConnected()) {
+          ws.send({
+            type: 'DELETE_TEMPLATE',
+            id: tplId
+          });
+          // Optimistically remove from local state
+          state.templates = state.templates.filter(t => t.id !== tplId);
+          ui.renderTemplates();
+        } else {
+          toast('warn', 'Not Connected', 'WebSocket not connected');
+        }
+      }
+    });
   };
 
   window.createTemplateUI = function() {
@@ -3877,19 +4065,41 @@
       html: `
         <div class="grid cols-2">
           <div><div class="hintline" style="margin-top:0">Name</div><input class="input" id="mTplName" placeholder="e.g. Spam (1d mute)" /></div>
-          <div><div class="hintline" style="margin-top:0">Type</div><select class="input" id="mTplType"><option>WARN</option><option>MUTE</option><option>KICK</option><option>BAN</option></select></div>
+          <div><div class="hintline" style="margin-top:0">Type</div><select class="input" id="mTplType"><option>WARN</option><option>MUTE</option><option>KICK</option><option>BAN</option><option>IPBAN</option><option>IPMUTE</option></select></div>
         </div>
         <div style="margin-top:12px" class="grid cols-2">
-          <div><div class="hintline" style="margin-top:0">Duration</div><input class="input" id="mTplDur" placeholder="e.g. 7d, 1h, perm" /></div>
-          <div><div class="hintline" style="margin-top:0">Reason</div><input class="input" id="mTplReason" placeholder="Reason..." /></div>
+          <div><div class="hintline" style="margin-top:0">Duration</div><input class="input" id="mTplDur" placeholder="e.g. 7d, 1h, permanent" /></div>
+          <div><div class="hintline" style="margin-top:0">Category</div><input class="input" id="mTplCategory" placeholder="e.g. Chat, Cheating, Behavior" /></div>
+        </div>
+        <div style="margin-top:12px">
+          <div class="hintline" style="margin-top:0">Reason</div>
+          <input class="input" id="mTplReason" placeholder="Reason for this punishment..." style="width:100%" />
         </div>
       `,
       onSubmit: () => {
         const name = ($('#mTplName')?.value || '').trim();
         if (!name) { toast('warn', 'Missing', 'Enter template name.'); return false; }
-        state.templates.unshift({ id: uid('tpl'), name, type: $('#mTplType').value, duration: $('#mTplDur').value.trim(), reason: $('#mTplReason').value.trim() || 'No reason', color: 'info' });
-        ui.renderTemplates();
-        toast('ok', 'Created', name);
+        const type = $('#mTplType').value;
+        const duration = $('#mTplDur').value.trim();
+        const category = $('#mTplCategory').value.trim() || 'General';
+        const reason = $('#mTplReason').value.trim() || 'No reason';
+
+        // Send to backend via WebSocket
+        const ws = window.MX?.ws;
+        if (ws && ws.isConnected()) {
+          // Note: message 'type' is 'CREATE_TEMPLATE', punishment type goes in separate field
+          ws.send({
+            type: 'CREATE_TEMPLATE',
+            name: name,
+            punishmentType: type,
+            duration: duration,
+            reason: reason,
+            category: category
+          });
+        } else {
+          toast('warn', 'Not Connected', 'WebSocket not connected');
+          return false;
+        }
         return true;
       }
     });
@@ -3903,33 +4113,341 @@
     }
     const tpl = state.templates.find(t => t.id === tplId);
     if (!tpl) return;
+    if (tplId === 'none') {
+      toast('warn', 'Cannot Edit', 'The "None" template cannot be edited.');
+      return;
+    }
     openGenericModal({
       title: 'Edit Template',
       html: `
         <div class="grid cols-2">
           <div><div class="hintline" style="margin-top:0">Name</div><input class="input" id="mTplName" value="${escapeHtml(tpl.name)}" /></div>
           <div><div class="hintline" style="margin-top:0">Type</div><select class="input" id="mTplType">
-            ${['WARN','MUTE','KICK','BAN'].map(t => `<option ${tpl.type === t ? 'selected' : ''}>${t}</option>`).join('')}
+            ${['WARN','MUTE','KICK','BAN','IPBAN','IPMUTE'].map(t => `<option ${tpl.type === t ? 'selected' : ''}>${t}</option>`).join('')}
           </select></div>
         </div>
         <div style="margin-top:12px" class="grid cols-2">
           <div><div class="hintline" style="margin-top:0">Duration</div><input class="input" id="mTplDur" value="${escapeHtml(tpl.duration || '')}" /></div>
-          <div><div class="hintline" style="margin-top:0">Reason</div><input class="input" id="mTplReason" value="${escapeHtml(tpl.reason || '')}" /></div>
+          <div><div class="hintline" style="margin-top:0">Category</div><input class="input" id="mTplCategory" value="${escapeHtml(tpl.category || 'General')}" /></div>
+        </div>
+        <div style="margin-top:12px">
+          <div class="hintline" style="margin-top:0">Reason</div>
+          <input class="input" id="mTplReason" value="${escapeHtml(tpl.reason || '')}" style="width:100%" />
         </div>
       `,
       onSubmit: () => {
         const name = ($('#mTplName')?.value || '').trim();
         if (!name) { toast('warn', 'Missing', 'Enter template name.'); return false; }
-        tpl.name = name;
-        tpl.type = $('#mTplType').value;
-        tpl.duration = $('#mTplDur').value.trim();
-        tpl.reason = $('#mTplReason').value.trim() || 'No reason';
-        ui.renderTemplates();
-        toast('ok', 'Updated', name);
+        const type = $('#mTplType').value;
+        const duration = $('#mTplDur').value.trim();
+        const category = $('#mTplCategory').value.trim() || 'General';
+        const reason = $('#mTplReason').value.trim() || 'No reason';
+
+        // Send to backend via WebSocket
+        const ws = window.MX?.ws;
+        if (ws && ws.isConnected()) {
+          ws.send({
+            type: 'UPDATE_TEMPLATE',
+            id: tplId,
+            name: name,
+            punishmentType: type,
+            duration: duration,
+            reason: reason,
+            category: category
+          });
+        } else {
+          toast('warn', 'Not Connected', 'WebSocket not connected');
+          return false;
+        }
         return true;
       }
     });
   };
+
+  // ===== REPLAYS =====
+  function renderReplayList() {
+    const container = document.getElementById('replayRows');
+    const emptyState = document.getElementById('replayEmpty');
+    if (!container) return;
+
+    const search = (document.getElementById('replaySearch')?.value || '').toLowerCase();
+    const filtered = (state.replays || []).filter(r => {
+      if (!search) return true;
+      const name = (r.name || r.primaryName || '').toLowerCase();
+      const playerNames = (r.playerNames || [r.primaryName]).join(' ').toLowerCase();
+      const tags = (r.tags || []).join(' ').toLowerCase();
+      return name.includes(search) || playerNames.includes(search) || tags.includes(search);
+    });
+
+    if (filtered.length === 0) {
+      container.innerHTML = '';
+      if (emptyState) emptyState.style.display = 'flex';
+      return;
+    }
+
+    if (emptyState) emptyState.style.display = 'none';
+
+    container.innerHTML = filtered.map(r => {
+      const id = r.sessionId || r.id;
+      const name = r.name || r.primaryName || 'Unnamed Replay';
+      const players = r.playerNames || [r.primaryName] || [];
+      const playerCount = r.playerCount || players.length || 1;
+      const duration = r.duration ? formatDuration(r.duration) : (r.formattedDuration || '0:00');
+      const status = r.status || (r.endTime ? 'COMPLETE' : 'RECORDING');
+      const createdAt = r.createdAt || r.startTime;
+      const statusClass = status === 'RECORDING' ? 'bad' : status === 'COMPLETE' ? 'ok' : 'gray';
+      const statusIcon = status === 'RECORDING' ? 'fa-circle-dot' : status === 'COMPLETE' ? 'fa-check-circle' : 'fa-clock';
+
+      const canManage = window.hasPermission ? window.hasPermission('moderex.replays.manage') : true;
+
+      return `
+        <tr>
+          <td><b>${escapeHtml(name)}</b></td>
+          <td>
+            <span class="badge gray">${playerCount} player${playerCount !== 1 ? 's' : ''}</span>
+            ${players.slice(0, 2).map(p => `<span style="margin-left:4px;font-size:12px;color:var(--muted)">${escapeHtml(p)}</span>`).join('')}
+            ${players.length > 2 ? `<span style="font-size:11px;color:var(--muted)">+${players.length - 2} more</span>` : ''}
+          </td>
+          <td>${duration}</td>
+          <td><span class="badge ${statusClass}"><i class="fa-solid ${statusIcon}"></i> ${status}</span></td>
+          <td>${createdAt ? fmtShort(createdAt) : 'Unknown'}</td>
+          <td style="text-align:right">
+            <button class="mini primary" onclick="viewReplay('${id}')"><i class="fa-solid fa-play"></i> View</button>
+            ${canManage ? `
+              <button class="mini" onclick="renameReplay('${id}', '${escapeHtml(name)}')"><i class="fa-solid fa-pen"></i></button>
+              <button class="mini bad" onclick="deleteReplay('${id}')"><i class="fa-solid fa-trash"></i></button>
+            ` : ''}
+          </td>
+        </tr>
+      `;
+    }).join('');
+  }
+
+  function formatDuration(seconds) {
+    if (typeof seconds !== 'number') return '0:00';
+    const mins = Math.floor(seconds / 60);
+    const secs = Math.floor(seconds % 60);
+    return `${mins}:${secs.toString().padStart(2, '0')}`;
+  }
+
+  function updateReplayStats() {
+    const replays = state.replays || [];
+    const total = replays.length;
+    const recording = replays.filter(r => r.status === 'RECORDING' || (!r.endTime && !r.status)).length;
+    const complete = replays.filter(r => r.status === 'COMPLETE' || r.endTime).length;
+    const totalSize = replays.reduce((sum, r) => sum + (r.fileSize || 0), 0);
+
+    const totalEl = document.getElementById('replayTotalCount');
+    const recordingEl = document.getElementById('replayRecordingCount');
+    const completeEl = document.getElementById('replayCompleteCount');
+    const storageEl = document.getElementById('replayStorageUsed');
+
+    if (totalEl) totalEl.textContent = total.toLocaleString();
+    if (recordingEl) recordingEl.textContent = recording.toLocaleString();
+    if (completeEl) completeEl.textContent = complete.toLocaleString();
+    if (storageEl) storageEl.textContent = formatFileSize(totalSize);
+  }
+
+  function formatFileSize(bytes) {
+    if (!bytes || bytes < 1024) return (bytes || 0) + ' B';
+    if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+    if (bytes < 1024 * 1024 * 1024) return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
+    return (bytes / (1024 * 1024 * 1024)).toFixed(1) + ' GB';
+  }
+
+  function loadReplaySettings(data) {
+    const enabledEl = document.getElementById('replayEnabled');
+    const maxDurationEl = document.getElementById('replayMaxDuration');
+    const retentionEl = document.getElementById('replayRetentionDays');
+    const maxConcurrentEl = document.getElementById('replayMaxConcurrent');
+    const triggerAcEl = document.getElementById('replayTriggerAnticheat');
+    const triggerPunEl = document.getElementById('replayTriggerPunishment');
+
+    if (enabledEl) enabledEl.checked = data.enabled !== false;
+    if (maxDurationEl) maxDurationEl.value = data.maxDuration || 300;
+    if (retentionEl) retentionEl.value = data.retentionDays || 30;
+    if (maxConcurrentEl) maxConcurrentEl.value = data.maxConcurrent || 10;
+    if (triggerAcEl) triggerAcEl.checked = !!data.triggerOnAnticheat;
+    if (triggerPunEl) triggerPunEl.checked = !!data.triggerOnPunishment;
+  }
+
+  window.refreshReplays = function() {
+    const ws = window.MX?.ws;
+    if (ws && ws.isConnected()) {
+      ws.send({ type: 'GET_REPLAYS' });
+    }
+  };
+
+  window.viewReplay = function(replayId) {
+    const ws = window.MX?.ws;
+    if (ws && ws.isConnected()) {
+      ws.send({ type: 'GET_REPLAY', sessionId: replayId });
+    }
+  };
+
+  window.renameReplay = function(replayId, currentName) {
+    openGenericModal({
+      title: 'Rename Replay',
+      html: `
+        <div class="hintline" style="margin-top:0">New Name</div>
+        <input class="input" id="renameReplayInput" value="${escapeHtml(currentName)}" style="width:100%" />
+      `,
+      onSubmit: () => {
+        const newName = document.getElementById('renameReplayInput')?.value?.trim();
+        if (!newName) {
+          toast('warn', 'Missing', 'Enter a name');
+          return false;
+        }
+        const ws = window.MX?.ws;
+        if (ws && ws.isConnected()) {
+          ws.send({ type: 'RENAME_REPLAY', sessionId: replayId, name: newName });
+          toast('ok', 'Renamed', 'Replay renamed');
+        }
+        return true;
+      }
+    });
+  };
+
+  window.deleteReplay = function(replayId) {
+    openConfirmPanel({
+      title: 'Delete Replay',
+      body: 'Are you sure you want to delete this replay? This cannot be undone.',
+      confirmText: 'Delete',
+      onConfirm: () => {
+        const ws = window.MX?.ws;
+        if (ws && ws.isConnected()) {
+          ws.send({ type: 'DELETE_REPLAY', sessionId: replayId });
+        }
+      }
+    });
+  };
+
+  window.openRecordReplayModal = function() {
+    if (window.hasPermission && !window.hasPermission('moderex.replays.record')) {
+      toast('warn', 'No Permission', 'You do not have permission to start recordings');
+      return;
+    }
+
+    openGenericModal({
+      title: 'Start Recording',
+      html: `
+        <div class="hintline" style="margin-top:0">Recording Name</div>
+        <input class="input" id="recordReplayName" placeholder="e.g. Suspicious Activity - Player123" style="width:100%" />
+        <div class="hintline" style="margin-top:12px">Select Player(s) to Record</div>
+        <div class="gsearch" style="margin-bottom:8px">
+          <i class="fa-solid fa-magnifying-glass"></i>
+          <input type="text" id="recordPlayerSearch" placeholder="Search players..." oninput="filterRecordPlayerList()">
+        </div>
+        <div id="recordPlayerList" style="max-height:200px;overflow:auto;border:1px solid var(--border);border-radius:var(--radius);padding:8px"></div>
+      `,
+      onSubmit: () => {
+        const name = document.getElementById('recordReplayName')?.value?.trim();
+        if (!name) {
+          toast('warn', 'Missing', 'Enter a recording name');
+          return false;
+        }
+        const selected = Array.from(document.querySelectorAll('#recordPlayerList input:checked')).map(cb => cb.value);
+        if (selected.length === 0) {
+          toast('warn', 'Missing', 'Select at least one player');
+          return false;
+        }
+        const ws = window.MX?.ws;
+        if (ws && ws.isConnected()) {
+          ws.send({ type: 'START_REPLAY', name, playerUuids: selected });
+          toast('ok', 'Recording Started', `Recording ${selected.length} player(s)`);
+        }
+        return true;
+      }
+    });
+
+    // Populate player list
+    setTimeout(() => {
+      const container = document.getElementById('recordPlayerList');
+      if (!container) return;
+      const onlinePlayers = state.players.filter(p => p.online || p.status === 'online');
+      if (onlinePlayers.length === 0) {
+        container.innerHTML = '<div style="color:var(--muted);text-align:center;padding:20px">No online players</div>';
+        return;
+      }
+      container.innerHTML = onlinePlayers.map(p => `
+        <label style="display:flex;align-items:center;gap:8px;padding:6px;cursor:pointer;border-radius:4px" class="hover-highlight">
+          <input type="checkbox" value="${p.uuid || p.id}">
+          <img src="https://mc-heads.net/avatar/${p.uuid || p.id}/24" style="width:24px;height:24px;border-radius:4px">
+          <span>${escapeHtml(p.name)}</span>
+        </label>
+      `).join('');
+    }, 50);
+  };
+
+  window.filterRecordPlayerList = function() {
+    const search = document.getElementById('recordPlayerSearch')?.value?.toLowerCase() || '';
+    const labels = document.querySelectorAll('#recordPlayerList label');
+    labels.forEach(label => {
+      const name = label.querySelector('span')?.textContent?.toLowerCase() || '';
+      label.style.display = name.includes(search) ? '' : 'none';
+    });
+  };
+
+  window.updateReplaySettings = function() {
+    if (window.hasPermission && !window.hasPermission('moderex.replays.configure')) {
+      toast('warn', 'No Permission', 'You do not have permission to configure replays');
+      return;
+    }
+
+    const settings = {
+      enabled: document.getElementById('replayEnabled')?.checked ?? true,
+      maxDuration: parseInt(document.getElementById('replayMaxDuration')?.value) || 300,
+      retentionDays: parseInt(document.getElementById('replayRetentionDays')?.value) || 30,
+      maxConcurrent: parseInt(document.getElementById('replayMaxConcurrent')?.value) || 10,
+      triggerOnAnticheat: document.getElementById('replayTriggerAnticheat')?.checked ?? false,
+      triggerOnPunishment: document.getElementById('replayTriggerPunishment')?.checked ?? false
+    };
+
+    const ws = window.MX?.ws;
+    if (ws && ws.isConnected()) {
+      ws.send({ type: 'UPDATE_REPLAY_SETTINGS', ...settings });
+      toast('ok', 'Saved', 'Replay settings updated');
+    }
+  };
+
+  function openReplayDetailsModal(replay, snapshots) {
+    // For now, show basic info - full playback would require more complex implementation
+    openGenericModal({
+      title: `Replay: ${replay.name || replay.primaryName || 'Unnamed'}`,
+      html: `
+        <div class="grid cols-2" style="gap:12px">
+          <div><span class="hintline">Player</span><div>${escapeHtml(replay.primaryName || 'Unknown')}</div></div>
+          <div><span class="hintline">World</span><div>${escapeHtml(replay.worldName || 'Unknown')}</div></div>
+          <div><span class="hintline">Duration</span><div>${replay.formattedDuration || formatDuration((replay.endTime - replay.startTime) / 1000)}</div></div>
+          <div><span class="hintline">Reason</span><div>${escapeHtml(replay.reason || 'Manual')}</div></div>
+          <div><span class="hintline">Started</span><div>${replay.startTime ? fmtLong(replay.startTime) : 'Unknown'}</div></div>
+          <div><span class="hintline">Ended</span><div>${replay.endTime ? fmtLong(replay.endTime) : 'In Progress'}</div></div>
+        </div>
+        <div style="margin-top:16px;padding:12px;background:rgba(6,182,212,0.1);border-radius:var(--radius);border:1px solid rgba(6,182,212,0.2)">
+          <i class="fa-solid fa-info-circle" style="color:#06b6d4;margin-right:8px"></i>
+          <span>Full playback requires Citizens plugin in-game. Use <code>/replay play ${replay.sessionId}</code></span>
+        </div>
+        ${snapshots.length > 0 ? `
+          <div style="margin-top:16px">
+            <span class="hintline">Recorded Actions</span>
+            <div style="max-height:200px;overflow:auto;margin-top:8px">
+              ${snapshots.slice(0, 20).map(s => `
+                <div style="padding:4px 8px;border-bottom:1px solid var(--border);font-size:12px">
+                  <span style="color:var(--muted)">${fmtClock(s.timestamp)}</span>
+                  <span style="margin-left:8px">${escapeHtml(s.actionType || 'MOVE')}</span>
+                </div>
+              `).join('')}
+              ${snapshots.length > 20 ? `<div style="padding:8px;color:var(--muted);text-align:center">+${snapshots.length - 20} more actions</div>` : ''}
+            </div>
+          </div>
+        ` : ''}
+      `,
+      onSubmit: () => true
+    });
+  }
+
+  // Initialize replays state
+  if (!state.replays) state.replays = [];
 
   // ===== GENERIC MODAL =====
   let genericModalEl = null;
@@ -5974,6 +6492,591 @@
     logEvent('WARN', 'chat', 'Chat cleared', 'Chat cleared via panel.');
   };
 
+  // ===== KICK ALL PLAYERS =====
+  window.kickAllPlayers = function() {
+    const ws = window.MX?.ws;
+    const reason = document.getElementById('kickAllReason')?.value || 'Server maintenance';
+
+    if (!ws || !ws.isConnected()) {
+      toast('warn', 'Not Connected', 'Cannot kick players - not connected to server.');
+      return;
+    }
+
+    openConfirmPanel({
+      icon: 'people-group',
+      title: 'Kick All Players',
+      message: `Are you sure you want to kick all players from the server?`,
+      subtext: `Reason: "${reason}"`,
+      confirmLabel: 'Kick All',
+      confirmClass: 'bad',
+      onConfirm: () => {
+        ws.send('KICK_ALL_PLAYERS', { reason });
+        window.MX.sounds?.success();
+        toast('ok', 'Kicked', 'All players have been kicked from the server.', {silent: true});
+        logEvent('WARN', 'action', 'Kick All Players', `All players kicked: ${reason}`);
+      }
+    });
+  };
+
+  // ===== WARNING ESCALATION SETTINGS =====
+  let warnCategories = [];
+  let warnEscalationTiers = [];
+
+  window.toggleWarnEscalation = function() {
+    const toggle = document.getElementById('togWarnEscalation');
+    const optionsDiv = document.getElementById('warnEscalationOptions');
+    const isEnabled = toggle?.classList.contains('on');
+
+    if (isEnabled) {
+      toggle.classList.remove('on');
+      document.getElementById('togWarnEscalationHint').textContent = 'Off';
+      optionsDiv.style.display = 'none';
+    } else {
+      toggle.classList.add('on');
+      document.getElementById('togWarnEscalationHint').textContent = 'On';
+      optionsDiv.style.display = 'block';
+    }
+    window.MX.sounds?.toggle();
+  };
+
+  window.addWarnCategory = function() {
+    const id = 'cat_' + Date.now();
+    warnCategories.push({ id, name: '', points: 1 });
+    renderWarnCategories();
+  };
+
+  window.removeWarnCategory = function(id) {
+    warnCategories = warnCategories.filter(c => c.id !== id);
+    renderWarnCategories();
+  };
+
+  window.updateWarnCategory = function(id, field, value) {
+    const cat = warnCategories.find(c => c.id === id);
+    if (cat) {
+      cat[field] = field === 'points' ? parseInt(value, 10) || 1 : value;
+    }
+  };
+
+  function renderWarnCategories() {
+    const container = document.getElementById('warnCategoriesList');
+    if (!container) return;
+
+    if (warnCategories.length === 0) {
+      container.innerHTML = '<div style="color:var(--muted);font-size:13px;padding:10px">No categories defined. Add a category to get started.</div>';
+      return;
+    }
+
+    container.innerHTML = warnCategories.map(cat => `
+      <div class="grid cols-3" style="gap:10px;align-items:center;padding:10px;background:rgba(0,0,0,0.2);border-radius:var(--radius-sm)">
+        <input type="text" class="input" placeholder="Category name (e.g., Minor)" value="${escapeHtml(cat.name)}"
+          onchange="updateWarnCategory('${cat.id}', 'name', this.value)" style="width:100%">
+        <div style="display:flex;align-items:center;gap:8px">
+          <span style="font-size:13px;color:var(--text-secondary)">Points:</span>
+          <input type="number" class="input" value="${cat.points}" min="1" max="100"
+            onchange="updateWarnCategory('${cat.id}', 'points', this.value)" style="width:80px">
+        </div>
+        <button class="btn ghost bad" onclick="removeWarnCategory('${cat.id}')" style="width:auto;padding:6px 12px">
+          <i class="fa-solid fa-trash"></i>
+        </button>
+      </div>
+    `).join('');
+  }
+
+  window.addWarnEscalationTier = function() {
+    const id = 'tier_' + Date.now();
+    warnEscalationTiers.push({ id, pointThreshold: 3, punishmentType: 'MUTE', duration: '1h', reason: 'Accumulated warning points' });
+    renderWarnEscalationTiers();
+  };
+
+  window.removeWarnEscalationTier = function(id) {
+    warnEscalationTiers = warnEscalationTiers.filter(t => t.id !== id);
+    renderWarnEscalationTiers();
+  };
+
+  window.updateWarnEscalationTier = function(id, field, value) {
+    const tier = warnEscalationTiers.find(t => t.id === id);
+    if (tier) {
+      tier[field] = field === 'pointThreshold' ? parseInt(value, 10) || 1 : value;
+    }
+  };
+
+  function renderWarnEscalationTiers() {
+    const container = document.getElementById('warnEscalationTiersList');
+    if (!container) return;
+
+    if (warnEscalationTiers.length === 0) {
+      container.innerHTML = '<div style="color:var(--muted);font-size:13px;padding:10px">No escalation tiers defined. Add a tier to configure automatic punishments.</div>';
+      return;
+    }
+
+    container.innerHTML = warnEscalationTiers.map(tier => `
+      <div style="padding:12px;background:rgba(0,0,0,0.2);border-radius:var(--radius-sm)">
+        <div class="grid cols-4" style="gap:10px;align-items:center">
+          <div>
+            <div class="hintline" style="margin:0 0 4px 0;font-size:11px">Point Threshold</div>
+            <input type="number" class="input" value="${tier.pointThreshold}" min="1" max="1000"
+              onchange="updateWarnEscalationTier('${tier.id}', 'pointThreshold', this.value)" style="width:100%">
+          </div>
+          <div>
+            <div class="hintline" style="margin:0 0 4px 0;font-size:11px">Punishment</div>
+            <select class="input" onchange="updateWarnEscalationTier('${tier.id}', 'punishmentType', this.value)" style="width:100%">
+              <option value="MUTE" ${tier.punishmentType === 'MUTE' ? 'selected' : ''}>Mute</option>
+              <option value="KICK" ${tier.punishmentType === 'KICK' ? 'selected' : ''}>Kick</option>
+              <option value="BAN" ${tier.punishmentType === 'BAN' ? 'selected' : ''}>Ban</option>
+            </select>
+          </div>
+          <div>
+            <div class="hintline" style="margin:0 0 4px 0;font-size:11px">Duration</div>
+            <input type="text" class="input" placeholder="1h, 1d, 7d, permanent" value="${escapeHtml(tier.duration)}"
+              onchange="updateWarnEscalationTier('${tier.id}', 'duration', this.value)" style="width:100%">
+          </div>
+          <button class="btn ghost bad" onclick="removeWarnEscalationTier('${tier.id}')" style="width:auto;padding:6px 12px;align-self:end">
+            <i class="fa-solid fa-trash"></i>
+          </button>
+        </div>
+        <div style="margin-top:10px">
+          <div class="hintline" style="margin:0 0 4px 0;font-size:11px">Punishment Reason</div>
+          <input type="text" class="input" placeholder="Reason for automatic punishment" value="${escapeHtml(tier.reason)}"
+            onchange="updateWarnEscalationTier('${tier.id}', 'reason', this.value)" style="width:100%">
+        </div>
+      </div>
+    `).join('');
+  }
+
+  window.saveWarnSettings = function() {
+    const ws = window.MX?.ws;
+    if (!ws || !ws.isConnected()) {
+      toast('warn', 'Not Connected', 'Cannot save settings - not connected to server.');
+      return;
+    }
+
+    const escalationEnabled = document.getElementById('togWarnEscalation')?.classList.contains('on') || false;
+    const escalationWindowDays = parseInt(document.getElementById('warnEscalationWindow')?.value || '30', 10);
+    const resetDays = parseInt(document.getElementById('warnResetDays')?.value || '90', 10);
+
+    ws.send('UPDATE_WARN_SETTINGS', {
+      escalationEnabled,
+      escalationWindowDays,
+      resetDays,
+      categories: warnCategories.map(c => ({ id: c.id, name: c.name, points: c.points })),
+      escalationTiers: warnEscalationTiers.map(t => ({
+        pointThreshold: t.pointThreshold,
+        punishmentType: t.punishmentType,
+        duration: t.duration,
+        reason: t.reason
+      }))
+    });
+
+    window.MX.sounds?.success();
+    toast('ok', 'Saved', 'Warning escalation settings saved.', {silent: true});
+  };
+
+  function loadWarnSettings(data) {
+    if (!data) return;
+
+    const toggle = document.getElementById('togWarnEscalation');
+    const optionsDiv = document.getElementById('warnEscalationOptions');
+
+    if (data.escalationEnabled) {
+      toggle?.classList.add('on');
+      document.getElementById('togWarnEscalationHint').textContent = 'On';
+      if (optionsDiv) optionsDiv.style.display = 'block';
+    } else {
+      toggle?.classList.remove('on');
+      document.getElementById('togWarnEscalationHint').textContent = 'Off';
+      if (optionsDiv) optionsDiv.style.display = 'none';
+    }
+
+    if (data.escalationWindowDays) document.getElementById('warnEscalationWindow').value = data.escalationWindowDays;
+    if (data.resetDays) document.getElementById('warnResetDays').value = data.resetDays;
+
+    if (data.categories && data.categories.length > 0) {
+      warnCategories = data.categories.map(c => ({ id: c.id || 'cat_' + Date.now(), name: c.name, points: c.points }));
+      renderWarnCategories();
+    }
+
+    if (data.escalationTiers && data.escalationTiers.length > 0) {
+      warnEscalationTiers = data.escalationTiers.map((t, i) => ({
+        id: 'tier_' + i,
+        pointThreshold: t.pointThreshold,
+        punishmentType: t.punishmentType,
+        duration: t.duration,
+        reason: t.reason
+      }));
+      renderWarnEscalationTiers();
+    }
+  }
+
+  // ===== MUTE SETTINGS =====
+  window.toggleMuteSetting = function(setting) {
+    const toggleId = 'togMute' + setting.charAt(0).toUpperCase() + setting.slice(1);
+    const toggle = document.getElementById(toggleId);
+    if (!toggle) return;
+
+    const isEnabled = toggle.classList.contains('on');
+    if (isEnabled) {
+      toggle.classList.remove('on');
+    } else {
+      toggle.classList.add('on');
+    }
+    window.MX.sounds?.toggle();
+  };
+
+  window.saveMuteSettings = function() {
+    const ws = window.MX?.ws;
+    if (!ws || !ws.isConnected()) {
+      toast('warn', 'Not Connected', 'Cannot save settings - not connected to server.');
+      return;
+    }
+
+    ws.send('UPDATE_MUTE_SETTINGS', {
+      blocksChat: document.getElementById('togMuteChat')?.classList.contains('on') || false,
+      blocksMsg: document.getElementById('togMuteMsg')?.classList.contains('on') || false,
+      blocksSigns: document.getElementById('togMuteSigns')?.classList.contains('on') || false,
+      blocksBooks: document.getElementById('togMuteBooks')?.classList.contains('on') || false,
+      blocksBroadcast: document.getElementById('togMuteBroadcast')?.classList.contains('on') || false,
+      blocksVoice: document.getElementById('togMuteVoice')?.classList.contains('on') || false,
+      staffCanSee: document.getElementById('togMuteStaffSee')?.classList.contains('on') || false
+    });
+
+    window.MX.sounds?.success();
+    toast('ok', 'Saved', 'Mute restriction settings saved.', {silent: true});
+  };
+
+  function loadMuteSettings(data) {
+    if (!data) return;
+
+    // Backend sends short keys: chat, msg, signs, books, broadcast, voice, voiceJoin, staffCanSee
+    const settings = [
+      { id: 'togMuteChat', key: 'chat' },
+      { id: 'togMuteMsg', key: 'msg' },
+      { id: 'togMuteSigns', key: 'signs' },
+      { id: 'togMuteBooks', key: 'books' },
+      { id: 'togMuteBroadcast', key: 'broadcast' },
+      { id: 'togMuteVoice', key: 'voice' },
+      { id: 'togMuteStaffSee', key: 'staffCanSee' }
+    ];
+
+    for (const s of settings) {
+      const toggle = document.getElementById(s.id);
+      if (toggle && data[s.key] !== undefined) {
+        if (data[s.key]) {
+          toggle.classList.add('on');
+        } else {
+          toggle.classList.remove('on');
+        }
+      }
+    }
+  }
+
+  // ===== ACTIVITY LOG CONFIGURATION =====
+  window.toggleActivityLogEnabled = function() {
+    const toggle = document.getElementById('togActivityLogEnabled');
+    const optionsDiv = document.getElementById('activityLogOptions');
+    const isEnabled = toggle?.classList.contains('on');
+
+    if (isEnabled) {
+      toggle.classList.remove('on');
+      document.getElementById('togActivityLogEnabledHint').textContent = 'Off';
+      if (optionsDiv) optionsDiv.style.display = 'none';
+    } else {
+      toggle.classList.add('on');
+      document.getElementById('togActivityLogEnabledHint').textContent = 'On';
+      if (optionsDiv) optionsDiv.style.display = 'block';
+    }
+    window.MX.sounds?.toggle();
+  };
+
+  window.toggleActivityLogType = function(type) {
+    const toggleId = 'togLog' + type.charAt(0).toUpperCase() + type.slice(1);
+    const toggle = document.getElementById(toggleId);
+    if (!toggle) return;
+
+    if (toggle.classList.contains('on')) {
+      toggle.classList.remove('on');
+    } else {
+      toggle.classList.add('on');
+    }
+    window.MX.sounds?.toggle();
+  };
+
+  window.saveActivityLogSettings = function() {
+    const ws = window.MX?.ws;
+    if (!ws || !ws.isConnected()) {
+      toast('warn', 'Not Connected', 'Cannot save settings - not connected to server.');
+      return;
+    }
+
+    ws.send('UPDATE_ACTIVITY_LOG_SETTINGS', {
+      enabled: document.getElementById('togActivityLogEnabled')?.classList.contains('on') || false,
+      logChat: document.getElementById('togLogChat')?.classList.contains('on') || false,
+      logCommands: document.getElementById('togLogCommands')?.classList.contains('on') || false,
+      logSigns: document.getElementById('togLogSigns')?.classList.contains('on') || false,
+      logItems: document.getElementById('togLogItems')?.classList.contains('on') || false,
+      logAnvils: document.getElementById('togLogAnvils')?.classList.contains('on') || false,
+      logSessions: document.getElementById('togLogSessions')?.classList.contains('on') || false,
+      logUsernames: document.getElementById('togLogUsernames')?.classList.contains('on') || false,
+      retentionChat: parseInt(document.getElementById('retentionChat')?.value || '30', 10),
+      retentionCommands: parseInt(document.getElementById('retentionCommands')?.value || '30', 10),
+      retentionSigns: parseInt(document.getElementById('retentionSigns')?.value || '30', 10),
+      retentionSessions: parseInt(document.getElementById('retentionSessions')?.value || '30', 10),
+      retentionItems: parseInt(document.getElementById('retentionItems')?.value || '30', 10),
+      retentionAnvils: parseInt(document.getElementById('retentionAnvils')?.value || '30', 10),
+      retentionUsernames: parseInt(document.getElementById('retentionUsernames')?.value || '-1', 10),
+      retentionAutomod: parseInt(document.getElementById('retentionAutomod')?.value || '30', 10),
+      retentionAnticheat: parseInt(document.getElementById('retentionAnticheat')?.value || '30', 10)
+    });
+
+    window.MX.sounds?.success();
+    toast('ok', 'Saved', 'Activity log settings saved.', {silent: true});
+  };
+
+  function loadActivityLogSettings(data) {
+    if (!data) return;
+
+    // Master toggle
+    const toggle = document.getElementById('togActivityLogEnabled');
+    const optionsDiv = document.getElementById('activityLogOptions');
+    if (data.enabled) {
+      toggle?.classList.add('on');
+      document.getElementById('togActivityLogEnabledHint').textContent = 'On';
+      if (optionsDiv) optionsDiv.style.display = 'block';
+    } else {
+      toggle?.classList.remove('on');
+      document.getElementById('togActivityLogEnabledHint').textContent = 'Off';
+      if (optionsDiv) optionsDiv.style.display = 'none';
+    }
+
+    // Log type toggles
+    const logTypes = ['chat', 'commands', 'signs', 'items', 'anvils', 'sessions', 'usernames'];
+    for (const type of logTypes) {
+      const toggleId = 'togLog' + type.charAt(0).toUpperCase() + type.slice(1);
+      const typeToggle = document.getElementById(toggleId);
+      const key = 'log' + type.charAt(0).toUpperCase() + type.slice(1);
+      if (typeToggle && data[key] !== undefined) {
+        if (data[key]) {
+          typeToggle.classList.add('on');
+        } else {
+          typeToggle.classList.remove('on');
+        }
+      }
+    }
+
+    // Retention fields
+    const retentionFields = ['Chat', 'Commands', 'Signs', 'Sessions', 'Items', 'Anvils', 'Usernames', 'Automod', 'Anticheat'];
+    for (const field of retentionFields) {
+      const input = document.getElementById('retention' + field);
+      const key = 'retention' + field;
+      if (input && data[key] !== undefined) {
+        input.value = data[key];
+      }
+    }
+  }
+
+  // ===== EVIDENCE CONFIGURATION =====
+  window.toggleEvidenceRequired = function() {
+    const toggle = document.getElementById('togEvidenceRequired');
+    if (!toggle) return;
+
+    if (toggle.classList.contains('on')) {
+      toggle.classList.remove('on');
+      document.getElementById('togEvidenceRequiredHint').textContent = 'Off';
+    } else {
+      toggle.classList.add('on');
+      document.getElementById('togEvidenceRequiredHint').textContent = 'On';
+    }
+    window.MX.sounds?.toggle();
+  };
+
+  window.saveEvidenceSettings = function() {
+    const ws = window.MX?.ws;
+    if (!ws || !ws.isConnected()) {
+      toast('warn', 'Not Connected', 'Cannot save settings - not connected to server.');
+      return;
+    }
+
+    ws.send('UPDATE_EVIDENCE_SETTINGS', {
+      maxFileSizeMb: parseInt(document.getElementById('evidenceMaxFileSizeMb')?.value || '250', 10),
+      maxActivityLogEntries: parseInt(document.getElementById('evidenceMaxActivityLogEntries')?.value || '5', 10),
+      requireEvidence: document.getElementById('togEvidenceRequired')?.classList.contains('on') || false
+    });
+
+    window.MX.sounds?.success();
+    toast('ok', 'Saved', 'Evidence settings saved.', {silent: true});
+  };
+
+  function loadEvidenceSettings(data) {
+    if (!data) return;
+
+    if (data.maxFileSizeMb !== undefined) {
+      document.getElementById('evidenceMaxFileSizeMb').value = data.maxFileSizeMb;
+    }
+    if (data.maxActivityLogEntries !== undefined) {
+      document.getElementById('evidenceMaxActivityLogEntries').value = data.maxActivityLogEntries;
+    }
+
+    const toggle = document.getElementById('togEvidenceRequired');
+    if (toggle && data.requireEvidence !== undefined) {
+      if (data.requireEvidence) {
+        toggle.classList.add('on');
+        document.getElementById('togEvidenceRequiredHint').textContent = 'On';
+      } else {
+        toggle.classList.remove('on');
+        document.getElementById('togEvidenceRequiredHint').textContent = 'Off';
+      }
+    }
+  }
+
+  // ===== SERVER LOCKDOWN =====
+  let lockdownTimerInterval = null;
+
+  window.toggleLockdown = function() {
+    const ws = window.MX?.ws;
+    const toggle = document.getElementById('togLockdown');
+    const optionsDiv = document.getElementById('lockdownOptions');
+    const isEnabled = toggle?.classList.contains('on');
+
+    if (!ws || !ws.isConnected()) {
+      toast('warn', 'Not Connected', 'Cannot toggle lockdown - not connected to server.');
+      return;
+    }
+
+    if (isEnabled) {
+      // Disable lockdown
+      ws.send('SET_LOCKDOWN', { enabled: false });
+      toggle.classList.remove('on');
+      document.getElementById('togLockdownHint').textContent = 'Off';
+      optionsDiv.style.display = 'none';
+      window.MX.sounds?.toggle();
+      toast('ok', 'Lockdown Disabled', 'Server is now accepting new players.', {silent: true});
+      logEvent('INFO', 'action', 'Lockdown Disabled', 'Server lockdown disabled');
+      if (lockdownTimerInterval) {
+        clearInterval(lockdownTimerInterval);
+        lockdownTimerInterval = null;
+      }
+    } else {
+      // Enable lockdown with settings
+      const timer = parseInt(document.getElementById('lockdownTimer')?.value || '0', 10);
+      const motd = document.getElementById('lockdownMotd')?.value || '';
+      const kickMessage = document.getElementById('lockdownKickMessage')?.value || 'Server is under maintenance.';
+
+      ws.send('SET_LOCKDOWN', {
+        enabled: true,
+        timer: timer,
+        motd: motd,
+        kickMessage: kickMessage
+      });
+
+      toggle.classList.add('on');
+      document.getElementById('togLockdownHint').textContent = 'On';
+      optionsDiv.style.display = 'block';
+      window.MX.sounds?.toggle();
+      toast('ok', 'Lockdown Enabled', timer > 0 ? `Server locked for ${timer} minutes.` : 'Server locked indefinitely.', {silent: true});
+      logEvent('WARN', 'action', 'Lockdown Enabled', `Server lockdown enabled${timer > 0 ? ` for ${timer} minutes` : ''}`);
+
+      // Start countdown timer if timer is set
+      if (timer > 0) {
+        startLockdownCountdown(timer * 60);
+      }
+    }
+  };
+
+  function startLockdownCountdown(seconds) {
+    const remainingEl = document.getElementById('lockdownTimeRemaining');
+    if (lockdownTimerInterval) clearInterval(lockdownTimerInterval);
+
+    let remaining = seconds;
+    const updateDisplay = () => {
+      const mins = Math.floor(remaining / 60);
+      const secs = remaining % 60;
+      if (remainingEl) {
+        remainingEl.textContent = `${mins}m ${secs}s remaining`;
+        remainingEl.style.color = remaining < 60 ? 'var(--bad)' : 'var(--ok)';
+      }
+    };
+
+    updateDisplay();
+    lockdownTimerInterval = setInterval(() => {
+      remaining--;
+      if (remaining <= 0) {
+        clearInterval(lockdownTimerInterval);
+        lockdownTimerInterval = null;
+        if (remainingEl) {
+          remainingEl.textContent = 'Expired';
+          remainingEl.style.color = 'var(--text-secondary)';
+        }
+        // Server will auto-disable, so update UI
+        const toggle = document.getElementById('togLockdown');
+        if (toggle) toggle.classList.remove('on');
+        document.getElementById('togLockdownHint').textContent = 'Off';
+        toast('info', 'Lockdown Expired', 'Server lockdown has automatically ended.');
+      } else {
+        updateDisplay();
+      }
+    }, 1000);
+  }
+
+  window.updateLockdownSettings = function() {
+    const ws = window.MX?.ws;
+    if (!ws || !ws.isConnected()) {
+      toast('warn', 'Not Connected', 'Cannot save settings - not connected to server.');
+      return;
+    }
+
+    const timer = parseInt(document.getElementById('lockdownTimer')?.value || '0', 10);
+    const motd = document.getElementById('lockdownMotd')?.value || '';
+    const kickMessage = document.getElementById('lockdownKickMessage')?.value || 'Server is under maintenance.';
+
+    ws.send('UPDATE_LOCKDOWN_SETTINGS', { timer, motd, kickMessage });
+    window.MX.sounds?.success();
+    toast('ok', 'Saved', 'Lockdown settings updated.');
+  };
+
+  // Update lockdown timer hint
+  document.getElementById('lockdownTimer')?.addEventListener('input', function() {
+    const hint = document.getElementById('lockdownTimerHint');
+    const value = parseInt(this.value || '0', 10);
+    if (hint) {
+      hint.textContent = value === 0 ? 'No auto-expire' : `Auto-expires in ${value} min`;
+    }
+  });
+
+  // ===== NOTIFICATION CONFIGURATION =====
+  window.updateJoinLeaveVisibility = function() {
+    const ws = window.MX?.ws;
+    const visibility = document.getElementById('joinLeaveVisibility')?.value || 'all';
+
+    if (ws && ws.isConnected()) {
+      ws.send('UPDATE_NOTIFICATION_SETTINGS', { joinLeaveVisibility: visibility });
+      window.MX.sounds?.success();
+      toast('ok', 'Saved', `Join/leave messages now visible to ${visibility === 'all' ? 'everyone' : 'staff only'}.`, {silent: true});
+    }
+  };
+
+  // ===== COMMAND BLACKLIST =====
+  window.saveCommandBlacklist = function() {
+    const ws = window.MX?.ws;
+    if (!ws || !ws.isConnected()) {
+      toast('warn', 'Not Connected', 'Cannot save - not connected to server.');
+      return;
+    }
+
+    const commands = (document.getElementById('blockedCommands')?.value || '')
+      .split('\n')
+      .map(c => c.trim().toLowerCase().replace(/^\//, ''))
+      .filter(c => c.length > 0);
+    const blockMessage = document.getElementById('cmdBlockMessage')?.value || 'You cannot use this command.';
+
+    ws.send('UPDATE_COMMAND_BLACKLIST', {
+      commands,
+      blockMessage
+    });
+
+    window.MX.sounds?.success();
+    toast('ok', 'Saved', `Command blacklist updated (${commands.length} commands).`);
+    logEvent('INFO', 'action', 'Command Blacklist Updated', `${commands.length} commands blacklisted`);
+  };
+
   window.saveIntegrations = function() {
     state.settings.discordWebhook = dom().discordWebhook.value;
     ui.markUnsaved('integrations', true);
@@ -6111,15 +7214,130 @@
     dom().wizardBody.innerHTML = steps[state.wizard.step];
   }
 
-  // ===== SUPPORT BUTTON =====
-  window.openSupport = function() {
-    // Support functionality - to be implemented
-    toast('info', 'Support', 'Support feature coming soon.');
+  // ===== DISCORD SUPPORT =====
+  window.openDiscordSupport = function() {
+    const overlay = document.getElementById('discordSupportOverlay');
+    if (overlay) {
+      overlay.classList.add('show');
+      window.MX.sounds?.modalOpen();
+    }
   };
+
+  window.closeDiscordSupport = function() {
+    const overlay = document.getElementById('discordSupportOverlay');
+    if (overlay) {
+      overlay.classList.add('fade-out');
+      setTimeout(() => {
+        overlay.classList.remove('show', 'fade-out');
+      }, 220);
+      window.MX.sounds?.modalClose();
+    }
+  };
+
+  // Close on overlay click
+  document.getElementById('discordSupportOverlay')?.addEventListener('click', closeDiscordSupport);
 
   window.toggleTesterPanel = function() {
     dom().testerPanel?.classList.toggle('show');
   };
+
+  // ===== GETTING STARTED GUIDE =====
+  window.scrollToGuide = function(sectionId) {
+    const section = document.getElementById('guide-' + sectionId);
+    if (section) {
+      // Expand section if collapsed
+      section.classList.remove('collapsed');
+
+      // Scroll into view
+      section.scrollIntoView({ behavior: 'smooth', block: 'start' });
+
+      // Update active TOC item
+      document.querySelectorAll('.toc-item').forEach(item => {
+        item.classList.toggle('active', item.getAttribute('onclick')?.includes(sectionId));
+      });
+
+      // Highlight effect
+      section.classList.add('search-match');
+      setTimeout(() => section.classList.remove('search-match'), 1000);
+    }
+    return false; // Prevent default link behavior
+  };
+
+  window.toggleGuideAccordion = function(titleEl) {
+    const section = titleEl.closest('.guide-section');
+    if (section) {
+      section.classList.toggle('collapsed');
+    }
+  };
+
+  window.toggleGuideSection = function() {
+    const sections = document.querySelectorAll('.guide-section');
+    const anyExpanded = Array.from(sections).some(s => !s.classList.contains('collapsed'));
+
+    sections.forEach(section => {
+      section.classList.toggle('collapsed', anyExpanded);
+    });
+  };
+
+  window.searchGuide = function(query) {
+    const sections = document.querySelectorAll('.guide-section');
+    const q = query.toLowerCase().trim();
+
+    if (!q) {
+      sections.forEach(s => s.classList.remove('hidden'));
+      return;
+    }
+
+    sections.forEach(section => {
+      const keywords = section.getAttribute('data-keywords') || '';
+      const content = section.textContent.toLowerCase();
+      const matches = keywords.includes(q) || content.includes(q);
+      section.classList.toggle('hidden', !matches);
+    });
+  };
+
+  window.toggleHideGuide = function() {
+    const toggle = document.getElementById('hideGuideToggle');
+    const isHidden = toggle?.classList.contains('on');
+
+    if (isHidden) {
+      // Show guide
+      toggle.classList.remove('on');
+      document.getElementById('gettingStartedNav')?.style.setProperty('display', 'block');
+    } else {
+      // Hide guide
+      toggle.classList.add('on');
+      document.getElementById('gettingStartedNav')?.style.setProperty('display', 'none');
+      go('dashboard'); // Navigate away from guide
+    }
+
+    // Save setting
+    const ws = window.MX?.ws;
+    if (ws && ws.isConnected()) {
+      ws.send('UPDATE_USER_SETTINGS', { hideGettingStarted: !isHidden });
+    }
+
+    // Save to local storage as fallback
+    try {
+      localStorage.setItem('mx_hide_getting_started', !isHidden);
+    } catch (e) {}
+  };
+
+  // Initialize guide visibility from settings
+  function initGuideVisibility() {
+    let hidden = false;
+    try {
+      hidden = localStorage.getItem('mx_hide_getting_started') === 'true';
+    } catch (e) {}
+
+    if (hidden) {
+      document.getElementById('hideGuideToggle')?.classList.add('on');
+      document.getElementById('gettingStartedNav')?.style.setProperty('display', 'none');
+    }
+  }
+
+  // Call on page load
+  document.addEventListener('DOMContentLoaded', initGuideVisibility);
 
   // ===== BACKGROUND ANIMATION =====
   function setupBackgroundAnimation() {
@@ -6460,6 +7678,7 @@
     dom().punishSearch?.addEventListener('input', ui.renderPunishments);
     dom().templateSearch?.addEventListener('input', ui.renderTemplates);
     dom().watchSearch?.addEventListener('input', ui.renderWatchlist);
+    document.getElementById('replaySearch')?.addEventListener('input', renderReplayList);
     dom().msgSearch?.addEventListener('input', ui.renderMessages);
     dom().logsSearch?.addEventListener('input', ui.renderLogs);
     dom().anticheatSearch?.addEventListener('input', ui.renderAnticheat);
@@ -6629,21 +7848,21 @@
     debounceTimer: null
   };
 
-  // Pages that can be searched
+  // Pages that can be searched (with optional permission requirements)
   const searchablePages = [
     { id: 'dashboard', name: 'Dashboard', icon: 'fa-gauge-high', keywords: ['home', 'overview', 'stats', 'activity'] },
     { id: 'players', name: 'Player Management', icon: 'fa-users', keywords: ['users', 'list', 'online'] },
     { id: 'punishments', name: 'Punishments', icon: 'fa-gavel', keywords: ['bans', 'mutes', 'kicks', 'warns', 'cases'] },
     { id: 'templates', name: 'Templates', icon: 'fa-bookmark', keywords: ['presets', 'quick', 'saved'] },
-    { id: 'automod', name: 'Automod Rules', icon: 'fa-robot', keywords: ['filter', 'chat', 'spam', 'swear'] },
-    { id: 'anticheat', name: 'Anticheat', icon: 'fa-shield-halved', keywords: ['hacks', 'cheats', 'alerts'] },
-    { id: 'watchlist', name: 'Watchlist', icon: 'fa-eye', keywords: ['monitor', 'watch', 'track'] },
-    { id: 'replay', name: 'Replays', icon: 'fa-film', keywords: ['recording', 'playback', 'session'] },
-    { id: 'activitylog', name: 'Activity Log', icon: 'fa-scroll', keywords: ['history', 'events', 'database', 'chat', 'commands'] },
-    { id: 'staffchat', name: 'Staff Chat', icon: 'fa-comments', keywords: ['team', 'message', 'communicate'] },
+    { id: 'automod', name: 'Automod Rules', icon: 'fa-robot', keywords: ['filter', 'chat', 'spam', 'swear'], permission: 'moderex.automod' },
+    { id: 'anticheat', name: 'Anticheat', icon: 'fa-shield-halved', keywords: ['hacks', 'cheats', 'alerts'], permission: 'moderex.anticheat' },
+    { id: 'watchlist', name: 'Watchlist', icon: 'fa-eye', keywords: ['monitor', 'watch', 'track'], permission: 'moderex.watchlist' },
+    { id: 'replay', name: 'Replays', icon: 'fa-film', keywords: ['recording', 'playback', 'session'], permission: 'moderex.replays.view' },
+    { id: 'activitylog', name: 'Activity Log', icon: 'fa-scroll', keywords: ['history', 'events', 'database', 'chat', 'commands'], permission: 'moderex.activitylog' },
+    { id: 'staffchat', name: 'Staff Chat', icon: 'fa-comments', keywords: ['team', 'message', 'communicate'], permission: 'moderex.staffchat' },
     { id: 'mysettings', name: 'My Settings', icon: 'fa-user-gear', keywords: ['preferences', 'sounds', 'notifications'] },
     { id: 'messages', name: 'Messages', icon: 'fa-language', keywords: ['lang', 'text', 'translate'] },
-    { id: 'actions', name: 'Actions', icon: 'fa-bolt', keywords: ['quick', 'chat', 'kick all'] },
+    { id: 'actions', name: 'Configuration', icon: 'fa-bolt', keywords: ['quick', 'chat', 'kick all', 'config', 'settings'] },
     { id: 'integrations', name: 'Integrations', icon: 'fa-plug', keywords: ['luckperms', 'plugins', 'hooks'] },
     { id: 'devtools', name: 'Developer Tools', icon: 'fa-code', keywords: ['dev', 'debug', 'test', 'stress', 'developer'] }
   ];
@@ -6740,9 +7959,13 @@
         results.push({ category: 'Templates', items: templateMatches });
       }
 
-      // Search pages (limit 3)
+      // Search pages (limit 3) - filter by permission
       const pageMatches = searchablePages
-        .filter(p => p.name.toLowerCase().includes(q) || p.keywords.some(k => k.includes(q)))
+        .filter(p => {
+          // Check permission if required
+          if (p.permission && !hasPermission(p.permission)) return false;
+          return p.name.toLowerCase().includes(q) || p.keywords.some(k => k.includes(q));
+        })
         .slice(0, 3)
         .map(p => ({
           type: 'page',
@@ -6772,40 +7995,44 @@
         results.push({ category: 'Settings', items: settingMatches });
       }
 
-      // Search automod rules (limit 4)
-      const automodMatches = (state.automodRules || [])
-        .filter(r => r.name?.toLowerCase().includes(q) || r.id?.toLowerCase().includes(q))
-        .slice(0, 4)
-        .map(r => ({
-          type: 'automod',
-          id: r.id,
-          title: r.name || r.id,
-          subtitle: r.enabled ? 'Enabled' : 'Disabled',
-          icon: 'fa-robot',
-          data: r
-        }));
-      if (automodMatches.length > 0) {
-        results.push({ category: 'Automod Rules', items: automodMatches });
+      // Search automod rules (limit 4) - only if user has permission
+      if (hasPermission('moderex.automod') || hasPermission('moderex.automod.view')) {
+        const automodMatches = (state.automodRules || [])
+          .filter(r => r.name?.toLowerCase().includes(q) || r.id?.toLowerCase().includes(q))
+          .slice(0, 4)
+          .map(r => ({
+            type: 'automod',
+            id: r.id,
+            title: r.name || r.id,
+            subtitle: r.enabled ? 'Enabled' : 'Disabled',
+            icon: 'fa-robot',
+            data: r
+          }));
+        if (automodMatches.length > 0) {
+          results.push({ category: 'Automod Rules', items: automodMatches });
+        }
       }
 
-      // Search anticheat checks (limit 4)
-      const anticheatChecks = [];
-      (state.anticheat?.anticheats || []).forEach(ac => {
-        (ac.checks || []).forEach(check => {
-          if (check.name?.toLowerCase().includes(q) || check.displayName?.toLowerCase().includes(q)) {
-            anticheatChecks.push({
-              type: 'anticheat_check',
-              id: `${ac.name}:${check.name}`,
-              title: check.displayName || check.name,
-              subtitle: `${ac.name} - ${check.category || 'Check'}`,
-              icon: 'fa-shield-halved',
-              data: { anticheat: ac.name, check }
-            });
-          }
+      // Search anticheat checks (limit 4) - only if user has permission
+      if (hasPermission('moderex.anticheat.configure') || hasPermission('moderex.anticheat.view')) {
+        const anticheatChecks = [];
+        (state.anticheat?.anticheats || []).forEach(ac => {
+          (ac.checks || []).forEach(check => {
+            if (check.name?.toLowerCase().includes(q) || check.displayName?.toLowerCase().includes(q)) {
+              anticheatChecks.push({
+                type: 'anticheat_check',
+                id: `${ac.name}:${check.name}`,
+                title: check.displayName || check.name,
+                subtitle: `${ac.name} - ${check.category || 'Check'}`,
+                icon: 'fa-shield-halved',
+                data: { anticheat: ac.name, check }
+              });
+            }
+          });
         });
-      });
-      if (anticheatChecks.length > 0) {
-        results.push({ category: 'Anticheat Checks', items: anticheatChecks.slice(0, 4) });
+        if (anticheatChecks.length > 0) {
+          results.push({ category: 'Anticheat Checks', items: anticheatChecks.slice(0, 4) });
+        }
       }
 
       // Search developer checklist items (limit 5)
@@ -6980,8 +8207,11 @@
           const ruleEl = document.querySelector(`[data-rule-id="${result.id}"]`);
           if (ruleEl) {
             ruleEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
-            ruleEl.classList.add('highlight-flash');
-            setTimeout(() => ruleEl.classList.remove('highlight-flash'), 2000);
+            // Wait for scroll to complete before adding glow
+            setTimeout(() => {
+              ruleEl.classList.add('highlight-flash');
+              setTimeout(() => ruleEl.classList.remove('highlight-flash'), 3500);
+            }, 400);
           }
         }, 150);
         break;
@@ -6995,8 +8225,11 @@
             const checkEl = document.querySelector(`[data-check="${checkName}"][data-ac="${acName}"]`);
             if (checkEl) {
               checkEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
-              checkEl.classList.add('highlight-flash');
-              setTimeout(() => checkEl.classList.remove('highlight-flash'), 2000);
+              // Wait for scroll to complete before adding glow
+              setTimeout(() => {
+                checkEl.classList.add('highlight-flash');
+                setTimeout(() => checkEl.classList.remove('highlight-flash'), 3500);
+              }, 400);
             }
           }
         }, 150);
@@ -7009,8 +8242,11 @@
             const itemEl = document.querySelector(`[data-checklist-id="${result.id}"]`);
             if (itemEl) {
               itemEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
-              itemEl.classList.add('highlight-flash');
-              setTimeout(() => itemEl.classList.remove('highlight-flash'), 2000);
+              // Wait for scroll to complete before adding glow
+              setTimeout(() => {
+                itemEl.classList.add('highlight-flash');
+                setTimeout(() => itemEl.classList.remove('highlight-flash'), 3500);
+              }, 400);
             }
           }, 150);
         } else {
@@ -7034,6 +8270,20 @@
   function performGlobalSearch(query) {
     if (!query) return;
     const q = query.toLowerCase();
+
+    // Check for MX-<caseId> format (e.g., MX-123)
+    const mxMatch = query.match(/^mx-?(\d+)$/i);
+    if (mxMatch) {
+      const caseNum = mxMatch[1];
+      const pun = state.punishments.find(p => p.caseId && p.caseId.toUpperCase().includes('MX-' + caseNum));
+      if (pun) {
+        go('punishments');
+        setTimeout(() => openPunishmentDetails(pun.id), 100);
+      } else {
+        toast('info', 'Not Found', 'No punishment found with case ID MX-' + caseNum);
+      }
+      return;
+    }
 
     // Check for filter prefixes
     if (q.startsWith('punishment:') || q.startsWith('case:')) {
@@ -7153,6 +8403,7 @@
       ws.requestPunishments();
       ws.requestWatchlist();
       ws.requestAutomodRules();
+      ws.requestTemplates();
       ws.requestUserSettings();
       ws.requestChatStatus();
       ws.requestServerSettings();
@@ -7321,12 +8572,123 @@
       if (state.currentPage === 'players') ui.renderPlayers();
     });
 
+    // Handle admin announcements from ModereX admin panel
+    ws.on('ADMIN_ANNOUNCEMENT', (data) => {
+      console.log('[App] Received admin announcement:', data);
+      showAdminAnnouncement(data);
+    });
+
     // Handle database debug responses
     ws.on('DATABASE_DEBUG_RESPONSE', (data) => {
       if (!isLiveMode) return;
       if (window.handleDatabaseDebugResponse) {
         window.handleDatabaseDebugResponse(data);
       }
+    });
+
+    // Handle templates from server
+    ws.on('TEMPLATES', (data) => {
+      if (!isLiveMode) return;
+      if (window.hideLoadingLine) window.hideLoadingLine();
+      console.log('[Templates] Received TEMPLATES:', data);
+      // Keep the "none" option and add server templates
+      const noneTemplate = { id: 'none', name: 'None', type: 'WARN', duration: '', reason: '' };
+      // Backend sends templates as array directly (via data property extraction in websocket.js)
+      // or as { templates: [...] } object
+      let templates = [];
+      if (Array.isArray(data)) {
+        templates = data;
+      } else if (data.templates && Array.isArray(data.templates)) {
+        templates = data.templates;
+      } else if (data.data && Array.isArray(data.data)) {
+        templates = data.data;
+      }
+      state.templates = [noneTemplate, ...templates];
+      ui.renderTemplates();
+    });
+
+    // Handle template created confirmation
+    ws.on('TEMPLATE_CREATED', (data) => {
+      if (!isLiveMode) return;
+      if (window.hideLoadingLine) window.hideLoadingLine();
+      console.log('[Templates] Template created:', data);
+      toast('ok', 'Created', data.name || 'Template created');
+    });
+
+    // Handle template updated confirmation
+    ws.on('TEMPLATE_UPDATED', (data) => {
+      if (!isLiveMode) return;
+      if (window.hideLoadingLine) window.hideLoadingLine();
+      console.log('[Templates] Template updated:', data);
+      toast('ok', 'Updated', data.name || 'Template updated');
+    });
+
+    // Handle template deleted confirmation
+    ws.on('TEMPLATE_DELETED', (data) => {
+      if (!isLiveMode) return;
+      if (window.hideLoadingLine) window.hideLoadingLine();
+      console.log('[Templates] Template deleted:', data);
+      toast('ok', 'Deleted', 'Template removed');
+    });
+
+    // Handle template errors
+    ws.on('TEMPLATE_ERROR', (data) => {
+      if (!isLiveMode) return;
+      if (window.hideLoadingLine) window.hideLoadingLine();
+      console.error('[Templates] Error:', data);
+      toast('warn', 'Error', data.message || 'Template operation failed');
+    });
+
+    // Handle replay list from server
+    ws.on('REPLAY_LIST', (data) => {
+      if (!isLiveMode) return;
+      if (window.hideLoadingLine) window.hideLoadingLine();
+      console.log('[Replays] Received REPLAY_LIST:', data);
+      state.replays = data.replays || [];
+      renderReplayList();
+      updateReplayStats();
+    });
+
+    // Handle single replay data
+    ws.on('REPLAY_DATA', (data) => {
+      if (!isLiveMode) return;
+      if (window.hideLoadingLine) window.hideLoadingLine();
+      console.log('[Replays] Received REPLAY_DATA:', data);
+      if (data.replay) {
+        openReplayDetailsModal(data.replay, data.snapshots || []);
+      }
+    });
+
+    // Handle replay update (real-time sync)
+    ws.on('REPLAY_UPDATE', (data) => {
+      if (!isLiveMode) return;
+      console.log('[Replays] Replay updated:', data);
+      // Update or add replay in state
+      const idx = state.replays.findIndex(r => r.sessionId === data.sessionId || r.id === data.id);
+      if (idx >= 0) {
+        state.replays[idx] = { ...state.replays[idx], ...data };
+      } else {
+        state.replays.unshift(data);
+      }
+      renderReplayList();
+      updateReplayStats();
+    });
+
+    // Handle replay deleted
+    ws.on('REPLAY_DELETED', (data) => {
+      if (!isLiveMode) return;
+      console.log('[Replays] Replay deleted:', data);
+      state.replays = state.replays.filter(r => r.sessionId !== data.sessionId && r.id !== data.id);
+      renderReplayList();
+      updateReplayStats();
+      toast('ok', 'Deleted', 'Replay removed');
+    });
+
+    // Handle replay settings
+    ws.on('REPLAY_SETTINGS', (data) => {
+      if (!isLiveMode) return;
+      console.log('[Replays] Settings received:', data);
+      loadReplaySettings(data);
     });
 
     // Handle automod rules
@@ -7969,6 +9331,16 @@
       showPanelAlert('automod', `Automod Alert: ${data.playerName}`, `Triggered: ${data.rule} | "${data.message}"`, { playerId: player?.id, playerName: data.playerName, severity: 'warn' });
     });
 
+    // Handle AUTOMOD_ALERT (from broadcastAutomodAlert in Java backend)
+    ws.on('AUTOMOD_ALERT', (data) => {
+      if (!isLiveMode) return;
+      // Check for moderex.history.automod permission
+      if (window.hasPermission && !window.hasPermission('moderex.history.automod')) return;
+      const player = state.players.find(p => p.uuid === data.playerUuid);
+      logEvent('WARN', 'automod', `Automod | ${data.rule}`, `${data.playerName}: ${data.message}`, { playerId: player?.id, kind: 'automod', type: 'AUTOMOD' });
+      showPanelAlert('automod', `Automod Alert: ${data.playerName}`, `Triggered: ${data.rule} | "${data.message}"`, { playerId: player?.id, playerName: data.playerName, severity: 'warn' });
+    });
+
     ws.on('PRIVATE_MESSAGE', (data) => {
       if (!isLiveMode) return;
       const settings = loadMySettings();
@@ -8129,15 +9501,26 @@
         state.settings.muteBroadcast = data.muteSettings.broadcast ?? false;
         state.settings.muteVoice = data.muteSettings.voice ?? true;
         state.settings.muteVoiceJoin = data.muteSettings.voiceJoin ?? true;
+        state.settings.muteStaffCanSee = data.muteSettings.staffCanSee ?? true;
+        loadMuteSettings(data.muteSettings);
       }
       // Warn settings
       if (data.warnSettings) {
         state.settings.warnNotify = data.warnSettings.notify ?? true;
         state.settings.warnAutoEscalate = data.warnSettings.autoEscalate ?? false;
+        loadWarnSettings(data.warnSettings);
       }
       // Anticheat settings
       if (data.anticheatSettings) {
         state.settings.anticheatReplace = data.anticheatSettings.rebrandAlerts ?? false;
+      }
+      // Activity log settings
+      if (data.activityLogSettings) {
+        loadActivityLogSettings(data.activityLogSettings);
+      }
+      // Evidence settings
+      if (data.evidenceSettings) {
+        loadEvidenceSettings(data.evidenceSettings);
       }
       ui.renderDashboard();
       ui.renderChatToggles();
@@ -10497,6 +11880,21 @@
   function loadPanelVersion() {
     // In gateway mode, use WebSocket since HTTP fetch doesn't work
     if (window.MX?.ws?.isGatewayMode && window.MX.ws.isGatewayMode()) {
+      // Check if WebSocket is actually connected before sending
+      if (!window.MX.ws.isConnected()) {
+        // Not connected yet - wait for gateway_connected event
+        const onGatewayReady = () => {
+          window.MX.ws.off('gateway_connected', onGatewayReady);
+          // Small delay to ensure connection is stable
+          setTimeout(() => {
+            if (window.MX.ws.isConnected()) {
+              window.MX.ws.send(JSON.stringify({ type: 'GET_PANEL_VERSION' }));
+            }
+          }, 500);
+        };
+        window.MX.ws.on('gateway_connected', onGatewayReady);
+        return;
+      }
       // Request version via WebSocket
       window.MX.ws.send(JSON.stringify({ type: 'GET_PANEL_VERSION' }));
       // Response is handled by the PANEL_VERSION handler below
