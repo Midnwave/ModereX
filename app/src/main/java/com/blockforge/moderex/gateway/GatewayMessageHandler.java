@@ -15,4 +15,12 @@ public interface GatewayMessageHandler {
      * @param message The full JSON message including clientId and payload
      */
     void handleMessage(String type, JsonObject message);
+
+    /**
+     * Broadcast a message to all connected web panel clients.
+     * Used for admin announcements and other global notifications.
+     *
+     * @param message The JSON message to broadcast
+     */
+    void broadcastToAllClients(JsonObject message);
 }
