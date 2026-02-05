@@ -13,6 +13,7 @@ public class HookManager {
     private GeyserHook geyserHook;
     private FloodgateHook floodgateHook;
     private CitizensHook citizensHook;
+    private SparkHook sparkHook;
     private AnticheatManager anticheatManager;
     private String detectedAnticheat;
 
@@ -98,6 +99,21 @@ public class HookManager {
             } catch (Exception e) {
                 plugin.logDebug("[Citizens] Exception during hook: " + e.getMessage());
                 citizensHook = null;
+            }
+        }
+
+        // Hook into Spark (profiler)
+        if (isPluginEnabled("spark")) {
+            try {
+                sparkHook = new SparkHook(plugin);
+                if (sparkHook.isAvailable()) {
+                    plugin.getLogger().info("Hooked into Spark " + sparkHook.getVersion() + " for advanced profiling.");
+                } else {
+                    sparkHook = null;
+                }
+            } catch (Exception e) {
+                plugin.logDebug("[Spark] Exception during hook: " + e.getMessage());
+                sparkHook = null;
             }
         }
 
@@ -294,6 +310,18 @@ public class HookManager {
             essentials = Bukkit.getPluginManager().getPlugin("EssentialsX");
         }
         return essentials != null ? essentials.getDescription().getVersion() : null;
+    }
+
+    public boolean isSparkAvailable() {
+        return sparkHook != null && sparkHook.isAvailable();
+    }
+
+    public String getSparkVersion() {
+        return sparkHook != null ? sparkHook.getVersion() : null;
+    }
+
+    public SparkHook getSparkHook() {
+        return sparkHook;
     }
 
     public void shutdown() {
