@@ -19,7 +19,7 @@
     'trycloudflare.com'        // Quick Tunnel domain (temporary testing)
   ];
   // Gateway WebSocket URL - update this after deploying your gateway with Cloudflare Tunnel
-  const GATEWAY_WS_URL = 'wss://anna-substances-viii-qualification.trycloudflare.com/panel';
+  const GATEWAY_WS_URL = 'wss://certain-automotive-programming-cult.trycloudflare.com/panel';
 
   let ws = null;
   let heartbeatTimer = null;
