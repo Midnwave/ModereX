@@ -615,11 +615,19 @@
         ? `<button class="mini bad" onclick="deleteTemplate('${t.id}')"><i class="fa-solid fa-trash"></i></button>`
         : `<button class="mini bad no-permission" disabled data-tooltip="You do not have permission to delete templates"><i class="fa-solid fa-trash"></i></button>`;
 
+      // Format duration for display
+      const durationDisplay = !t.duration || t.duration === '' || t.duration === '0'
+        ? (t.type === 'WARN' || t.type === 'KICK' ? 'N/A' : 'Permanent')
+        : t.duration;
+
+      // Category badge (if present)
+      const categoryBadge = t.category ? `<span class="badge gray" style="font-size:11px;margin-left:6px">${escapeHtml(t.category)}</span>` : '';
+
       return `
       <tr>
-        <td><b>${escapeHtml(t.name)}</b></td>
+        <td><b>${escapeHtml(t.name)}</b>${categoryBadge}</td>
         <td>${escapeHtml(t.type)}</td>
-        <td>${escapeHtml(t.duration || 'instant')}</td>
+        <td>${escapeHtml(durationDisplay)}</td>
         <td class="reason-cell">${window.expandableReason ? expandableReason(t.reason, 15) : escapeHtml(truncate(t.reason || 'No reason', 15))}</td>
         <td style="text-align:right">
           ${editBtn}
