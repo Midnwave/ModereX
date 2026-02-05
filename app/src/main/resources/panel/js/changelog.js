@@ -14,6 +14,57 @@
 
 window.MX_CHANGELOGS = [
   {
+    build: 239,
+    version: "2.0dev-239",
+    date: "2026-02-04",
+    title: "Database Limits & Premium System",
+    sections: [
+      {
+        type: "new",
+        title: "New Features",
+        items: [
+          "**Database Size Limits** - Free tier limited to 25MB database with warnings at 80% and 90%",
+          "**Premium System** - Gateway-validated premium status bypasses database limits",
+          "**Database Status** - Panel now shows database usage percentage and status in server settings"
+        ]
+      },
+      {
+        type: "improved",
+        title: "Improvements",
+        items: [
+          "**Gateway Stability** - Fixed automod rule updates timing out through gateway",
+          "**Panel Authentication** - Fixed server name, plugin version, and rank not showing in gateway mode",
+          "**Self-Toast Prevention** - Broadcast messages now include sender info to prevent self-notifications",
+          "**Loading Bar** - Changed gradient to consistent blue theme instead of pink"
+        ]
+      },
+      {
+        type: "fixed",
+        title: "Bug Fixes",
+        items: [
+          "**Gateway Actions** - Fixed watchlist, checklist, templates, and settings actions not working via gateway",
+          "**Automod Broadcasts** - Fixed self-created rules showing toast notifications to the creator"
+        ]
+      },
+      {
+        type: "technical",
+        title: "Technical Changes",
+        items: [
+          "**Removed Same-Port Mode** - Experimental Netty injection mode completely removed for stability",
+          "**Premium Caching** - Premium status cached for 24 hours if gateway becomes unavailable"
+        ]
+      },
+      {
+        type: "config",
+        title: "Configuration",
+        items: [
+          "**Removed webpanel.same-port** - This experimental option has been removed",
+          "**Config version updated to 17** - Auto-migration will update your config"
+        ]
+      }
+    ]
+  },
+  {
     build: 226,
     version: "2.0dev-226",
     date: "2026-02-04",

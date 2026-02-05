@@ -1001,9 +1001,18 @@ public class AutomodManager {
      * Broadcast a single rule update to web panel clients (more efficient than full refresh).
      */
     public void broadcastSingleRuleUpdate(AutomodRule rule) {
+        broadcastSingleRuleUpdate(rule, "System");
+    }
+
+    /**
+     * Broadcast a single rule update to web panel clients (more efficient than full refresh).
+     * @param rule The updated rule
+     * @param by The name of who made the change (for toast exclusion)
+     */
+    public void broadcastSingleRuleUpdate(AutomodRule rule, String by) {
         if (plugin.getWebPanelServer() != null && rule != null) {
             plugin.getServer().getScheduler().runTaskAsynchronously(plugin, () -> {
-                plugin.getWebPanelServer().broadcastSingleRuleUpdate(rule);
+                plugin.getWebPanelServer().broadcastSingleRuleUpdate(rule, by);
             });
         }
     }
@@ -1012,9 +1021,18 @@ public class AutomodManager {
      * Broadcast a rule deletion event to web panel clients.
      */
     public void broadcastRuleDeleted(String ruleId) {
+        broadcastRuleDeleted(ruleId, "System");
+    }
+
+    /**
+     * Broadcast a rule deletion event to web panel clients.
+     * @param ruleId The ID of the deleted rule
+     * @param by The name of who deleted it (for toast exclusion)
+     */
+    public void broadcastRuleDeleted(String ruleId, String by) {
         if (plugin.getWebPanelServer() != null && ruleId != null) {
             plugin.getServer().getScheduler().runTaskAsynchronously(plugin, () -> {
-                plugin.getWebPanelServer().broadcastRuleDeleted(ruleId);
+                plugin.getWebPanelServer().broadcastRuleDeleted(ruleId, by);
             });
         }
     }

@@ -24,7 +24,6 @@ public class Settings {
     private String webPanelHost = ""; // Public host for clients (auto-detect if empty)
     private String webPanelServerName = "My Server"; // Server name shown in panel
     private String webPanelAuthToken = "";
-    private boolean webPanelSamePort = false; // Use same port as Minecraft (not recommended)
 
     // AI Assistant settings
     private boolean aiEnabled = true;
@@ -369,14 +368,6 @@ public class Settings {
 
     public void setWebPanelAuthToken(String webPanelAuthToken) {
         this.webPanelAuthToken = webPanelAuthToken;
-    }
-
-    public boolean isWebPanelSamePort() {
-        return webPanelSamePort;
-    }
-
-    public void setWebPanelSamePort(boolean webPanelSamePort) {
-        this.webPanelSamePort = webPanelSamePort;
     }
 
     public boolean isAiEnabled() {

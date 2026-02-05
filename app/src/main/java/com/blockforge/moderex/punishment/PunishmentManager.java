@@ -167,6 +167,12 @@ public class PunishmentManager {
                                                             PunishmentType type, UUID staffUuid, String staffName,
                                                             long duration, String reason, String ipAddress) {
         return CompletableFuture.supplyAsync(() -> {
+            // Check database limit before creating punishment
+            if (!plugin.getDatabaseManager().canWrite()) {
+                plugin.getLogger().warning("[Punishments] Database limit reached - cannot create punishment for " + playerName);
+                return null;
+            }
+
             String caseId = plugin.getDatabaseManager().generateCaseId();
             long expiresAt = duration == -1 ? -1 : (duration == 0 ? 0 : System.currentTimeMillis() + duration);
 

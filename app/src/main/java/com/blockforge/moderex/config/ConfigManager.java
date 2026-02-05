@@ -155,9 +155,6 @@ public class ConfigManager {
         }
         settings.setWebPanelAuthToken(authToken);
 
-        // Same-port mode (added in v4)
-        settings.setWebPanelSamePort(config.getBoolean("webpanel.same-port", false));
-
         // AI Assistant settings (added in v5)
         settings.setAiEnabled(config.getBoolean("webpanel.ai.enabled", true));
         settings.setAiEndpoint(config.getString("webpanel.ai.endpoint", "http://localhost:11434/api/chat"));

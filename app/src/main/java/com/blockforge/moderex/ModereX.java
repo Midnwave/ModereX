@@ -29,9 +29,6 @@ import com.blockforge.moderex.util.VersionUtil;
 import com.blockforge.moderex.watchlist.WatchlistManager;
 import com.blockforge.moderex.webpanel.HybridPanelServer;
 import com.blockforge.moderex.webpanel.debug.WebPanelDebugger;
-import com.blockforge.moderex.webpanel.netty.NettyInjector;
-import com.blockforge.moderex.webpanel.netty.SamePortPanelHandler;
-import com.blockforge.moderex.webpanel.netty.ServerVersionUtil;
 import net.kyori.adventure.text.Component;
 import org.bukkit.plugin.java.JavaPlugin;
 
@@ -62,7 +59,6 @@ public final class ModereX extends JavaPlugin {
     private ProxyManager proxyManager;
     private com.blockforge.moderex.web.WebAuthManager webAuthManager;
     private HybridPanelServer hybridPanelServer;
-    private NettyInjector nettyInjector;
     private HookManager hookManager;
     private CommandManager commandManager;
     private ListenerManager listenerManager;
@@ -264,28 +260,7 @@ public final class ModereX extends JavaPlugin {
 
         // Initialize web panel server if enabled (single port for HTTP + WebSocket)
         if (configManager.getSettings().isWebPanelEnabled()) {
-            if (configManager.getSettings().isWebPanelSamePort()) {
-                // EXPERIMENTAL: Use Netty injection to host panel on Minecraft's port
-                logStartup("Starting web panel on same port as Minecraft (experimental)...");
-                NettyInjector injector = ServerVersionUtil.getInjector();
-                if (injector != null) {
-                    SamePortPanelHandler handler = new SamePortPanelHandler(this);
-                    if (injector.inject(this, handler)) {
-                        this.nettyInjector = injector;
-                        logStartup("Web panel same-port mode enabled using " + injector.getName());
-                    } else {
-                        getLogger().warning("Failed to inject Netty handler for same-port mode!");
-                        getLogger().warning("Falling back to dedicated port mode...");
-                        startDedicatedPanelServer();
-                    }
-                } else {
-                    getLogger().warning("Netty injection not available for this server version!");
-                    getLogger().warning("Falling back to dedicated port mode...");
-                    startDedicatedPanelServer();
-                }
-            } else {
-                startDedicatedPanelServer();
-            }
+            startDedicatedPanelServer();
 
             // Initialize web panel debugger after panel server is created
             if (hybridPanelServer != null) {
@@ -299,7 +274,6 @@ public final class ModereX extends JavaPlugin {
             logStartup("Initializing gateway client...");
             this.gatewayClient = new com.blockforge.moderex.gateway.GatewayClient(this);
             // Connect gateway to panel server for handling requests
-            // If same-port mode is active, hybridPanelServer may be null - create one for gateway use
             if (hybridPanelServer == null) {
                 logStartup("Creating panel server for gateway message handling...");
                 // Create HybridPanelServer on port 0 (won't actually bind - just for gateway message handling)
@@ -356,12 +330,6 @@ public final class ModereX extends JavaPlugin {
         // Stop web panel server
         if (hybridPanelServer != null) {
             hybridPanelServer.stop();
-        }
-
-        // Remove Netty injection if active
-        if (nettyInjector != null && nettyInjector.isInjected()) {
-            nettyInjector.remove();
-            nettyInjector = null;
         }
 
         // Shutdown web authentication
@@ -500,32 +468,10 @@ public final class ModereX extends JavaPlugin {
             hybridPanelServer.stop();
             hybridPanelServer = null;
         }
-        if (nettyInjector != null && nettyInjector.isInjected()) {
-            nettyInjector.remove();
-            nettyInjector = null;
-        }
 
         // Restart web panel if enabled
         if (configManager.getSettings().isWebPanelEnabled()) {
-            if (configManager.getSettings().isWebPanelSamePort()) {
-                // Same-port mode
-                NettyInjector injector = ServerVersionUtil.getInjector();
-                if (injector != null) {
-                    SamePortPanelHandler handler = new SamePortPanelHandler(this);
-                    if (injector.inject(this, handler)) {
-                        this.nettyInjector = injector;
-                        getLogger().info("Web panel same-port mode enabled using " + injector.getName());
-                    } else {
-                        getLogger().warning("Failed to inject Netty handler, falling back to dedicated port");
-                        startDedicatedPanelServer();
-                    }
-                } else {
-                    getLogger().warning("Netty injection not available, falling back to dedicated port");
-                    startDedicatedPanelServer();
-                }
-            } else {
-                startDedicatedPanelServer();
-            }
+            startDedicatedPanelServer();
 
             // Reinitialize web panel debugger
             if (hybridPanelServer != null) {

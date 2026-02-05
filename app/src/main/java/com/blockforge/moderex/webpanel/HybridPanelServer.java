@@ -17,7 +17,6 @@ import com.blockforge.moderex.web.WebAuthManager;
 import com.blockforge.moderex.webpanel.debug.DebugCategory;
 import com.blockforge.moderex.webpanel.debug.ErrorCode;
 import com.blockforge.moderex.webpanel.debug.WebPanelDebugger;
-import com.blockforge.moderex.webpanel.netty.WebSocketFrameHandler;
 import com.google.gson.Gson;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
@@ -80,10 +79,6 @@ public class HybridPanelServer implements com.blockforge.moderex.gateway.Gateway
     private final Map<WebSocketConnection, WebPanelSession> sessions = new ConcurrentHashMap<>();
     private final Map<String, PendingConnection> pendingCodes = new ConcurrentHashMap<>();
     private final Map<UUID, UserPanelSettings> userSettings = new ConcurrentHashMap<>();
-
-    // Same-port (Netty) WebSocket connections
-    private final Map<String, WebSocketFrameHandler> samePortConnections = new ConcurrentHashMap<>();
-    private final Map<String, WebPanelSession> samePortSessions = new ConcurrentHashMap<>();
 
     // Gateway-relayed connections (panel.moderex.net via gateway)
     private final Map<String, GatewayConnection> gatewayConnections = new ConcurrentHashMap<>();
@@ -4092,15 +4087,6 @@ public class HybridPanelServer implements com.blockforge.moderex.gateway.Gateway
                     plugin.logDebug("Failed to broadcast automod rules to connection: " + e.getMessage());
                 }
             }
-
-            // Also broadcast to same-port (Netty) connections
-            for (var entry : samePortConnections.entrySet()) {
-                try {
-                    entry.getValue().send(message);
-                } catch (Exception e) {
-                    plugin.logDebug("Failed to broadcast automod rules to same-port connection: " + e.getMessage());
-                }
-            }
         } catch (Exception e) {
             plugin.logError("Failed to broadcast automod rules: " + e.getMessage(), e);
         }
@@ -4129,15 +4115,6 @@ public class HybridPanelServer implements com.blockforge.moderex.gateway.Gateway
                     conn.send(message);
                 } catch (Exception e) {
                     plugin.logDebug("Failed to broadcast rule update to connection: " + e.getMessage());
-                }
-            }
-
-            // Also broadcast to same-port (Netty) connections
-            for (var entry : samePortConnections.entrySet()) {
-                try {
-                    entry.getValue().send(message);
-                } catch (Exception e) {
-                    plugin.logDebug("Failed to broadcast rule update to same-port connection: " + e.getMessage());
                 }
             }
         } catch (Exception e) {
@@ -4170,15 +4147,6 @@ public class HybridPanelServer implements com.blockforge.moderex.gateway.Gateway
                     plugin.logDebug("Failed to broadcast rule creation to connection: " + e.getMessage());
                 }
             }
-
-            // Also broadcast to same-port (Netty) connections
-            for (var entry : samePortConnections.entrySet()) {
-                try {
-                    entry.getValue().send(message);
-                } catch (Exception e) {
-                    plugin.logDebug("Failed to broadcast rule creation to same-port connection: " + e.getMessage());
-                }
-            }
         } catch (Exception e) {
             plugin.logError("Failed to broadcast rule creation: " + e.getMessage(), e);
         }
@@ -4207,15 +4175,6 @@ public class HybridPanelServer implements com.blockforge.moderex.gateway.Gateway
                     conn.send(message);
                 } catch (Exception e) {
                     plugin.logDebug("Failed to broadcast rule deletion to connection: " + e.getMessage());
-                }
-            }
-
-            // Also broadcast to same-port (Netty) connections
-            for (var entry : samePortConnections.entrySet()) {
-                try {
-                    entry.getValue().send(message);
-                } catch (Exception e) {
-                    plugin.logDebug("Failed to broadcast rule deletion to same-port connection: " + e.getMessage());
                 }
             }
         } catch (Exception e) {
@@ -5162,38 +5121,6 @@ public class HybridPanelServer implements com.blockforge.moderex.gateway.Gateway
         }
     }
 
-    // Same-port wrapper overload
-    private void markChangelogRead(SamePortConnectionWrapper wrapper, JsonObject data, WebPanelSession session) {
-        int buildNumber = data.has("build") ? data.get("build").getAsInt() : 0;
-        if (buildNumber <= 0) {
-            sendError(wrapper, "INVALID_BUILD", "Invalid build number");
-            return;
-        }
-
-        try {
-            plugin.getDatabaseManager().update(
-                """
-                INSERT INTO moderex_changelog_reads (uuid, build_number, read_at)
-                VALUES (?, ?, ?)
-                ON CONFLICT(uuid, build_number) DO UPDATE SET read_at = excluded.read_at
-                """,
-                session.playerUuid.toString(),
-                buildNumber,
-                System.currentTimeMillis()
-            );
-
-            plugin.logDebug("[WebPanel] " + session.playerName + " marked changelog build " + buildNumber + " as read");
-
-            JsonObject response = new JsonObject();
-            response.addProperty("type", "CHANGELOG_MARKED_READ");
-            response.addProperty("build", buildNumber);
-            wrapper.send(GSON.toJson(response));
-        } catch (Exception e) {
-            plugin.logError("Failed to mark changelog read for " + session.playerName, e);
-            sendError(wrapper, "DATABASE_ERROR", "Failed to save changelog read status");
-        }
-    }
-
     private void sendTemplates(WebSocketConnection conn) {
         JsonObject response = new JsonObject();
         response.addProperty("type", "TEMPLATES");
@@ -6081,6 +6008,15 @@ public class HybridPanelServer implements com.blockforge.moderex.gateway.Gateway
         acSettings.addProperty("blockOriginalMessages", settings.isAnticheatBlockOriginalMessages());
         data.add("anticheatSettings", acSettings);
 
+        // Database usage info (for limit tracking)
+        var dbManager = plugin.getDatabaseManager();
+        var identity = plugin.getServerIdentity();
+        data.addProperty("premium", identity != null && identity.isPremium());
+        data.addProperty("databaseSizeMb", dbManager.getDatabaseSizeMb());
+        data.addProperty("databaseLimitMb", identity != null && identity.isPremium() ? -1 : 25);
+        data.addProperty("databaseUsagePercent", dbManager.getUsagePercent() * 100);
+        data.addProperty("databaseStatus", dbManager.checkSizeStatus().name());
+
         response.add("data", data);
         conn.send(GSON.toJson(response));
     }
@@ -6126,40 +6062,6 @@ public class HybridPanelServer implements com.blockforge.moderex.gateway.Gateway
     private void broadcastServerSettings() {
         for (WebSocketConnection conn : sessions.keySet()) {
             sendServerSettings(conn);
-        }
-        for (var entry : samePortSessions.entrySet()) {
-            WebSocketFrameHandler handler = samePortConnections.get(entry.getKey());
-            if (handler != null) {
-                var settings = plugin.getConfigManager().getSettings();
-                JsonObject response = new JsonObject();
-                response.addProperty("type", "SERVER_SETTINGS");
-                JsonObject data = new JsonObject();
-                data.addProperty("chatEnabled", settings.isChatEnabled());
-                data.addProperty("slowmodeSeconds", settings.getDefaultSlowmodeSeconds());
-
-                JsonObject muteSettings = new JsonObject();
-                muteSettings.addProperty("chat", settings.isMuteBlocksChat());
-                muteSettings.addProperty("msg", settings.isMuteBlocksMsg());
-                muteSettings.addProperty("signs", settings.isMuteBlocksSigns());
-                muteSettings.addProperty("books", settings.isMuteBlocksBooks());
-                muteSettings.addProperty("broadcast", settings.isMuteBlocksBroadcast());
-                muteSettings.addProperty("voice", settings.isMuteBlocksVoice());
-                muteSettings.addProperty("voiceJoin", settings.isMuteBlocksVoiceJoin());
-                data.add("muteSettings", muteSettings);
-
-                JsonObject warnSettings = new JsonObject();
-                warnSettings.addProperty("notify", settings.isWarnNotifyStaff());
-                warnSettings.addProperty("autoEscalate", settings.isWarnAutoEscalate());
-                data.add("warnSettings", warnSettings);
-
-                JsonObject acSettings = new JsonObject();
-                acSettings.addProperty("rebrandAlerts", settings.isAnticheatRebrandAlerts());
-                acSettings.addProperty("blockOriginalMessages", settings.isAnticheatBlockOriginalMessages());
-                data.add("anticheatSettings", acSettings);
-
-                response.add("data", data);
-                handler.send(GSON.toJson(response));
-            }
         }
     }
 
@@ -6960,24 +6862,6 @@ public class HybridPanelServer implements com.blockforge.moderex.gateway.Gateway
                         plugin.logDebug("[WebPanel] Error broadcasting with permission: " + e.getMessage());
                     }
                 }
-
-                // Same-port HTTP WebSocket connections
-                for (Map.Entry<String, WebPanelSession> entry : samePortSessions.entrySet()) {
-                    try {
-                        WebPanelSession session = entry.getValue();
-                        if (session != null) {
-                            // Check if this user has permission to see this alert
-                            if (hasAlertPermission(session.playerUuid, permission)) {
-                                WebSocketFrameHandler handler = samePortConnections.get(entry.getKey());
-                                if (handler != null) {
-                                    handler.send(message);
-                                }
-                            }
-                        }
-                    } catch (Exception e) {
-                        plugin.logDebug("[WebPanel] Error broadcasting to same-port with permission: " + e.getMessage());
-                    }
-                }
             });
         }
     }
@@ -7090,31 +6974,6 @@ public class HybridPanelServer implements com.blockforge.moderex.gateway.Gateway
                 plugin.logDebug("[WebPanel] Force disconnected session for " + session.playerName + " (" + code + ")");
                 debugWarning(DebugCategory.AUTH, "Session force disconnected",
                         "Player: " + session.playerName + ", Reason: " + code);
-            }
-        }
-
-        // Also check same-port connections
-        for (Map.Entry<String, WebPanelSession> entry : new ArrayList<>(samePortSessions.entrySet())) {
-            if (entry.getValue().playerUuid.equals(playerUuid)) {
-                String connId = entry.getKey();
-                WebSocketFrameHandler handler = samePortConnections.get(connId);
-
-                if (handler != null) {
-                    // Send disconnect message
-                    JsonObject response = new JsonObject();
-                    response.addProperty("type", "FORCED_DISCONNECT");
-                    JsonObject data = new JsonObject();
-                    data.addProperty("code", code);
-                    data.addProperty("message", message);
-                    response.add("data", data);
-                    handler.send(GSON.toJson(response));
-                    handler.close();
-                }
-
-                samePortSessions.remove(connId);
-                samePortConnections.remove(connId);
-
-                plugin.logDebug("[WebPanel] Force disconnected same-port session for " + entry.getValue().playerName);
             }
         }
     }
@@ -7676,7 +7535,7 @@ public class HybridPanelServer implements com.blockforge.moderex.gateway.Gateway
             this.out = socket.getOutputStream();
         }
 
-        // Protected constructor for wrappers (same-port connections)
+        // Protected constructor for wrappers (gateway connections)
         protected WebSocketConnection() {
             this.socket = null;
             this.in = null;
@@ -7821,271 +7680,6 @@ public class HybridPanelServer implements com.blockforge.moderex.gateway.Gateway
             } catch (Exception ignored) {}
             return null;
         }
-    }
-
-    // ==================== Same-Port (Netty) WebSocket Support ====================
-
-    /**
-     * Register a same-port WebSocket connection from the Netty handler.
-     */
-    public void registerSamePortConnection(String connectionId, WebSocketFrameHandler handler) {
-        samePortConnections.put(connectionId, handler);
-        plugin.logDebug("[SamePort] Registered connection: " + connectionId);
-    }
-
-    /**
-     * Unregister a same-port WebSocket connection.
-     */
-    public void unregisterSamePortConnection(String connectionId) {
-        samePortConnections.remove(connectionId);
-        WebPanelSession session = samePortSessions.remove(connectionId);
-        if (session != null) {
-            plugin.logDebug("[SamePort] Disconnected: " + session.playerName);
-        }
-    }
-
-    /**
-     * Handle a message from a same-port WebSocket connection.
-     */
-    public void handleSamePortMessage(String connectionId, String message) {
-        WebSocketFrameHandler handler = samePortConnections.get(connectionId);
-        if (handler == null) return;
-
-        try {
-            JsonObject json = GSON.fromJson(message, JsonObject.class);
-            if (json == null || !json.has("type")) return;
-
-            String type = json.get("type").getAsString();
-            JsonObject data = json.has("data") ? json.getAsJsonObject("data") : new JsonObject();
-
-            // Handle authentication
-            if ("AUTH".equals(type)) {
-                handleSamePortAuth(connectionId, handler, data);
-                return;
-            }
-
-            // Allow GET_SERVER_STATUS before authentication (for connection status display)
-            if ("GET_SERVER_STATUS".equals(type)) {
-                SamePortConnectionWrapper wrapper = new SamePortConnectionWrapper(handler);
-                sendServerStatus(wrapper);
-                return;
-            }
-
-            // Handle PING/PONG without authentication
-            if ("PING".equals(type)) {
-                JsonObject pong = new JsonObject();
-                pong.addProperty("type", "PONG");
-                pong.addProperty("timestamp", System.currentTimeMillis());
-                handler.send(GSON.toJson(pong));
-                return;
-            }
-            if ("PONG".equals(type) || "HEARTBEAT".equals(type)) {
-                return; // Just ignore, keep connection alive
-            }
-
-            // Check if authenticated
-            WebPanelSession session = samePortSessions.get(connectionId);
-            if (session == null) {
-                sendToSamePort(handler, createError("NOT_AUTHENTICATED", "Please authenticate first"));
-                return;
-            }
-
-            // Update activity
-            session.lastActivity = System.currentTimeMillis();
-
-            // Route message to appropriate handler
-            handleSamePortRequest(type, data, session, handler);
-
-        } catch (Exception e) {
-            plugin.logDebug("[SamePort] Error handling message: " + e.getMessage());
-        }
-    }
-
-    private void handleSamePortAuth(String connectionId, WebSocketFrameHandler handler, JsonObject data) {
-        String code = data.has("code") ? data.get("code").getAsString() : null;
-
-        if (code == null || code.isEmpty()) {
-            sendToSamePort(handler, createError("INVALID_CODE", "No authentication code provided"));
-            return;
-        }
-
-        PendingConnection pending = pendingCodes.remove(code);
-        if (pending == null) {
-            sendToSamePort(handler, createError("INVALID_CODE", "Invalid or expired code"));
-            return;
-        }
-
-        // Create session
-        WebPanelSession session = new WebPanelSession();
-        session.playerUuid = pending.playerUuid;
-        session.playerName = pending.playerName;
-        session.authMethod = "code";
-        session.authSessionId = UUID.randomUUID().toString();
-        session.hasPermission = pending.hasPermission;
-        session.prefix = pending.prefix;
-        session.suffix = pending.suffix;
-        session.connectedAt = System.currentTimeMillis();
-        session.lastActivity = System.currentTimeMillis();
-
-        samePortSessions.put(connectionId, session);
-
-        // Send success response
-        JsonObject response = new JsonObject();
-        response.addProperty("type", "AUTH_SUCCESS");
-        JsonObject authData = new JsonObject();
-        authData.addProperty("playerName", session.playerName);
-        authData.addProperty("uuid", session.playerUuid.toString());
-        authData.addProperty("sessionId", session.authSessionId);
-        authData.addProperty("prefix", session.prefix != null ? session.prefix : "");
-        authData.addProperty("suffix", session.suffix != null ? session.suffix : "");
-        response.add("data", authData);
-        sendToSamePort(handler, GSON.toJson(response));
-
-        plugin.getLogger().info("[SamePort] Authenticated: " + session.playerName);
-    }
-
-    private void handleSamePortRequest(String type, JsonObject data, WebPanelSession session, WebSocketFrameHandler handler) {
-        // Create a wrapper to send responses
-        SamePortConnectionWrapper wrapper = new SamePortConnectionWrapper(handler);
-
-        try {
-        // Reuse existing handlers by wrapping the connection
-        switch (type) {
-            case "GET_PLAYERS" -> sendPlayerList(wrapper);
-            case "GET_PLAYER_DETAILS" -> sendPlayerDetails(wrapper, data);
-            case "GET_PUNISHMENTS" -> sendPunishments(wrapper, data, session);
-            case "GET_COMMAND_HISTORY" -> sendCommandHistory(wrapper, data, session);
-            case "GET_CHAT_LOGS" -> sendChatLogs(wrapper, data, session);
-            case "GET_AUTOMOD_LOGS" -> sendAutomodLogs(wrapper, data, session);
-            case "GET_AUTOMOD_RULES" -> sendAutomodRules(wrapper);
-            case "GET_USER_SETTINGS" -> sendUserSettingsForSamePort(wrapper, session);
-            case "GET_TEMPLATES" -> sendTemplates(wrapper);
-            case "GET_STATS" -> sendStats(wrapper);
-            case "GET_CHAT_STATUS" -> sendChatStatus(wrapper);
-            case "GET_SERVER_STATUS" -> sendServerStatus(wrapper);
-            case "GET_LUCKPERMS_STATUS" -> sendLuckPermsStatus(wrapper);
-            case "GET_GEYSER_STATUS" -> sendGeyserStatus(wrapper);
-            case "GET_MODERATION_PLUGINS" -> sendModerationPlugins(wrapper);
-            case "GET_SERVER_SETTINGS" -> sendServerSettings(wrapper);
-            case "GET_DEV_CHECKLIST" -> sendDevChecklist(wrapper);
-            case "GET_WATCHLIST" -> sendWatchlist(wrapper);
-            case "GET_ANTICHEAT_INFO" -> sendAnticheatInfo(wrapper);
-            case "GET_ANTICHEAT_ALERTS" -> sendAnticheatAlerts(wrapper);
-            case "GET_ANTICHEAT_CHECKS" -> sendAnticheatChecks(wrapper);
-            case "GET_ALERT_PRESETS" -> sendAlertPresets(wrapper);
-            case "SEND_STAFFCHAT", "STAFFCHAT_MESSAGE" -> {
-                String msg = data.has("message") ? data.get("message").getAsString() : "";
-                plugin.getStaffChatManager().broadcastFromWebPanel(session.playerName, msg);
-                sendSuccess(wrapper, "Message sent");
-            }
-            case "UPDATE_AUTOMOD_RULE" -> updateAutomodRule(wrapper, data, session);
-            case "CREATE_AUTOMOD_RULE" -> createAutomodRule(wrapper, data, session);
-            case "DELETE_AUTOMOD_RULE" -> deleteAutomodRule(wrapper, data, session);
-            case "ADD_RULE" -> addServerRule(wrapper, data, session);
-            case "DELETE_RULE" -> deleteServerRule(wrapper, data, session);
-            case "UPDATE_RULES" -> updateServerRules(wrapper, data, session);
-            case "CREATE_PUNISHMENT" -> createPunishment(wrapper, data, session);
-            case "REVOKE_PUNISHMENT" -> revokePunishment(wrapper, data, session);
-            case "ADD_TO_WATCHLIST" -> addToWatchlist(wrapper, data, session);
-            case "REMOVE_FROM_WATCHLIST" -> removeFromWatchlist(wrapper, data);
-            case "DELETE_TEMPLATE" -> deleteTemplate(wrapper, data, session);
-            case "UPDATE_USER_SETTINGS" -> updateUserSettings(wrapper, data, session);
-            case "MARK_CHANGELOG_READ" -> markChangelogRead(wrapper, data, session);
-            case "SET_CHAT_LOCK" -> setChatLock(wrapper, data, session);
-            case "SET_SLOWMODE" -> setSlowmode(wrapper, data, session);
-            case "DEV_STRESS_CREATE_PLAYERS" -> handleDevStressCreatePlayers(wrapper, data);
-            case "DEV_STRESS_CREATE_PUNISHMENTS" -> handleDevStressCreatePunishments(wrapper, data);
-            case "DEV_STRESS_CLEANUP" -> handleDevStressCleanup(wrapper);
-            case "DEV_STRESS_STOP" -> handleDevStressStop(wrapper);
-            default -> sendError(wrapper, "UNKNOWN_TYPE", "Unknown message type: " + type);
-        }
-        } catch (Exception e) {
-            // Catch all exceptions to prevent them from propagating and closing the connection
-            plugin.logError("[SamePort] Error handling request type " + type + ": " + e.getMessage(), e);
-            try {
-                sendError(wrapper, "INTERNAL_ERROR", "An error occurred: " + e.getMessage());
-            } catch (Exception ignored) {}
-        }
-    }
-
-    private void sendUserSettingsForSamePort(SamePortConnectionWrapper wrapper, WebPanelSession session) {
-        JsonObject response = new JsonObject();
-        response.addProperty("type", "USER_SETTINGS_DATA");
-        JsonObject data = getUserSettings(session.playerUuid).toJson();
-
-        // Include in-game staff settings
-        var staffSettings = plugin.getStaffSettingsManager().getSettings(session.playerUuid);
-        if (staffSettings != null) {
-            data.addProperty("staffChatEnabled", staffSettings.isStaffChatEnabled());
-            data.addProperty("staffChatSound", staffSettings.isStaffChatSound());
-            data.addProperty("watchlistJoinAlerts", staffSettings.isWatchlistJoinAlerts());
-            data.addProperty("watchlistQuitAlerts", staffSettings.isWatchlistQuitAlerts());
-            data.addProperty("watchlistActivityAlerts", staffSettings.isWatchlistActivityAlerts());
-            data.addProperty("autoVanishOnJoin", staffSettings.isAutoVanishOnJoin());
-            data.addProperty("vanishNightVision", staffSettings.isVanishNightVision());
-            data.addProperty("compactMode", staffSettings.isCompactMode());
-            data.addProperty("inGameSoundEnabled", staffSettings.isSoundEnabled());
-            data.addProperty("actionBarAlerts", staffSettings.isActionBarAlerts());
-            data.addProperty("inGameChatAlerts", staffSettings.isChatAlerts());
-            data.addProperty("bossBarAlerts", staffSettings.isBossBarAlerts());
-
-            // Punishment alert levels
-            data.addProperty("banAlerts", staffSettings.getBanAlerts().name().toLowerCase());
-            data.addProperty("kickAlerts", staffSettings.getKickAlerts().name().toLowerCase());
-            data.addProperty("muteAlerts", staffSettings.getMuteAlerts().name().toLowerCase());
-            data.addProperty("warnAlerts", staffSettings.getWarnAlerts().name().toLowerCase());
-            data.addProperty("pardonAlerts", staffSettings.getPardonAlerts().name().toLowerCase());
-
-            // Other alert types
-            data.addProperty("automodAlerts", staffSettings.getAutomodAlerts().name().toLowerCase());
-            data.addProperty("anticheatAlerts", staffSettings.getAnticheatAlerts().name().toLowerCase());
-            data.addProperty("anticheatMinVL", staffSettings.getAnticheatMinVL());
-            data.addProperty("nicknameAlerts", staffSettings.getNicknameAlerts().name().toLowerCase());
-            data.addProperty("commandAlerts", staffSettings.getCommandAlerts().name().toLowerCase());
-            data.addProperty("joinLeaveAlerts", staffSettings.getJoinLeaveAlerts().name().toLowerCase());
-            data.addProperty("lagAlerts", staffSettings.isLagAlerts());
-
-            // Web panel notification modes
-            data.addProperty("webNotifyPunishments", staffSettings.getWebNotifyPunishments().name().toLowerCase());
-            data.addProperty("webNotifyAutomod", staffSettings.getWebNotifyAutomod().name().toLowerCase());
-            data.addProperty("webNotifyAnticheat", staffSettings.getWebNotifyAnticheat().name().toLowerCase());
-            data.addProperty("webNotifyWatchlist", staffSettings.getWebNotifyWatchlist().name().toLowerCase());
-            data.addProperty("webNotifyStaffChat", staffSettings.getWebNotifyStaffChat().name().toLowerCase());
-            data.addProperty("webNotifyCommands", staffSettings.getWebNotifyCommands().name().toLowerCase());
-            data.addProperty("webNotifyNickname", staffSettings.getWebNotifyNickname().name().toLowerCase());
-            data.addProperty("webNotifyLag", staffSettings.getWebNotifyLag().name().toLowerCase());
-
-            // Web panel display settings
-            data.addProperty("webToastPosition", staffSettings.getWebToastPosition().getCssClass());
-            data.addProperty("webAlertDurationSeconds", staffSettings.getWebAlertDurationSeconds());
-
-            // Web panel sound settings
-            data.addProperty("webSoundPunishments", staffSettings.isWebSoundPunishments());
-            data.addProperty("webSoundAutomod", staffSettings.isWebSoundAutomod());
-            data.addProperty("webSoundAnticheat", staffSettings.isWebSoundAnticheat());
-            data.addProperty("webSoundWatchlist", staffSettings.isWebSoundWatchlist());
-            data.addProperty("webSoundStaffChat", staffSettings.isWebSoundStaffChat());
-            data.addProperty("webSoundCommands", staffSettings.isWebSoundCommands());
-            data.addProperty("webSoundNickname", staffSettings.isWebSoundNickname());
-            data.addProperty("webSoundLag", staffSettings.isWebSoundLag());
-        }
-
-        // Include read changelog builds
-        JsonArray readChangelogs = getReadChangelogBuilds(session.playerUuid);
-        data.add("readChangelogs", readChangelogs);
-
-        // Include user permissions for alert type checks
-        JsonArray permissions = getUserPermissions(session.playerUuid);
-        data.add("permissions", permissions);
-        plugin.logDebug("[WebPanel] User " + session.playerName + " permissions: " + permissions);
-
-        response.add("data", data);
-        wrapper.send(GSON.toJson(response));
-        plugin.logDebug("[WebPanel] Sent user settings with " + readChangelogs.size() + " read changelogs to " + session.playerName);
-    }
-
-    private void sendToSamePort(WebSocketFrameHandler handler, String message) {
-        handler.send(message);
     }
 
     private String createError(String code, String message) {
@@ -8523,50 +8117,6 @@ public class HybridPanelServer implements com.blockforge.moderex.gateway.Gateway
         data.addProperty("message", message);
         response.add("data", data);
         conn.send(GSON.toJson(response));
-    }
-
-    /**
-     * Broadcast a message to all same-port connections.
-     */
-    public void broadcastToSamePort(String message) {
-        for (WebSocketFrameHandler handler : samePortConnections.values()) {
-            try {
-                handler.send(message);
-            } catch (Exception ignored) {}
-        }
-    }
-
-    /**
-     * Wrapper class to make same-port connections compatible with existing handlers.
-     */
-    private static class SamePortConnectionWrapper extends WebSocketConnection {
-        private final WebSocketFrameHandler handler;
-
-        SamePortConnectionWrapper(WebSocketFrameHandler handler) {
-            super(); // Use protected no-arg constructor
-            this.handler = handler;
-        }
-
-        @Override
-        void send(String message) {
-            handler.send(message);
-        }
-
-        @Override
-        boolean sendAsync(String message) {
-            handler.send(message);
-            return true;
-        }
-
-        @Override
-        void close() {
-            handler.close();
-        }
-
-        @Override
-        String getRemoteAddress() {
-            return handler.getRemoteAddress();
-        }
     }
 
     // ==================== Gateway Connection Support ====================

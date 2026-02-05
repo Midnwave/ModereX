@@ -40,6 +40,14 @@ public class ServerIdentity {
     // This is determined by the gateway and starts at 1
     private int urlPrefixGroups = 1;
 
+    // Premium status (validated by gateway)
+    private boolean premium = false;
+    private long premiumExpiresAt = 0;
+    private long premiumCachedUntil = 0;
+
+    // Premium cache duration: 24 hours
+    private static final long PREMIUM_CACHE_DURATION = 24 * 60 * 60 * 1000;
+
     public ServerIdentity(ModereX plugin) {
         this.plugin = plugin;
     }
@@ -144,6 +152,24 @@ public class ServerIdentity {
                     } catch (NumberFormatException ignored) {}
                 }
 
+                // Load premium status if saved
+                String premiumStr = props.getProperty("premium");
+                if (premiumStr != null) {
+                    premium = Boolean.parseBoolean(premiumStr);
+                }
+                String expiresStr = props.getProperty("premium_expires_at");
+                if (expiresStr != null) {
+                    try {
+                        premiumExpiresAt = Long.parseLong(expiresStr);
+                    } catch (NumberFormatException ignored) {}
+                }
+                String cachedStr = props.getProperty("premium_cached_until");
+                if (cachedStr != null) {
+                    try {
+                        premiumCachedUntil = Long.parseLong(cachedStr);
+                    } catch (NumberFormatException ignored) {}
+                }
+
                 return id;
             }
         } catch (IOException e) {
@@ -222,6 +248,9 @@ public class ServerIdentity {
             props.setProperty("created_at", String.valueOf(createdAt));
             props.setProperty("plugin_version", plugin.getDescription().getVersion());
             props.setProperty("url_prefix_groups", String.valueOf(urlPrefixGroups));
+            props.setProperty("premium", String.valueOf(premium));
+            props.setProperty("premium_expires_at", String.valueOf(premiumExpiresAt));
+            props.setProperty("premium_cached_until", String.valueOf(premiumCachedUntil));
 
             try (OutputStream out = Files.newOutputStream(path)) {
                 props.store(out, "ModereX Server Identity - DO NOT DELETE OR MODIFY");
@@ -416,5 +445,70 @@ public class ServerIdentity {
 
         // Check if the prefix matches the beginning of our ID
         return normalizedId.startsWith(normalizedPrefix);
+    }
+
+    // ==================== Premium Status ====================
+
+    /**
+     * Check if this server is on a premium plan.
+     * Premium status is validated by the gateway and cached for 24 hours
+     * to allow offline operation if the gateway becomes unavailable.
+     *
+     * @return true if the server is premium and the status hasn't expired
+     */
+    public boolean isPremium() {
+        if (!premium) {
+            return false;
+        }
+
+        long now = System.currentTimeMillis();
+
+        // Check if premium subscription expired
+        if (premiumExpiresAt > 0 && now > premiumExpiresAt) {
+            plugin.logDebug("[Identity] Premium subscription expired");
+            premium = false;
+            return false;
+        }
+
+        // Check if cache is still valid (if gateway went offline)
+        if (premiumCachedUntil > 0 && now > premiumCachedUntil) {
+            plugin.logDebug("[Identity] Premium cache expired (gateway offline?)");
+            premium = false;
+            return false;
+        }
+
+        return true;
+    }
+
+    /**
+     * Set premium status. Called by GatewayClient when receiving registration response.
+     *
+     * @param premium Whether the server has premium status
+     * @param expiresAt Timestamp when premium expires (0 = never, -1 = lifetime)
+     */
+    public void setPremium(boolean premium, long expiresAt) {
+        this.premium = premium;
+        this.premiumExpiresAt = (expiresAt == -1) ? 0 : expiresAt; // -1 means lifetime (never expires)
+        this.premiumCachedUntil = System.currentTimeMillis() + PREMIUM_CACHE_DURATION;
+
+        if (premium) {
+            if (expiresAt == -1 || expiresAt == 0) {
+                plugin.getLogger().info("[Identity] Premium status: LIFETIME");
+            } else {
+                long daysLeft = (expiresAt - System.currentTimeMillis()) / (24 * 60 * 60 * 1000);
+                plugin.getLogger().info("[Identity] Premium status: ACTIVE (" + daysLeft + " days remaining)");
+            }
+        }
+
+        saveToFile();
+    }
+
+    /**
+     * Get when premium subscription expires.
+     * @return Timestamp, 0 for lifetime, -1 if not premium
+     */
+    public long getPremiumExpiresAt() {
+        if (!premium) return -1;
+        return premiumExpiresAt;
     }
 }

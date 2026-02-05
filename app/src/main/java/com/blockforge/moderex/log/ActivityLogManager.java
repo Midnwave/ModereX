@@ -606,6 +606,14 @@ public class ActivityLogManager {
      * Flush the write queue to storage.
      */
     private void flushQueue() {
+        // Check database limit before flushing
+        if (!plugin.getDatabaseManager().canWrite()) {
+            // Clear the queue without saving to avoid memory buildup
+            writeQueue.clear();
+            plugin.logDebug("[ActivityLog] Database limit reached - skipping activity log writes");
+            return;
+        }
+
         List<ActivityLogEntry> toWrite = new ArrayList<>();
 
         ActivityLogEntry entry;
@@ -615,6 +623,8 @@ public class ActivityLogManager {
 
         if (!toWrite.isEmpty() && storage != null) {
             storage.saveBatch(toWrite);
+            // Periodically check threshold after writes
+            plugin.getDatabaseManager().checkAndNotifyThreshold();
         }
     }
 

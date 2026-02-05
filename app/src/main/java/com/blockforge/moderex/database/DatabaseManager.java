@@ -533,6 +533,132 @@ public class DatabaseManager {
         return getDatabaseSizeBytes() / (1024.0 * 1024.0);
     }
 
+    // ==================== Database Size Limits ====================
+
+    /** Free tier database limit: 25MB */
+    private static final long FREE_TIER_LIMIT_BYTES = 25 * 1024 * 1024;
+
+    /** Warning threshold: 80% of limit */
+    private static final double WARNING_THRESHOLD = 0.80;
+
+    /** Critical threshold: 90% of limit */
+    private static final double CRITICAL_THRESHOLD = 0.90;
+
+    /** Track last notified status to avoid duplicate alerts */
+    private DatabaseSizeStatus lastNotifiedStatus = DatabaseSizeStatus.OK;
+
+    /**
+     * Get the database limit in bytes.
+     * Returns -1 for premium users (unlimited).
+     */
+    public long getLimitBytes() {
+        if (isPremium()) {
+            return -1; // Unlimited for premium
+        }
+        return FREE_TIER_LIMIT_BYTES;
+    }
+
+    /**
+     * Get the database usage percentage (0.0 to 1.0+).
+     * Returns 0.0 for premium users (since they have unlimited).
+     */
+    public double getUsagePercent() {
+        if (isPremium()) {
+            return 0.0;
+        }
+        return (double) getDatabaseSizeBytes() / FREE_TIER_LIMIT_BYTES;
+    }
+
+    /**
+     * Check the current database size status relative to limits.
+     */
+    public DatabaseSizeStatus checkSizeStatus() {
+        if (isPremium()) {
+            return DatabaseSizeStatus.OK;
+        }
+
+        double usage = getUsagePercent();
+
+        if (usage >= 1.0) {
+            return DatabaseSizeStatus.LIMIT_REACHED;
+        } else if (usage >= CRITICAL_THRESHOLD) {
+            return DatabaseSizeStatus.CRITICAL;
+        } else if (usage >= WARNING_THRESHOLD) {
+            return DatabaseSizeStatus.WARNING;
+        } else {
+            return DatabaseSizeStatus.OK;
+        }
+    }
+
+    /**
+     * Check if writes are allowed based on database size.
+     * Returns false if the free tier limit is reached and user is not premium.
+     */
+    public boolean canWrite() {
+        if (isPremium()) {
+            return true;
+        }
+        return checkSizeStatus() != DatabaseSizeStatus.LIMIT_REACHED;
+    }
+
+    /**
+     * Check if the server is on premium plan (bypasses database limits).
+     */
+    private boolean isPremium() {
+        var identity = plugin.getServerIdentity();
+        return identity != null && identity.isPremium();
+    }
+
+    /**
+     * Check size status and notify if a new threshold was crossed.
+     * Call this periodically or after writes to alert staff.
+     */
+    public void checkAndNotifyThreshold() {
+        DatabaseSizeStatus current = checkSizeStatus();
+
+        // Only notify when crossing to a worse threshold (not when recovering)
+        if (current != lastNotifiedStatus && current.ordinal() > lastNotifiedStatus.ordinal()) {
+            notifyThresholdCrossed(current);
+            lastNotifiedStatus = current;
+        } else if (current.ordinal() < lastNotifiedStatus.ordinal()) {
+            // Status improved (e.g., data deleted) - reset tracking
+            lastNotifiedStatus = current;
+        }
+    }
+
+    /**
+     * Notify staff about a database threshold crossing.
+     */
+    private void notifyThresholdCrossed(DatabaseSizeStatus status) {
+        double sizeMb = getDatabaseSizeMb();
+        double percent = getUsagePercent() * 100;
+
+        String message = switch (status) {
+            case WARNING -> String.format(
+                "§e[ModereX] §fDatabase usage warning: %.1f MB / 25 MB (%.0f%%). Consider cleaning up old data.",
+                sizeMb, percent);
+            case CRITICAL -> String.format(
+                "§c[ModereX] §fDatabase usage critical: %.1f MB / 25 MB (%.0f%%). Approaching limit!",
+                sizeMb, percent);
+            case LIMIT_REACHED -> "§4[ModereX] §fDatabase limit reached (25MB). Delete old data or upgrade to premium.";
+            case OK -> null; // Don't notify for OK status
+        };
+
+        if (message != null) {
+            // Log to console
+            plugin.getLogger().warning(message.replace("§e", "").replace("§c", "").replace("§4", "").replace("§f", ""));
+
+            // Notify online staff
+            plugin.getServer().getScheduler().runTask(plugin, () -> {
+                for (org.bukkit.entity.Player player : plugin.getServer().getOnlinePlayers()) {
+                    if (player.hasPermission("moderex.admin")) {
+                        player.sendMessage(message);
+                    }
+                }
+            });
+        }
+    }
+
     public String generateCaseId() {
         java.util.Random random = new java.util.Random();
         int maxAttempts = 100;

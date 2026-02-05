@@ -90,13 +90,6 @@ webpanel:
   # Server name displayed in the web panel
   server-name: 'My Server'
 
-
-  # EXPERIMENTAL: Host web panel on same port as Minecraft server
-  # Uses Netty injection to detect HTTP traffic on the game port
-  # Not recommended for production - use the dedicated port instead
-  # When enabled, you can access the panel at: http://your-server:25565/
-  same-port: false
-
   # Token validation interval in seconds (checks if session is still valid)
   token-validation-interval: 10
 
@@ -675,7 +668,7 @@ gateway:
 # CONFIGURATION VERSION
 # ============================================
 # DO NOT MODIFY - Used for automatic config migration
-config-version: 16
+config-version: 17
 
 
 

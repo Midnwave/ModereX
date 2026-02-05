@@ -275,8 +275,16 @@ public class GatewayClient {
             plugin.getServerIdentity().setUrlPrefixGroups(prefixGroups);
         }
 
+        // Handle premium status from gateway
+        boolean premium = json.has("premium") && json.get("premium").getAsBoolean();
+        long premiumExpiresAt = json.has("premiumExpiresAt") ? json.get("premiumExpiresAt").getAsLong() : 0;
+        plugin.getServerIdentity().setPremium(premium, premiumExpiresAt);
+
         logImportant("Registered! Server ID: " + serverId + ", URL prefix: " + urlPrefix);
         logImportant("Panel URL: " + plugin.getServerIdentity().getPanelUrl("moderex.net"));
+        if (premium) {
+            logImportant("Premium status: ACTIVE");
+        }
     }
 
     /**
