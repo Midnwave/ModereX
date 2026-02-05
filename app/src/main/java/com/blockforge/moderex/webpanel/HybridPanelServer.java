@@ -3658,8 +3658,8 @@ public class HybridPanelServer implements com.blockforge.moderex.gateway.Gateway
                 throw saveEx;
             }
 
-            // Broadcast the updated rule to ALL connected clients
-            broadcastSingleRuleUpdate(rule);
+            // Broadcast the updated rule to ALL connected clients (include who updated it so they can skip toast)
+            broadcastSingleRuleUpdate(rule, session.playerName);
 
             plugin.logDebug("[WebPanel] Automod rule updated: " + rule.getName() + " by " + session.playerName);
             debugSuccess(DebugCategory.AUTOMOD, "Automod rule updated",
@@ -3711,8 +3711,8 @@ public class HybridPanelServer implements com.blockforge.moderex.gateway.Gateway
             // Save rule to database
             plugin.getAutomodManager().saveRule(rule);
 
-            // Broadcast the new rule creation to ALL connected clients
-            broadcastRuleCreated(rule);
+            // Broadcast the new rule creation to ALL connected clients (include who created it so they can skip toast)
+            broadcastRuleCreated(rule, session.playerName);
 
             plugin.logDebug("[WebPanel] Automod rule created: " + name + " (id=" + rule.getId() + ") by " + session.playerName);
             debugSuccess(DebugCategory.AUTOMOD, "Automod rule created",
@@ -3749,8 +3749,8 @@ public class HybridPanelServer implements com.blockforge.moderex.gateway.Gateway
             // Delete rule from database
             plugin.getAutomodManager().deleteRule(ruleId);
 
-            // Broadcast deletion to ALL connected clients
-            broadcastRuleDeleted(ruleId);
+            // Broadcast deletion to ALL connected clients (include who deleted it so they can skip toast)
+            broadcastRuleDeleted(ruleId, session.playerName);
 
             plugin.logDebug("[WebPanel] Automod rule deleted: " + rule.getName() + " by " + session.playerName);
             debugSuccess(DebugCategory.AUTOMOD, "Automod rule deleted",
@@ -4109,12 +4109,15 @@ public class HybridPanelServer implements com.blockforge.moderex.gateway.Gateway
     /**
      * Broadcast a single rule update to all connected clients.
      * This is more efficient than broadcasting all rules when only one changed.
+     * @param rule The updated rule
+     * @param by The name of the player who updated it (for toast exclusion)
      */
-    public void broadcastSingleRuleUpdate(AutomodRule rule) {
+    public void broadcastSingleRuleUpdate(AutomodRule rule, String by) {
         try {
             JsonObject broadcast = new JsonObject();
             broadcast.addProperty("type", "AUTOMOD_RULE_UPDATED");
             JsonObject data = serializeRule(rule);
+            data.addProperty("by", by != null ? by : "System");
             broadcast.add("data", data);
             String message = GSON.toJson(broadcast);
 
@@ -4145,12 +4148,15 @@ public class HybridPanelServer implements com.blockforge.moderex.gateway.Gateway
     /**
      * Broadcast a new rule creation to all connected clients.
      * Sends AUTOMOD_RULE_CREATED so the frontend knows to open the editor.
+     * @param rule The created rule
+     * @param by The name of the player who created it (for toast exclusion)
      */
-    public void broadcastRuleCreated(AutomodRule rule) {
+    public void broadcastRuleCreated(AutomodRule rule, String by) {
         try {
             JsonObject broadcast = new JsonObject();
             broadcast.addProperty("type", "AUTOMOD_RULE_CREATED");
             JsonObject data = serializeRule(rule);
+            data.addProperty("by", by != null ? by : "System");
             broadcast.add("data", data);
             String message = GSON.toJson(broadcast);
 
@@ -4180,13 +4186,16 @@ public class HybridPanelServer implements com.blockforge.moderex.gateway.Gateway
 
     /**
      * Broadcast a rule deletion to all connected clients.
+     * @param ruleId The ID of the deleted rule
+     * @param by The name of the player who deleted it (for toast exclusion)
      */
-    public void broadcastRuleDeleted(String ruleId) {
+    public void broadcastRuleDeleted(String ruleId, String by) {
         try {
             JsonObject broadcast = new JsonObject();
             broadcast.addProperty("type", "AUTOMOD_RULE_DELETED");
             JsonObject data = new JsonObject();
             data.addProperty("id", ruleId);
+            data.addProperty("by", by != null ? by : "System");
             broadcast.add("data", data);
             String message = GSON.toJson(broadcast);
 

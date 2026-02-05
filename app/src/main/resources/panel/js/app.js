@@ -7232,8 +7232,11 @@
 
       ui.renderRules();
 
+      // Check if this was created by us using the 'by' field from server
+      const createdByMe = data.by && data.by === state.staffName;
+
       // Open editor if this was a new rule creation from addRuleUI
-      if (shouldOpenEditor) {
+      if (shouldOpenEditor || createdByMe) {
         // Open editor after a short delay to ensure state is fully updated
         setTimeout(() => {
           console.log('[Automod] Opening editor for new rule:', data.id);
@@ -7245,7 +7248,7 @@
             toast('error', 'Error', 'Could not open rule editor');
           }
         }, 100);
-        // Show a clickable toast as well
+        // Show toast only for our own creations
         toast('ok', 'Rule Created', `${data.name || 'New rule'} created`, {
           ttl: 6000,
           onClick: () => {
@@ -7254,17 +7257,8 @@
             }
           }
         });
-      } else {
-        // For rules created by others or system, show clickable toast
-        toast('info', 'Automod', `New rule: ${data.name || 'Unknown'}`, {
-          ttl: 6000,
-          onClick: () => {
-            if (window.openAutomodRuleEditor) {
-              window.openAutomodRuleEditor(data.id);
-            }
-          }
-        });
       }
+      // For rules created by others, silently update UI (no toast to avoid spam)
     });
 
     // Handle rule deleted (real-time sync)
@@ -7274,7 +7268,10 @@
       const deletedId = data.ruleId || data.id;
       state.rules = state.rules.filter(r => r.id !== deletedId);
       ui.renderRules();
-      toast('info', 'Automod', 'Rule deleted');
+      // Only show toast if deleted by someone else (not us)
+      if (data.by && data.by !== state.staffName) {
+        toast('info', 'Automod', `Rule deleted by ${data.by}`);
+      }
     });
 
     // Handle user settings
