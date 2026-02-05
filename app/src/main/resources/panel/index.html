@@ -165,6 +165,21 @@
     </div>
   </div>
 
+  <!-- Admin Announcement Banner -->
+  <div class="announcementBanner" id="announcementBanner">
+    <div class="announcementBanner-content">
+      <i class="fa-solid fa-bullhorn" id="announcementIcon"></i>
+      <div class="announcementBanner-text">
+        <span class="announcement-title" id="announcementTitle"></span>
+        <span class="announcement-message" id="announcementMessage"></span>
+      </div>
+      <div class="announcementBanner-actions">
+        <a class="btn mini primary" id="announcementAction" href="#" target="_blank" style="display:none;"></a>
+        <button class="btn mini" id="announcementDismiss" onclick="dismissAnnouncement()"><i class="fa-solid fa-xmark"></i></button>
+      </div>
+    </div>
+  </div>
+
   <!-- Main App -->
   <div class="app">
     <!-- Sidebar -->
@@ -178,6 +193,11 @@
       </div>
       
       <div class="sb-scroll" id="sbScroll">
+        <div class="sb-group" id="gettingStartedNav">
+          <div class="sb-label">Help</div>
+          <div class="sb-item" data-page="gettingstarted"><i class="fa-solid fa-book-open"></i> Getting Started</div>
+        </div>
+
         <div class="sb-group">
           <div class="sb-label">Overview</div>
           <div class="sb-item active" data-page="dashboard"><i class="fa-solid fa-gauge-high"></i> Dashboard</div>
@@ -196,6 +216,7 @@
           <div class="sb-item" data-page="cmdblacklist"><i class="fa-solid fa-ban"></i> Cmd Blacklist</div>
           <div class="sb-item" data-page="anticheat"><i class="fa-solid fa-shield-halved"></i> Anticheat</div>
           <div class="sb-item" data-page="watchlist"><i class="fa-solid fa-eye"></i> Watchlist</div>
+          <div class="sb-item" data-page="replay"><i class="fa-solid fa-film"></i> Replays</div>
           <div class="sb-item" data-page="activitylog"><i class="fa-solid fa-scroll"></i> Activity Log</div>
           <div class="sb-item" data-page="status"><i class="fa-solid fa-server"></i> Server Status</div>
         </div>
@@ -214,7 +235,7 @@
           <div class="sb-label">Configuration</div>
           <div class="sb-item" data-page="mysettings"><i class="fa-solid fa-user-gear"></i> My Settings</div>
           <div class="sb-item" data-page="messages"><i class="fa-solid fa-language"></i> Messages</div>
-          <div class="sb-item" data-page="actions"><i class="fa-solid fa-bolt"></i> Actions</div>
+          <div class="sb-item" data-page="actions"><i class="fa-solid fa-sliders"></i> Configuration</div>
           <div class="sb-item" data-page="integrations"><i class="fa-solid fa-plug"></i> Integrations</div>
         </div>
 
@@ -342,7 +363,430 @@
 
       <!-- Content Area -->
       <div class="content">
-        
+
+        <!-- Getting Started Page -->
+        <section class="page" id="page-gettingstarted">
+          <div class="page-head">
+            <div class="page-title">
+              <h1><i class="fa-solid fa-book-open" style="color:var(--primary-light)"></i> Getting Started</h1>
+              <p>Complete guide to using the ModereX Control Panel.</p>
+            </div>
+            <div style="display:flex;gap:10px;align-items:center">
+              <div class="input-wrap" style="width:300px">
+                <i class="fa-solid fa-search"></i>
+                <input type="text" class="input" id="guideSearchInput" placeholder="Search guide..." oninput="searchGuide(this.value)">
+              </div>
+              <button class="btn ghost" onclick="toggleGuideSection()"><i class="fa-solid fa-compress-alt"></i> Collapse All</button>
+            </div>
+          </div>
+
+          <div class="panel pad">
+            <div class="grid cols-sidebar">
+              <!-- Table of Contents -->
+              <div class="guide-toc card" style="position:sticky;top:20px;align-self:start;margin:0">
+                <h3 style="margin-bottom:16px"><i class="fa-solid fa-list"></i> Contents</h3>
+                <div class="toc-list">
+                  <a href="#guide-overview" class="toc-item active" onclick="scrollToGuide('overview')">Overview</a>
+                  <a href="#guide-security" class="toc-item" onclick="scrollToGuide('security')">Security & Authentication</a>
+                  <a href="#guide-dashboard" class="toc-item" onclick="scrollToGuide('dashboard')">Dashboard</a>
+                  <a href="#guide-players" class="toc-item" onclick="scrollToGuide('players')">Player Management</a>
+                  <a href="#guide-punishments" class="toc-item" onclick="scrollToGuide('punishments')">Punishments</a>
+                  <a href="#guide-automod" class="toc-item" onclick="scrollToGuide('automod')">Automod Rules</a>
+                  <a href="#guide-anticheat" class="toc-item" onclick="scrollToGuide('anticheat')">Anticheat Integration</a>
+                  <a href="#guide-activity" class="toc-item" onclick="scrollToGuide('activity')">Activity Logs</a>
+                  <a href="#guide-staffchat" class="toc-item" onclick="scrollToGuide('staffchat')">Staff Chat</a>
+                  <a href="#guide-config" class="toc-item" onclick="scrollToGuide('config')">Configuration</a>
+                  <a href="#guide-troubleshooting" class="toc-item" onclick="scrollToGuide('troubleshooting')">Troubleshooting</a>
+                </div>
+
+                <div style="margin-top:20px;padding-top:16px;border-top:1px solid var(--border)">
+                  <div class="toggle-wrap">
+                    <button class="toggle" id="hideGuideToggle" onclick="toggleHideGuide()"><span class="toggle-thumb"></span></button>
+                    <div class="toggle-meta">
+                      <div class="toggle-title">Hide from sidebar</div>
+                      <div class="toggle-sub">Remove Getting Started tab</div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Guide Content -->
+              <div class="guide-content">
+                <!-- Overview Section -->
+                <div class="guide-section" id="guide-overview" data-keywords="overview welcome introduction start begin">
+                  <div class="card" style="margin:0">
+                    <h2 class="guide-section-title" onclick="toggleGuideAccordion(this)">
+                      <span><i class="fa-solid fa-house"></i> Overview</span>
+                      <i class="fa-solid fa-chevron-down accordion-icon"></i>
+                    </h2>
+                    <div class="guide-section-content">
+                      <p>Welcome to the ModereX Control Panel - your comprehensive server moderation hub. This web-based interface allows you to manage players, punishments, automod rules, and monitor server activity in real-time.</p>
+
+                      <div class="guide-features" style="margin-top:16px">
+                        <h4>Key Features</h4>
+                        <ul>
+                          <li><strong>Real-time Sync</strong> - Changes reflect instantly on the server</li>
+                          <li><strong>Multi-device Access</strong> - Access from any device with a browser</li>
+                          <li><strong>Secure Authentication</strong> - Token-based access with in-game linking</li>
+                          <li><strong>Full Moderation Suite</strong> - Bans, mutes, warnings, kicks with evidence</li>
+                          <li><strong>Activity Logging</strong> - Complete audit trail of all actions</li>
+                        </ul>
+                      </div>
+
+                      <div class="guide-screenshot" style="margin-top:16px">
+                        <div class="screenshot-placeholder" style="background:var(--bg1);border:2px dashed var(--border);border-radius:var(--radius);padding:60px;text-align:center;color:var(--muted)">
+                          <i class="fa-solid fa-image" style="font-size:32px;margin-bottom:8px"></i>
+                          <div>Dashboard screenshot placeholder</div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Security Section -->
+                <div class="guide-section" id="guide-security" data-keywords="security token authentication login password lost access">
+                  <div class="card" style="margin:0">
+                    <h2 class="guide-section-title" onclick="toggleGuideAccordion(this)">
+                      <span><i class="fa-solid fa-shield-halved"></i> Security & Authentication</span>
+                      <i class="fa-solid fa-chevron-down accordion-icon"></i>
+                    </h2>
+                    <div class="guide-section-content">
+                      <h4>How Authentication Works</h4>
+                      <p>The ModereX panel uses a secure token-based authentication system. When you first access the panel, you'll receive a unique authentication token that you must enter in-game using <code>/mx link &lt;token&gt;</code>. This links your Minecraft account to the panel session.</p>
+
+                      <div class="guide-alert warn" style="margin-top:16px">
+                        <i class="fa-solid fa-triangle-exclamation"></i>
+                        <div>
+                          <strong>Never share your authentication token!</strong>
+                          <p>Anyone with your token can access the panel as you. Tokens are single-use and expire after linking.</p>
+                        </div>
+                      </div>
+
+                      <h4 style="margin-top:20px">Lost Access / Token Issues</h4>
+                      <ol>
+                        <li>Close all browser tabs with the panel open</li>
+                        <li>Clear your browser's local storage for this site</li>
+                        <li>Navigate to the panel URL again to get a new token</li>
+                        <li>Link the new token in-game with <code>/mx link</code></li>
+                      </ol>
+
+                      <h4 style="margin-top:20px">Trusted Devices</h4>
+                      <p>Your session is saved as a "trusted device" after successful authentication. You can manage trusted devices in <strong>My Settings</strong> to revoke access from other devices.</p>
+
+                      <div class="guide-screenshot" style="margin-top:16px">
+                        <div class="screenshot-placeholder" style="background:var(--bg1);border:2px dashed var(--border);border-radius:var(--radius);padding:60px;text-align:center;color:var(--muted)">
+                          <i class="fa-solid fa-image" style="font-size:32px;margin-bottom:8px"></i>
+                          <div>Authentication flow screenshot placeholder</div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Dashboard Section -->
+                <div class="guide-section" id="guide-dashboard" data-keywords="dashboard stats overview statistics monitoring">
+                  <div class="card" style="margin:0">
+                    <h2 class="guide-section-title" onclick="toggleGuideAccordion(this)">
+                      <span><i class="fa-solid fa-gauge-high"></i> Dashboard</span>
+                      <i class="fa-solid fa-chevron-down accordion-icon"></i>
+                    </h2>
+                    <div class="guide-section-content">
+                      <p>The Dashboard provides a real-time overview of your server's moderation status. Here you'll find key statistics, recent activity, and quick access to common actions.</p>
+
+                      <h4 style="margin-top:16px">Statistics Cards</h4>
+                      <ul>
+                        <li><strong>Online Players</strong> - Current player count (click to view player list)</li>
+                        <li><strong>Active Bans</strong> - Number of currently active bans</li>
+                        <li><strong>Active Mutes</strong> - Number of currently active mutes</li>
+                        <li><strong>Recent Warnings</strong> - Warnings issued in the last 24 hours</li>
+                      </ul>
+
+                      <h4 style="margin-top:16px">Activity Feed</h4>
+                      <p>The activity feed shows real-time events including player joins/leaves, punishments issued, automod triggers, and staff actions. Click on any event to view more details.</p>
+
+                      <div class="guide-screenshot" style="margin-top:16px">
+                        <div class="screenshot-placeholder" style="background:var(--bg1);border:2px dashed var(--border);border-radius:var(--radius);padding:60px;text-align:center;color:var(--muted)">
+                          <i class="fa-solid fa-image" style="font-size:32px;margin-bottom:8px"></i>
+                          <div>Dashboard stats screenshot placeholder</div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Player Management Section -->
+                <div class="guide-section" id="guide-players" data-keywords="player management info lookup search uuid">
+                  <div class="card" style="margin:0">
+                    <h2 class="guide-section-title" onclick="toggleGuideAccordion(this)">
+                      <span><i class="fa-solid fa-users"></i> Player Management</span>
+                      <i class="fa-solid fa-chevron-down accordion-icon"></i>
+                    </h2>
+                    <div class="guide-section-content">
+                      <p>The Player Management page allows you to view all players, their punishment history, and take moderation actions.</p>
+
+                      <h4 style="margin-top:16px">Viewing Player Details</h4>
+                      <p>Click on any player to view their complete profile including:</p>
+                      <ul>
+                        <li>UUID and IP address (if you have permission)</li>
+                        <li>Current punishment status (banned, muted, warned)</li>
+                        <li>Full punishment history</li>
+                        <li>Recent chat and command logs</li>
+                        <li>Session history (join/leave times)</li>
+                      </ul>
+
+                      <h4 style="margin-top:16px">Taking Actions</h4>
+                      <p>From the player detail view, you can:</p>
+                      <ul>
+                        <li>Issue punishments (ban, mute, warn, kick)</li>
+                        <li>Add to/remove from watchlist</li>
+                        <li>View evidence attached to punishments</li>
+                        <li>Revoke active punishments</li>
+                      </ul>
+
+                      <div class="guide-screenshot" style="margin-top:16px">
+                        <div class="screenshot-placeholder" style="background:var(--bg1);border:2px dashed var(--border);border-radius:var(--radius);padding:60px;text-align:center;color:var(--muted)">
+                          <i class="fa-solid fa-image" style="font-size:32px;margin-bottom:8px"></i>
+                          <div>Player detail screenshot placeholder</div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Punishments Section -->
+                <div class="guide-section" id="guide-punishments" data-keywords="punishment ban mute warn kick history evidence">
+                  <div class="card" style="margin:0">
+                    <h2 class="guide-section-title" onclick="toggleGuideAccordion(this)">
+                      <span><i class="fa-solid fa-gavel"></i> Punishments</span>
+                      <i class="fa-solid fa-chevron-down accordion-icon"></i>
+                    </h2>
+                    <div class="guide-section-content">
+                      <p>The Punishments page displays all punishments issued on the server with filtering and search capabilities.</p>
+
+                      <h4 style="margin-top:16px">Punishment Types</h4>
+                      <ul>
+                        <li><strong>Ban</strong> - Prevents player from joining the server</li>
+                        <li><strong>IP Ban</strong> - Prevents all connections from an IP address</li>
+                        <li><strong>Mute</strong> - Prevents player from chatting</li>
+                        <li><strong>Warn</strong> - Issues a warning (can auto-escalate to ban)</li>
+                        <li><strong>Kick</strong> - Immediately disconnects the player</li>
+                      </ul>
+
+                      <h4 style="margin-top:16px">Attaching Evidence</h4>
+                      <p>When issuing punishments, you can attach evidence such as:</p>
+                      <ul>
+                        <li>Screenshots (PNG, JPG)</li>
+                        <li>Videos (MP4, MKV)</li>
+                        <li>Activity log entries (chat, commands)</li>
+                      </ul>
+
+                      <h4 style="margin-top:16px">Revoking Punishments</h4>
+                      <p>To revoke a punishment, view the punishment details and click "Revoke". Note that expired punishments cannot be revoked.</p>
+
+                      <div class="guide-screenshot" style="margin-top:16px">
+                        <div class="screenshot-placeholder" style="background:var(--bg1);border:2px dashed var(--border);border-radius:var(--radius);padding:60px;text-align:center;color:var(--muted)">
+                          <i class="fa-solid fa-image" style="font-size:32px;margin-bottom:8px"></i>
+                          <div>Punishment details screenshot placeholder</div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Automod Section -->
+                <div class="guide-section" id="guide-automod" data-keywords="automod filter chat spam caps link advertising swear">
+                  <div class="card" style="margin:0">
+                    <h2 class="guide-section-title" onclick="toggleGuideAccordion(this)">
+                      <span><i class="fa-solid fa-robot"></i> Automod Rules</span>
+                      <i class="fa-solid fa-chevron-down accordion-icon"></i>
+                    </h2>
+                    <div class="guide-section-content">
+                      <p>Automod automatically moderates chat based on configurable rules. Configure word filters, spam detection, caps filtering, and more.</p>
+
+                      <h4 style="margin-top:16px">Rule Types</h4>
+                      <ul>
+                        <li><strong>Word Filter</strong> - Block specific words or phrases</li>
+                        <li><strong>Regex Filter</strong> - Advanced pattern matching</li>
+                        <li><strong>Spam Detection</strong> - Detect and block spam messages</li>
+                        <li><strong>Caps Filter</strong> - Limit excessive capital letters</li>
+                        <li><strong>Link Filter</strong> - Block or whitelist URLs</li>
+                      </ul>
+
+                      <h4 style="margin-top:16px">Actions</h4>
+                      <p>When a rule is triggered, you can configure actions like:</p>
+                      <ul>
+                        <li>Block the message</li>
+                        <li>Warn the player</li>
+                        <li>Mute or ban automatically</li>
+                        <li>Alert staff</li>
+                      </ul>
+
+                      <div class="guide-screenshot" style="margin-top:16px">
+                        <div class="screenshot-placeholder" style="background:var(--bg1);border:2px dashed var(--border);border-radius:var(--radius);padding:60px;text-align:center;color:var(--muted)">
+                          <i class="fa-solid fa-image" style="font-size:32px;margin-bottom:8px"></i>
+                          <div>Automod rules screenshot placeholder</div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Anticheat Section -->
+                <div class="guide-section" id="guide-anticheat" data-keywords="anticheat grim check alert violation">
+                  <div class="card" style="margin:0">
+                    <h2 class="guide-section-title" onclick="toggleGuideAccordion(this)">
+                      <span><i class="fa-solid fa-shield-halved"></i> Anticheat Integration</span>
+                      <i class="fa-solid fa-chevron-down accordion-icon"></i>
+                    </h2>
+                    <div class="guide-section-content">
+                      <p>ModereX integrates with popular anticheats like Grim to provide unified alert management and automatic actions.</p>
+
+                      <h4 style="margin-top:16px">Alert Configuration</h4>
+                      <p>For each anticheat check, you can configure:</p>
+                      <ul>
+                        <li><strong>Alert Level</strong> - Off, Toast, Alert Bar, or Urgent</li>
+                        <li><strong>Threshold</strong> - Minimum violation level before alerting</li>
+                        <li><strong>Auto-actions</strong> - Automatic kick/ban at high VL</li>
+                      </ul>
+
+                      <div class="guide-screenshot" style="margin-top:16px">
+                        <div class="screenshot-placeholder" style="background:var(--bg1);border:2px dashed var(--border);border-radius:var(--radius);padding:60px;text-align:center;color:var(--muted)">
+                          <i class="fa-solid fa-image" style="font-size:32px;margin-bottom:8px"></i>
+                          <div>Anticheat alerts screenshot placeholder</div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Activity Logs Section -->
+                <div class="guide-section" id="guide-activity" data-keywords="activity log history audit trail chat command">
+                  <div class="card" style="margin:0">
+                    <h2 class="guide-section-title" onclick="toggleGuideAccordion(this)">
+                      <span><i class="fa-solid fa-scroll"></i> Activity Logs</span>
+                      <i class="fa-solid fa-chevron-down accordion-icon"></i>
+                    </h2>
+                    <div class="guide-section-content">
+                      <p>Activity logs provide a complete audit trail of all server events and staff actions.</p>
+
+                      <h4 style="margin-top:16px">Log Types</h4>
+                      <ul>
+                        <li><strong>Chat Logs</strong> - All player messages</li>
+                        <li><strong>Command Logs</strong> - Commands executed by players</li>
+                        <li><strong>Punishment Logs</strong> - Bans, mutes, warns issued</li>
+                        <li><strong>Automod Logs</strong> - Rules triggered</li>
+                        <li><strong>Session Logs</strong> - Player joins and leaves</li>
+                      </ul>
+
+                      <div class="guide-screenshot" style="margin-top:16px">
+                        <div class="screenshot-placeholder" style="background:var(--bg1);border:2px dashed var(--border);border-radius:var(--radius);padding:60px;text-align:center;color:var(--muted)">
+                          <i class="fa-solid fa-image" style="font-size:32px;margin-bottom:8px"></i>
+                          <div>Activity log screenshot placeholder</div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Staff Chat Section -->
+                <div class="guide-section" id="guide-staffchat" data-keywords="staff chat message communication team">
+                  <div class="card" style="margin:0">
+                    <h2 class="guide-section-title" onclick="toggleGuideAccordion(this)">
+                      <span><i class="fa-solid fa-comments"></i> Staff Chat</span>
+                      <i class="fa-solid fa-chevron-down accordion-icon"></i>
+                    </h2>
+                    <div class="guide-section-content">
+                      <p>Staff Chat allows you to communicate with other staff members both in-game and on the web panel in real-time.</p>
+
+                      <h4 style="margin-top:16px">Features</h4>
+                      <ul>
+                        <li>Real-time messages between panel and in-game</li>
+                        <li>Message history (last 100 messages)</li>
+                        <li>Sound notifications (configurable)</li>
+                        <li>Markdown formatting support</li>
+                      </ul>
+
+                      <div class="guide-screenshot" style="margin-top:16px">
+                        <div class="screenshot-placeholder" style="background:var(--bg1);border:2px dashed var(--border);border-radius:var(--radius);padding:60px;text-align:center;color:var(--muted)">
+                          <i class="fa-solid fa-image" style="font-size:32px;margin-bottom:8px"></i>
+                          <div>Staff chat screenshot placeholder</div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Configuration Section -->
+                <div class="guide-section" id="guide-config" data-keywords="configuration settings chat slowmode lockdown">
+                  <div class="card" style="margin:0">
+                    <h2 class="guide-section-title" onclick="toggleGuideAccordion(this)">
+                      <span><i class="fa-solid fa-sliders"></i> Configuration</span>
+                      <i class="fa-solid fa-chevron-down accordion-icon"></i>
+                    </h2>
+                    <div class="guide-section-content">
+                      <p>The Configuration page allows you to manage server-wide settings.</p>
+
+                      <h4 style="margin-top:16px">Available Settings</h4>
+                      <ul>
+                        <li><strong>Chat Controls</strong> - Disable chat, enable slowmode</li>
+                        <li><strong>Server Lockdown</strong> - Prevent new players from joining</li>
+                        <li><strong>Command Blacklist</strong> - Block specific commands</li>
+                        <li><strong>Warning Escalation</strong> - Auto-escalate warnings</li>
+                        <li><strong>Mute Restrictions</strong> - What muted players can do</li>
+                      </ul>
+
+                      <div class="guide-screenshot" style="margin-top:16px">
+                        <div class="screenshot-placeholder" style="background:var(--bg1);border:2px dashed var(--border);border-radius:var(--radius);padding:60px;text-align:center;color:var(--muted)">
+                          <i class="fa-solid fa-image" style="font-size:32px;margin-bottom:8px"></i>
+                          <div>Configuration page screenshot placeholder</div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Troubleshooting Section -->
+                <div class="guide-section" id="guide-troubleshooting" data-keywords="troubleshooting help problem error fix issue">
+                  <div class="card" style="margin:0">
+                    <h2 class="guide-section-title" onclick="toggleGuideAccordion(this)">
+                      <span><i class="fa-solid fa-wrench"></i> Troubleshooting</span>
+                      <i class="fa-solid fa-chevron-down accordion-icon"></i>
+                    </h2>
+                    <div class="guide-section-content">
+                      <h4>Common Issues</h4>
+
+                      <div class="guide-faq" style="margin-top:16px">
+                        <div class="faq-item">
+                          <strong>Panel shows "Disconnected" or "Server Offline"</strong>
+                          <p>Check that the Minecraft server is running and the ModereX plugin is loaded. The web server runs on port 8080 by default.</p>
+                        </div>
+
+                        <div class="faq-item" style="margin-top:16px">
+                          <strong>Can't authenticate / Invalid token</strong>
+                          <p>Clear your browser's local storage and refresh the page to get a new token. Make sure you have the <code>moderex.webpanel</code> permission.</p>
+                        </div>
+
+                        <div class="faq-item" style="margin-top:16px">
+                          <strong>Changes not saving</strong>
+                          <p>Check the browser console for errors. If using gateway mode, ensure the connection to the gateway server is stable.</p>
+                        </div>
+
+                        <div class="faq-item" style="margin-top:16px">
+                          <strong>Missing features or buttons</strong>
+                          <p>Some features require specific permissions. Contact your server administrator if you need additional access.</p>
+                        </div>
+                      </div>
+
+                      <h4 style="margin-top:20px">Getting Help</h4>
+                      <p>If you need further assistance, click the Discord button in the bottom-right corner to join our support servers.</p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
         <!-- Dashboard Page -->
         <section class="page active" id="page-dashboard">
           <div class="page-head">
@@ -752,6 +1196,142 @@
           </div>
         </section>
 
+        <!-- Replays Page -->
+        <section class="page" id="page-replay">
+          <div class="page-head">
+            <div class="page-title">
+              <h1>Replays</h1>
+              <p>Record and review player sessions for moderation purposes.</p>
+            </div>
+          </div>
+
+          <!-- Permission overlay (hidden by default) -->
+          <div id="replayNoPermissionOverlay" class="page-permission-box" style="display:none">
+            <div class="permission-card">
+              <i class="fa-solid fa-lock"></i>
+              <h3>Permission Required</h3>
+              <p>You do not have permission to view replays. Contact an administrator if you believe this is an error.</p>
+            </div>
+          </div>
+
+          <div id="replayContent">
+            <!-- Stats Cards -->
+            <div class="grid cols-4" style="margin-bottom:20px">
+              <div class="card stat-card" style="margin:0">
+                <div class="stat-icon" style="background:var(--primary)"><i class="fa-solid fa-film"></i></div>
+                <div class="stat-info">
+                  <span class="stat-value" id="replayTotalCount">0</span>
+                  <span class="stat-label">Total Replays</span>
+                </div>
+              </div>
+              <div class="card stat-card" style="margin:0">
+                <div class="stat-icon" style="background:var(--bad)"><i class="fa-solid fa-circle-dot"></i></div>
+                <div class="stat-info">
+                  <span class="stat-value" id="replayRecordingCount">0</span>
+                  <span class="stat-label">Recording Now</span>
+                </div>
+              </div>
+              <div class="card stat-card" style="margin:0">
+                <div class="stat-icon" style="background:var(--ok)"><i class="fa-solid fa-check-circle"></i></div>
+                <div class="stat-info">
+                  <span class="stat-value" id="replayCompleteCount">0</span>
+                  <span class="stat-label">Completed</span>
+                </div>
+              </div>
+              <div class="card stat-card" style="margin:0">
+                <div class="stat-icon" style="background:var(--warn)"><i class="fa-solid fa-hard-drive"></i></div>
+                <div class="stat-info">
+                  <span class="stat-value" id="replayStorageUsed">0 MB</span>
+                  <span class="stat-label">Storage Used</span>
+                </div>
+              </div>
+            </div>
+
+            <div class="panel pad">
+              <div class="toolbar" style="margin-top:0">
+                <div class="left">
+                  <div class="gsearch" style="width:100%;max-width:400px">
+                    <i class="fa-solid fa-magnifying-glass"></i>
+                    <input type="text" id="replaySearch" placeholder="Search replays by name, player, or tag...">
+                  </div>
+                </div>
+                <div class="right" style="margin-left:auto;display:flex;gap:10px">
+                  <button class="btn ghost" id="replayRefreshBtn" onclick="refreshReplays()"><i class="fa-solid fa-refresh"></i> Refresh</button>
+                  <button class="btn primary" id="replayRecordBtn" onclick="openRecordReplayModal()"><i class="fa-solid fa-circle-dot"></i> Start Recording</button>
+                </div>
+              </div>
+
+              <div style="margin-top:20px">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>Name</th>
+                      <th>Players</th>
+                      <th>Duration</th>
+                      <th>Status</th>
+                      <th>Created</th>
+                      <th style="text-align:right">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody id="replayRows"></tbody>
+                </table>
+              </div>
+
+              <div id="replayEmpty" class="empty-state" style="display:none">
+                <i class="fa-solid fa-film"></i>
+                <h3>No Replays Found</h3>
+                <p>Start recording player sessions to review them later.</p>
+              </div>
+            </div>
+
+            <!-- Replay Settings Card -->
+            <div class="card" style="margin-top:20px" id="replaySettingsCard">
+              <h3><i class="fa-solid fa-gear" style="color:var(--muted);margin-right:8px"></i>Replay Settings</h3>
+              <div class="grid cols-2" style="margin-top:16px;gap:20px">
+                <div>
+                  <div class="hintline">Enable Replay System</div>
+                  <label class="switch">
+                    <input type="checkbox" id="replayEnabled" onchange="updateReplaySettings()">
+                    <span class="slider"></span>
+                  </label>
+                </div>
+                <div>
+                  <div class="hintline">Max Recording Duration (seconds)</div>
+                  <input type="number" class="input" id="replayMaxDuration" value="300" min="30" max="3600" onchange="updateReplaySettings()">
+                </div>
+                <div>
+                  <div class="hintline">Storage Retention (days)</div>
+                  <input type="number" class="input" id="replayRetentionDays" value="30" min="1" max="365" onchange="updateReplaySettings()">
+                </div>
+                <div>
+                  <div class="hintline">Max Concurrent Recordings</div>
+                  <input type="number" class="input" id="replayMaxConcurrent" value="10" min="1" max="50" onchange="updateReplaySettings()">
+                </div>
+              </div>
+              <div class="grid cols-2" style="margin-top:16px;gap:20px">
+                <div>
+                  <div class="hintline">Auto-Record on Anticheat Flag</div>
+                  <label class="switch">
+                    <input type="checkbox" id="replayTriggerAnticheat" onchange="updateReplaySettings()">
+                    <span class="slider"></span>
+                  </label>
+                </div>
+                <div>
+                  <div class="hintline">Auto-Record on Punishment</div>
+                  <label class="switch">
+                    <input type="checkbox" id="replayTriggerPunishment" onchange="updateReplaySettings()">
+                    <span class="slider"></span>
+                  </label>
+                </div>
+              </div>
+              <div class="note" style="margin-top:16px">
+                <i class="fa-solid fa-info-circle"></i>
+                <span>Citizens plugin required for NPC-based replay playback. Replays can still be recorded without it.</span>
+              </div>
+            </div>
+          </div>
+        </section>
+
         <!-- Activity Log Page -->
         <section class="page" id="page-activitylog">
           <div class="page-head">
@@ -797,192 +1377,397 @@
           </div>
         </section>
 
-        <!-- Server Status Page -->
+        <!-- Server Status Page - Anti-Lag Monitoring System -->
         <section class="page" id="page-status">
           <div class="page-head">
             <div class="page-title">
-              <h1>Server Status</h1>
-              <p>Real-time performance monitoring, TPS tracking, and lag detection.</p>
+              <h1>Anti-Lag Monitoring</h1>
+              <p>Real-time performance monitoring, alerts, and diagnostics.</p>
             </div>
             <div style="display:flex;gap:10px;align-items:center">
+              <!-- Health Score Badge -->
+              <div class="health-score-badge" id="healthScoreBadge">
+                <div class="health-score-ring">
+                  <svg viewBox="0 0 36 36">
+                    <path class="health-ring-bg" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"/>
+                    <path class="health-ring-fill" id="healthRingFill" stroke-dasharray="100, 100" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"/>
+                  </svg>
+                  <span class="health-score-value" id="healthScoreValue">100</span>
+                </div>
+                <span class="health-score-label">Health</span>
+              </div>
               <button class="btn" onclick="refreshServerStatus()"><i class="fa-solid fa-sync"></i> Refresh</button>
             </div>
           </div>
 
-          <!-- Performance Overview -->
-          <div class="grid cols-4">
-            <div class="card stat-card">
-              <div class="stat-icon tps"><i class="fa-solid fa-gauge-high"></i></div>
-              <div class="stat-info">
-                <div class="stat-value" id="statusTps">20.0</div>
-                <div class="stat-label">TPS</div>
-              </div>
-              <div class="stat-trend" id="statusTpsTrend"><i class="fa-solid fa-minus"></i></div>
-              <div class="stat-progress">
-                <div class="progress-bar tps-bar" id="statusTpsBar" style="width:100%"></div>
-              </div>
-            </div>
-            <div class="card stat-card">
-              <div class="stat-icon memory"><i class="fa-solid fa-memory"></i></div>
-              <div class="stat-info">
-                <div class="stat-value" id="statusMemory">0 MB</div>
-                <div class="stat-label">Memory Usage</div>
-              </div>
-              <div class="stat-progress">
-                <div class="progress-bar" id="statusMemoryBar" style="width:0%"></div>
-              </div>
-            </div>
-            <div class="card stat-card">
-              <div class="stat-icon cpu"><i class="fa-solid fa-microchip"></i></div>
-              <div class="stat-info">
-                <div class="stat-value" id="statusCpu">0%</div>
-                <div class="stat-label">CPU Usage</div>
-              </div>
-              <div class="stat-progress">
-                <div class="progress-bar" id="statusCpuBar" style="width:0%"></div>
-              </div>
-            </div>
-            <div class="card stat-card">
-              <div class="stat-icon players"><i class="fa-solid fa-users"></i></div>
-              <div class="stat-info">
-                <div class="stat-value"><span id="statusOnline">0</span>/<span id="statusMax">0</span></div>
-                <div class="stat-label">Players Online</div>
-              </div>
-            </div>
+          <!-- Monitoring Sub-Tabs -->
+          <div class="sub-tabs" id="monitoringTabs">
+            <button class="sub-tab active" data-tab="health" onclick="switchMonitoringTab('health')">
+              <i class="fa-solid fa-heart-pulse"></i> Server Health
+            </button>
+            <button class="sub-tab" data-tab="alerts" onclick="switchMonitoringTab('alerts')">
+              <i class="fa-solid fa-bell"></i> Performance Alerts
+            </button>
+            <button class="sub-tab" data-tab="resources" onclick="switchMonitoringTab('resources')">
+              <i class="fa-solid fa-cubes"></i> Resource Monitor
+            </button>
+            <button class="sub-tab" data-tab="diagnostics" onclick="switchMonitoringTab('diagnostics')">
+              <i class="fa-solid fa-stethoscope"></i> Diagnostics
+            </button>
           </div>
 
-          <!-- Network & Server Info -->
-          <div class="grid cols-4">
-            <div class="card stat-card">
-              <div class="stat-icon" style="background:linear-gradient(135deg, rgba(90, 156, 255, 0.2), rgba(90, 156, 255, 0.05));color:var(--primary-light);border:1px solid rgba(90, 156, 255, 0.3)">
-                <i class="fa-solid fa-signal"></i>
+          <!-- Tab 1: Server Health -->
+          <div class="monitoring-tab-content active" id="tab-health">
+            <!-- Performance Overview -->
+            <div class="grid cols-4">
+              <div class="card stat-card">
+                <div class="stat-icon tps"><i class="fa-solid fa-gauge-high"></i></div>
+                <div class="stat-info">
+                  <div class="stat-value" id="statusTps">20.0</div>
+                  <div class="stat-label">TPS</div>
+                </div>
+                <div class="stat-trend" id="statusTpsTrend"><i class="fa-solid fa-minus"></i></div>
+                <div class="stat-progress">
+                  <div class="progress-bar tps-bar" id="statusTpsBar" style="width:100%"></div>
+                </div>
               </div>
-              <div class="stat-info">
-                <div class="stat-value" id="statusAvgPing">0ms</div>
-                <div class="stat-label">Avg Ping</div>
+              <div class="card stat-card">
+                <div class="stat-icon memory"><i class="fa-solid fa-memory"></i></div>
+                <div class="stat-info">
+                  <div class="stat-value" id="statusMemory">0 MB</div>
+                  <div class="stat-label">Memory Usage</div>
+                </div>
+                <div class="stat-progress">
+                  <div class="progress-bar" id="statusMemoryBar" style="width:0%"></div>
+                </div>
               </div>
-            </div>
-            <div class="card stat-card">
-              <div class="stat-icon" style="background:linear-gradient(135deg, rgba(16, 185, 129, 0.2), rgba(16, 185, 129, 0.05));color:var(--ok);border:1px solid rgba(16, 185, 129, 0.3)">
-                <i class="fa-solid fa-clock"></i>
+              <div class="card stat-card">
+                <div class="stat-icon cpu"><i class="fa-solid fa-microchip"></i></div>
+                <div class="stat-info">
+                  <div class="stat-value" id="statusCpu">0%</div>
+                  <div class="stat-label">CPU Usage</div>
+                </div>
+                <div class="stat-progress">
+                  <div class="progress-bar" id="statusCpuBar" style="width:0%"></div>
+                </div>
               </div>
-              <div class="stat-info">
-                <div class="stat-value" id="statusUptime">0m</div>
-                <div class="stat-label">Uptime</div>
-              </div>
-            </div>
-            <div class="card stat-card">
-              <div class="stat-icon" style="background:linear-gradient(135deg, rgba(168, 184, 216, 0.15), rgba(168, 184, 216, 0.05));color:var(--text-secondary);border:1px solid rgba(168, 184, 216, 0.2)">
-                <i class="fa-solid fa-cubes"></i>
-              </div>
-              <div class="stat-info">
-                <div class="stat-value" id="statusChunks">0</div>
-                <div class="stat-label">Loaded Chunks</div>
-              </div>
-            </div>
-            <div class="card stat-card">
-              <div class="stat-icon" style="background:linear-gradient(135deg, rgba(139, 92, 246, 0.2), rgba(139, 92, 246, 0.05));color:#a78bfa;border:1px solid rgba(139, 92, 246, 0.3)">
-                <i class="fa-solid fa-database"></i>
-              </div>
-              <div class="stat-info">
-                <div class="stat-value" id="statusDbSize">0 KB / 10 MB</div>
-                <div class="stat-label" id="statusDbLabel">Database (0%)</div>
-              </div>
-              <div class="stat-progress">
-                <div class="progress-bar" id="statusDbBar" style="width:0%;background:linear-gradient(90deg, #a78bfa, #8b5cf6)"></div>
-              </div>
-            </div>
-          </div>
-
-          <!-- Server Details Bar -->
-          <div class="panel pad" style="padding:12px 20px">
-            <div style="display:flex;gap:32px;flex-wrap:wrap;font-size:13px;color:var(--text-secondary)">
-              <span><i class="fa-solid fa-server" style="color:var(--primary-light);margin-right:8px"></i> Version: <b id="statusVersion">Unknown</b></span>
-              <span><i class="fa-brands fa-java" style="color:var(--warn);margin-right:8px"></i> Java: <b id="statusJava">Unknown</b></span>
-              <span><i class="fa-solid fa-microchip" style="color:var(--accent-light);margin-right:8px"></i> Cores: <b id="statusProcessors">0</b></span>
-              <span><i class="fa-solid fa-signal" style="color:var(--ok);margin-right:8px"></i> Min Ping: <b id="statusMinPing">0ms</b></span>
-              <span><i class="fa-solid fa-signal" style="color:var(--bad);margin-right:8px"></i> Max Ping: <b id="statusMaxPing">0ms</b></span>
-            </div>
-          </div>
-
-          <div class="grid cols-2">
-            <!-- TPS Graph -->
-            <div class="panel pad">
-              <h2 style="margin:0 0 16px 0"><i class="fa-solid fa-chart-line"></i> TPS History</h2>
-              <div class="tps-graph-container">
-                <canvas id="tpsGraph" height="200"></canvas>
-              </div>
-              <div class="tps-legend">
-                <span class="tps-good"><i class="fa-solid fa-circle"></i> Good (18-20)</span>
-                <span class="tps-warn"><i class="fa-solid fa-circle"></i> Warning (15-18)</span>
-                <span class="tps-bad"><i class="fa-solid fa-circle"></i> Critical (&lt;15)</span>
+              <div class="card stat-card">
+                <div class="stat-icon players"><i class="fa-solid fa-users"></i></div>
+                <div class="stat-info">
+                  <div class="stat-value"><span id="statusOnline">0</span>/<span id="statusMax">0</span></div>
+                  <div class="stat-label">Players Online</div>
+                </div>
               </div>
             </div>
 
-            <!-- World Info -->
-            <div class="panel pad">
-              <h2 style="margin:0 0 16px 0"><i class="fa-solid fa-globe"></i> World Statistics</h2>
-              <div class="world-stats" id="statusWorlds">
-                <div class="world-loading"><div class="spinner"></div> Loading...</div>
+            <!-- Network & Server Info -->
+            <div class="grid cols-4">
+              <div class="card stat-card">
+                <div class="stat-icon" style="background:linear-gradient(135deg, rgba(90, 156, 255, 0.2), rgba(90, 156, 255, 0.05));color:var(--primary-light);border:1px solid rgba(90, 156, 255, 0.3)">
+                  <i class="fa-solid fa-signal"></i>
+                </div>
+                <div class="stat-info">
+                  <div class="stat-value" id="statusAvgPing">0ms</div>
+                  <div class="stat-label">Avg Ping</div>
+                </div>
+              </div>
+              <div class="card stat-card">
+                <div class="stat-icon" style="background:linear-gradient(135deg, rgba(16, 185, 129, 0.2), rgba(16, 185, 129, 0.05));color:var(--ok);border:1px solid rgba(16, 185, 129, 0.3)">
+                  <i class="fa-solid fa-clock"></i>
+                </div>
+                <div class="stat-info">
+                  <div class="stat-value" id="statusUptime">0m</div>
+                  <div class="stat-label">Uptime</div>
+                </div>
+              </div>
+              <div class="card stat-card">
+                <div class="stat-icon" style="background:linear-gradient(135deg, rgba(168, 184, 216, 0.15), rgba(168, 184, 216, 0.05));color:var(--text-secondary);border:1px solid rgba(168, 184, 216, 0.2)">
+                  <i class="fa-solid fa-cubes"></i>
+                </div>
+                <div class="stat-info">
+                  <div class="stat-value" id="statusChunks">0</div>
+                  <div class="stat-label">Loaded Chunks</div>
+                </div>
+              </div>
+              <div class="card stat-card">
+                <div class="stat-icon" style="background:linear-gradient(135deg, rgba(139, 92, 246, 0.2), rgba(139, 92, 246, 0.05));color:#a78bfa;border:1px solid rgba(139, 92, 246, 0.3)">
+                  <i class="fa-solid fa-database"></i>
+                </div>
+                <div class="stat-info">
+                  <div class="stat-value" id="statusDbSize">0 KB / 10 MB</div>
+                  <div class="stat-label" id="statusDbLabel">Database (0%)</div>
+                </div>
+                <div class="stat-progress">
+                  <div class="progress-bar" id="statusDbBar" style="width:0%;background:linear-gradient(90deg, #a78bfa, #8b5cf6)"></div>
+                </div>
               </div>
             </div>
-          </div>
 
-          <div class="grid cols-2">
-            <!-- Laggy Chunks -->
+            <!-- Server Details Bar -->
+            <div class="panel pad" style="padding:12px 20px">
+              <div style="display:flex;gap:32px;flex-wrap:wrap;font-size:13px;color:var(--text-secondary)">
+                <span><i class="fa-solid fa-server" style="color:var(--primary-light);margin-right:8px"></i> Version: <b id="statusVersion">Unknown</b></span>
+                <span><i class="fa-brands fa-java" style="color:var(--warn);margin-right:8px"></i> Java: <b id="statusJava">Unknown</b></span>
+                <span><i class="fa-solid fa-microchip" style="color:var(--accent-light);margin-right:8px"></i> Cores: <b id="statusProcessors">0</b></span>
+                <span><i class="fa-solid fa-signal" style="color:var(--ok);margin-right:8px"></i> Min Ping: <b id="statusMinPing">0ms</b></span>
+                <span><i class="fa-solid fa-signal" style="color:var(--bad);margin-right:8px"></i> Max Ping: <b id="statusMaxPing">0ms</b></span>
+              </div>
+            </div>
+
+            <div class="grid cols-2">
+              <!-- TPS Graph -->
+              <div class="panel pad">
+                <h2 style="margin:0 0 16px 0"><i class="fa-solid fa-chart-line"></i> TPS History</h2>
+                <div class="tps-graph-container">
+                  <canvas id="tpsGraph" height="200"></canvas>
+                </div>
+                <div class="tps-legend">
+                  <span class="tps-good"><i class="fa-solid fa-circle"></i> Good (18-20)</span>
+                  <span class="tps-warn"><i class="fa-solid fa-circle"></i> Warning (15-18)</span>
+                  <span class="tps-bad"><i class="fa-solid fa-circle"></i> Critical (&lt;15)</span>
+                </div>
+              </div>
+
+              <!-- World Info -->
+              <div class="panel pad">
+                <h2 style="margin:0 0 16px 0"><i class="fa-solid fa-globe"></i> World Statistics</h2>
+                <div class="world-stats" id="statusWorlds">
+                  <div class="world-loading"><div class="spinner"></div> Loading...</div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Online Players -->
             <div class="panel pad">
               <h2 style="margin:0 0 16px 0">
-                <i class="fa-solid fa-cubes"></i> Laggy Chunks
+                <i class="fa-solid fa-users"></i> Online Players
+                <span class="badge gray" id="playerListCount">0</span>
+              </h2>
+              <div class="player-status-list" id="statusPlayerList">
+                <div class="empty-state small">
+                  <i class="fa-solid fa-users-slash" style="color:var(--muted)"></i>
+                  <p>No players online</p>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Tab 2: Performance Alerts -->
+          <div class="monitoring-tab-content" id="tab-alerts">
+            <!-- Alert Thresholds Config -->
+            <div class="panel pad">
+              <h2 style="margin:0 0 16px 0"><i class="fa-solid fa-sliders"></i> Alert Thresholds</h2>
+              <div class="grid cols-3">
+                <div class="config-item">
+                  <label>TPS Warning Threshold</label>
+                  <input type="number" class="input" id="tpsWarningThreshold" value="18" min="1" max="20" step="0.5">
+                  <small>Alert when TPS drops below this value</small>
+                </div>
+                <div class="config-item">
+                  <label>TPS Critical Threshold</label>
+                  <input type="number" class="input" id="tpsCriticalThreshold" value="15" min="1" max="20" step="0.5">
+                  <small>Critical alert threshold</small>
+                </div>
+                <div class="config-item">
+                  <label>TPS Emergency Threshold</label>
+                  <input type="number" class="input" id="tpsEmergencyThreshold" value="10" min="1" max="20" step="0.5">
+                  <small>Emergency alert threshold</small>
+                </div>
+              </div>
+              <div class="grid cols-2" style="margin-top:16px">
+                <div class="config-item">
+                  <label>Memory Warning (%)</label>
+                  <input type="number" class="input" id="memoryWarningThreshold" value="80" min="50" max="100">
+                  <small>Alert when memory usage exceeds this %</small>
+                </div>
+                <div class="config-item">
+                  <label>Memory Critical (%)</label>
+                  <input type="number" class="input" id="memoryCriticalThreshold" value="90" min="50" max="100">
+                  <small>Critical memory threshold</small>
+                </div>
+              </div>
+              <div style="margin-top:16px">
+                <button class="btn primary" onclick="saveAlertThresholds()"><i class="fa-solid fa-save"></i> Save Thresholds</button>
+              </div>
+            </div>
+
+            <div class="grid cols-2">
+              <!-- Recent Alerts -->
+              <div class="panel pad">
+                <h2 style="margin:0 0 16px 0">
+                  <i class="fa-solid fa-triangle-exclamation"></i> Recent Alerts
+                  <span class="badge gray" id="alertCount">0</span>
+                </h2>
+                <div class="status-alerts-list" id="statusAlertsList">
+                  <div class="empty-state small">
+                    <i class="fa-solid fa-check-circle" style="color:var(--good)"></i>
+                    <p>No recent performance alerts</p>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Alert History -->
+              <div class="panel pad">
+                <h2 style="margin:0 0 16px 0">
+                  <i class="fa-solid fa-clock-rotate-left"></i> Alert History (24h)
+                </h2>
+                <div class="alert-history-list" id="alertHistoryList">
+                  <div class="empty-state small">
+                    <i class="fa-solid fa-check-circle" style="color:var(--good)"></i>
+                    <p>No alerts in the last 24 hours</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Potential Lag Machines -->
+            <div class="panel pad">
+              <h2 style="margin:0 0 16px 0">
+                <i class="fa-solid fa-warning"></i> Potential Lag Machines
+                <span class="badge gray" id="lagMachineCount">0</span>
+              </h2>
+              <p style="color:var(--text-secondary);margin-bottom:16px">Players with unusually high entity/redstone counts in their area.</p>
+              <div class="lag-machines-list" id="lagMachinesList">
+                <div class="empty-state small">
+                  <i class="fa-solid fa-check-circle" style="color:var(--good)"></i>
+                  <p>No potential lag machines detected</p>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Tab 3: Resource Monitor -->
+          <div class="monitoring-tab-content" id="tab-resources">
+            <div class="grid cols-2">
+              <!-- Entity Breakdown -->
+              <div class="panel pad">
+                <h2 style="margin:0 0 16px 0">
+                  <i class="fa-solid fa-ghost"></i> Entity Breakdown
+                  <span class="badge gray" id="totalEntities">0</span>
+                </h2>
+                <div class="entity-breakdown-list" id="entityBreakdownList">
+                  <div class="spinner"></div>
+                </div>
+              </div>
+
+              <!-- Chunk Breakdown -->
+              <div class="panel pad">
+                <h2 style="margin:0 0 16px 0">
+                  <i class="fa-solid fa-th"></i> Chunk Distribution
+                </h2>
+                <div class="chunk-breakdown-list" id="chunkBreakdownList">
+                  <div class="spinner"></div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Laggy Chunks with Heat Map -->
+            <div class="panel pad">
+              <h2 style="margin:0 0 16px 0">
+                <i class="fa-solid fa-fire"></i> Laggy Chunks Heat Map
                 <span class="badge gray" id="laggyChunkCount">0</span>
               </h2>
-              <div class="laggy-chunks-list" id="laggyChunksList">
-                <div class="empty-state small">
-                  <i class="fa-solid fa-check-circle" style="color:var(--good)"></i>
-                  <p>No laggy chunks detected</p>
+              <div class="grid cols-2">
+                <div>
+                  <p style="color:var(--text-secondary);margin-bottom:12px">Chunks with high entity or tile entity counts. Click to teleport.</p>
+                  <div class="laggy-chunks-list" id="laggyChunksList" style="max-height:400px;overflow-y:auto">
+                    <div class="empty-state small">
+                      <i class="fa-solid fa-check-circle" style="color:var(--good)"></i>
+                      <p>No laggy chunks detected</p>
+                    </div>
+                  </div>
+                </div>
+                <div>
+                  <div class="heat-map-container" id="heatMapContainer">
+                    <canvas id="chunkHeatMap" width="400" height="400"></canvas>
+                    <div class="heat-map-legend">
+                      <span class="heat-low">Low</span>
+                      <span class="heat-med">Medium</span>
+                      <span class="heat-high">High</span>
+                    </div>
+                  </div>
                 </div>
               </div>
             </div>
+          </div>
 
-            <!-- Recent Alerts -->
+          <!-- Tab 4: Diagnostics (Spark Integration) -->
+          <div class="monitoring-tab-content" id="tab-diagnostics">
+            <!-- Spark Status -->
             <div class="panel pad">
-              <h2 style="margin:0 0 16px 0">
-                <i class="fa-solid fa-triangle-exclamation"></i> Recent Alerts
-                <span class="badge gray" id="alertCount">0</span>
-              </h2>
-              <div class="status-alerts-list" id="statusAlertsList">
-                <div class="empty-state small">
-                  <i class="fa-solid fa-check-circle" style="color:var(--good)"></i>
-                  <p>No recent performance alerts</p>
+              <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
+                <h2 style="margin:0"><i class="fa-solid fa-bolt"></i> Spark Profiler</h2>
+                <div id="sparkStatus">
+                  <span class="badge gray"><i class="fa-solid fa-circle-question"></i> Checking...</span>
+                </div>
+              </div>
+              <div id="sparkContent">
+                <div class="empty-state">
+                  <i class="fa-solid fa-plug" style="color:var(--muted)"></i>
+                  <p>Checking Spark availability...</p>
                 </div>
               </div>
             </div>
-          </div>
 
-          <!-- Online Players -->
-          <div class="panel pad">
-            <h2 style="margin:0 0 16px 0">
-              <i class="fa-solid fa-users"></i> Online Players
-              <span class="badge gray" id="playerListCount">0</span>
-            </h2>
-            <div class="player-status-list" id="statusPlayerList">
-              <div class="empty-state small">
-                <i class="fa-solid fa-users-slash" style="color:var(--muted)"></i>
-                <p>No players online</p>
+            <!-- Quick Actions -->
+            <div class="panel pad" id="sparkActionsPanel" style="display:none">
+              <h2 style="margin:0 0 16px 0"><i class="fa-solid fa-play"></i> Profiler Actions</h2>
+              <div class="grid cols-3">
+                <button class="btn primary" onclick="startSparkProfile()">
+                  <i class="fa-solid fa-play"></i> Start CPU Profile
+                </button>
+                <button class="btn" onclick="sparkHeapDump()">
+                  <i class="fa-solid fa-memory"></i> Heap Dump
+                </button>
+                <button class="btn" onclick="sparkGC()">
+                  <i class="fa-solid fa-trash"></i> Trigger GC
+                </button>
+              </div>
+              <p style="color:var(--text-secondary);margin-top:12px;font-size:13px">
+                <i class="fa-solid fa-info-circle"></i> Spark provides advanced profiling. Results will open in a new tab.
+              </p>
+            </div>
+
+            <!-- System Diagnostics -->
+            <div class="panel pad">
+              <h2 style="margin:0 0 16px 0"><i class="fa-solid fa-stethoscope"></i> System Diagnostics</h2>
+              <div class="diagnostics-grid">
+                <div class="diagnostic-item">
+                  <div class="diagnostic-label">JVM Arguments</div>
+                  <code class="diagnostic-value" id="jvmArgs">Loading...</code>
+                </div>
+                <div class="diagnostic-item">
+                  <div class="diagnostic-label">Garbage Collector</div>
+                  <code class="diagnostic-value" id="gcType">Loading...</code>
+                </div>
+                <div class="diagnostic-item">
+                  <div class="diagnostic-label">Heap Size (Max)</div>
+                  <code class="diagnostic-value" id="heapMax">Loading...</code>
+                </div>
+                <div class="diagnostic-item">
+                  <div class="diagnostic-label">Thread Count</div>
+                  <code class="diagnostic-value" id="threadCount">Loading...</code>
+                </div>
+                <div class="diagnostic-item">
+                  <div class="diagnostic-label">Loaded Classes</div>
+                  <code class="diagnostic-value" id="loadedClasses">Loading...</code>
+                </div>
+                <div class="diagnostic-item">
+                  <div class="diagnostic-label">GC Collections (Total)</div>
+                  <code class="diagnostic-value" id="gcCollections">Loading...</code>
+                </div>
               </div>
             </div>
-          </div>
 
-          <!-- Potential Lag Machines -->
-          <div class="panel pad">
-            <h2 style="margin:0 0 16px 0">
-              <i class="fa-solid fa-warning"></i> Potential Lag Machines
-              <span class="badge gray" id="lagMachineCount">0</span>
-            </h2>
-            <p style="color:var(--text-secondary);margin-bottom:16px">Players with unusually high entity/redstone counts in their area.</p>
-            <div class="lag-machines-list" id="lagMachinesList">
-              <div class="empty-state small">
-                <i class="fa-solid fa-check-circle" style="color:var(--good)"></i>
-                <p>No potential lag machines detected</p>
+            <!-- Plugin Performance -->
+            <div class="panel pad">
+              <h2 style="margin:0 0 16px 0"><i class="fa-solid fa-puzzle-piece"></i> Plugin Tick Times</h2>
+              <p style="color:var(--text-secondary);margin-bottom:12px">Estimated tick time contribution per plugin (requires Spark).</p>
+              <div class="plugin-performance-list" id="pluginPerformanceList">
+                <div class="empty-state small">
+                  <i class="fa-solid fa-plug" style="color:var(--muted)"></i>
+                  <p>Spark required for plugin timing data</p>
+                </div>
               </div>
             </div>
           </div>
@@ -1292,12 +2077,12 @@
           </div>
         </section>
         
-        <!-- Actions Page (renamed from Settings) -->
+        <!-- Configuration Page (renamed from Server Actions) -->
         <section class="page" id="page-actions">
           <div class="page-head">
             <div class="page-title">
-              <h1>Server Actions</h1>
-              <p>Immediate server controls, chat management, and global actions.</p>
+              <h1>Configuration</h1>
+              <p>Server settings, chat management, warnings, mutes, and global configuration.</p>
             </div>
           </div>
 
@@ -1356,6 +2141,226 @@
               </div>
             </div>
 
+            <!-- Warning Settings Section -->
+            <div class="card" style="margin-top:20px" id="warningSettingsCard">
+              <h3><i class="fa-solid fa-triangle-exclamation" style="color:var(--warn)"></i> Warning Escalation System</h3>
+              <p>Configure automatic punishment escalation when players accumulate warning points.</p>
+              <div class="toggle-wrap" style="margin-top:14px">
+                <button class="toggle" id="togWarnEscalation" onclick="toggleWarnEscalation()"><span class="toggle-thumb"></span></button>
+                <div class="toggle-meta">
+                  <div class="toggle-title">Enable Escalation System</div>
+                  <div class="toggle-sub" id="togWarnEscalationHint">Off</div>
+                </div>
+              </div>
+              <div id="warnEscalationOptions" style="margin-top:14px;display:none">
+                <!-- Time windows -->
+                <div class="grid cols-2" style="gap:16px">
+                  <div>
+                    <div class="hintline" style="margin-top:0">Escalation Window (days)</div>
+                    <input type="number" class="input" id="warnEscalationWindow" value="30" min="1" max="365" style="width:120px">
+                    <div class="hintline" style="font-size:11px;color:var(--muted)">Points counted within this time period</div>
+                  </div>
+                  <div>
+                    <div class="hintline" style="margin-top:0">Point Reset (days)</div>
+                    <input type="number" class="input" id="warnResetDays" value="90" min="1" max="365" style="width:120px">
+                    <div class="hintline" style="font-size:11px;color:var(--muted)">Reset points after X days of no warnings</div>
+                  </div>
+                </div>
+
+                <!-- Warning Categories -->
+                <div style="margin-top:20px">
+                  <h4 style="margin:0 0 12px 0"><i class="fa-solid fa-tags" style="color:var(--accent-light);margin-right:8px"></i>Warning Categories</h4>
+                  <p style="font-size:13px;color:var(--text-secondary);margin-bottom:12px">Define severity levels for different warning types. Higher points = more severe.</p>
+                  <div id="warnCategoriesList" style="display:flex;flex-direction:column;gap:8px">
+                    <!-- Categories populated by JS -->
+                  </div>
+                  <button class="btn ghost" onclick="addWarnCategory()" style="margin-top:10px"><i class="fa-solid fa-plus"></i> Add Category</button>
+                </div>
+
+                <!-- Escalation Tiers -->
+                <div style="margin-top:20px">
+                  <h4 style="margin:0 0 12px 0"><i class="fa-solid fa-stairs" style="color:var(--primary-light);margin-right:8px"></i>Escalation Tiers</h4>
+                  <p style="font-size:13px;color:var(--text-secondary);margin-bottom:12px">Configure automatic punishments when players reach point thresholds.</p>
+                  <div id="warnEscalationTiersList" style="display:flex;flex-direction:column;gap:8px">
+                    <!-- Tiers populated by JS -->
+                  </div>
+                  <button class="btn ghost" onclick="addWarnEscalationTier()" style="margin-top:10px"><i class="fa-solid fa-plus"></i> Add Tier</button>
+                </div>
+
+                <div class="block" style="margin-top:16px">
+                  <button class="btn" onclick="saveWarnSettings()"><i class="fa-solid fa-save"></i> Save Warning Settings</button>
+                </div>
+              </div>
+              <div class="hintline" style="margin-top:12px;font-size:12px">
+                <i class="fa-solid fa-key"></i> Configure permission: <code style="background:rgba(0,0,0,0.3);padding:2px 6px;border-radius:4px">moderex.admin.warnings</code>
+              </div>
+            </div>
+
+            <!-- Mute Settings Section -->
+            <div class="card" style="margin-top:20px" id="muteSettingsCard">
+              <h3><i class="fa-solid fa-volume-xmark" style="color:var(--warn)"></i> Mute Restrictions</h3>
+              <p>Configure what muted players are prevented from doing.</p>
+              <div class="grid cols-2" style="margin-top:14px;gap:16px">
+                <div class="toggle-wrap">
+                  <button class="toggle on" id="togMuteChat" onclick="toggleMuteSetting('chat')"><span class="toggle-thumb"></span></button>
+                  <div class="toggle-meta">
+                    <div class="toggle-title">Block Chat Messages</div>
+                    <div class="toggle-sub">Prevents public chat</div>
+                  </div>
+                </div>
+                <div class="toggle-wrap">
+                  <button class="toggle on" id="togMuteMsg" onclick="toggleMuteSetting('msg')"><span class="toggle-thumb"></span></button>
+                  <div class="toggle-meta">
+                    <div class="toggle-title">Block Private Messages</div>
+                    <div class="toggle-sub">/msg, /tell, /whisper</div>
+                  </div>
+                </div>
+                <div class="toggle-wrap">
+                  <button class="toggle on" id="togMuteSigns" onclick="toggleMuteSetting('signs')"><span class="toggle-thumb"></span></button>
+                  <div class="toggle-meta">
+                    <div class="toggle-title">Block Sign Editing</div>
+                    <div class="toggle-sub">Prevents sign text</div>
+                  </div>
+                </div>
+                <div class="toggle-wrap">
+                  <button class="toggle on" id="togMuteBooks" onclick="toggleMuteSetting('books')"><span class="toggle-thumb"></span></button>
+                  <div class="toggle-meta">
+                    <div class="toggle-title">Block Book Writing</div>
+                    <div class="toggle-sub">Book and quill</div>
+                  </div>
+                </div>
+                <div class="toggle-wrap">
+                  <button class="toggle on" id="togMuteBroadcast" onclick="toggleMuteSetting('broadcast')"><span class="toggle-thumb"></span></button>
+                  <div class="toggle-meta">
+                    <div class="toggle-title">Block /say & /broadcast</div>
+                    <div class="toggle-sub">From other plugins</div>
+                  </div>
+                </div>
+                <div class="toggle-wrap">
+                  <button class="toggle on" id="togMuteVoice" onclick="toggleMuteSetting('voice')"><span class="toggle-thumb"></span></button>
+                  <div class="toggle-meta">
+                    <div class="toggle-title">Block Voice Chat</div>
+                    <div class="toggle-sub">Simple Voice Chat</div>
+                  </div>
+                </div>
+              </div>
+              <div class="toggle-wrap" style="margin-top:16px">
+                <button class="toggle" id="togMuteStaffSee" onclick="toggleMuteSetting('staffSee')"><span class="toggle-thumb"></span></button>
+                <div class="toggle-meta">
+                  <div class="toggle-title">Staff Can See Muted Messages</div>
+                  <div class="toggle-sub">Show blocked messages to staff</div>
+                </div>
+              </div>
+              <div class="block" style="margin-top:16px">
+                <button class="btn" onclick="saveMuteSettings()"><i class="fa-solid fa-save"></i> Save Mute Settings</button>
+              </div>
+              <div class="hintline" style="margin-top:12px;font-size:12px">
+                <i class="fa-solid fa-key"></i> Configure permission: <code style="background:rgba(0,0,0,0.3);padding:2px 6px;border-radius:4px">moderex.admin.mutes</code>
+              </div>
+            </div>
+
+            <!-- Server Lockdown Section -->
+            <div class="card" style="margin-top:20px" id="serverLockdownCard">
+              <h3><i class="fa-solid fa-shield-halved" style="color:var(--bad)"></i> Server Lockdown</h3>
+              <p>Prevent new players from joining the server. Players with bypass permission can still join.</p>
+              <div class="toggle-wrap" style="margin-top:14px">
+                <button class="toggle" id="togLockdown" onclick="toggleLockdown()"><span class="toggle-thumb"></span></button>
+                <div class="toggle-meta">
+                  <div class="toggle-title">Lockdown Active</div>
+                  <div class="toggle-sub" id="togLockdownHint">Off</div>
+                </div>
+              </div>
+              <div id="lockdownOptions" style="margin-top:14px;display:none">
+                <div class="grid cols-2" style="gap:16px">
+                  <div>
+                    <div class="hintline" style="margin-top:0">Auto-expire Timer (minutes, 0 = never)</div>
+                    <input type="number" class="input" id="lockdownTimer" value="0" min="0" max="1440" style="width:120px">
+                    <span style="font-size:12px;color:var(--text-secondary);margin-left:8px" id="lockdownTimerHint">No auto-expire</span>
+                  </div>
+                  <div>
+                    <div class="hintline" style="margin-top:0">Remaining Time</div>
+                    <span id="lockdownTimeRemaining" style="font-size:14px;color:var(--text-secondary)">Not active</span>
+                  </div>
+                </div>
+                <div style="margin-top:14px">
+                  <div class="hintline" style="margin-top:0">Custom MOTD (shown on server list)</div>
+                  <input type="text" class="input" id="lockdownMotd" placeholder="§cServer is currently under maintenance" value="" style="width:100%;max-width:600px">
+                  <div class="hintline" style="font-size:11px;color:var(--muted)">Use § color codes. Leave empty for default MOTD.</div>
+                </div>
+                <div style="margin-top:14px">
+                  <div class="hintline" style="margin-top:0">Kick Message (shown when blocked player tries to join)</div>
+                  <input type="text" class="input" id="lockdownKickMessage" placeholder="Server is under maintenance. Please try again later." value="Server is under maintenance. Please try again later." style="width:100%;max-width:600px">
+                </div>
+                <div class="block" style="margin-top:14px">
+                  <button class="btn" onclick="updateLockdownSettings()"><i class="fa-solid fa-save"></i> Save Lockdown Settings</button>
+                </div>
+              </div>
+              <div class="hintline" style="margin-top:12px;font-size:12px">
+                <i class="fa-solid fa-key"></i> Bypass permission: <code style="background:rgba(0,0,0,0.3);padding:2px 6px;border-radius:4px">moderex.bypass.lockdown</code>
+              </div>
+            </div>
+
+            <!-- Notification Configuration Section -->
+            <div class="card" style="margin-top:20px" id="notificationConfigCard">
+              <h3><i class="fa-solid fa-bell" style="color:var(--primary-light)"></i> Notification Configuration</h3>
+              <p>Configure in-game notification messages for player events.</p>
+              <div class="grid cols-2" style="margin-top:14px;gap:16px">
+                <div>
+                  <div class="hintline" style="margin-top:0">Join/Leave Messages</div>
+                  <div class="toggle-wrap" style="margin-top:8px">
+                    <button class="toggle" id="togJoinLeave" onclick="toggleSetting('joinLeaveMessages')"><span class="toggle-thumb"></span></button>
+                    <div class="toggle-meta">
+                      <div class="toggle-title">Show Join/Leave</div>
+                      <div class="toggle-sub" id="togJoinLeaveHint">On</div>
+                    </div>
+                  </div>
+                  <div style="margin-top:10px">
+                    <select class="input" id="joinLeaveVisibility" onchange="updateJoinLeaveVisibility()" style="width:200px">
+                      <option value="all">Visible to Everyone</option>
+                      <option value="staff">Staff Only</option>
+                    </select>
+                  </div>
+                </div>
+                <div>
+                  <div class="hintline" style="margin-top:0">First Join Messages</div>
+                  <div class="toggle-wrap" style="margin-top:8px">
+                    <button class="toggle" id="togFirstJoin" onclick="toggleSetting('firstJoinMessages')"><span class="toggle-thumb"></span></button>
+                    <div class="toggle-meta">
+                      <div class="toggle-title">Show First Join</div>
+                      <div class="toggle-sub" id="togFirstJoinHint">On</div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Command Blacklist Section -->
+            <div class="card" style="margin-top:20px" id="commandBlacklistCard">
+              <h3><i class="fa-solid fa-ban" style="color:var(--bad)"></i> Command Blacklist</h3>
+              <p>Block specific commands from being used by players.</p>
+              <div class="toggle-wrap" style="margin-top:14px">
+                <button class="toggle" id="togCmdBlacklist" onclick="toggleSetting('commandBlacklistEnabled')"><span class="toggle-thumb"></span></button>
+                <div class="toggle-meta">
+                  <div class="toggle-title">Command Blacklist Enabled</div>
+                  <div class="toggle-sub" id="togCmdBlacklistHint">Off</div>
+                </div>
+              </div>
+              <div id="cmdBlacklistOptions" style="margin-top:14px">
+                <div class="hintline" style="margin-top:0">Blocked Commands (one per line, without /)</div>
+                <textarea class="input" id="blockedCommands" placeholder="plugins&#10;pl&#10;ver&#10;version" style="width:100%;max-width:500px;height:120px;font-family:monospace;resize:vertical"></textarea>
+                <div style="margin-top:12px">
+                  <div class="hintline" style="margin-top:0">Block Message (shown to player)</div>
+                  <input type="text" class="input" id="cmdBlockMessage" placeholder="You cannot use this command." value="You cannot use this command." style="width:100%;max-width:500px">
+                </div>
+                <div class="block" style="margin-top:14px">
+                  <button class="btn" onclick="saveCommandBlacklist()"><i class="fa-solid fa-save"></i> Save Blacklist</button>
+                </div>
+              </div>
+              <div class="hintline" style="margin-top:12px;font-size:12px">
+                <i class="fa-solid fa-key"></i> Bypass permission: <code style="background:rgba(0,0,0,0.3);padding:2px 6px;border-radius:4px">moderex.bypass.commandblacklist</code>
+              </div>
+            </div>
+
             <div class="grid cols-2" style="margin-top:20px">
               <div class="card" style="margin:0">
                 <h3><i class="fa-solid fa-triangle-exclamation" style="color:var(--warn)"></i> Warn Settings</h3>
@@ -1409,6 +2414,126 @@
                     <div class="toggle-meta"><div class="toggle-title">Voice Join</div></div>
                   </div>
                 </div>
+              </div>
+            </div>
+
+            <!-- Activity Log Configuration -->
+            <div class="card" style="margin-top:20px" id="activityLogConfigCard">
+              <h3><i class="fa-solid fa-scroll" style="color:var(--primary-light)"></i> Activity Log Configuration</h3>
+              <p>Configure what activity is logged and how long it's retained.</p>
+              <div class="toggle-wrap" style="margin-top:14px">
+                <button class="toggle on" id="togActivityLogEnabled" onclick="toggleActivityLogEnabled()"><span class="toggle-thumb"></span></button>
+                <div class="toggle-meta">
+                  <div class="toggle-title">Activity Logging Enabled</div>
+                  <div class="toggle-sub" id="togActivityLogEnabledHint">On</div>
+                </div>
+              </div>
+              <div id="activityLogOptions" style="margin-top:14px">
+                <h4 style="margin-bottom:12px;font-size:14px;color:var(--text-secondary)">Log Types</h4>
+                <div class="grid cols-3" style="gap:10px">
+                  <div class="toggle-wrap">
+                    <button class="toggle on" id="togLogChat" onclick="toggleActivityLogType('chat')"><span class="toggle-thumb"></span></button>
+                    <div class="toggle-meta"><div class="toggle-title">Chat</div></div>
+                  </div>
+                  <div class="toggle-wrap">
+                    <button class="toggle on" id="togLogCommands" onclick="toggleActivityLogType('commands')"><span class="toggle-thumb"></span></button>
+                    <div class="toggle-meta"><div class="toggle-title">Commands</div></div>
+                  </div>
+                  <div class="toggle-wrap">
+                    <button class="toggle on" id="togLogSigns" onclick="toggleActivityLogType('signs')"><span class="toggle-thumb"></span></button>
+                    <div class="toggle-meta"><div class="toggle-title">Signs</div></div>
+                  </div>
+                  <div class="toggle-wrap">
+                    <button class="toggle on" id="togLogItems" onclick="toggleActivityLogType('items')"><span class="toggle-thumb"></span></button>
+                    <div class="toggle-meta"><div class="toggle-title">Items</div></div>
+                  </div>
+                  <div class="toggle-wrap">
+                    <button class="toggle on" id="togLogAnvils" onclick="toggleActivityLogType('anvils')"><span class="toggle-thumb"></span></button>
+                    <div class="toggle-meta"><div class="toggle-title">Anvils</div></div>
+                  </div>
+                  <div class="toggle-wrap">
+                    <button class="toggle on" id="togLogSessions" onclick="toggleActivityLogType('sessions')"><span class="toggle-thumb"></span></button>
+                    <div class="toggle-meta"><div class="toggle-title">Sessions</div></div>
+                  </div>
+                  <div class="toggle-wrap">
+                    <button class="toggle on" id="togLogUsernames" onclick="toggleActivityLogType('usernames')"><span class="toggle-thumb"></span></button>
+                    <div class="toggle-meta"><div class="toggle-title">Usernames</div></div>
+                  </div>
+                </div>
+                <h4 style="margin-top:20px;margin-bottom:12px;font-size:14px;color:var(--text-secondary)">Retention (days, -1 = forever)</h4>
+                <div class="grid cols-3" style="gap:12px">
+                  <div>
+                    <div class="hintline" style="margin-top:0;font-size:11px">Chat</div>
+                    <input type="number" class="input" id="retentionChat" value="30" min="-1" style="width:80px">
+                  </div>
+                  <div>
+                    <div class="hintline" style="margin-top:0;font-size:11px">Commands</div>
+                    <input type="number" class="input" id="retentionCommands" value="30" min="-1" style="width:80px">
+                  </div>
+                  <div>
+                    <div class="hintline" style="margin-top:0;font-size:11px">Signs</div>
+                    <input type="number" class="input" id="retentionSigns" value="30" min="-1" style="width:80px">
+                  </div>
+                  <div>
+                    <div class="hintline" style="margin-top:0;font-size:11px">Sessions</div>
+                    <input type="number" class="input" id="retentionSessions" value="30" min="-1" style="width:80px">
+                  </div>
+                  <div>
+                    <div class="hintline" style="margin-top:0;font-size:11px">Items</div>
+                    <input type="number" class="input" id="retentionItems" value="30" min="-1" style="width:80px">
+                  </div>
+                  <div>
+                    <div class="hintline" style="margin-top:0;font-size:11px">Anvils</div>
+                    <input type="number" class="input" id="retentionAnvils" value="30" min="-1" style="width:80px">
+                  </div>
+                  <div>
+                    <div class="hintline" style="margin-top:0;font-size:11px">Usernames</div>
+                    <input type="number" class="input" id="retentionUsernames" value="-1" min="-1" style="width:80px">
+                  </div>
+                  <div>
+                    <div class="hintline" style="margin-top:0;font-size:11px">Automod</div>
+                    <input type="number" class="input" id="retentionAutomod" value="30" min="-1" style="width:80px">
+                  </div>
+                  <div>
+                    <div class="hintline" style="margin-top:0;font-size:11px">Anticheat</div>
+                    <input type="number" class="input" id="retentionAnticheat" value="30" min="-1" style="width:80px">
+                  </div>
+                </div>
+                <div class="block" style="margin-top:16px">
+                  <button class="btn" onclick="saveActivityLogSettings()"><i class="fa-solid fa-save"></i> Save Activity Log Settings</button>
+                </div>
+              </div>
+              <div class="hintline" style="margin-top:12px;font-size:12px">
+                <i class="fa-solid fa-key"></i> Permission: <code style="background:rgba(0,0,0,0.3);padding:2px 6px;border-radius:4px">moderex.admin.activitylog</code>
+              </div>
+            </div>
+
+            <!-- Evidence System Configuration -->
+            <div class="card" style="margin-top:20px" id="evidenceConfigCard">
+              <h3><i class="fa-solid fa-file-video" style="color:var(--ok)"></i> Evidence System Configuration</h3>
+              <p>Configure evidence upload limits and requirements.</p>
+              <div class="grid cols-2" style="margin-top:14px;gap:16px">
+                <div>
+                  <div class="hintline" style="margin-top:0">Max File Size (MB)</div>
+                  <input type="number" class="input" id="evidenceMaxFileSizeMb" value="250" min="1" max="1000" style="width:120px">
+                </div>
+                <div>
+                  <div class="hintline" style="margin-top:0">Max Activity Log Entries</div>
+                  <input type="number" class="input" id="evidenceMaxActivityLogEntries" value="5" min="1" max="20" style="width:120px">
+                </div>
+              </div>
+              <div class="toggle-wrap" style="margin-top:14px">
+                <button class="toggle" id="togEvidenceRequired" onclick="toggleEvidenceRequired()"><span class="toggle-thumb"></span></button>
+                <div class="toggle-meta">
+                  <div class="toggle-title">Require Evidence for Punishments</div>
+                  <div class="toggle-sub" id="togEvidenceRequiredHint">Off</div>
+                </div>
+              </div>
+              <div class="block" style="margin-top:16px">
+                <button class="btn" onclick="saveEvidenceSettings()"><i class="fa-solid fa-save"></i> Save Evidence Settings</button>
+              </div>
+              <div class="hintline" style="margin-top:12px;font-size:12px">
+                <i class="fa-solid fa-key"></i> Permission: <code style="background:rgba(0,0,0,0.3);padding:2px 6px;border-radius:4px">moderex.admin.evidence</code>
               </div>
             </div>
 
@@ -1693,6 +2818,13 @@
                 <p>NPC plugin for replay playback.</p>
                 <div class="hintline">Status: <span class="badge gray" id="citizensStatus">Not detected</span></div>
                 <div id="citizensDetails" style="margin-top:4px;font-size:12px;color:var(--text-secondary)"></div>
+              </div>
+
+              <div class="card" style="margin:0">
+                <h3><i class="fa-solid fa-fire-flame-curved" style="color:#f97316"></i> Spark</h3>
+                <p>Performance profiler for diagnostics.</p>
+                <div class="hintline">Status: <span class="badge gray" id="sparkStatus">Not detected</span></div>
+                <div id="sparkDetails" style="margin-top:4px;font-size:12px;color:var(--text-secondary)"></div>
               </div>
             </div>
           </div>
@@ -2245,8 +3377,46 @@
     </div>
   </div>
 
-  <!-- Support Button -->
-  <button class="fab" id="supportFab" onclick="openSupport()"><i class="fa-solid fa-headset"></i></button>
+  <!-- Discord Support Button -->
+  <button class="fab" id="discordFab" onclick="openDiscordSupport()"><i class="fa-brands fa-discord"></i></button>
+
+  <!-- Discord Support Popup -->
+  <div class="overlay" id="discordSupportOverlay">
+    <div class="modalBox" style="max-width:450px" onclick="event.stopPropagation()">
+      <div class="modal-header">
+        <div class="modal-title">
+          <i class="fa-brands fa-discord" style="color:#5865F2"></i>
+          <span>Join Our Discord</span>
+        </div>
+        <button class="mini" onclick="closeDiscordSupport()"><i class="fa-solid fa-xmark"></i></button>
+      </div>
+      <div class="modal-body" style="padding:20px">
+        <p style="margin-bottom:20px;color:var(--text-secondary);text-align:center">Join our Discord servers for support, updates, and community discussion.</p>
+
+        <div style="display:flex;flex-direction:column;gap:16px">
+          <!-- BlockForge Studios -->
+          <a href="https://discord.gg/xM5j9RRSem" target="_blank" class="discord-server-card" style="text-decoration:none">
+            <img src="https://cdn.discordapp.com/avatars/1407897245549858836/223380962459bf103a409c967887e4bc.webp?size=64" alt="BlockForge Studios" style="width:48px;height:48px;border-radius:50%">
+            <div style="flex:1">
+              <div style="font-weight:600;color:var(--text)">BlockForge Studios</div>
+              <div style="font-size:12px;color:var(--text-secondary)">Development & General Support</div>
+            </div>
+            <i class="fa-solid fa-arrow-up-right-from-square" style="color:var(--text-secondary)"></i>
+          </a>
+
+          <!-- ADF Industries -->
+          <a href="https://discord.gg/qWpcRmDW2P" target="_blank" class="discord-server-card" style="text-decoration:none">
+            <img src="https://cdn.discordapp.com/icons/1330797038723534938/4bae0a62ec428f43f3b8664bb08e0dbe.webp?size=64" alt="ADF Industries" style="width:48px;height:48px;border-radius:50%">
+            <div style="flex:1">
+              <div style="font-weight:600;color:var(--text)">ADF Industries LLC</div>
+              <div style="font-size:12px;color:var(--text-secondary)">Business Inquiries & Enterprise Support</div>
+            </div>
+            <i class="fa-solid fa-arrow-up-right-from-square" style="color:var(--text-secondary)"></i>
+          </a>
+        </div>
+      </div>
+    </div>
+  </div>
 
   <!-- Automod Tester Panel -->
   <div class="testerPanel" id="testerPanel">
