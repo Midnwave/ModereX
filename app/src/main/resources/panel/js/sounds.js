@@ -55,7 +55,7 @@
       oscillator.type = type;
       oscillator.frequency.setValueAtTime(frequency, audioContext.currentTime);
 
-      const actualVolume = settings.volume * volume * 0.3;
+      const actualVolume = settings.volume * volume * 0.55; // Increased from 0.3 - noticeable over music
       gainNode.gain.setValueAtTime(actualVolume, audioContext.currentTime);
       gainNode.gain.exponentialRampToValueAtTime(0.001, audioContext.currentTime + duration);
 
