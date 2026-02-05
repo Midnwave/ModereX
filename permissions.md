@@ -299,6 +299,61 @@ This document contains all permissions used by ModereX. When editing permissions
 
 ---
 
+## Server Configuration Permissions
+
+| Permission | Description |
+|------------|-------------|
+| `moderex.admin.lockdown` | Enable/disable server lockdown |
+| `moderex.admin.commandblacklist` | Configure command blacklist |
+| `moderex.admin.notifications` | Configure notification settings |
+| `moderex.admin.warnings` | Configure warning escalation settings |
+| `moderex.admin.mutes` | Configure mute restrictions |
+| `moderex.admin.chat` | Enable/disable chat, manage slowmode |
+| `moderex.admin.kickall` | Kick all players from server |
+| `moderex.admin.activitylog` | Configure activity log settings |
+| `moderex.admin.evidence` | Configure evidence system settings |
+| `moderex.admin.disguise` | Configure disguise system settings |
+
+---
+
+## Server Monitoring Permissions
+
+### View Permissions (per-tab)
+
+| Permission | Description |
+|------------|-------------|
+| `moderex.monitoring.view.*` | View all monitoring tabs |
+| `moderex.monitoring.view.health` | View Server Health tab (TPS, memory, CPU, health score) |
+| `moderex.monitoring.view.alerts` | View Performance Alerts tab (lag detection history) |
+| `moderex.monitoring.view.resources` | View Resource Monitor tab (entities, chunks breakdown) |
+| `moderex.monitoring.view.diagnostics` | View Diagnostics tab (Spark integration, JVM info) |
+
+### Configure Permissions (per-tab)
+
+| Permission | Description |
+|------------|-------------|
+| `moderex.monitoring.configure.*` | Configure all monitoring settings |
+| `moderex.monitoring.configure.health` | Configure health score weights and thresholds |
+| `moderex.monitoring.configure.alerts` | Configure alert thresholds (TPS, memory, CPU levels) |
+| `moderex.monitoring.configure.resources` | Configure resource monitoring settings |
+| `moderex.monitoring.configure.diagnostics` | Run Spark commands (profile, heap dump, GC) |
+
+### Web Panel - Monitoring Tabs
+
+| Permission | Web Panel Behavior |
+|------------|-------------------|
+| `moderex.monitoring.view.health` | Server Health tab visible and accessible |
+| `moderex.monitoring.view.alerts` | Performance Alerts tab visible and accessible |
+| `moderex.monitoring.view.resources` | Resource Monitor tab visible and accessible |
+| `moderex.monitoring.view.diagnostics` | Diagnostics tab visible and accessible |
+| `moderex.monitoring.configure.alerts` | Alert threshold inputs editable, save button enabled |
+| `moderex.monitoring.configure.diagnostics` | Spark action buttons enabled (Start Profile, Heap Dump, Trigger GC) |
+
+**No view permission:** Tab is hidden from the monitoring sub-tabs.
+**No configure permission:** Settings/inputs are disabled, action buttons show lock icon.
+
+---
+
 ## Vanish Permissions
 
 | Permission | Description |
@@ -337,6 +392,7 @@ This document contains all permissions used by ModereX. When editing permissions
 | `moderex.bypass.lockdown` | Bypass server lockdown |
 | `moderex.bypass.chatdisable` | Bypass chat disable |
 | `moderex.bypass.chatslowmode` | Bypass chat slowmode |
+| `moderex.bypass.commandblacklist` | Bypass command blacklist |
 | `moderex.bypass.mute` | Bypass mute restrictions |
 | `moderex.bypass.afk` | Bypass AFK detection |
 
