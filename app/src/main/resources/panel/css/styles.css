@@ -9659,13 +9659,29 @@ body.has-update-banner .announcementBanner.show {
     box-shadow: 0 0 0 0 rgba(var(--primary-rgb), 0);
     background-color: transparent;
   }
-  10% {
-    box-shadow: 0 0 0 4px rgba(var(--primary-rgb), 0.4), 0 0 20px 2px rgba(var(--primary-rgb), 0.3);
+  8% {
+    box-shadow: 0 0 0 4px rgba(var(--primary-rgb), 0.45), 0 0 20px 2px rgba(var(--primary-rgb), 0.3);
     background-color: rgba(var(--primary-rgb), 0.08);
   }
-  50% {
-    box-shadow: 0 0 0 4px rgba(var(--primary-rgb), 0.3), 0 0 15px 2px rgba(var(--primary-rgb), 0.2);
-    background-color: rgba(var(--primary-rgb), 0.05);
+  20% {
+    box-shadow: 0 0 0 2px rgba(var(--primary-rgb), 0.15);
+    background-color: rgba(var(--primary-rgb), 0.03);
+  }
+  30% {
+    box-shadow: 0 0 0 4px rgba(var(--primary-rgb), 0.4), 0 0 18px 2px rgba(var(--primary-rgb), 0.25);
+    background-color: rgba(var(--primary-rgb), 0.07);
+  }
+  45% {
+    box-shadow: 0 0 0 2px rgba(var(--primary-rgb), 0.12);
+    background-color: rgba(var(--primary-rgb), 0.02);
+  }
+  55% {
+    box-shadow: 0 0 0 4px rgba(var(--primary-rgb), 0.35), 0 0 15px 2px rgba(var(--primary-rgb), 0.2);
+    background-color: rgba(var(--primary-rgb), 0.06);
+  }
+  70% {
+    box-shadow: 0 0 0 2px rgba(var(--primary-rgb), 0.1);
+    background-color: rgba(var(--primary-rgb), 0.02);
   }
   100% {
     box-shadow: 0 0 0 0 rgba(var(--primary-rgb), 0);

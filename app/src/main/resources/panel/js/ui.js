@@ -605,9 +605,18 @@
     }
 
     const q = (dom.templateSearch?.value || '').trim().toLowerCase();
-    const arr = state.templates.filter(t => t.id !== 'none').filter(t => !q || `${t.name} ${t.type} ${t.reason}`.toLowerCase().includes(q));
+    const arr = state.templates
+      .filter(t => t.id !== 'none')
+      .filter(t => !q || `${t.name} ${t.type} ${t.reason}`.toLowerCase().includes(q))
+      .sort((a, b) => {
+        // Favorites first, then by priority, then by name
+        if (a.favorite && !b.favorite) return -1;
+        if (!a.favorite && b.favorite) return 1;
+        return 0;
+      });
 
     dom.templateRows.innerHTML = arr.map(t => {
+      const favBtn = `<button class="mini ${t.favorite ? 'primary' : 'ghost'}" onclick="toggleTemplateFavorite('${t.id}')" title="${t.favorite ? 'Remove from favorites' : 'Add to favorites'}"><i class="fa-solid fa-star" style="${t.favorite ? 'color:var(--warn)' : ''}"></i></button>`;
       const editBtn = canEdit
         ? `<button class="mini primary" onclick="editTemplateUI('${t.id}')"><i class="fa-solid fa-pen-to-square"></i> Edit</button>`
         : `<button class="mini primary no-permission" disabled data-tooltip="You do not have permission to edit templates"><i class="fa-solid fa-pen-to-square"></i> Edit</button>`;
@@ -624,12 +633,13 @@
       const categoryBadge = t.category ? `<span class="badge gray" style="font-size:11px;margin-left:6px">${escapeHtml(t.category)}</span>` : '';
 
       return `
-      <tr>
+      <tr data-template-id="${t.id}">
         <td><b>${escapeHtml(t.name)}</b>${categoryBadge}</td>
         <td>${escapeHtml(t.type)}</td>
         <td>${escapeHtml(durationDisplay)}</td>
         <td class="reason-cell">${window.expandableReason ? expandableReason(t.reason, 15) : escapeHtml(truncate(t.reason || 'No reason', 15))}</td>
         <td style="text-align:right">
+          ${favBtn}
           ${editBtn}
           ${deleteBtn}
         </td>

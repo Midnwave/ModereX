@@ -1324,7 +1324,7 @@
                   </label>
                 </div>
               </div>
-              <div class="note" style="margin-top:16px">
+              <div class="note" style="margin-top:16px" id="replayCitizensNote">
                 <i class="fa-solid fa-info-circle"></i>
                 <span>Citizens plugin required for NPC-based replay playback. Replays can still be recorded without it.</span>
               </div>
@@ -1533,6 +1533,33 @@
                 <h2 style="margin:0 0 16px 0"><i class="fa-solid fa-globe"></i> World Statistics</h2>
                 <div class="world-stats" id="statusWorlds">
                   <div class="world-loading"><div class="spinner"></div> Loading...</div>
+                </div>
+              </div>
+            </div>
+
+            <div class="grid cols-2">
+              <!-- Heap Memory Graph -->
+              <div class="panel pad">
+                <h2 style="margin:0 0 16px 0"><i class="fa-solid fa-memory"></i> Heap Memory</h2>
+                <div class="tps-graph-container">
+                  <canvas id="heapGraph" height="200"></canvas>
+                </div>
+                <div class="tps-legend">
+                  <span style="color:var(--primary)"><i class="fa-solid fa-circle"></i> Used</span>
+                  <span style="color:#e67e22"><i class="fa-solid fa-circle"></i> Eden</span>
+                  <span style="color:#e74c3c"><i class="fa-solid fa-circle"></i> Old Gen</span>
+                </div>
+              </div>
+
+              <!-- GC Activity Graph -->
+              <div class="panel pad">
+                <h2 style="margin:0 0 16px 0"><i class="fa-solid fa-recycle"></i> GC Activity</h2>
+                <div class="tps-graph-container">
+                  <canvas id="gcGraph" height="200"></canvas>
+                </div>
+                <div class="tps-legend">
+                  <span style="color:#3498db"><i class="fa-solid fa-circle"></i> Pause Time (ms)</span>
+                  <span style="color:#2ecc71"><i class="fa-solid fa-circle"></i> Collections</span>
                 </div>
               </div>
             </div>

@@ -236,6 +236,61 @@ public class TemplateManager {
                 .collect(Collectors.toList());
     }
 
+    // ===== Favorites =====
+
+    /**
+     * Get the set of template IDs that a staff member has favorited.
+     */
+    public Set<String> getFavorites(UUID staffUuid) {
+        try {
+            return plugin.getDatabaseManager().query(
+                    "SELECT template_id FROM moderex_template_favorites WHERE staff_uuid = ?",
+                    rs -> {
+                        Set<String> favorites = new HashSet<>();
+                        while (rs.next()) {
+                            favorites.add(rs.getString("template_id"));
+                        }
+                        return favorites;
+                    },
+                    staffUuid.toString()
+            );
+        } catch (Exception e) {
+            plugin.logDebug("Error loading favorites for " + staffUuid + ": " + e.getMessage());
+            return new HashSet<>();
+        }
+    }
+
+    /**
+     * Toggle a template as favorite for a staff member.
+     * Returns true if the template is now a favorite, false if it was removed.
+     */
+    public boolean toggleFavorite(UUID staffUuid, String templateId) {
+        try {
+            boolean exists = plugin.getDatabaseManager().query(
+                    "SELECT 1 FROM moderex_template_favorites WHERE staff_uuid = ? AND template_id = ?",
+                    rs -> rs.next(),
+                    staffUuid.toString(), templateId
+            );
+
+            if (exists) {
+                plugin.getDatabaseManager().update(
+                        "DELETE FROM moderex_template_favorites WHERE staff_uuid = ? AND template_id = ?",
+                        staffUuid.toString(), templateId
+                );
+                return false;
+            } else {
+                plugin.getDatabaseManager().update(
+                        "INSERT INTO moderex_template_favorites (staff_uuid, template_id, created_at) VALUES (?, ?, ?)",
+                        staffUuid.toString(), templateId, System.currentTimeMillis()
+                );
+                return true;
+            }
+        } catch (Exception e) {
+            plugin.logError("Failed to toggle favorite", e);
+            return false;
+        }
+    }
+
     public String exportToJson() {
         JsonArray array = new JsonArray();
         for (PunishmentTemplate template : getAllTemplates()) {
