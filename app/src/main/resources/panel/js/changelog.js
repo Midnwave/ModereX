@@ -14,6 +14,60 @@
 
 window.MX_CHANGELOGS = [
   {
+    build: 252,
+    version: "2.0dev-252",
+    date: "2026-02-05",
+    title: "Global Token System & Server List",
+    sections: [
+      {
+        type: "new",
+        title: "New Features",
+        items: [
+          "**Global Token System** - One token works across all servers connected to the gateway, no need to re-authenticate per server",
+          "**Server List Page** - Visit panel.moderex.net to see all your servers in one place with status, player count, and rank",
+          "**Gateway Database** - SQLite database on the gateway stores tokens, permissions, and settings persistently",
+          "**Permission Sync** - Server permissions automatically sync to gateway on startup and when LuckPerms changes are detected",
+          "**Settings Sync** - Color scheme and device fingerprints sync to both gateway and server databases"
+        ]
+      },
+      {
+        type: "improved",
+        title: "Improvements",
+        items: [
+          "**Multi-Server Navigation** - 'Servers' button in profile dropdown lets you switch servers without re-authenticating",
+          "**Logo Click** - Clicking the sidebar logo in gateway mode returns to the server list",
+          "**Server Card UI** - Server IDs are blurred by default for privacy, click to reveal and copy",
+          "**Token Dual-Write** - Tokens sync to gateway when generated or revoked via /mx gettoken and /mx revoketoken",
+          "**Device Trust Sync** - Trusted device fingerprints sync to gateway for cross-server device auth"
+        ]
+      },
+      {
+        type: "fixed",
+        title: "Bug Fixes",
+        items: [
+          "**Admin Panel** - Fixed 11 out of 14 broken features due to message type mismatches between frontend and gateway",
+          "**Gateway SQLite** - Fixed SQLite crash on startup by using sql.js (pure JS) with better-sqlite3 as optional native fallback",
+          "**Admin Auth** - Added missing admin_auth handler so Cloudflare Access authentication works properly",
+          "**Admin Dashboard** - Added get_dashboard_data handler for server stats and activity overview",
+          "**Admin Announcements** - Fixed type mismatch (announcements_list), added deactivate handler",
+          "**Admin Audit Log** - Fixed field name mismatch (entries vs logs), added export handler"
+        ]
+      },
+      {
+        type: "technical",
+        title: "Technical Changes",
+        items: [
+          "**Gateway DB Tables** - Added global_tokens, server_access, and user_settings tables",
+          "**sql.js Wrapper** - Created better-sqlite3 compatible API wrapper for sql.js with auto-save to disk",
+          "**GatewayClient** - Added syncAllPermissions, registerGlobalToken, revokeGlobalToken, syncUserSettings methods",
+          "**LuckPerms Listener** - Permission change events trigger automatic gateway sync",
+          "**Global Pre-Auth** - Gateway sends pre-auth to MC server for seamless server switching",
+          "**WebSocket Global Mode** - New /panel/ root endpoint for server list page connections"
+        ]
+      }
+    ]
+  },
+  {
     build: 251,
     version: "2.0dev-251",
     date: "2026-02-05",
