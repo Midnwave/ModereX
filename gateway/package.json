@@ -8,7 +8,11 @@
     "dev": "node --watch gateway.js"
   },
   "dependencies": {
-    "ws": "^8.19.0"
+    "ws": "^8.19.0",
+    "sql.js": "^1.11.0"
+  },
+  "optionalDependencies": {
+    "better-sqlite3": "^11.7.0"
   },
   "engines": {
     "node": ">=18.0.0"

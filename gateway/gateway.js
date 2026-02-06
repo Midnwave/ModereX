@@ -27,14 +27,90 @@ const CONFIG = {
 };
 
 // ============================================================================
-// Admin Database Setup (SQLite)
+// Database Setup (SQLite with fallback chain)
 // ============================================================================
-let db;
-try {
-    const Database = require('better-sqlite3');
-    db = new Database(path.join(__dirname, 'gateway.db'));
+let db = null;
+const DB_PATH = path.join(__dirname, 'gateway.db');
 
-    // Create announcements table
+// In-memory fallback for announcements if SQLite not available
+const inMemoryAnnouncements = new Map();
+
+// In-memory fallback for server secrets
+const inMemoryServerSecrets = new Map();
+
+// In-memory fallback for global tokens
+const inMemoryGlobalTokens = new Map();
+
+// In-memory fallback for server access
+const inMemoryServerAccess = new Map(); // key: `${uuid}:${serverId}`
+
+// In-memory fallback for user settings
+const inMemoryUserSettings = new Map();
+
+/**
+ * Create a sql.js wrapper that matches better-sqlite3's synchronous API.
+ * better-sqlite3: db.prepare(sql).run(v1, v2) / .get(v1, v2) / .all(v1, v2)
+ * sql.js: stmt.bind([v1, v2]); stmt.step(); stmt.getAsObject(); stmt.free()
+ */
+function createSqlJsWrapper(sqlDb) {
+    let saveTimer = null;
+
+    function saveToDisk() {
+        try {
+            const data = sqlDb.export();
+            fs.writeFileSync(DB_PATH, Buffer.from(data));
+        } catch (e) {
+            console.error('[Database] Failed to save to disk:', e.message);
+        }
+    }
+
+    // Auto-save every 30 seconds
+    saveTimer = setInterval(saveToDisk, 30000);
+
+    return {
+        exec: (sql) => sqlDb.run(sql),
+        prepare: (sql) => ({
+            run: (...params) => {
+                const stmt = sqlDb.prepare(sql);
+                if (params.length > 0) stmt.bind(params);
+                stmt.step();
+                stmt.free();
+                // Schedule a save after writes
+                if (!saveTimer._pendingSave) {
+                    saveTimer._pendingSave = true;
+                    setTimeout(() => { saveToDisk(); saveTimer._pendingSave = false; }, 1000);
+                }
+                return { changes: sqlDb.getRowsModified() };
+            },
+            get: (...params) => {
+                const stmt = sqlDb.prepare(sql);
+                if (params.length > 0) stmt.bind(params);
+                const result = stmt.step() ? stmt.getAsObject() : undefined;
+                stmt.free();
+                return result;
+            },
+            all: (...params) => {
+                const results = [];
+                const stmt = sqlDb.prepare(sql);
+                if (params.length > 0) stmt.bind(params);
+                while (stmt.step()) results.push(stmt.getAsObject());
+                stmt.free();
+                return results;
+            }
+        }),
+        close: () => {
+            clearInterval(saveTimer);
+            saveToDisk();
+            sqlDb.close();
+        }
+    };
+}
+
+/**
+ * Create all required database tables.
+ */
+function createTables() {
+    // Announcements table
     db.exec(`
         CREATE TABLE IF NOT EXISTS admin_announcements (
             id TEXT PRIMARY KEY,
@@ -54,7 +130,7 @@ try {
         )
     `);
 
-    // Create audit log table
+    // Audit log table
     db.exec(`
         CREATE TABLE IF NOT EXISTS admin_audit_log (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -65,7 +141,7 @@ try {
         )
     `);
 
-    // Create server secrets table for gateway authentication
+    // Server secrets table for gateway authentication
     db.exec(`
         CREATE TABLE IF NOT EXISTS server_secrets (
             server_id TEXT PRIMARY KEY,
@@ -75,17 +151,86 @@ try {
         )
     `);
 
-    console.log('[Admin] Database initialized');
-} catch (e) {
-    console.log('[Admin] SQLite not available, using in-memory storage');
-    db = null;
+    // Global tokens (one per player UUID, shared across all servers)
+    db.exec(`
+        CREATE TABLE IF NOT EXISTS global_tokens (
+            uuid TEXT PRIMARY KEY,
+            token_hash TEXT NOT NULL,
+            username TEXT,
+            created_at INTEGER NOT NULL,
+            expires_at INTEGER NOT NULL
+        )
+    `);
+
+    // Server access (which players can access which servers, from permission sync)
+    db.exec(`
+        CREATE TABLE IF NOT EXISTS server_access (
+            uuid TEXT NOT NULL,
+            server_id TEXT NOT NULL,
+            username TEXT,
+            rank TEXT,
+            permissions TEXT,
+            updated_at INTEGER NOT NULL,
+            PRIMARY KEY (uuid, server_id)
+        )
+    `);
+
+    // User settings synced across servers (color scheme + device fingerprints)
+    db.exec(`
+        CREATE TABLE IF NOT EXISTS user_settings (
+            uuid TEXT PRIMARY KEY,
+            color_scheme TEXT DEFAULT 'blue',
+            device_fingerprints TEXT,
+            updated_at INTEGER NOT NULL
+        )
+    `);
 }
 
-// In-memory fallback for announcements if SQLite not available
-const inMemoryAnnouncements = new Map();
+/**
+ * Initialize database with fallback chain:
+ * 1. better-sqlite3 (native, fastest - works on Linux/production)
+ * 2. sql.js (pure JavaScript - works everywhere including Windows)
+ * 3. In-memory Maps (no persistence)
+ */
+async function initDatabase() {
+    // Try better-sqlite3 first (native C++ bindings - fastest)
+    try {
+        const Database = require('better-sqlite3');
+        db = new Database(DB_PATH);
+        createTables();
+        console.log('[Database] Initialized (better-sqlite3 - native)');
+        return;
+    } catch (e) {
+        console.log('[Database] better-sqlite3 not available:', e.message?.split('\n')[0]);
+    }
 
-// In-memory fallback for server secrets
-const inMemoryServerSecrets = new Map();
+    // Fall back to sql.js (pure JavaScript SQLite via WebAssembly)
+    try {
+        const initSqlJs = require('sql.js');
+        const SQL = await initSqlJs();
+
+        let sqlDb;
+        if (fs.existsSync(DB_PATH)) {
+            const fileData = fs.readFileSync(DB_PATH);
+            sqlDb = new SQL.Database(fileData);
+            console.log('[Database] Loaded existing database from disk');
+        } else {
+            sqlDb = new SQL.Database();
+            console.log('[Database] Created new database');
+        }
+
+        db = createSqlJsWrapper(sqlDb);
+        createTables();
+        console.log('[Database] Initialized (sql.js - pure JavaScript)');
+        return;
+    } catch (e) {
+        console.error('[Database] sql.js not available:', e.message);
+    }
+
+    // Final fallback: in-memory only (no persistence)
+    console.warn('[Database] No SQLite engine available - using in-memory storage (data will not persist across restarts)');
+    db = null;
+}
 
 // Store admin connections
 const adminClients = new Map();
@@ -479,6 +624,9 @@ wss.on('connection', (ws, req) => {
 
     if (url.pathname === '/server') {
         handleMCServerConnection(ws, clientIp);
+    } else if (url.pathname === '/panel/' || url.pathname === '/panel') {
+        // Global panel connection (no server prefix) — server list page
+        handleGlobalPanelConnection(ws, clientIp);
     } else if (url.pathname.startsWith('/panel/')) {
         const prefix = url.pathname.split('/')[2]?.toLowerCase();
         if (prefix && prefix.length >= 5) {
@@ -655,6 +803,55 @@ function handleMCServerConnection(ws, clientIp) {
                 return;
             }
 
+            // ============================================================
+            // Global Token System — MC Server → Gateway messages
+            // ============================================================
+
+            // Bulk permission sync (sent on server startup)
+            if (message.type === 'permission_sync') {
+                if (!serverId || !registered) return;
+                handlePermissionSync(serverId, message.players || []);
+                return;
+            }
+
+            // Single player permission update (LP event)
+            if (message.type === 'permission_update') {
+                if (!serverId || !registered) return;
+                handlePermissionUpdate(serverId, message);
+                return;
+            }
+
+            // Register/update global token
+            if (message.type === 'token_register') {
+                handleTokenRegister(message);
+                return;
+            }
+
+            // Revoke global token
+            if (message.type === 'token_revoke') {
+                handleTokenRevoke(message.uuid);
+                return;
+            }
+
+            // Sync user settings from MC server → gateway
+            if (message.type === 'settings_sync') {
+                handleSettingsSync(message);
+                return;
+            }
+
+            // Server unregistering from gateway (gateway disabled in config)
+            if (message.type === 'server_unregister') {
+                if (!serverId || !registered) return;
+                handleServerUnregister(serverId);
+                return;
+            }
+
+            // Global pre-auth result (MC server created session for global-auth user)
+            if (message.type === 'global_pre_auth_result') {
+                handleGlobalPreAuthResult(message);
+                return;
+            }
+
         } catch (err) {
             console.error(`[Server] Error processing message:`, err.message);
         }
@@ -809,6 +1006,628 @@ function generateClientId() {
 }
 
 // ============================================================================
+// Global Token System — Handler Functions
+// ============================================================================
+
+/**
+ * Handle bulk permission sync from MC server (sent on startup).
+ * Upserts all players into server_access, removes players no longer in the list.
+ */
+function handlePermissionSync(serverId, players) {
+    if (!Array.isArray(players)) return;
+
+    console.log(`[Token] Permission sync from ${serverId}: ${players.length} players`);
+
+    if (db) {
+        try {
+            const upsert = db.prepare(
+                'INSERT OR REPLACE INTO server_access (uuid, server_id, username, rank, permissions, updated_at) VALUES (?, ?, ?, ?, ?, ?)'
+            );
+            const now = Date.now();
+
+            // Upsert all players
+            for (const p of players) {
+                if (!p.uuid) continue;
+                upsert.run(p.uuid, serverId, p.username || null, p.rank || null, JSON.stringify(p.permissions || []), now);
+            }
+
+            // Remove players no longer in the list for this server
+            const uuids = players.filter(p => p.uuid).map(p => p.uuid);
+            if (uuids.length > 0) {
+                const placeholders = uuids.map(() => '?').join(',');
+                db.prepare(`DELETE FROM server_access WHERE server_id = ? AND uuid NOT IN (${placeholders})`).run(serverId, ...uuids);
+            } else {
+                // No players — clear all access for this server
+                db.prepare('DELETE FROM server_access WHERE server_id = ?').run(serverId);
+            }
+        } catch (e) {
+            console.error('[Token] Permission sync DB error:', e.message);
+        }
+    } else {
+        // In-memory fallback
+        // Remove old entries for this server
+        for (const [key] of inMemoryServerAccess) {
+            if (key.endsWith(':' + serverId)) {
+                inMemoryServerAccess.delete(key);
+            }
+        }
+        // Add new entries
+        for (const p of players) {
+            if (!p.uuid) continue;
+            inMemoryServerAccess.set(`${p.uuid}:${serverId}`, {
+                uuid: p.uuid, server_id: serverId, username: p.username,
+                rank: p.rank, permissions: JSON.stringify(p.permissions || []),
+                updated_at: Date.now()
+            });
+        }
+    }
+}
+
+/**
+ * Handle single player permission update (LP change event).
+ */
+function handlePermissionUpdate(serverId, data) {
+    const { uuid, username, rank, permissions, hasAccess } = data;
+    if (!uuid) return;
+
+    console.log(`[Token] Permission update: ${username || uuid} on ${serverId} - access: ${hasAccess}`);
+
+    if (db) {
+        try {
+            if (hasAccess) {
+                db.prepare(
+                    'INSERT OR REPLACE INTO server_access (uuid, server_id, username, rank, permissions, updated_at) VALUES (?, ?, ?, ?, ?, ?)'
+                ).run(uuid, serverId, username || null, rank || null, JSON.stringify(permissions || []), Date.now());
+            } else {
+                db.prepare('DELETE FROM server_access WHERE uuid = ? AND server_id = ?').run(uuid, serverId);
+            }
+        } catch (e) {
+            console.error('[Token] Permission update DB error:', e.message);
+        }
+    } else {
+        const key = `${uuid}:${serverId}`;
+        if (hasAccess) {
+            inMemoryServerAccess.set(key, {
+                uuid, server_id: serverId, username, rank,
+                permissions: JSON.stringify(permissions || []),
+                updated_at: Date.now()
+            });
+        } else {
+            inMemoryServerAccess.delete(key);
+        }
+    }
+}
+
+/**
+ * Register or update a global token.
+ */
+function handleTokenRegister(data) {
+    const { uuid, username, tokenHash, expiresAt } = data;
+    if (!uuid || !tokenHash) return;
+
+    console.log(`[Token] Token registered for ${username || uuid}`);
+
+    if (db) {
+        try {
+            db.prepare(
+                'INSERT OR REPLACE INTO global_tokens (uuid, token_hash, username, created_at, expires_at) VALUES (?, ?, ?, ?, ?)'
+            ).run(uuid, tokenHash, username || null, Date.now(), expiresAt || (Date.now() + 90 * 24 * 60 * 60 * 1000));
+        } catch (e) {
+            console.error('[Token] Token register DB error:', e.message);
+        }
+    } else {
+        inMemoryGlobalTokens.set(uuid, {
+            uuid, token_hash: tokenHash, username,
+            created_at: Date.now(), expires_at: expiresAt || (Date.now() + 90 * 24 * 60 * 60 * 1000)
+        });
+    }
+}
+
+/**
+ * Revoke a global token.
+ */
+function handleTokenRevoke(uuid) {
+    if (!uuid) return;
+
+    console.log(`[Token] Token revoked for ${uuid}`);
+
+    if (db) {
+        try {
+            db.prepare('DELETE FROM global_tokens WHERE uuid = ?').run(uuid);
+        } catch (e) {
+            console.error('[Token] Token revoke DB error:', e.message);
+        }
+    } else {
+        inMemoryGlobalTokens.delete(uuid);
+    }
+}
+
+/**
+ * Sync user settings from MC server to gateway.
+ */
+function handleSettingsSync(data) {
+    const { uuid, colorScheme, deviceFingerprints } = data;
+    if (!uuid) return;
+
+    if (db) {
+        try {
+            db.prepare(
+                'INSERT OR REPLACE INTO user_settings (uuid, color_scheme, device_fingerprints, updated_at) VALUES (?, ?, ?, ?)'
+            ).run(uuid, colorScheme || 'blue', JSON.stringify(deviceFingerprints || []), Date.now());
+        } catch (e) {
+            console.error('[Token] Settings sync DB error:', e.message);
+        }
+    } else {
+        inMemoryUserSettings.set(uuid, {
+            uuid, color_scheme: colorScheme || 'blue',
+            device_fingerprints: JSON.stringify(deviceFingerprints || []),
+            updated_at: Date.now()
+        });
+    }
+}
+
+/**
+ * Handle server unregistering from gateway (gateway disabled in config).
+ * Remove all server_access entries for this server but keep tokens and user settings.
+ */
+function handleServerUnregister(serverId) {
+    console.log(`[Token] Server ${serverId} unregistering — removing access entries`);
+
+    if (db) {
+        try {
+            db.prepare('DELETE FROM server_access WHERE server_id = ?').run(serverId);
+        } catch (e) {
+            console.error('[Token] Server unregister DB error:', e.message);
+        }
+    } else {
+        for (const [key] of inMemoryServerAccess) {
+            if (key.endsWith(':' + serverId)) {
+                inMemoryServerAccess.delete(key);
+            }
+        }
+    }
+}
+
+/**
+ * Validate a global token hash against the database.
+ * Returns { valid, uuid, username } or { valid: false }.
+ */
+function validateGlobalToken(rawToken) {
+    const tokenHash = crypto.createHash('sha256').update(rawToken).digest('hex');
+
+    if (db) {
+        try {
+            const row = db.prepare('SELECT * FROM global_tokens WHERE token_hash = ?').get(tokenHash);
+            if (!row) return { valid: false };
+            if (row.expires_at && row.expires_at < Date.now()) {
+                // Token expired — clean up
+                db.prepare('DELETE FROM global_tokens WHERE uuid = ?').run(row.uuid);
+                return { valid: false, reason: 'Token expired' };
+            }
+            return { valid: true, uuid: row.uuid, username: row.username };
+        } catch (e) {
+            console.error('[Token] Token validation DB error:', e.message);
+            return { valid: false };
+        }
+    } else {
+        for (const [uuid, token] of inMemoryGlobalTokens) {
+            if (token.token_hash === tokenHash) {
+                if (token.expires_at && token.expires_at < Date.now()) {
+                    inMemoryGlobalTokens.delete(uuid);
+                    return { valid: false, reason: 'Token expired' };
+                }
+                return { valid: true, uuid: token.uuid, username: token.username };
+            }
+        }
+        return { valid: false };
+    }
+}
+
+/**
+ * Validate a device fingerprint hash against stored fingerprints for a UUID.
+ * Returns { valid, uuid, username, colorScheme } or { valid: false }.
+ */
+function validateDeviceFingerprint(fingerprintHash) {
+    if (db) {
+        try {
+            const rows = db.prepare('SELECT * FROM user_settings').all();
+            for (const row of rows) {
+                const fps = JSON.parse(row.device_fingerprints || '[]');
+                if (fps.includes(fingerprintHash)) {
+                    // Found matching fingerprint — look up token to get username
+                    const tokenRow = db.prepare('SELECT username FROM global_tokens WHERE uuid = ?').get(row.uuid);
+                    return { valid: true, uuid: row.uuid, username: tokenRow?.username || null, colorScheme: row.color_scheme };
+                }
+            }
+        } catch (e) {
+            console.error('[Token] Fingerprint validation DB error:', e.message);
+        }
+    } else {
+        for (const [uuid, settings] of inMemoryUserSettings) {
+            const fps = JSON.parse(settings.device_fingerprints || '[]');
+            if (fps.includes(fingerprintHash)) {
+                const token = inMemoryGlobalTokens.get(uuid);
+                return { valid: true, uuid, username: token?.username || null, colorScheme: settings.color_scheme };
+            }
+        }
+    }
+    return { valid: false };
+}
+
+/**
+ * Get server list for a specific UUID (servers they have access to).
+ */
+function getServersForUser(uuid) {
+    const servers = [];
+
+    if (db) {
+        try {
+            const rows = db.prepare('SELECT * FROM server_access WHERE uuid = ?').all(uuid);
+            for (const row of rows) {
+                const mcServer = mcServers.get(row.server_id);
+                servers.push({
+                    serverId: row.server_id,
+                    serverName: mcServer?.info?.serverName || 'Unknown Server',
+                    rank: row.rank || 'Member',
+                    permissions: JSON.parse(row.permissions || '[]'),
+                    online: !!mcServer,
+                    players: mcServer?.info?.players || 0,
+                    urlPrefix: mcServer?.urlPrefix || null
+                });
+            }
+        } catch (e) {
+            console.error('[Token] Get servers DB error:', e.message);
+        }
+    } else {
+        for (const [key, access] of inMemoryServerAccess) {
+            if (access.uuid === uuid) {
+                const mcServer = mcServers.get(access.server_id);
+                servers.push({
+                    serverId: access.server_id,
+                    serverName: mcServer?.info?.serverName || 'Unknown Server',
+                    rank: access.rank || 'Member',
+                    permissions: JSON.parse(access.permissions || '[]'),
+                    online: !!mcServer,
+                    players: mcServer?.info?.players || 0,
+                    urlPrefix: mcServer?.urlPrefix || null
+                });
+            }
+        }
+    }
+
+    return servers;
+}
+
+/**
+ * Get user settings from gateway DB.
+ */
+function getUserSettings(uuid) {
+    if (db) {
+        try {
+            const row = db.prepare('SELECT * FROM user_settings WHERE uuid = ?').get(uuid);
+            if (row) {
+                return {
+                    colorScheme: row.color_scheme || 'blue',
+                    deviceFingerprints: JSON.parse(row.device_fingerprints || '[]')
+                };
+            }
+        } catch (e) {
+            console.error('[Token] Get settings DB error:', e.message);
+        }
+    } else {
+        const settings = inMemoryUserSettings.get(uuid);
+        if (settings) {
+            return {
+                colorScheme: settings.color_scheme || 'blue',
+                deviceFingerprints: JSON.parse(settings.device_fingerprints || '[]')
+            };
+        }
+    }
+    return { colorScheme: 'blue', deviceFingerprints: [] };
+}
+
+/**
+ * Save user settings to gateway DB.
+ */
+function saveUserSettings(uuid, colorScheme, deviceFingerprints) {
+    if (db) {
+        try {
+            db.prepare(
+                'INSERT OR REPLACE INTO user_settings (uuid, color_scheme, device_fingerprints, updated_at) VALUES (?, ?, ?, ?)'
+            ).run(uuid, colorScheme || 'blue', JSON.stringify(deviceFingerprints || []), Date.now());
+        } catch (e) {
+            console.error('[Token] Save settings DB error:', e.message);
+        }
+    } else {
+        inMemoryUserSettings.set(uuid, {
+            uuid, color_scheme: colorScheme || 'blue',
+            device_fingerprints: JSON.stringify(deviceFingerprints || []),
+            updated_at: Date.now()
+        });
+    }
+}
+
+/**
+ * Handle global pre-auth result from MC server.
+ * Routes the result back to the waiting browser.
+ */
+function handleGlobalPreAuthResult(message) {
+    const { clientId, sessionId, success, error } = message;
+    if (!clientId) return;
+
+    const client = globalPanelClients.get(clientId);
+    if (!client || client.ws.readyState !== WebSocket.OPEN) return;
+
+    if (success && sessionId) {
+        // Pre-auth succeeded — transition this client to a normal browser connection
+        const serverId = client.pendingSwitchServerId;
+        if (!serverId) return;
+
+        const serverData = mcServers.get(serverId);
+        if (!serverData) {
+            client.ws.send(JSON.stringify({ type: 'switch_server_result', success: false, error: 'Server went offline' }));
+            return;
+        }
+
+        // Move client from global pool to browser pool
+        globalPanelClients.delete(clientId);
+        browserClients.set(clientId, {
+            ws: client.ws,
+            serverId: serverId,
+            connectedAt: Date.now(),
+            clientIp: client.clientIp
+        });
+
+        // Notify browser of successful switch with pre-auth session
+        client.ws.send(JSON.stringify({
+            type: 'switch_server_result',
+            success: true,
+            serverId: serverId,
+            serverName: serverData.info.serverName,
+            urlPrefix: serverData.urlPrefix,
+            sessionId: sessionId
+        }));
+
+        // Notify MC server of new browser connection
+        if (serverData.ws.readyState === WebSocket.OPEN) {
+            serverData.ws.send(JSON.stringify({
+                type: 'browser_connected',
+                clientId: clientId,
+                clientIp: client.clientIp
+            }));
+        }
+
+        // Send cached server status
+        if (serverData.lastStatus) {
+            client.ws.send(JSON.stringify(serverData.lastStatus));
+        }
+
+        console.log(`[Token] ${client.uuid} switched to server ${serverId}`);
+
+        // Re-attach message handler for normal browser routing
+        // (The ws 'message' handler from handleGlobalPanelConnection will be replaced)
+        client.ws.removeAllListeners('message');
+        client.ws.on('message', (data) => {
+            try {
+                if (isMessageRateLimited(client.ws)) {
+                    client.ws.send(JSON.stringify({ type: 'error', code: 'RATE_LIMITED', message: 'Too many messages. Slow down.' }));
+                    return;
+                }
+                const msg = JSON.parse(data.toString());
+                const server = mcServers.get(serverId);
+                if (server && server.ws.readyState === WebSocket.OPEN) {
+                    msg.clientId = clientId;
+                    msg.clientIp = client.clientIp;
+                    server.ws.send(JSON.stringify(msg));
+                } else {
+                    client.ws.send(JSON.stringify({ type: 'error', code: 'SERVER_OFFLINE', message: 'Server went offline' }));
+                }
+            } catch (err) {
+                console.error('[Browser] Error processing message:', err.message);
+            }
+        });
+    } else {
+        client.ws.send(JSON.stringify({
+            type: 'switch_server_result',
+            success: false,
+            error: error || 'Pre-authentication failed'
+        }));
+    }
+}
+
+// ============================================================================
+// Global Panel Connection (Server List Page)
+// ============================================================================
+
+// Store global panel connections (browsers at /panel/ without a server prefix)
+const globalPanelClients = new Map();
+
+/**
+ * Handle browser connection to /panel/ (no server prefix).
+ * Used for: global authentication, server list, settings management.
+ */
+function handleGlobalPanelConnection(ws, clientIp) {
+    const clientId = generateClientId();
+    let authedUuid = null;
+    let authedUsername = null;
+
+    globalPanelClients.set(clientId, {
+        ws: ws,
+        clientIp: clientIp,
+        connectedAt: Date.now(),
+        uuid: null
+    });
+
+    console.log(`[Global] ${clientId} connected from ${clientIp}`);
+
+    // Send connection confirmation
+    ws.send(JSON.stringify({ type: 'connected', mode: 'global' }));
+
+    ws.on('message', (data) => {
+        try {
+            if (isMessageRateLimited(ws)) {
+                ws.send(JSON.stringify({ type: 'error', code: 'RATE_LIMITED', message: 'Too many messages. Slow down.' }));
+                return;
+            }
+
+            const message = JSON.parse(data.toString());
+
+            switch (message.type) {
+                case 'global_auth': {
+                    // Authenticate with a global token
+                    const result = validateGlobalToken(message.token || '');
+                    if (result.valid) {
+                        authedUuid = result.uuid;
+                        authedUsername = result.username;
+                        const client = globalPanelClients.get(clientId);
+                        if (client) client.uuid = authedUuid;
+
+                        const servers = getServersForUser(authedUuid);
+                        const settings = getUserSettings(authedUuid);
+                        ws.send(JSON.stringify({
+                            type: 'global_auth_result',
+                            success: true,
+                            uuid: authedUuid,
+                            username: authedUsername,
+                            servers: servers,
+                            settings: settings
+                        }));
+                        console.log(`[Global] ${authedUsername || authedUuid} authenticated (${servers.length} servers)`);
+                    } else {
+                        ws.send(JSON.stringify({
+                            type: 'global_auth_result',
+                            success: false,
+                            error: result.reason || 'Invalid token'
+                        }));
+                    }
+                    break;
+                }
+
+                case 'global_device_auth': {
+                    // Authenticate with device fingerprint
+                    const result = validateDeviceFingerprint(message.fingerprintHash || '');
+                    if (result.valid) {
+                        authedUuid = result.uuid;
+                        authedUsername = result.username;
+                        const client = globalPanelClients.get(clientId);
+                        if (client) client.uuid = authedUuid;
+
+                        const servers = getServersForUser(authedUuid);
+                        ws.send(JSON.stringify({
+                            type: 'global_auth_result',
+                            success: true,
+                            uuid: authedUuid,
+                            username: authedUsername,
+                            servers: servers,
+                            settings: { colorScheme: result.colorScheme, deviceFingerprints: [] }
+                        }));
+                        console.log(`[Global] ${authedUsername || authedUuid} authenticated via device fingerprint`);
+                    } else {
+                        ws.send(JSON.stringify({
+                            type: 'global_auth_result',
+                            success: false,
+                            error: 'Device not recognized'
+                        }));
+                    }
+                    break;
+                }
+
+                case 'get_servers': {
+                    if (!authedUuid) {
+                        ws.send(JSON.stringify({ type: 'error', code: 'NOT_AUTHENTICATED', message: 'Please authenticate first' }));
+                        break;
+                    }
+                    const servers = getServersForUser(authedUuid);
+                    ws.send(JSON.stringify({ type: 'server_list', servers: servers }));
+                    break;
+                }
+
+                case 'get_settings': {
+                    if (!authedUuid) {
+                        ws.send(JSON.stringify({ type: 'error', code: 'NOT_AUTHENTICATED', message: 'Please authenticate first' }));
+                        break;
+                    }
+                    const settings = getUserSettings(authedUuid);
+                    ws.send(JSON.stringify({ type: 'user_settings', settings: settings }));
+                    break;
+                }
+
+                case 'save_settings': {
+                    if (!authedUuid) {
+                        ws.send(JSON.stringify({ type: 'error', code: 'NOT_AUTHENTICATED', message: 'Please authenticate first' }));
+                        break;
+                    }
+                    saveUserSettings(authedUuid, message.colorScheme, message.deviceFingerprints);
+                    ws.send(JSON.stringify({ type: 'settings_saved', success: true }));
+                    break;
+                }
+
+                case 'switch_server': {
+                    if (!authedUuid) {
+                        ws.send(JSON.stringify({ type: 'error', code: 'NOT_AUTHENTICATED', message: 'Please authenticate first' }));
+                        break;
+                    }
+
+                    const targetServerId = message.serverId?.toLowerCase();
+                    if (!targetServerId) {
+                        ws.send(JSON.stringify({ type: 'switch_server_result', success: false, error: 'Server ID required' }));
+                        break;
+                    }
+
+                    // Verify user has access to this server
+                    const userServers = getServersForUser(authedUuid);
+                    const hasAccess = userServers.some(s => s.serverId === targetServerId);
+                    if (!hasAccess) {
+                        ws.send(JSON.stringify({ type: 'switch_server_result', success: false, error: 'No access to this server' }));
+                        break;
+                    }
+
+                    // Check if MC server is online
+                    const targetServer = mcServers.get(targetServerId);
+                    if (!targetServer || targetServer.ws.readyState !== WebSocket.OPEN) {
+                        ws.send(JSON.stringify({ type: 'switch_server_result', success: false, error: 'Server is offline' }));
+                        break;
+                    }
+
+                    // Store pending switch info
+                    const client = globalPanelClients.get(clientId);
+                    if (client) client.pendingSwitchServerId = targetServerId;
+
+                    // Get the user's permissions for this server
+                    const accessEntry = userServers.find(s => s.serverId === targetServerId);
+
+                    // Send pre-auth request to MC server
+                    targetServer.ws.send(JSON.stringify({
+                        type: 'global_pre_auth',
+                        clientId: clientId,
+                        uuid: authedUuid,
+                        username: authedUsername,
+                        permissions: accessEntry?.permissions || []
+                    }));
+
+                    console.log(`[Global] ${authedUsername} requesting switch to ${targetServerId}`);
+                    break;
+                }
+
+                default:
+                    ws.send(JSON.stringify({ type: 'error', code: 'UNKNOWN_TYPE', message: `Unknown message type: ${message.type}` }));
+            }
+        } catch (err) {
+            console.error('[Global] Error processing message:', err.message);
+        }
+    });
+
+    ws.on('close', () => {
+        globalPanelClients.delete(clientId);
+        console.log(`[Global] ${clientId} disconnected`);
+    });
+
+    ws.on('error', (err) => {
+        console.error(`[Global] WebSocket error:`, err.message);
+    });
+}
+
+// ============================================================================
 // Admin Panel Connection Handler
 // ============================================================================
 
@@ -898,7 +1717,20 @@ function handleAdminMessage(adminId, email, message) {
     const { type, data } = message;
 
     switch (type) {
+        case 'admin_auth':
+            // Frontend sends this after WS connect — confirm authentication
+            admin.ws.send(JSON.stringify({
+                type: 'auth_success',
+                email: email
+            }));
+            break;
+
+        case 'get_dashboard_data':
+            sendDashboardData(admin.ws);
+            break;
+
         case 'get_announcements':
+        case 'get_announcements_list':
             sendAllAnnouncements(admin.ws);
             break;
 
@@ -914,6 +1746,10 @@ function handleAdminMessage(adminId, email, message) {
             deleteAnnouncement(admin.ws, email, data?.id);
             break;
 
+        case 'deactivate_announcement':
+            deactivateAnnouncement(admin.ws, email, data?.id);
+            break;
+
         case 'broadcast_announcement':
             broadcastAnnouncementToAll(admin.ws, email, data?.id);
             break;
@@ -923,11 +1759,40 @@ function handleAdminMessage(adminId, email, message) {
             break;
 
         case 'get_servers':
+        case 'get_servers_list':
             sendServerList(admin.ws);
             break;
 
         case 'get_audit_log':
             sendAuditLog(admin.ws, data?.limit || 100);
+            break;
+
+        case 'export_audit_log':
+            exportAuditLog(admin.ws);
+            break;
+
+        case 'get_analytics_data':
+            sendAnalyticsData(admin.ws);
+            break;
+
+        case 'get_premium_data':
+            sendPremiumData(admin.ws);
+            break;
+
+        case 'generate_license_key':
+            admin.ws.send(JSON.stringify({
+                type: 'error',
+                code: 'NOT_IMPLEMENTED',
+                message: 'Premium license system is not yet available'
+            }));
+            break;
+
+        case 'revoke_license_key':
+            admin.ws.send(JSON.stringify({
+                type: 'error',
+                code: 'NOT_IMPLEMENTED',
+                message: 'Premium license system is not yet available'
+            }));
             break;
 
         default:
@@ -1187,7 +2052,7 @@ function formatAnnouncement(ann) {
 function sendAllAnnouncements(ws) {
     const announcements = getAllAnnouncements().map(formatAnnouncement);
     ws.send(JSON.stringify({
-        type: 'announcements',
+        type: 'announcements_list',
         announcements: announcements
     }));
 }
@@ -1288,7 +2153,7 @@ function sendServerList(ws) {
     });
 
     ws.send(JSON.stringify({
-        type: 'servers',
+        type: 'servers_list',
         servers: servers,
         total: servers.length
     }));
@@ -1306,7 +2171,7 @@ function sendAuditLog(ws, limit = 100) {
 
     ws.send(JSON.stringify({
         type: 'audit_log',
-        logs: logs
+        entries: logs
     }));
 }
 
@@ -1323,6 +2188,113 @@ function logAudit(email, action, details) {
     }
 
     console.log(`[Audit] ${email}: ${action}${details ? ' - ' + JSON.stringify(details) : ''}`);
+}
+
+/**
+ * Deactivate an announcement (set active=0, keeps the record).
+ */
+function deactivateAnnouncement(ws, email, id) {
+    if (!id) {
+        ws.send(JSON.stringify({ type: 'error', code: 'INVALID_DATA', message: 'Announcement ID is required' }));
+        return;
+    }
+
+    if (db) {
+        try {
+            db.prepare('UPDATE admin_announcements SET active = 0 WHERE id = ?').run(id);
+        } catch (e) {
+            console.error('[Admin] Failed to deactivate announcement:', e.message);
+        }
+    } else {
+        const ann = inMemoryAnnouncements.get(id);
+        if (ann) ann.active = false;
+    }
+
+    logAudit(email, 'announcement_deactivated', { id });
+    ws.send(JSON.stringify({ type: 'announcement_deactivated', id: id }));
+}
+
+/**
+ * Send dashboard overview data.
+ */
+function sendDashboardData(ws) {
+    let totalPlayers = 0;
+    mcServers.forEach(data => { totalPlayers += data.info?.players || 0; });
+
+    const activeAnnouncementCount = getActiveAnnouncements().length;
+
+    // Get recent activity from audit log
+    let recentActivity = [];
+    if (db) {
+        try {
+            recentActivity = db.prepare('SELECT * FROM admin_audit_log ORDER BY timestamp DESC LIMIT 10').all();
+        } catch (e) {}
+    }
+
+    ws.send(JSON.stringify({
+        type: 'dashboard_data',
+        data: {
+            servers: mcServers.size,
+            players: totalPlayers,
+            browsers: browserClients.size,
+            announcements: activeAnnouncementCount,
+            uptime: process.uptime(),
+            activity: recentActivity
+        }
+    }));
+}
+
+/**
+ * Export full audit log as JSON.
+ */
+function exportAuditLog(ws) {
+    let logs = [];
+    if (db) {
+        try {
+            logs = db.prepare('SELECT * FROM admin_audit_log ORDER BY timestamp DESC').all();
+        } catch (e) {}
+    }
+
+    ws.send(JSON.stringify({
+        type: 'export_audit_log',
+        entries: logs,
+        exportedAt: Date.now()
+    }));
+}
+
+/**
+ * Send analytics data (available gateway stats).
+ */
+function sendAnalyticsData(ws) {
+    let totalPlayers = 0;
+    mcServers.forEach(data => { totalPlayers += data.info?.players || 0; });
+
+    ws.send(JSON.stringify({
+        type: 'analytics_data',
+        data: {
+            totalServers: mcServers.size,
+            totalPlayers: totalPlayers,
+            connectedBrowsers: browserClients.size,
+            connectedAdmins: adminClients.size,
+            uptime: process.uptime(),
+            memory: process.memoryUsage()
+        }
+    }));
+}
+
+/**
+ * Send premium data (stub — premium system not yet implemented).
+ */
+function sendPremiumData(ws) {
+    ws.send(JSON.stringify({
+        type: 'premium_data',
+        data: {
+            premiumServers: 0,
+            totalLicenses: 0,
+            activeLicenses: 0,
+            message: 'Premium license system coming soon'
+        }
+    }));
 }
 
 // Run scheduled announcement check every minute
@@ -1357,24 +2329,36 @@ function cleanupDeadServers() {
 // Run cleanup every 30 seconds
 setInterval(cleanupDeadServers, CONFIG.heartbeatInterval);
 
-// Start server
-server.listen(CONFIG.port, () => {
-    console.log('');
-    console.log('╔═══════════════════════════════════════════════════════════════╗');
-    console.log('║              ModereX Gateway Server                            ║');
-    console.log('╠═══════════════════════════════════════════════════════════════╣');
-    console.log(`║  Status:    Running                                            ║`);
-    console.log(`║  Port:      ${String(CONFIG.port).padEnd(48)}║`);
-    console.log(`║  Health:    http://localhost:${CONFIG.port}/health${' '.repeat(Math.max(0, 24 - String(CONFIG.port).length))}║`);
-    console.log('╠═══════════════════════════════════════════════════════════════╣');
-    console.log(`║  Server ID Format:  XXXXX-XXXXX-XXXXX-XXXXX-XXXXX              ║`);
-    console.log(`║  URL Format:        panel.moderex.net/{prefix}/               ║`);
-    console.log('╠═══════════════════════════════════════════════════════════════╣');
-    console.log('║  MC Server WebSocket:  ws://localhost:' + CONFIG.port + '/server               ║');
-    console.log('║  Panel WebSocket:      ws://localhost:' + CONFIG.port + '/panel/{prefix}      ║');
-    console.log('║  Admin WebSocket:      ws://localhost:' + CONFIG.port + '/admin                ║');
-    console.log('╚═══════════════════════════════════════════════════════════════╝');
-    console.log('');
+// Start gateway (async to support sql.js initialization)
+async function startGateway() {
+    await initDatabase();
+
+    server.listen(CONFIG.port, () => {
+        const dbStatus = db ? 'SQLite' : 'In-Memory';
+        console.log('');
+        console.log('+---------------------------------------------------------------+');
+        console.log('|              ModereX Gateway Server                            |');
+        console.log('+---------------------------------------------------------------+');
+        console.log(`|  Status:    Running                                            |`);
+        console.log(`|  Port:      ${String(CONFIG.port).padEnd(48)}|`);
+        console.log(`|  Database:  ${dbStatus.padEnd(48)}|`);
+        console.log(`|  Health:    http://localhost:${CONFIG.port}/health${' '.repeat(Math.max(0, 24 - String(CONFIG.port).length))}|`);
+        console.log('+---------------------------------------------------------------+');
+        console.log(`|  Server ID Format:  XXXXX-XXXXX-XXXXX-XXXXX-XXXXX              |`);
+        console.log(`|  URL Format:        panel.moderex.net/{prefix}/               |`);
+        console.log('+---------------------------------------------------------------+');
+        console.log('|  MC Server WebSocket:  ws://localhost:' + CONFIG.port + '/server               |');
+        console.log('|  Panel WebSocket:      ws://localhost:' + CONFIG.port + '/panel/{prefix}      |');
+        console.log('|  Global Panel WS:      ws://localhost:' + CONFIG.port + '/panel/               |');
+        console.log('|  Admin WebSocket:      ws://localhost:' + CONFIG.port + '/admin                |');
+        console.log('+---------------------------------------------------------------+');
+        console.log('');
+    });
+}
+
+startGateway().catch(err => {
+    console.error('[Gateway] Failed to start:', err);
+    process.exit(1);
 });
 
 // Graceful shutdown
@@ -1386,6 +2370,9 @@ process.on('SIGTERM', () => {
         server.ws.close(1001, 'Gateway shutting down');
     });
     browserClients.forEach((client, id) => {
+        client.ws.close(1001, 'Gateway shutting down');
+    });
+    globalPanelClients.forEach((client, id) => {
         client.ws.close(1001, 'Gateway shutting down');
     });
     adminClients.forEach((client, id) => {
