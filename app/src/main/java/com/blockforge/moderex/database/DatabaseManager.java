@@ -271,6 +271,16 @@ public class DatabaseManager {
                     )
                     """);
 
+            // Template favorites table
+            stmt.execute("""
+                    CREATE TABLE IF NOT EXISTS moderex_template_favorites (
+                        staff_uuid VARCHAR(36) NOT NULL,
+                        template_id VARCHAR(36) NOT NULL,
+                        created_at BIGINT NOT NULL,
+                        PRIMARY KEY (staff_uuid, template_id)
+                    )
+                    """);
+
             // Vanish state table
             stmt.execute("""
                     CREATE TABLE IF NOT EXISTS moderex_vanish_state (

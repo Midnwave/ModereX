@@ -55,7 +55,7 @@
       oscillator.type = type;
       oscillator.frequency.setValueAtTime(frequency, audioContext.currentTime);
 
-      const actualVolume = settings.volume * volume * 0.55; // Increased from 0.3 - noticeable over music
+      const actualVolume = settings.volume * volume * 0.85; // Loud enough to hear over music at 100%
       gainNode.gain.setValueAtTime(actualVolume, audioContext.currentTime);
       gainNode.gain.exponentialRampToValueAtTime(0.001, audioContext.currentTime + duration);
 
@@ -119,7 +119,7 @@
 
   // Toast info - neutral ping
   function playToastInfo() {
-    playTone(698.46, 0.1, 'sine', 0.5); // F5
+    playTone(698.46, 0.1, 'sine', 0.7); // F5
   }
 
   // Toast warning - attention
@@ -143,8 +143,8 @@
   // General notification
   function playNotification() {
     playSequence([
-      { freq: 880, dur: 0.08, vol: 0.6 },
-      { freq: 1046.5, dur: 0.12, vol: 0.4 }
+      { freq: 880, dur: 0.08, vol: 0.9 },
+      { freq: 1046.5, dur: 0.12, vol: 0.7 }
     ], 0.06);
   }
 
@@ -239,24 +239,24 @@
   // Automod trigger
   function playAutomod() {
     playSequence([
-      { freq: 493.88, dur: 0.08, vol: 0.6 },  // B4
-      { freq: 587.33, dur: 0.1, vol: 0.5 }    // D5
+      { freq: 493.88, dur: 0.08, vol: 0.9 },  // B4
+      { freq: 587.33, dur: 0.1, vol: 0.7 }    // D5
     ], 0.06);
   }
 
   // Player join
   function playPlayerJoin() {
-    playTone(783.99, 0.1, 'sine', 0.4); // G5
+    playTone(783.99, 0.1, 'sine', 0.6); // G5
   }
 
   // Player leave
   function playPlayerLeave() {
-    playTone(523.25, 0.12, 'sine', 0.3); // C5
+    playTone(523.25, 0.12, 'sine', 0.5); // C5
   }
 
   // Command executed
   function playCommand() {
-    playTone(880, 0.06, 'sine', 0.3); // A5
+    playTone(880, 0.06, 'sine', 0.5); // A5
   }
 
   // === UI Sounds ===

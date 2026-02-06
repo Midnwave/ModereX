@@ -168,6 +168,18 @@ public class AutomodManager {
     /**
      * Load built-in rule configurations from database.
      */
+    /**
+     * Map from built-in rule type to its programmatic ID.
+     * This fixes the name-to-ID fallback when rule_id is NULL in the database.
+     */
+    private static final java.util.Map<String, String> BUILTIN_TYPE_TO_ID = java.util.Map.of(
+            "SPAM_PROTECTION", "spam_protection",
+            "CAPS_FILTER", "caps_filter",
+            "LINK_FILTER", "link_filter",
+            "AFK_KICK", "afk_kick",
+            "SPECIAL_CHARS", "special_chars"
+    );
+
     private void loadBuiltInRuleConfigs() {
         try {
             plugin.logDebug("[Automod] Loading built-in rule configs from database...");
@@ -180,21 +192,40 @@ public class AutomodManager {
                             count++;
                             String id = rs.getString("rule_id");
                             String name = rs.getString("name");
+                            String type = rs.getString("type");
                             String config = rs.getString("config");
                             boolean enabled = rs.getBoolean("enabled");
+                            int rowId = rs.getInt("id");
 
-                            plugin.logDebug("[Automod] Found DB row: rule_id=" + id + ", name=" + name + ", enabled=" + enabled);
+                            plugin.logDebug("[Automod] Found DB row: rule_id=" + id + ", name=" + name + ", type=" + type + ", enabled=" + enabled);
 
-                            if (id == null) id = name.toLowerCase().replace(" ", "_");
+                            // Resolve the in-memory rule ID from the DB row
+                            String resolvedId = id;
+                            if (resolvedId == null || resolvedId.isEmpty()) {
+                                // Use type-to-ID mapping (most reliable), fallback to name conversion
+                                resolvedId = BUILTIN_TYPE_TO_ID.getOrDefault(type, name.toLowerCase().replace(" ", "_"));
+                                plugin.logDebug("[Automod] rule_id was NULL, resolved to: " + resolvedId + " via type=" + type);
 
-                            AutomodRule existing = rules.get(id);
+                                // Fix the database row to have the correct rule_id for future lookups
+                                try {
+                                    plugin.getDatabaseManager().update(
+                                            "UPDATE moderex_automod_rules SET rule_id = ? WHERE id = ?",
+                                            resolvedId, rowId
+                                    );
+                                    plugin.logDebug("[Automod] Fixed NULL rule_id in DB row " + rowId + " → " + resolvedId);
+                                } catch (SQLException fixEx) {
+                                    plugin.logDebug("[Automod] Could not fix rule_id: " + fixEx.getMessage());
+                                }
+                            }
+
+                            AutomodRule existing = rules.get(resolvedId);
                             if (existing != null) {
-                                plugin.logDebug("[Automod] Applying config to in-memory rule: " + id);
+                                plugin.logDebug("[Automod] Applying config to in-memory rule: " + resolvedId);
                                 existing.setEnabled(enabled);
                                 existing.loadConfigJson(config);
-                                plugin.logDebug("[Automod] After load - rule " + id + " enabled=" + existing.isEnabled());
+                                plugin.logDebug("[Automod] After load - rule " + resolvedId + " enabled=" + existing.isEnabled());
                             } else {
-                                plugin.logDebug("[Automod] WARNING: No in-memory rule found for id: " + id);
+                                plugin.logDebug("[Automod] WARNING: No in-memory rule found for resolved id: " + resolvedId);
                             }
                         }
                         plugin.logDebug("[Automod] Loaded " + count + " built-in rule configs from database");
@@ -334,7 +365,7 @@ public class AutomodManager {
     private FilterResult processRule(Player player, UUID uuid, String message, AutomodRule rule) {
         return switch (rule.getType()) {
             case SPAM_PROTECTION -> checkSpam(player, uuid, message, rule);
-            case CAPS_FILTER -> checkCaps(message, rule);
+            case CAPS_FILTER -> checkCaps(player, message, rule);
             case LINK_FILTER -> checkLinks(player, message, rule);
             case WORD_FILTER, NICKNAME -> {
                 FilterResult result = checkWordFilter(rule, message);
@@ -388,7 +419,7 @@ public class AutomodManager {
     /**
      * Check caps filter rule.
      */
-    private FilterResult checkCaps(String message, AutomodRule rule) {
+    private FilterResult checkCaps(Player player, String message, AutomodRule rule) {
         if (message.length() < rule.getCapsMinLength()) {
             return FilterResult.allow();
         }
@@ -409,8 +440,12 @@ public class AutomodManager {
             double capsPercent = (double) capsCount / letterCount * 100;
             if (capsPercent > rule.getCapsMaxPercentage()) {
                 if (rule.getFlagAction() == AutomodRule.FlagAction.MODIFY) {
+                    alertStaff(player, rule.getName(), message, "modified");
+                    handleAutoPunishment(player, rule);
                     return FilterResult.modify(message.toLowerCase());
                 } else {
+                    alertStaff(player, rule.getName(), message, "blocked");
+                    handleAutoPunishment(player, rule);
                     return FilterResult.block("caps");
                 }
             }
@@ -556,6 +591,11 @@ public class AutomodManager {
         String reason = punishment.getReason() != null ? punishment.getReason() :
                 "Automod: " + rule.getName();
 
+        // Log auto-punishment action to activity log
+        String punishAction = "auto-" + punishment.getType().name().toLowerCase();
+        plugin.getActivityLogManager().logAutomodTrigger(player, rule.getName(),
+                reason + " (violations: " + violations + "/" + triggerCount + ")", punishAction);
+
         plugin.getServer().getScheduler().runTask(plugin, () -> {
             switch (punishment.getType()) {
                 case MUTE, IPMUTE -> plugin.getPunishmentManager().mute(
@@ -580,7 +620,17 @@ public class AutomodManager {
     /**
      * Alert staff about an automod violation.
      */
+    /**
+     * Alert staff about an automod violation (backwards compat - defaults to "blocked" action).
+     */
     private void alertStaff(Player player, String ruleName, String message) {
+        alertStaff(player, ruleName, message, "blocked");
+    }
+
+    /**
+     * Alert staff about an automod violation with specific action taken.
+     */
+    private void alertStaff(Player player, String ruleName, String message, String action) {
         Component alert = plugin.getLanguageManager().get(MessageKey.AUTOMOD_ALERT,
                 "player", player.getName(),
                 "rule", ruleName,
@@ -600,11 +650,14 @@ public class AutomodManager {
             );
         }
 
-        // Log to activity log database
-        AutomodRule rule = findRuleByName(ruleName);
-        plugin.getActivityLogManager().logAutomodTrigger(player, ruleName, message, "triggered");
+        // Log flag entry to activity log
+        plugin.getActivityLogManager().logAutomodTrigger(player, ruleName, message, "flagged");
+
+        // Log action entry to activity log
+        plugin.getActivityLogManager().logAutomodTrigger(player, ruleName, message, action);
 
         // Trigger replay recording if enabled for this rule
+        AutomodRule rule = findRuleByName(ruleName);
         if (rule != null) {
             triggerReplayRecording(player, rule);
         }
@@ -817,19 +870,35 @@ public class AutomodManager {
             plugin.logDebug("[Automod] Saving built-in rule: " + rule.getId() + ", enabled=" + rule.isEnabled());
             plugin.logDebug("[Automod] Config JSON: " + configJson);
 
-            // Try to update existing
+            // Try to update by rule_id first (most reliable for built-in rules)
             int updated = plugin.getDatabaseManager().update("""
                     UPDATE moderex_automod_rules
-                    SET enabled = ?, config = ?, updated_at = ?
-                    WHERE rule_id = ? OR (name = ? AND type = ?)
+                    SET enabled = ?, config = ?, updated_at = ?, rule_id = ?
+                    WHERE rule_id = ?
                     """,
                     rule.isEnabled(), configJson, System.currentTimeMillis(),
-                    rule.getId(), rule.getName(), rule.getType().name()
+                    rule.getId(), rule.getId()
             );
+
+            // If no match by rule_id, try matching by type (handles old rows with NULL rule_id)
+            if (updated == 0) {
+                updated = plugin.getDatabaseManager().update("""
+                        UPDATE moderex_automod_rules
+                        SET enabled = ?, config = ?, updated_at = ?, rule_id = ?
+                        WHERE type = ? AND rule_id IS NULL
+                        """,
+                        rule.isEnabled(), configJson, System.currentTimeMillis(),
+                        rule.getId(), rule.getType().name()
+                );
+                if (updated > 0) {
+                    plugin.logDebug("[Automod] Fixed old row with NULL rule_id for type: " + rule.getType().name());
+                }
+            }
+
             plugin.logDebug("[Automod] UPDATE affected " + updated + " rows for rule: " + rule.getId());
 
             if (updated == 0) {
-                // Insert new
+                // Insert new row with rule_id always set
                 plugin.getDatabaseManager().update("""
                         INSERT INTO moderex_automod_rules (rule_id, name, type, enabled, config, created_at, updated_at)
                         VALUES (?, ?, ?, ?, ?, ?, ?)
