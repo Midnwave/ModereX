@@ -13329,21 +13329,21 @@
         overlay = document.createElement('div');
         overlay.id = 'licenseOverlay';
         overlay.className = 'license-overlay';
-        overlay.innerHTML = \`
+        overlay.innerHTML = `
           <div class="license-modal">
             <div class="license-modal-header">
               <i class="fa-solid fa-scale-balanced"></i>
               <span>Software License Agreement</span>
             </div>
             <div class="license-modal-body">
-              \${LICENSE_TEXT}
+              ${LICENSE_TEXT}
             </div>
             <div class="license-modal-footer">
               <button class="license-btn license-btn-decline" id="licenseDeclineBtn">I DO NOT ACCEPT</button>
               <button class="license-btn license-btn-accept" id="licenseAcceptBtn">I ACCEPT</button>
             </div>
           </div>
-        \`;
+        `;
         document.body.appendChild(overlay);
 
         document.getElementById('licenseAcceptBtn').addEventListener('click', () => {
@@ -13355,14 +13355,14 @@
 
         document.getElementById('licenseDeclineBtn').addEventListener('click', () => {
           // Show inaccessible state
-          overlay.querySelector('.license-modal-body').innerHTML = \`
+          overlay.querySelector('.license-modal-body').innerHTML = `
             <div style="text-align:center;padding:40px 0">
               <i class="fa-solid fa-ban" style="font-size:3rem;color:#da3633;margin-bottom:16px"></i>
               <h2 style="border:none;margin:0 0 8px 0">Access Denied</h2>
               <p>You must accept the license agreement to use the ModereX web panel.</p>
               <p style="margin-top:16px"><button class="license-btn license-btn-accept" onclick="location.reload()">TRY AGAIN</button></p>
             </div>
-          \`;
+          `;
           overlay.querySelector('.license-modal-footer').style.display = 'none';
           // Disconnect
           const ws = window.MX?.ws;
