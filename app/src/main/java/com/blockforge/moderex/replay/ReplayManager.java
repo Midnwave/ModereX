@@ -1,6 +1,7 @@
 package com.blockforge.moderex.replay;
 
 import com.blockforge.moderex.ModereX;
+import com.blockforge.moderex.replay.chunk.ChunkCaptureManager;
 import org.bukkit.Bukkit;
 import org.bukkit.Location;
 import org.bukkit.entity.Player;
@@ -32,6 +33,7 @@ public class ReplayManager {
 
     private final ModereX plugin;
     private final Path replaysDirectory;
+    private final ChunkCaptureManager chunkCaptureManager;
     private final Map<UUID, ReplaySession> activeSessions = new ConcurrentHashMap<>();
     private final Map<UUID, ReplayPlayback> activePlaybacks = new ConcurrentHashMap<>();
     private final Set<UUID> watchlistAutoRecord = ConcurrentHashMap.newKeySet();
@@ -49,6 +51,7 @@ public class ReplayManager {
     public ReplayManager(ModereX plugin) {
         this.plugin = plugin;
         this.replaysDirectory = plugin.getDataFolder().toPath().resolve("replays");
+        this.chunkCaptureManager = new ChunkCaptureManager(plugin);
 
         try {
             Files.createDirectories(replaysDirectory);
@@ -167,6 +170,18 @@ public class ReplayManager {
 
         activeSessions.put(uuid, session);
         plugin.logDebug("Started recording " + player.getName() + " - Reason: " + reason);
+
+        // Capture chunk terrain data for 3D web panel viewer
+        if (plugin.getConfigManager().getSettings().isReplayChunkCaptureEnabled()) {
+            try {
+                Path sessionDir = replaysDirectory.resolve(session.getSessionId());
+                Files.createDirectories(sessionDir);
+                int radius = plugin.getConfigManager().getSettings().getReplayChunkCaptureRadius();
+                chunkCaptureManager.captureChunks(player.getLocation(), sessionDir, radius);
+            } catch (IOException e) {
+                plugin.logError("Failed to create session dir for chunk capture", e);
+            }
+        }
 
         return session;
     }
@@ -517,6 +532,13 @@ public class ReplayManager {
      */
     public Path getReplaysDirectory() {
         return replaysDirectory;
+    }
+
+    /**
+     * Get the chunk capture manager.
+     */
+    public ChunkCaptureManager getChunkCaptureManager() {
+        return chunkCaptureManager;
     }
 
     // Getters and setters for settings

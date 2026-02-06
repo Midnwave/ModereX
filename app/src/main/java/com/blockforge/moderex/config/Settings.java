@@ -235,6 +235,10 @@ public class Settings {
     private boolean replayEntityDropUninvolved = false; // Drop entities not involved in actions (saves space)
     private int replayEntityLogMaxPerSession = 5000;
 
+    // Chunk capture for 3D web viewer
+    private boolean replayChunkCaptureEnabled = true;
+    private int replayChunkCaptureRadius = 3; // 0-6, 3 = 7x7 chunks (49 chunks)
+
     // Storage optimization
     private boolean replayCompressEquipment = true; // Only store equipment when it changes
     private boolean replayCompressMovement = true; // Skip duplicate positions
@@ -293,6 +297,7 @@ public class Settings {
     private int gatewayReconnectDelaySeconds = 5;
     private int gatewayMaxReconnectAttempts = -1; // -1 = infinite
     private boolean gatewayDebugLogging = false;
+    private String gatewaySecret = ""; // Auto-generated shared secret for gateway authentication
 
     // Config version for migration
     private int configVersion = 2;
@@ -976,6 +981,22 @@ public class Settings {
         this.replayBlockLogMaxPerSession = replayBlockLogMaxPerSession;
     }
 
+    public boolean isReplayChunkCaptureEnabled() {
+        return replayChunkCaptureEnabled;
+    }
+
+    public void setReplayChunkCaptureEnabled(boolean replayChunkCaptureEnabled) {
+        this.replayChunkCaptureEnabled = replayChunkCaptureEnabled;
+    }
+
+    public int getReplayChunkCaptureRadius() {
+        return replayChunkCaptureRadius;
+    }
+
+    public void setReplayChunkCaptureRadius(int replayChunkCaptureRadius) {
+        this.replayChunkCaptureRadius = Math.max(0, Math.min(6, replayChunkCaptureRadius));
+    }
+
     public boolean isServerStatusEnabled() {
         return serverStatusEnabled;
     }
@@ -1134,6 +1155,9 @@ public class Settings {
 
     public boolean isGatewayDebugLogging() { return gatewayDebugLogging; }
     public void setGatewayDebugLogging(boolean v) { this.gatewayDebugLogging = v; }
+
+    public String getGatewaySecret() { return gatewaySecret; }
+    public void setGatewaySecret(String v) { this.gatewaySecret = v; }
 
     /**
      * Get the server name (uses web panel server name).

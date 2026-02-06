@@ -1,170 +1,151 @@
 /* ============================================
    ModereX Control Panel - 3D Replay Viewer
    ============================================
-   Three.js based 3D replay viewer with Minecraft player models
-   */
+   Three.js 3D replay viewer with terrain rendering
+   and Minecraft player models. Integrates with the
+   terrain engine from replay3d-terrain.js.
+*/
 
 (function() {
   'use strict';
 
-  // Only initialize if Three.js is available
   if (typeof THREE === 'undefined') {
-    console.warn('[ModereX Replay3D] Three.js not loaded, 3D viewer disabled');
+    console.warn('[Replay3D] Three.js not loaded, 3D viewer disabled');
     return;
   }
 
-  // ===== CONSTANTS =====
-  const PLAYER_SCALE = 1.8; // Minecraft player height in blocks
-  const SKIN_API = 'https://crafatar.com/skins/';
-  const AVATAR_API = 'https://mc-heads.net/avatar/';
+  const PLAYER_SCALE = 1.8;
 
-  // ===== 3D REPLAY RENDERER =====
-  class Replay3DRenderer {
+  class Replay3DViewer {
     constructor(container) {
       this.container = container;
       this.scene = null;
       this.camera = null;
       this.renderer = null;
-      this.players = new Map(); // uuid -> player mesh group
-      this.playerColors = {};
-      this.colorPalette = [
+      this.clock = new THREE.Clock();
+      this.players = new Map();
+      this.playerColors = [
         0x5a9cff, 0xff6b6b, 0x51cf66, 0xffc078, 0xcc5de8,
         0x20c997, 0xff8787, 0x748ffc, 0xffd43b, 0x69db7c
       ];
+      this.colorIndex = 0;
 
-      // Camera controls
-      this.cameraTarget = new THREE.Vector3(0, 1, 0);
-      this.cameraDistance = 30;
-      this.cameraAngleX = Math.PI / 6; // Vertical angle
-      this.cameraAngleY = Math.PI / 4; // Horizontal angle
+      // Terrain
+      this.chunkManager = null;
+      this.blockApplicator = null;
+      this.terrainLoaded = false;
+
+      // Camera
+      this.freeCamera = null;
+      this.orbitTarget = new THREE.Vector3(0, 70, 0);
+      this.orbitDistance = 40;
+      this.orbitAngleX = Math.PI / 5;
+      this.orbitAngleY = Math.PI / 4;
+      this.cameraMode = 'orbit';
       this.isDragging = false;
       this.lastMouseX = 0;
       this.lastMouseY = 0;
 
+      // Playback
+      this.snapshots = [];
+      this.blockLogs = [];
+      this.startTime = 0;
+      this.totalDuration = 0;
+      this.currentTime = 0;
+      this.playing = false;
+      this.playbackSpeed = 1;
+
+      // Callbacks
+      this._onTimeUpdate = null;
+      this._onPlaybackEnd = null;
+
       // Animation
       this.animationId = null;
-      this.lastRenderTime = 0;
 
-      this.init();
+      this._init();
     }
 
-    init() {
-      // Create scene
+    _init() {
+      // Scene with sky blue background
       this.scene = new THREE.Scene();
-      this.scene.background = new THREE.Color(0x0a1018);
-      this.scene.fog = new THREE.Fog(0x0a1018, 50, 150);
+      this.scene.background = new THREE.Color(0x78b9e2);
+      this.scene.fog = new THREE.FogExp2(0x9ec8e0, 0.002);
 
-      // Create camera
-      this.camera = new THREE.PerspectiveCamera(
-        60, // FOV
-        this.container.clientWidth / this.container.clientHeight,
-        0.1,
-        1000
-      );
-      this.updateCameraPosition();
+      // Camera
+      const w = this.container.clientWidth || 800;
+      const h = this.container.clientHeight || 500;
+      this.camera = new THREE.PerspectiveCamera(70, w / h, 0.1, 2000);
+      this.camera.position.set(0, 80, 40);
 
-      // Create renderer
-      this.renderer = new THREE.WebGLRenderer({
-        antialias: true,
-        alpha: true
-      });
-      this.renderer.setSize(this.container.clientWidth, this.container.clientHeight);
+      // Renderer
+      this.renderer = new THREE.WebGLRenderer({ antialias: true });
+      this.renderer.setSize(w, h);
       this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
       this.renderer.shadowMap.enabled = true;
       this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
       this.container.appendChild(this.renderer.domElement);
 
-      // Add lights
-      this.setupLights();
+      this._setupLights();
+      this._setupOrbitControls();
 
-      // Add ground
-      this.setupGround();
+      // Free camera controls from terrain engine
+      const terrain = window.MX?.terrain;
+      if (terrain?.FreeCameraControls) {
+        this.freeCamera = new terrain.FreeCameraControls(this.camera, this.renderer.domElement);
+      }
 
-      // Add grid helper
-      this.setupGrid();
+      // Terrain manager from terrain engine
+      if (terrain?.ChunkColumnManager) {
+        this.chunkManager = new terrain.ChunkColumnManager(this.scene);
+      }
 
-      // Setup controls
-      this.setupControls();
+      // Block change applicator
+      if (this.chunkManager && terrain?.BlockChangeApplicator) {
+        this.blockApplicator = new terrain.BlockChangeApplicator(this.chunkManager);
+      }
 
-      // Handle resize
-      window.addEventListener('resize', () => this.resize());
+      // Resize observer
+      this._resizeObserver = new ResizeObserver(() => this.resize());
+      this._resizeObserver.observe(this.container);
 
       // Start render loop
-      this.animate();
+      this._animate();
     }
 
-    setupLights() {
-      // Ambient light
-      const ambient = new THREE.AmbientLight(0x404060, 0.6);
+    _setupLights() {
+      // Ambient
+      const ambient = new THREE.AmbientLight(0x8899bb, 0.7);
       this.scene.add(ambient);
 
-      // Main directional light (sun)
-      const sun = new THREE.DirectionalLight(0xffffff, 1.0);
-      sun.position.set(50, 100, 50);
+      // Sun
+      const sun = new THREE.DirectionalLight(0xfff4e0, 1.2);
+      sun.position.set(100, 200, 80);
       sun.castShadow = true;
       sun.shadow.mapSize.width = 2048;
       sun.shadow.mapSize.height = 2048;
       sun.shadow.camera.near = 10;
-      sun.shadow.camera.far = 200;
-      sun.shadow.camera.left = -50;
-      sun.shadow.camera.right = 50;
-      sun.shadow.camera.top = 50;
-      sun.shadow.camera.bottom = -50;
+      sun.shadow.camera.far = 500;
+      sun.shadow.camera.left = -120;
+      sun.shadow.camera.right = 120;
+      sun.shadow.camera.top = 120;
+      sun.shadow.camera.bottom = -120;
       this.scene.add(sun);
 
       // Fill light
       const fill = new THREE.DirectionalLight(0x6080ff, 0.3);
-      fill.position.set(-30, 30, -30);
+      fill.position.set(-60, 40, -60);
       this.scene.add(fill);
 
-      // Hemisphere light for sky/ground color
-      const hemi = new THREE.HemisphereLight(0x87ceeb, 0x3d5c35, 0.4);
+      // Hemisphere
+      const hemi = new THREE.HemisphereLight(0x87ceeb, 0x3d5c35, 0.5);
       this.scene.add(hemi);
     }
 
-    setupGround() {
-      // Create grass-colored ground plane
-      const groundGeometry = new THREE.PlaneGeometry(200, 200);
-      const groundMaterial = new THREE.MeshStandardMaterial({
-        color: 0x4a7c3f,
-        roughness: 0.9,
-        metalness: 0.0
-      });
-      const ground = new THREE.Mesh(groundGeometry, groundMaterial);
-      ground.rotation.x = -Math.PI / 2;
-      ground.position.y = 0;
-      ground.receiveShadow = true;
-      this.scene.add(ground);
-
-      // Add some grass variation with a darker layer
-      const grassGeometry = new THREE.PlaneGeometry(200, 200);
-      const grassMaterial = new THREE.MeshStandardMaterial({
-        color: 0x5b8c4a,
-        roughness: 1.0,
-        metalness: 0.0,
-        transparent: true,
-        opacity: 0.5
-      });
-      const grass = new THREE.Mesh(grassGeometry, grassMaterial);
-      grass.rotation.x = -Math.PI / 2;
-      grass.position.y = 0.01;
-      this.scene.add(grass);
-    }
-
-    setupGrid() {
-      // Add a subtle grid
-      const gridHelper = new THREE.GridHelper(100, 100, 0x1a3a2a, 0x1a3a2a);
-      gridHelper.position.y = 0.02;
-      gridHelper.material.opacity = 0.3;
-      gridHelper.material.transparent = true;
-      this.scene.add(gridHelper);
-    }
-
-    setupControls() {
+    _setupOrbitControls() {
       const canvas = this.renderer.domElement;
 
-      // Mouse drag for rotation
       canvas.addEventListener('mousedown', (e) => {
+        if (this.cameraMode !== 'orbit' && this.cameraMode !== 'follow') return;
         if (e.button === 0 || e.button === 2) {
           this.isDragging = true;
           this.lastMouseX = e.clientX;
@@ -173,441 +154,419 @@
       });
 
       canvas.addEventListener('mousemove', (e) => {
-        if (this.isDragging) {
-          const deltaX = e.clientX - this.lastMouseX;
-          const deltaY = e.clientY - this.lastMouseY;
-
-          this.cameraAngleY += deltaX * 0.01;
-          this.cameraAngleX = Math.max(0.1, Math.min(Math.PI / 2 - 0.1,
-            this.cameraAngleX + deltaY * 0.01));
-
-          this.updateCameraPosition();
-          this.lastMouseX = e.clientX;
-          this.lastMouseY = e.clientY;
-        }
+        if (!this.isDragging || (this.cameraMode !== 'orbit' && this.cameraMode !== 'follow')) return;
+        const dx = e.clientX - this.lastMouseX;
+        const dy = e.clientY - this.lastMouseY;
+        this.orbitAngleY += dx * 0.01;
+        this.orbitAngleX = Math.max(0.05, Math.min(Math.PI / 2 - 0.05, this.orbitAngleX + dy * 0.01));
+        this._updateOrbitCamera();
+        this.lastMouseX = e.clientX;
+        this.lastMouseY = e.clientY;
       });
 
-      canvas.addEventListener('mouseup', () => {
-        this.isDragging = false;
-      });
+      canvas.addEventListener('mouseup', () => { this.isDragging = false; });
+      canvas.addEventListener('mouseleave', () => { this.isDragging = false; });
 
-      canvas.addEventListener('mouseleave', () => {
-        this.isDragging = false;
-      });
-
-      // Wheel for zoom
       canvas.addEventListener('wheel', (e) => {
+        if (this.cameraMode !== 'orbit' && this.cameraMode !== 'follow') return;
         e.preventDefault();
-        this.cameraDistance = Math.max(5, Math.min(100,
-          this.cameraDistance + e.deltaY * 0.05));
-        this.updateCameraPosition();
+        this.orbitDistance = Math.max(5, Math.min(200, this.orbitDistance + e.deltaY * 0.1));
+        this._updateOrbitCamera();
       });
 
-      // Touch support
-      let lastTouchDistance = 0;
-      let lastTouchX = 0;
-      let lastTouchY = 0;
-
-      canvas.addEventListener('touchstart', (e) => {
-        if (e.touches.length === 1) {
-          this.isDragging = true;
-          lastTouchX = e.touches[0].clientX;
-          lastTouchY = e.touches[0].clientY;
-        } else if (e.touches.length === 2) {
-          const dx = e.touches[0].clientX - e.touches[1].clientX;
-          const dy = e.touches[0].clientY - e.touches[1].clientY;
-          lastTouchDistance = Math.sqrt(dx * dx + dy * dy);
-        }
-      });
-
-      canvas.addEventListener('touchmove', (e) => {
-        e.preventDefault();
-        if (e.touches.length === 1 && this.isDragging) {
-          const deltaX = e.touches[0].clientX - lastTouchX;
-          const deltaY = e.touches[0].clientY - lastTouchY;
-
-          this.cameraAngleY += deltaX * 0.01;
-          this.cameraAngleX = Math.max(0.1, Math.min(Math.PI / 2 - 0.1,
-            this.cameraAngleX + deltaY * 0.01));
-
-          this.updateCameraPosition();
-          lastTouchX = e.touches[0].clientX;
-          lastTouchY = e.touches[0].clientY;
-        } else if (e.touches.length === 2) {
-          const dx = e.touches[0].clientX - e.touches[1].clientX;
-          const dy = e.touches[0].clientY - e.touches[1].clientY;
-          const distance = Math.sqrt(dx * dx + dy * dy);
-
-          if (lastTouchDistance > 0) {
-            const delta = lastTouchDistance - distance;
-            this.cameraDistance = Math.max(5, Math.min(100,
-              this.cameraDistance + delta * 0.1));
-            this.updateCameraPosition();
-          }
-          lastTouchDistance = distance;
-        }
-      }, { passive: false });
-
-      canvas.addEventListener('touchend', () => {
-        this.isDragging = false;
-        lastTouchDistance = 0;
-      });
-
-      // Prevent context menu
       canvas.addEventListener('contextmenu', (e) => e.preventDefault());
     }
 
-    updateCameraPosition() {
-      const x = this.cameraTarget.x + this.cameraDistance * Math.cos(this.cameraAngleX) * Math.sin(this.cameraAngleY);
-      const y = this.cameraTarget.y + this.cameraDistance * Math.sin(this.cameraAngleX);
-      const z = this.cameraTarget.z + this.cameraDistance * Math.cos(this.cameraAngleX) * Math.cos(this.cameraAngleY);
-
-      this.camera.position.set(x, y, z);
-      this.camera.lookAt(this.cameraTarget);
+    _updateOrbitCamera() {
+      const t = this.orbitTarget;
+      this.camera.position.set(
+        t.x + this.orbitDistance * Math.cos(this.orbitAngleX) * Math.sin(this.orbitAngleY),
+        t.y + this.orbitDistance * Math.sin(this.orbitAngleX),
+        t.z + this.orbitDistance * Math.cos(this.orbitAngleX) * Math.cos(this.orbitAngleY)
+      );
+      this.camera.lookAt(t);
     }
 
-    // Create a Minecraft player model
-    createPlayerModel(uuid, name) {
+    // ===== DATA LOADING =====
+
+    setReplayData(replay, snapshots, blockLogs) {
+      this.snapshots = snapshots || [];
+      this.blockLogs = blockLogs || [];
+      this.startTime = replay.startTime || 0;
+      this.totalDuration = (replay.endTime || 0) - this.startTime;
+      this.currentTime = 0;
+      this.playing = false;
+
+      // Set block logs on applicator
+      if (this.blockApplicator && this.blockLogs.length > 0) {
+        this.blockApplicator.setBlockLogs(this.blockLogs);
+      }
+
+      // Center camera on first snapshot
+      if (this.snapshots.length > 0) {
+        const first = this.snapshots[0];
+        this.orbitTarget.set(first.x, first.y, first.z);
+        this._updateOrbitCamera();
+      }
+
+      // Show initial player positions
+      this._updatePlayersAtTime(0);
+    }
+
+    async loadChunkData(base64Data) {
+      const terrain = window.MX?.terrain;
+      if (!this.chunkManager || !terrain?.ChunkDataParser) {
+        console.warn('[Replay3D] Terrain engine not available');
+        return 0;
+      }
+
+      try {
+        console.log('[Replay3D] Parsing chunk data...');
+        const columns = await terrain.ChunkDataParser.parse(base64Data);
+        console.log(`[Replay3D] Loaded ${columns.length} chunk columns`);
+
+        this.chunkManager.loadColumns(columns);
+        this.terrainLoaded = true;
+
+        // If no snapshots, center on terrain
+        if (this.snapshots.length === 0) {
+          const center = this.chunkManager.getCenter();
+          this.orbitTarget.set(center.x, center.y + 20, center.z);
+          this._updateOrbitCamera();
+        }
+
+        return columns.length;
+      } catch (e) {
+        console.error('[Replay3D] Failed to load chunk data:', e);
+        throw e;
+      }
+    }
+
+    // ===== CAMERA MODES =====
+
+    setCameraMode(mode) {
+      if (this.cameraMode === mode) return;
+
+      // Disable previous
+      if (this.cameraMode === 'free' && this.freeCamera) {
+        this.freeCamera.disable();
+      }
+
+      this.cameraMode = mode;
+
+      if (mode === 'orbit' || mode === 'follow') {
+        this._updateOrbitCamera();
+      } else if (mode === 'free' && this.freeCamera) {
+        this.freeCamera.enable();
+      }
+    }
+
+    getCameraMode() {
+      return this.cameraMode;
+    }
+
+    // ===== PLAYBACK =====
+
+    play() {
+      this.playing = true;
+    }
+
+    pause() {
+      this.playing = false;
+    }
+
+    isPlaying() {
+      return this.playing;
+    }
+
+    togglePlayback() {
+      if (this.playing) this.pause();
+      else this.play();
+      return this.playing;
+    }
+
+    seek(timeMs) {
+      this.currentTime = Math.max(0, Math.min(this.totalDuration, timeMs));
+      this._updatePlayersAtTime(this.currentTime);
+      if (this.blockApplicator) {
+        this.blockApplicator.seekTo(this.startTime + this.currentTime);
+      }
+    }
+
+    skip(seconds) {
+      this.seek(this.currentTime + seconds * 1000);
+    }
+
+    setSpeed(speed) {
+      this.playbackSpeed = speed;
+    }
+
+    getCurrentTime() {
+      return this.currentTime;
+    }
+
+    getTotalDuration() {
+      return this.totalDuration;
+    }
+
+    // ===== PLAYER MODELS =====
+
+    _getOrCreatePlayer(uuid, name) {
+      if (this.players.has(uuid)) return this.players.get(uuid);
+
       const group = new THREE.Group();
       group.userData = { uuid, name };
 
-      // Get player color
-      const colorIndex = this.players.size % this.colorPalette.length;
-      const color = this.colorPalette[colorIndex];
+      const color = this.playerColors[this.colorIndex++ % this.playerColors.length];
+      const mat = new THREE.MeshStandardMaterial({ color, roughness: 0.8, metalness: 0.1 });
+      const s = PLAYER_SCALE / 32;
 
-      // Create materials (will be updated with skin texture later)
-      const skinMaterial = new THREE.MeshStandardMaterial({
-        color: color,
-        roughness: 0.8,
-        metalness: 0.1
-      });
-
-      // Scale factor (1 unit = 1 block, player is ~1.8 blocks tall)
-      const s = PLAYER_SCALE / 32; // Minecraft model is 32 pixels tall
-
-      // Head (8x8x8 pixels)
-      const headGeometry = new THREE.BoxGeometry(8 * s, 8 * s, 8 * s);
-      const head = new THREE.Mesh(headGeometry, skinMaterial.clone());
-      head.position.y = 24 * s + 4 * s; // On top of body
+      // Head (8x8x8)
+      const head = new THREE.Mesh(new THREE.BoxGeometry(8*s, 8*s, 8*s), mat.clone());
+      head.position.y = 28 * s;
       head.castShadow = true;
       head.name = 'head';
       group.add(head);
 
-      // Body (8x12x4 pixels)
-      const bodyGeometry = new THREE.BoxGeometry(8 * s, 12 * s, 4 * s);
-      const body = new THREE.Mesh(bodyGeometry, skinMaterial.clone());
-      body.position.y = 18 * s; // Center of body
+      // Body (8x12x4)
+      const body = new THREE.Mesh(new THREE.BoxGeometry(8*s, 12*s, 4*s), mat.clone());
+      body.position.y = 18 * s;
       body.castShadow = true;
       body.name = 'body';
       group.add(body);
 
-      // Right Arm (4x12x4 pixels)
-      const rightArmGeometry = new THREE.BoxGeometry(4 * s, 12 * s, 4 * s);
-      const rightArm = new THREE.Mesh(rightArmGeometry, skinMaterial.clone());
-      rightArm.position.set(-6 * s, 18 * s, 0);
-      rightArm.castShadow = true;
-      rightArm.name = 'rightArm';
-      group.add(rightArm);
+      // Right Arm (4x12x4)
+      const rArm = new THREE.Mesh(new THREE.BoxGeometry(4*s, 12*s, 4*s), mat.clone());
+      rArm.position.set(-6*s, 18*s, 0);
+      rArm.castShadow = true;
+      rArm.name = 'rightArm';
+      group.add(rArm);
 
-      // Left Arm (4x12x4 pixels)
-      const leftArmGeometry = new THREE.BoxGeometry(4 * s, 12 * s, 4 * s);
-      const leftArm = new THREE.Mesh(leftArmGeometry, skinMaterial.clone());
-      leftArm.position.set(6 * s, 18 * s, 0);
-      leftArm.castShadow = true;
-      leftArm.name = 'leftArm';
-      group.add(leftArm);
+      // Left Arm
+      const lArm = new THREE.Mesh(new THREE.BoxGeometry(4*s, 12*s, 4*s), mat.clone());
+      lArm.position.set(6*s, 18*s, 0);
+      lArm.castShadow = true;
+      lArm.name = 'leftArm';
+      group.add(lArm);
 
-      // Right Leg (4x12x4 pixels)
-      const rightLegGeometry = new THREE.BoxGeometry(4 * s, 12 * s, 4 * s);
-      const rightLeg = new THREE.Mesh(rightLegGeometry, skinMaterial.clone());
-      rightLeg.position.set(-2 * s, 6 * s, 0);
-      rightLeg.castShadow = true;
-      rightLeg.name = 'rightLeg';
-      group.add(rightLeg);
+      // Right Leg (4x12x4)
+      const rLeg = new THREE.Mesh(new THREE.BoxGeometry(4*s, 12*s, 4*s), mat.clone());
+      rLeg.position.set(-2*s, 6*s, 0);
+      rLeg.castShadow = true;
+      rLeg.name = 'rightLeg';
+      group.add(rLeg);
 
-      // Left Leg (4x12x4 pixels)
-      const leftLegGeometry = new THREE.BoxGeometry(4 * s, 12 * s, 4 * s);
-      const leftLeg = new THREE.Mesh(leftLegGeometry, skinMaterial.clone());
-      leftLeg.position.set(2 * s, 6 * s, 0);
-      leftLeg.castShadow = true;
-      leftLeg.name = 'leftLeg';
-      group.add(leftLeg);
+      // Left Leg
+      const lLeg = new THREE.Mesh(new THREE.BoxGeometry(4*s, 12*s, 4*s), mat.clone());
+      lLeg.position.set(2*s, 6*s, 0);
+      lLeg.castShadow = true;
+      lLeg.name = 'leftLeg';
+      group.add(lLeg);
 
-      // Name tag
-      this.addNameTag(group, name, color);
-
-      // Load skin texture
-      this.loadPlayerSkin(group, uuid);
-
-      return group;
-    }
-
-    addNameTag(group, name, color) {
-      // Create a sprite for the name tag
+      // Name tag sprite
       const canvas = document.createElement('canvas');
       const ctx = canvas.getContext('2d');
       canvas.width = 256;
       canvas.height = 64;
-
-      // Background
-      ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
-      ctx.roundRect(0, 0, canvas.width, canvas.height, 8);
+      ctx.fillStyle = 'rgba(0,0,0,0.7)';
+      ctx.roundRect(0, 0, 256, 64, 8);
       ctx.fill();
-
-      // Text
       ctx.font = 'bold 28px "Plus Jakarta Sans", sans-serif';
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
       ctx.fillStyle = '#' + color.toString(16).padStart(6, '0');
-      ctx.fillText(name, canvas.width / 2, canvas.height / 2);
-
-      // Create sprite
-      const texture = new THREE.CanvasTexture(canvas);
-      const spriteMaterial = new THREE.SpriteMaterial({
-        map: texture,
-        transparent: true
-      });
-      const sprite = new THREE.Sprite(spriteMaterial);
-      sprite.scale.set(2, 0.5, 1);
-      sprite.position.y = PLAYER_SCALE + 0.5;
+      ctx.fillText(name || 'Player', 128, 32);
+      const tex = new THREE.CanvasTexture(canvas);
+      const sprite = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, transparent: true }));
+      sprite.scale.set(2.5, 0.625, 1);
+      sprite.position.y = PLAYER_SCALE + 0.6;
       sprite.name = 'nameTag';
       group.add(sprite);
+
+      this.players.set(uuid, group);
+      this.scene.add(group);
+      return group;
     }
 
-    loadPlayerSkin(group, uuid) {
-      // Use Crafatar for skins - note: CORS might be an issue
-      // For now, we'll use the colored model
-      // In a production environment, you'd proxy this through your server
+    _updatePlayersAtTime(timeMs) {
+      const absoluteTime = this.startTime + timeMs;
+      const currentPositions = new Map();
 
-      const loader = new THREE.TextureLoader();
-      loader.crossOrigin = 'anonymous';
-
-      // Try to load skin (this may fail due to CORS)
-      const skinUrl = `https://crafatar.com/skins/${uuid}`;
-
-      loader.load(
-        skinUrl,
-        (texture) => {
-          texture.magFilter = THREE.NearestFilter;
-          texture.minFilter = THREE.NearestFilter;
-
-          // Apply skin to body parts
-          group.children.forEach(child => {
-            if (child.isMesh) {
-              child.material.map = texture;
-              child.material.needsUpdate = true;
-            }
-          });
-        },
-        undefined,
-        (error) => {
-          // Skin loading failed, keep the colored model
-          console.log('[Replay3D] Could not load skin for', uuid);
+      for (const snap of this.snapshots) {
+        if (snap.timestamp <= absoluteTime) {
+          currentPositions.set(snap.playerUuid, snap);
         }
-      );
-    }
-
-    // Update player position and rotation
-    updatePlayer(uuid, name, x, y, z, yaw, pitch, state = {}) {
-      let playerGroup = this.players.get(uuid);
-
-      if (!playerGroup) {
-        playerGroup = this.createPlayerModel(uuid, name);
-        this.players.set(uuid, playerGroup);
-        this.scene.add(playerGroup);
       }
 
-      // Update position (Y is up in Three.js)
-      playerGroup.position.set(x, y, z);
-
-      // Update rotation (Minecraft yaw: 0 = South, 90 = West, etc.)
-      playerGroup.rotation.y = -yaw * (Math.PI / 180) + Math.PI;
-
-      // Animate based on state
-      const time = Date.now() * 0.003;
-      const head = playerGroup.getObjectByName('head');
-      const rightArm = playerGroup.getObjectByName('rightArm');
-      const leftArm = playerGroup.getObjectByName('leftArm');
-      const rightLeg = playerGroup.getObjectByName('rightLeg');
-      const leftLeg = playerGroup.getObjectByName('leftLeg');
-
-      // Head pitch
-      if (head) {
-        head.rotation.x = pitch * (Math.PI / 180);
+      // Hide all, then show matching
+      for (const [uuid, group] of this.players) {
+        group.visible = currentPositions.has(uuid);
       }
 
-      // Walking animation
-      if (state.sprinting || state.walking) {
-        const speed = state.sprinting ? 2 : 1;
-        const swing = Math.sin(time * speed) * 0.5;
+      for (const [uuid, snap] of currentPositions) {
+        const group = this._getOrCreatePlayer(uuid, snap.playerName);
+        group.visible = true;
+        group.position.set(snap.x, snap.y, snap.z);
+        group.rotation.y = -snap.yaw * (Math.PI / 180) + Math.PI;
 
-        if (rightArm) rightArm.rotation.x = swing;
-        if (leftArm) leftArm.rotation.x = -swing;
-        if (rightLeg) rightLeg.rotation.x = -swing;
-        if (leftLeg) leftLeg.rotation.x = swing;
-      } else {
-        // Reset to idle
-        if (rightArm) rightArm.rotation.x = 0;
-        if (leftArm) leftArm.rotation.x = 0;
-        if (rightLeg) rightLeg.rotation.x = 0;
-        if (leftLeg) leftLeg.rotation.x = 0;
+        // Head pitch
+        const head = group.getObjectByName('head');
+        if (head) head.rotation.x = snap.pitch * (Math.PI / 180);
+
+        // Walk animation
+        const time = Date.now() * 0.003;
+        const walking = snap.sprinting || (!snap.sneaking && snap.onGround);
+        const speed = snap.sprinting ? 2 : 1;
+        const swing = walking ? Math.sin(time * speed) * 0.5 : 0;
+
+        const rArm = group.getObjectByName('rightArm');
+        const lArm = group.getObjectByName('leftArm');
+        const rLeg = group.getObjectByName('rightLeg');
+        const lLeg = group.getObjectByName('leftLeg');
+        if (rArm) rArm.rotation.x = swing;
+        if (lArm) lArm.rotation.x = -swing;
+        if (rLeg) rLeg.rotation.x = -swing;
+        if (lLeg) lLeg.rotation.x = swing;
+
+        // Sneaking
+        if (snap.sneaking) {
+          group.scale.y = 0.85;
+        } else {
+          group.scale.y = 1;
+        }
       }
 
-      // Sneaking - lower the model
-      if (state.sneaking) {
-        playerGroup.scale.y = 0.85;
-        playerGroup.position.y = y - 0.15;
-      } else {
-        playerGroup.scale.y = 1;
+      // Follow mode
+      if (this.cameraMode === 'follow' && currentPositions.size > 0) {
+        const primary = currentPositions.values().next().value;
+        this.orbitTarget.set(primary.x, primary.y + 1, primary.z);
+        this._updateOrbitCamera();
       }
     }
 
-    // Remove a player from the scene
-    removePlayer(uuid) {
-      const playerGroup = this.players.get(uuid);
-      if (playerGroup) {
-        this.scene.remove(playerGroup);
-        this.players.delete(uuid);
+    // ===== FALLBACK GROUND =====
+    // Shown when no terrain data is available
+
+    showFallbackGround() {
+      if (this._fallbackGround) return;
+      const geo = new THREE.PlaneGeometry(400, 400);
+      const mat = new THREE.MeshStandardMaterial({ color: 0x4a7c3f, roughness: 0.9 });
+      this._fallbackGround = new THREE.Mesh(geo, mat);
+      this._fallbackGround.rotation.x = -Math.PI / 2;
+      this._fallbackGround.position.y = 63;
+      this._fallbackGround.receiveShadow = true;
+      this._fallbackGround.name = 'fallbackGround';
+      this.scene.add(this._fallbackGround);
+
+      // Grid
+      const grid = new THREE.GridHelper(400, 400, 0x2a5a2a, 0x2a5a2a);
+      grid.position.y = 63.01;
+      grid.material.opacity = 0.2;
+      grid.material.transparent = true;
+      grid.name = 'fallbackGrid';
+      this._fallbackGrid = grid;
+      this.scene.add(grid);
+    }
+
+    removeFallbackGround() {
+      if (this._fallbackGround) {
+        this.scene.remove(this._fallbackGround);
+        this._fallbackGround.geometry.dispose();
+        this._fallbackGround.material.dispose();
+        this._fallbackGround = null;
+      }
+      if (this._fallbackGrid) {
+        this.scene.remove(this._fallbackGrid);
+        this._fallbackGrid.geometry.dispose();
+        this._fallbackGrid.material.dispose();
+        this._fallbackGrid = null;
       }
     }
 
-    // Clear all players
-    clearPlayers() {
-      this.players.forEach((group, uuid) => {
-        this.scene.remove(group);
-      });
-      this.players.clear();
-    }
+    // ===== RENDER LOOP =====
 
-    // Focus camera on position
-    focusOn(x, y, z) {
-      this.cameraTarget.set(x, y + 1, z);
-      this.updateCameraPosition();
-    }
+    _animate() {
+      this.animationId = requestAnimationFrame(() => this._animate());
 
-    // Resize handler
-    resize() {
-      const width = this.container.clientWidth;
-      const height = this.container.clientHeight;
+      const delta = this.clock.getDelta();
 
-      if (width > 0 && height > 0) {
-        this.camera.aspect = width / height;
-        this.camera.updateProjectionMatrix();
-        this.renderer.setSize(width, height);
+      // Playback tick
+      if (this.playing) {
+        this.currentTime += delta * 1000 * this.playbackSpeed;
+
+        if (this.currentTime >= this.totalDuration) {
+          this.currentTime = this.totalDuration;
+          this.playing = false;
+          if (this._onPlaybackEnd) this._onPlaybackEnd();
+        }
+
+        this._updatePlayersAtTime(this.currentTime);
+
+        // Block changes
+        if (this.blockApplicator) {
+          this.blockApplicator.applyUpTo(this.startTime + this.currentTime);
+        }
+
+        // Time update callback
+        if (this._onTimeUpdate) {
+          this._onTimeUpdate(this.currentTime, this.totalDuration);
+        }
       }
-    }
 
-    // Animation loop
-    animate() {
-      this.animationId = requestAnimationFrame(() => this.animate());
+      // Free camera
+      if (this.cameraMode === 'free' && this.freeCamera) {
+        this.freeCamera.update(delta);
+      }
+
       this.renderer.render(this.scene, this.camera);
     }
 
-    // Cleanup
-    dispose() {
-      if (this.animationId) {
-        cancelAnimationFrame(this.animationId);
-      }
+    // ===== CALLBACKS =====
 
-      this.clearPlayers();
+    onTimeUpdate(fn) { this._onTimeUpdate = fn; }
+    onPlaybackEnd(fn) { this._onPlaybackEnd = fn; }
+
+    // ===== LIFECYCLE =====
+
+    resize() {
+      const w = this.container.clientWidth;
+      const h = this.container.clientHeight;
+      if (w > 0 && h > 0) {
+        this.camera.aspect = w / h;
+        this.camera.updateProjectionMatrix();
+        this.renderer.setSize(w, h);
+      }
+    }
+
+    dispose() {
+      if (this.animationId) cancelAnimationFrame(this.animationId);
+      if (this._resizeObserver) this._resizeObserver.disconnect();
+      if (this.freeCamera) this.freeCamera.dispose();
+      if (this.chunkManager) this.chunkManager.dispose();
+
+      this.players.forEach(group => {
+        group.traverse(child => {
+          if (child.geometry) child.geometry.dispose();
+          if (child.material) {
+            if (child.material.map) child.material.map.dispose();
+            child.material.dispose();
+          }
+        });
+      });
+      this.players.clear();
 
       if (this.renderer) {
         this.renderer.dispose();
-        if (this.renderer.domElement && this.renderer.domElement.parentNode) {
+        if (this.renderer.domElement?.parentNode) {
           this.renderer.domElement.parentNode.removeChild(this.renderer.domElement);
         }
       }
     }
   }
 
-  // ===== INTEGRATION WITH REPLAY SYSTEM =====
-  let renderer3D = null;
-
-  // Initialize 3D renderer when replay page is shown
-  function init3DReplay() {
-    const container = document.getElementById('replayCanvasContainer');
-    const canvas2d = document.getElementById('replayCanvas');
-
-    if (!container) return;
-
-    // Hide the 2D canvas
-    if (canvas2d) {
-      canvas2d.style.display = 'none';
-    }
-
-    // Create 3D renderer if not already created
-    if (!renderer3D) {
-      renderer3D = new Replay3DRenderer(container);
-      console.log('[ModereX Replay3D] 3D renderer initialized');
-    }
-  }
-
-  // Update players from replay data
-  function update3DPlayers(snapshots, currentTime, startTime) {
-    if (!renderer3D) return;
-
-    // Find current position for each player at this time
-    const playerPositions = new Map();
-
-    for (const snapshot of snapshots) {
-      const relativeTime = snapshot.timestamp - startTime;
-      if (relativeTime <= currentTime) {
-        playerPositions.set(snapshot.playerUuid, snapshot);
-      }
-    }
-
-    // Update each player
-    playerPositions.forEach((snap, uuid) => {
-      const state = {
-        sneaking: snap.sneaking,
-        sprinting: snap.sprinting,
-        swimming: snap.swimming,
-        gliding: snap.gliding,
-        walking: !snap.sneaking && !snap.sprinting && snap.onGround
-      };
-
-      renderer3D.updatePlayer(
-        uuid,
-        snap.playerName,
-        snap.x,
-        snap.y - 64, // Adjust Y relative to ground level
-        snap.z,
-        snap.yaw,
-        snap.pitch,
-        state
-      );
-    });
-
-    // Focus on first player if available
-    if (playerPositions.size > 0) {
-      const firstPlayer = playerPositions.values().next().value;
-      renderer3D.focusOn(firstPlayer.x, firstPlayer.y - 64, firstPlayer.z);
-    }
-  }
-
-  // Clear 3D scene
-  function clear3DScene() {
-    if (renderer3D) {
-      renderer3D.clearPlayers();
-    }
-  }
-
-  // Resize 3D renderer
-  function resize3D() {
-    if (renderer3D) {
-      renderer3D.resize();
-    }
-  }
-
-  // Expose API
+  // Expose
   window.MX = window.MX || {};
-  window.MX.replay3D = {
-    init: init3DReplay,
-    updatePlayers: update3DPlayers,
-    clear: clear3DScene,
-    resize: resize3D,
-    getRenderer: () => renderer3D
-  };
+  window.MX.Replay3DViewer = Replay3DViewer;
 
-  console.log('[ModereX Replay3D] Module loaded');
+  console.log('[Replay3D] Module loaded');
 })();

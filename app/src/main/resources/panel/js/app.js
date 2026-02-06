@@ -505,6 +505,9 @@
       updateAnticheatPermissionOverlay();
       updateOnlineStaffPermission();
       if (window.updateStaffChatPermission) updateStaffChatPermission();
+      // Show/hide permissions tab based on moderex.admin.permissions
+      const permTab = document.getElementById('sbPermissions');
+      if (permTab) permTab.style.display = hasPermission('moderex.admin.permissions') ? '' : 'none';
 
       // Re-render current page if needed (all permission-gated pages)
       switch (state.currentPage) {
@@ -542,6 +545,9 @@
       state.permissions = newPermissions;
       previousPermissions = [...newPermissions];
     }
+    // Always update permissions sidebar visibility
+    const permTab = document.getElementById('sbPermissions');
+    if (permTab) permTab.style.display = hasPermission('moderex.admin.permissions') ? '' : 'none';
   }
 
   /**
@@ -986,6 +992,10 @@
       const ws = window.MX?.ws;
       if (ws && ws.isConnected()) ws.send('GET_CMD_BLACKLIST_ENTRIES');
       renderCmdBlacklist();
+    }
+    if (page === 'permissions') {
+      const ws = window.MX?.ws;
+      if (ws && ws.isConnected()) ws.send('GET_RANKS', {});
     }
     if (page === 'anticheat') ui.renderAnticheat();
     if (page === 'templates') ui.renderTemplates();
@@ -4479,39 +4489,313 @@
     }
   };
 
-  function openReplayDetailsModal(replay, snapshots) {
-    // For now, show basic info - full playback would require more complex implementation
-    openGenericModal({
-      title: `Replay: ${replay.name || replay.primaryName || 'Unnamed'}`,
-      html: `
-        <div class="grid cols-2" style="gap:12px">
-          <div><span class="hintline">Player</span><div>${escapeHtml(replay.primaryName || 'Unknown')}</div></div>
-          <div><span class="hintline">World</span><div>${escapeHtml(replay.worldName || 'Unknown')}</div></div>
-          <div><span class="hintline">Duration</span><div>${replay.formattedDuration || formatDuration((replay.endTime - replay.startTime) / 1000)}</div></div>
-          <div><span class="hintline">Reason</span><div>${escapeHtml(replay.reason || 'Manual')}</div></div>
-          <div><span class="hintline">Started</span><div>${replay.startTime ? fmtLong(replay.startTime) : 'Unknown'}</div></div>
-          <div><span class="hintline">Ended</span><div>${replay.endTime ? fmtLong(replay.endTime) : 'In Progress'}</div></div>
-        </div>
-        <div style="margin-top:16px;padding:12px;background:rgba(6,182,212,0.1);border-radius:var(--radius);border:1px solid rgba(6,182,212,0.2)">
-          <i class="fa-solid fa-info-circle" style="color:#06b6d4;margin-right:8px"></i>
-          <span>Full playback requires Citizens plugin in-game. Use <code>/replay play ${replay.sessionId}</code></span>
-        </div>
-        ${snapshots.length > 0 ? `
-          <div style="margin-top:16px">
-            <span class="hintline">Recorded Actions</span>
-            <div style="max-height:200px;overflow:auto;margin-top:8px">
-              ${snapshots.slice(0, 20).map(s => `
-                <div style="padding:4px 8px;border-bottom:1px solid var(--border);font-size:12px">
-                  <span style="color:var(--muted)">${fmtClock(s.timestamp)}</span>
-                  <span style="margin-left:8px">${escapeHtml(s.actionType || 'MOVE')}</span>
-                </div>
-              `).join('')}
-              ${snapshots.length > 20 ? `<div style="padding:8px;color:var(--muted);text-align:center">+${snapshots.length - 20} more actions</div>` : ''}
+  // ===== 3D REPLAY VIEWER MODAL =====
+  let activeReplay3DViewer = null;
+  let pendingReplaySessionId = null;
+
+  function formatReplayTime(ms) {
+    const seconds = Math.floor(ms / 1000);
+    const mins = Math.floor(seconds / 60);
+    const secs = seconds % 60;
+    return `${mins}:${secs.toString().padStart(2, '0')}`;
+  }
+
+  function openReplayDetailsModal(replay, snapshots, blockLogs) {
+    const name = replay.name || replay.primaryName || 'Unnamed';
+    const duration = (replay.endTime || 0) - (replay.startTime || 0);
+    const hasChunkData = replay.hasChunkData || false;
+    const has3D = typeof THREE !== 'undefined' && window.MX?.Replay3DViewer;
+
+    // Store session ID for incoming REPLAY_CHUNKS message
+    pendingReplaySessionId = replay.sessionId;
+
+    // Clean up previous viewer
+    if (activeReplay3DViewer) {
+      activeReplay3DViewer.dispose();
+      activeReplay3DViewer = null;
+    }
+
+    // Create fullscreen overlay
+    const overlay = document.createElement('div');
+    overlay.className = 'overlay show';
+    overlay.id = 'replay3DOverlay';
+    overlay.style.cssText = 'z-index:8000;display:flex;align-items:stretch;justify-content:stretch;padding:0;';
+    overlay.innerHTML = `
+      <div style="width:100%;height:100%;display:flex;flex-direction:column;background:var(--bg-surface)" onclick="event.stopPropagation()">
+        <!-- Header -->
+        <div style="display:flex;align-items:center;justify-content:space-between;padding:12px 20px;background:var(--bg-card);border-bottom:1px solid var(--border);flex-shrink:0">
+          <div style="display:flex;align-items:center;gap:12px">
+            <i class="fa-solid fa-cube" style="color:var(--primary-light);font-size:18px"></i>
+            <div>
+              <b style="font-size:15px">${escapeHtml(name)}</b>
+              <div style="font-size:12px;color:var(--muted)">${escapeHtml(replay.primaryName || '')} &bull; ${formatReplayTime(duration)} &bull; ${escapeHtml(replay.reason || 'Manual')}</div>
             </div>
           </div>
-        ` : ''}
-      `,
-      onSubmit: () => true
+          <div style="display:flex;align-items:center;gap:10px">
+            ${has3D && hasChunkData ? '<span class="badge ok" id="r3dTerrainBadge"><i class="fa-solid fa-mountain"></i> Terrain</span>' : ''}
+            ${has3D && !hasChunkData ? '<span class="badge gray"><i class="fa-solid fa-cube"></i> No terrain data</span>' : ''}
+            <span class="badge gray" id="r3dSnapshotBadge">${snapshots.length} snapshots</span>
+            <button class="mini" id="r3dClose" style="font-size:16px"><i class="fa-solid fa-xmark"></i></button>
+          </div>
+        </div>
+
+        <!-- 3D Viewer Area -->
+        <div style="flex:1;position:relative;overflow:hidden;min-height:0">
+          <div id="r3dContainer" style="width:100%;height:100%;background:#1a1a2e"></div>
+
+          <!-- Loading overlay -->
+          <div id="r3dLoading" style="position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;background:rgba(10,16,24,0.9);z-index:10">
+            <div class="spinner" style="width:40px;height:40px;margin-bottom:16px"></div>
+            <div style="color:#fff;font-size:14px" id="r3dLoadingText">Initializing 3D viewer...</div>
+          </div>
+
+          <!-- Camera mode indicator -->
+          <div style="position:absolute;top:12px;left:12px;display:flex;gap:6px;z-index:5" id="r3dCameraModes">
+            <button class="mini" id="r3dCamOrbit" title="Orbit Camera (drag to rotate, scroll to zoom)" style="background:var(--primary);color:#fff"><i class="fa-solid fa-arrows-rotate"></i></button>
+            <button class="mini" id="r3dCamFollow" title="Follow Player"><i class="fa-solid fa-user"></i></button>
+            <button class="mini" id="r3dCamFree" title="Free Camera (WASD + Mouse)"><i class="fa-solid fa-gamepad"></i></button>
+          </div>
+
+          <!-- Info panel -->
+          <div style="position:absolute;top:12px;right:12px;background:rgba(0,0,0,0.7);padding:10px 14px;border-radius:var(--radius);font-size:12px;color:#ccc;z-index:5;min-width:140px" id="r3dInfoPanel">
+            <div><span style="color:var(--muted)">Position:</span> <span id="r3dPosInfo">-</span></div>
+            <div style="margin-top:4px"><span style="color:var(--muted)">Action:</span> <span id="r3dActionInfo">-</span></div>
+            <div style="margin-top:4px"><span style="color:var(--muted)">State:</span> <span id="r3dStateInfo">-</span></div>
+          </div>
+        </div>
+
+        <!-- Controls Bar -->
+        <div style="display:flex;align-items:center;gap:12px;padding:12px 20px;background:var(--bg-card);border-top:1px solid var(--border);flex-shrink:0">
+          <!-- Skip back -->
+          <button class="mini" id="r3dSkipBack" title="Skip back 5s"><i class="fa-solid fa-backward"></i></button>
+
+          <!-- Play/Pause -->
+          <button class="mini primary" id="r3dPlayBtn" style="width:36px;height:36px;font-size:16px" title="Play/Pause"><i class="fa-solid fa-play"></i></button>
+
+          <!-- Skip forward -->
+          <button class="mini" id="r3dSkipFwd" title="Skip forward 5s"><i class="fa-solid fa-forward"></i></button>
+
+          <!-- Current time -->
+          <span style="font-family:var(--font-mono);font-size:13px;min-width:50px;text-align:right" id="r3dTimeDisplay">0:00</span>
+
+          <!-- Timeline slider -->
+          <input type="range" id="r3dTimeline" min="0" max="1000" value="0" style="flex:1;accent-color:var(--primary)">
+
+          <!-- Total time -->
+          <span style="font-family:var(--font-mono);font-size:13px;min-width:50px;color:var(--muted)" id="r3dTotalTime">${formatReplayTime(duration)}</span>
+
+          <!-- Speed control -->
+          <select id="r3dSpeed" style="background:var(--bg-input);color:var(--text);border:1px solid var(--border);border-radius:var(--radius);padding:4px 8px;font-size:12px">
+            <option value="0.25">0.25x</option>
+            <option value="0.5">0.5x</option>
+            <option value="1" selected>1x</option>
+            <option value="2">2x</option>
+            <option value="4">4x</option>
+          </select>
+        </div>
+      </div>
+    `;
+
+    document.body.appendChild(overlay);
+
+    // Wire up close button
+    const closeViewer = () => {
+      if (activeReplay3DViewer) {
+        activeReplay3DViewer.dispose();
+        activeReplay3DViewer = null;
+      }
+      pendingReplaySessionId = null;
+      overlay.classList.add('fade-out');
+      setTimeout(() => overlay.remove(), 220);
+    };
+
+    document.getElementById('r3dClose').onclick = closeViewer;
+
+    // Handle Escape key
+    const escHandler = (e) => {
+      if (e.key === 'Escape') {
+        document.removeEventListener('keydown', escHandler);
+        closeViewer();
+      }
+    };
+    document.addEventListener('keydown', escHandler);
+
+    // Initialize 3D viewer
+    if (has3D) {
+      requestAnimationFrame(() => {
+        const container = document.getElementById('r3dContainer');
+        if (!container) return;
+
+        try {
+          const viewer = new window.MX.Replay3DViewer(container);
+          activeReplay3DViewer = viewer;
+
+          // Set replay data
+          viewer.setReplayData(replay, snapshots, blockLogs || []);
+
+          // Show fallback ground if no terrain
+          if (!hasChunkData) {
+            viewer.showFallbackGround();
+          }
+
+          // Time update callback
+          viewer.onTimeUpdate((currentMs, totalMs) => {
+            const display = document.getElementById('r3dTimeDisplay');
+            const timeline = document.getElementById('r3dTimeline');
+            if (display) display.textContent = formatReplayTime(currentMs);
+            if (timeline && totalMs > 0) {
+              timeline.value = Math.round((currentMs / totalMs) * 1000);
+            }
+
+            // Update info panel
+            updateReplay3DInfoPanel(snapshots, replay.startTime + currentMs);
+          });
+
+          viewer.onPlaybackEnd(() => {
+            const btn = document.getElementById('r3dPlayBtn');
+            if (btn) btn.innerHTML = '<i class="fa-solid fa-play"></i>';
+          });
+
+          // Wire up controls
+          document.getElementById('r3dPlayBtn').onclick = () => {
+            const playing = viewer.togglePlayback();
+            document.getElementById('r3dPlayBtn').innerHTML = playing
+              ? '<i class="fa-solid fa-pause"></i>'
+              : '<i class="fa-solid fa-play"></i>';
+          };
+
+          document.getElementById('r3dSkipBack').onclick = () => viewer.skip(-5);
+          document.getElementById('r3dSkipFwd').onclick = () => viewer.skip(5);
+
+          document.getElementById('r3dTimeline').addEventListener('input', (e) => {
+            const pct = parseInt(e.target.value) / 1000;
+            viewer.seek(pct * viewer.getTotalDuration());
+          });
+
+          document.getElementById('r3dSpeed').addEventListener('change', (e) => {
+            viewer.setSpeed(parseFloat(e.target.value));
+          });
+
+          // Camera mode buttons
+          const camButtons = { orbit: 'r3dCamOrbit', follow: 'r3dCamFollow', free: 'r3dCamFree' };
+          const updateCamButtons = (mode) => {
+            Object.entries(camButtons).forEach(([m, id]) => {
+              const btn = document.getElementById(id);
+              if (btn) {
+                btn.style.background = m === mode ? 'var(--primary)' : '';
+                btn.style.color = m === mode ? '#fff' : '';
+              }
+            });
+          };
+
+          document.getElementById('r3dCamOrbit').onclick = () => { viewer.setCameraMode('orbit'); updateCamButtons('orbit'); };
+          document.getElementById('r3dCamFollow').onclick = () => { viewer.setCameraMode('follow'); updateCamButtons('follow'); };
+          document.getElementById('r3dCamFree').onclick = () => { viewer.setCameraMode('free'); updateCamButtons('free'); };
+
+          // Hide loading
+          const loadingEl = document.getElementById('r3dLoading');
+          if (hasChunkData) {
+            const loadText = document.getElementById('r3dLoadingText');
+            if (loadText) loadText.textContent = 'Loading terrain data...';
+            // REPLAY_CHUNKS will arrive shortly and hide this
+          } else {
+            if (loadingEl) loadingEl.style.display = 'none';
+          }
+
+          console.log('[Replay3D] Viewer initialized');
+        } catch (e) {
+          console.error('[Replay3D] Failed to initialize:', e);
+          const loadingEl = document.getElementById('r3dLoading');
+          if (loadingEl) {
+            loadingEl.innerHTML = `
+              <i class="fa-solid fa-exclamation-triangle" style="font-size:32px;color:var(--warn);margin-bottom:12px"></i>
+              <div style="color:#fff">Failed to initialize 3D viewer</div>
+              <div style="color:var(--muted);font-size:12px;margin-top:8px">${escapeHtml(e.message)}</div>
+            `;
+          }
+        }
+      });
+    } else {
+      // No Three.js - show info-only modal
+      const loadingEl = document.getElementById('r3dLoading');
+      if (loadingEl) {
+        loadingEl.innerHTML = `
+          <i class="fa-solid fa-cube" style="font-size:40px;color:var(--muted);margin-bottom:16px"></i>
+          <div style="color:#fff;font-size:15px">3D Viewer Not Available</div>
+          <div style="color:var(--muted);margin-top:8px;max-width:360px;text-align:center">
+            Three.js library could not be loaded. The 3D replay viewer requires an internet connection for the initial load.
+          </div>
+          <div style="margin-top:20px;padding:12px 16px;background:rgba(6,182,212,0.1);border-radius:var(--radius);border:1px solid rgba(6,182,212,0.2)">
+            <i class="fa-solid fa-info-circle" style="color:#06b6d4;margin-right:8px"></i>
+            <span style="color:#ccc">Use <code style="color:#06b6d4">/replay play ${escapeHtml(replay.sessionId)}</code> in-game instead.</span>
+          </div>
+        `;
+      }
+    }
+  }
+
+  function updateReplay3DInfoPanel(snapshots, absoluteTime) {
+    const posEl = document.getElementById('r3dPosInfo');
+    const actionEl = document.getElementById('r3dActionInfo');
+    const stateEl = document.getElementById('r3dStateInfo');
+    if (!posEl) return;
+
+    // Find latest snapshot before this time
+    let latest = null;
+    for (const snap of snapshots) {
+      if (snap.timestamp <= absoluteTime) latest = snap;
+    }
+
+    if (!latest) return;
+
+    posEl.textContent = `${latest.x?.toFixed(1) || 0} ${latest.y?.toFixed(1) || 0} ${latest.z?.toFixed(1) || 0}`;
+
+    const action = latest.action || latest.actionType || 'NONE';
+    const actionData = latest.actionData || '';
+    actionEl.textContent = action !== 'NONE' ? `${action}${actionData ? ': ' + actionData : ''}` : 'None';
+
+    let stateTxt = 'Standing';
+    if (latest.sneaking) stateTxt = 'Sneaking';
+    else if (latest.sprinting) stateTxt = 'Sprinting';
+    else if (latest.swimming) stateTxt = 'Swimming';
+    else if (latest.gliding) stateTxt = 'Gliding';
+    else if (!latest.onGround) stateTxt = 'Airborne';
+    stateEl.textContent = stateTxt;
+  }
+
+  function handleReplayChunks(data) {
+    if (!activeReplay3DViewer || !data.chunkData) return;
+
+    // Verify it's for the current replay
+    if (data.sessionId && data.sessionId !== pendingReplaySessionId) {
+      console.log('[Replay3D] Ignoring chunks for different session:', data.sessionId);
+      return;
+    }
+
+    const loadText = document.getElementById('r3dLoadingText');
+    if (loadText) loadText.textContent = `Loading terrain (${(data.sizeBytes / 1024).toFixed(0)} KB)...`;
+
+    activeReplay3DViewer.loadChunkData(data.chunkData).then((count) => {
+      console.log(`[Replay3D] Terrain loaded: ${count} chunks`);
+
+      // Remove fallback ground if it was shown
+      activeReplay3DViewer.removeFallbackGround();
+
+      // Update badge
+      const badge = document.getElementById('r3dTerrainBadge');
+      if (badge) badge.innerHTML = `<i class="fa-solid fa-mountain"></i> ${count} chunks`;
+
+      // Hide loading
+      const loadingEl = document.getElementById('r3dLoading');
+      if (loadingEl) loadingEl.style.display = 'none';
+    }).catch((err) => {
+      console.error('[Replay3D] Failed to load terrain:', err);
+      activeReplay3DViewer.showFallbackGround();
+
+      const loadingEl = document.getElementById('r3dLoading');
+      if (loadingEl) loadingEl.style.display = 'none';
+
+      toast('warn', 'Terrain Error', 'Failed to load terrain data. Showing flat ground.');
     });
   }
 
@@ -8850,14 +9134,23 @@
       updateReplayStats();
     });
 
-    // Handle single replay data
+    // Handle single replay data (opens 3D viewer modal)
     ws.on('REPLAY_DATA', (data) => {
       if (!isLiveMode) return;
       if (window.hideLoadingLine) window.hideLoadingLine();
       console.log('[Replays] Received REPLAY_DATA:', data);
       if (data.replay) {
-        openReplayDetailsModal(data.replay, data.snapshots || []);
+        // Attach hasChunkData to replay object for the viewer
+        data.replay.hasChunkData = !!data.hasChunkData;
+        openReplayDetailsModal(data.replay, data.snapshots || [], data.blockLogs || []);
       }
+    });
+
+    // Handle chunk terrain data for 3D replay viewer
+    ws.on('REPLAY_CHUNKS', (data) => {
+      if (!isLiveMode) return;
+      console.log('[Replays] Received REPLAY_CHUNKS:', data.sessionId, 'size:', data.sizeBytes);
+      handleReplayChunks(data);
     });
 
     // Handle replay update (real-time sync)
@@ -12632,4 +12925,474 @@
       updateStatusIndicator(data.status, data.ping);
     });
   }
+
+  // ==================== PERMISSIONS MODULE ====================
+  (function initPermissions() {
+    const ws = window.MX?.ws;
+    if (!ws) return;
+
+    let ranksData = [];
+    let selectedRankId = null;
+    let luckPermsAvailable = false;
+
+    // Permission categories for the editor
+    const PERM_CATEGORIES = [
+      { name: 'General', permissions: ['moderex.webpanel', 'moderex.staff', 'moderex.admin', 'moderex.info.basic', 'moderex.info.ip', 'moderex.info.nick', 'moderex.info.alts'] },
+      { name: 'Moderation', permissions: ['moderex.command.ban', 'moderex.command.tempban', 'moderex.command.mute', 'moderex.command.tempmute', 'moderex.command.warn', 'moderex.command.kick', 'moderex.command.unban', 'moderex.command.unmute', 'moderex.command.unwarn'] },
+      { name: 'History', permissions: ['moderex.history.view', 'moderex.history.chat', 'moderex.history.commands', 'moderex.history.nick', 'moderex.history.sessions', 'moderex.history.items', 'moderex.history.signs'] },
+      { name: 'Automod', permissions: ['moderex.automod.*', 'moderex.automod.manage', 'moderex.automod.toggle', 'moderex.automod.bypass'] },
+      { name: 'Anticheat', permissions: ['moderex.anticheat.*', 'moderex.anticheat.alerts', 'moderex.anticheat.manage'] },
+      { name: 'Staff Tools', permissions: ['moderex.staffchat', 'moderex.vanish', 'moderex.disguise', 'moderex.staffmode', 'moderex.watchlist', 'moderex.replays.view', 'moderex.replays.configure'] },
+      { name: 'Admin', permissions: ['moderex.*', 'moderex.command.*', 'moderex.admin.*', 'moderex.admin.permissions', 'moderex.admin.reload', 'moderex.admin.gateway'] },
+      { name: 'Monitoring', permissions: ['moderex.monitoring.*', 'moderex.monitoring.tps', 'moderex.monitoring.memory', 'moderex.monitoring.entities'] },
+      { name: 'Bypass', permissions: ['moderex.bypass.automod', 'moderex.bypass.mute', 'moderex.bypass.lockdown', 'moderex.bypass.slowmode', 'moderex.bypass.chatdisable'] },
+      { name: 'Alerts', permissions: ['moderex.alerts.*', 'moderex.alerts.punishments', 'moderex.alerts.automod', 'moderex.alerts.anticheat', 'moderex.alerts.staffchat'] }
+    ];
+
+    ws.on('RANKS', (data) => {
+      ranksData = data.ranks || [];
+      luckPermsAvailable = data.luckPermsAvailable || false;
+      renderRankList();
+      // Show/hide export button
+      const btn = document.getElementById('btnExportLP');
+      if (btn) btn.style.display = luckPermsAvailable ? '' : 'none';
+    });
+
+    ws.on('RANK_CREATED', (data) => {
+      ranksData.push(data.rank);
+      renderRankList();
+      selectRank(data.rank.id);
+      window.MX?.toast?.('ok', 'Rank Created', data.rank.displayName);
+    });
+
+    ws.on('RANK_UPDATED', (data) => {
+      const idx = ranksData.findIndex(r => r.id === data.rank.id);
+      if (idx >= 0) ranksData[idx] = data.rank;
+      renderRankList();
+      if (selectedRankId === data.rank.id) renderRankEditor(data.rank);
+      window.MX?.toast?.('ok', 'Rank Updated', data.rank.displayName);
+    });
+
+    ws.on('RANK_DELETED', (data) => {
+      ranksData = ranksData.filter(r => r.id !== data.id);
+      renderRankList();
+      if (selectedRankId === data.id) {
+        selectedRankId = null;
+        document.getElementById('rankEditor').style.display = 'none';
+        document.getElementById('rankEditorEmpty').style.display = '';
+      }
+      window.MX?.toast?.('ok', 'Rank Deleted', '');
+    });
+
+    ws.on('RANKS_REORDERED', (data) => {
+      ranksData = data.ranks || [];
+      renderRankList();
+    });
+
+    ws.on('RANK_PERMISSION_SET', (data) => {
+      const idx = ranksData.findIndex(r => r.id === data.rank.id);
+      if (idx >= 0) ranksData[idx] = data.rank;
+      if (selectedRankId === data.rank.id) renderPermissions(data.rank);
+    });
+
+    ws.on('RANK_PERMISSION_REMOVED', (data) => {
+      const idx = ranksData.findIndex(r => r.id === data.rank.id);
+      if (idx >= 0) ranksData[idx] = data.rank;
+      if (selectedRankId === data.rank.id) renderPermissions(data.rank);
+    });
+
+    ws.on('RANK_INHERITANCE_SET', (data) => {
+      const idx = ranksData.findIndex(r => r.id === data.rank.id);
+      if (idx >= 0) ranksData[idx] = data.rank;
+      if (selectedRankId === data.rank.id) renderInheritance(data.rank);
+    });
+
+    ws.on('PLAYER_SEARCH_RESULTS', (data) => {
+      renderPlayerSearchResults(data.players || []);
+    });
+
+    ws.on('PLAYER_RANKS', (data) => {
+      renderPlayerRanks(data.uuid, data.ranks || []);
+    });
+
+    ws.on('PLAYER_RANK_SET', (data) => {
+      renderPlayerRanks(data.uuid, data.ranks || []);
+      window.MX?.toast?.('ok', 'Rank Assigned', '');
+    });
+
+    ws.on('PLAYER_RANK_REMOVED', (data) => {
+      renderPlayerRanks(data.uuid, data.ranks || []);
+      window.MX?.toast?.('ok', 'Rank Removed', '');
+    });
+
+    ws.on('LUCKPERMS_EXPORT_RESULT', (data) => {
+      if (data.success) {
+        window.MX?.toast?.('ok', 'Export Complete', `${data.ranksExported} ranks, ${data.playersExported} players exported`);
+      } else {
+        window.MX?.toast?.('bad', 'Export Failed', data.error || 'Unknown error');
+      }
+    });
+
+    // Button handlers
+    document.getElementById('btnCreateRank')?.addEventListener('click', () => {
+      const name = prompt('Enter rank name (lowercase, no spaces):');
+      if (!name) return;
+      ws.send('CREATE_RANK', { name: name.toLowerCase().replace(/\s+/g, '_'), displayName: name, weight: (ranksData.length + 1) * 10 });
+    });
+
+    document.getElementById('btnExportLP')?.addEventListener('click', () => {
+      if (confirm('Export all ranks and player assignments to LuckPerms? This will create/update LuckPerms groups.')) {
+        ws.send('EXPORT_TO_LUCKPERMS', {});
+      }
+    });
+
+    document.getElementById('btnSaveRank')?.addEventListener('click', () => {
+      if (!selectedRankId) return;
+      ws.send('UPDATE_RANK', {
+        id: selectedRankId,
+        displayName: document.getElementById('rankDisplayName')?.value || '',
+        prefix: document.getElementById('rankPrefix')?.value || '',
+        suffix: document.getElementById('rankSuffix')?.value || '',
+        weight: parseInt(document.getElementById('rankWeight')?.value) || 0,
+        isDefault: document.getElementById('rankIsDefault')?.checked || false
+      });
+    });
+
+    document.getElementById('btnDeleteRank')?.addEventListener('click', () => {
+      if (!selectedRankId) return;
+      const rank = ranksData.find(r => r.id === selectedRankId);
+      if (confirm(`Delete rank "${rank?.displayName}"? Players will be reassigned to the default rank.`)) {
+        ws.send('DELETE_RANK', { id: selectedRankId });
+      }
+    });
+
+    // Prefix live preview
+    document.getElementById('rankPrefix')?.addEventListener('input', (e) => {
+      const preview = document.getElementById('prefixPreview');
+      if (preview) preview.innerHTML = parsePrefixPreview(e.target.value);
+    });
+
+    // Player search
+    let searchTimeout;
+    document.getElementById('playerSearchInput')?.addEventListener('input', (e) => {
+      clearTimeout(searchTimeout);
+      const query = e.target.value.trim();
+      if (query.length < 2) {
+        document.getElementById('playerSearchResults').style.display = 'none';
+        return;
+      }
+      searchTimeout = setTimeout(() => ws.send('SEARCH_PLAYERS_FOR_RANK', { query }), 300);
+    });
+
+    document.getElementById('btnAssignRank')?.addEventListener('click', () => {
+      const uuid = document.getElementById('playerRankAssignment')?.dataset.uuid;
+      const playerName = document.getElementById('playerRankAssignment')?.dataset.playerName;
+      const rankId = parseInt(document.getElementById('assignRankSelect')?.value);
+      if (uuid && rankId) {
+        ws.send('SET_PLAYER_RANK', { uuid, playerName, rankId, primary: false });
+      }
+    });
+
+    function renderRankList() {
+      const container = document.getElementById('rankListContainer');
+      if (!container) return;
+      if (ranksData.length === 0) {
+        container.innerHTML = '<div class="empty-state">No ranks created yet</div>';
+        return;
+      }
+      container.innerHTML = ranksData.map(rank => `
+        <div class="rank-list-item ${rank.id === selectedRankId ? 'active' : ''}" data-rank-id="${rank.id}">
+          <div class="rank-color-dot" style="background:${extractColor(rank.prefix)}"></div>
+          <div class="rank-item-name">${escHtml(rank.displayName)}</div>
+          ${rank.isDefault ? '<span class="rank-item-default">Default</span>' : ''}
+          <span class="rank-item-weight">#${rank.weight}</span>
+        </div>
+      `).join('');
+
+      container.querySelectorAll('.rank-list-item').forEach(item => {
+        item.addEventListener('click', () => selectRank(parseInt(item.dataset.rankId)));
+      });
+    }
+
+    function selectRank(id) {
+      selectedRankId = id;
+      const rank = ranksData.find(r => r.id === id);
+      if (!rank) return;
+      document.getElementById('rankEditorEmpty').style.display = 'none';
+      document.getElementById('rankEditor').style.display = '';
+      renderRankEditor(rank);
+      renderRankList(); // Update active state
+    }
+
+    function renderRankEditor(rank) {
+      document.getElementById('rankEditorTitle').innerHTML = `<i class="fa-solid fa-pen"></i> ${escHtml(rank.displayName)}`;
+      document.getElementById('rankDisplayName').value = rank.displayName;
+      document.getElementById('rankPrefix').value = rank.prefix || '';
+      document.getElementById('rankSuffix').value = rank.suffix || '';
+      document.getElementById('rankWeight').value = rank.weight;
+      document.getElementById('rankIsDefault').checked = rank.isDefault;
+      document.getElementById('prefixPreview').innerHTML = parsePrefixPreview(rank.prefix || '');
+      renderInheritance(rank);
+      renderPermissions(rank);
+    }
+
+    function renderInheritance(rank) {
+      const container = document.getElementById('rankInheritance');
+      if (!container) return;
+      container.innerHTML = ranksData.filter(r => r.id !== rank.id).map(r => {
+        const active = rank.parentRankIds?.includes(r.id);
+        return `<div class="rank-inheritance-chip ${active ? 'active' : ''}" data-parent-id="${r.id}">${escHtml(r.displayName)}</div>`;
+      }).join('');
+
+      container.querySelectorAll('.rank-inheritance-chip').forEach(chip => {
+        chip.addEventListener('click', () => {
+          const parentId = parseInt(chip.dataset.parentId);
+          let parents = rank.parentRankIds ? [...rank.parentRankIds] : [];
+          if (parents.includes(parentId)) {
+            parents = parents.filter(id => id !== parentId);
+          } else {
+            parents.push(parentId);
+          }
+          ws.send('SET_RANK_INHERITANCE', { rankId: rank.id, parentIds: parents });
+        });
+      });
+    }
+
+    function renderPermissions(rank) {
+      const container = document.getElementById('rankPermissions');
+      if (!container) return;
+      const perms = rank.permissions || {};
+
+      container.innerHTML = PERM_CATEGORIES.map(cat => `
+        <div class="perm-category">
+          <div class="perm-category-header" onclick="this.parentElement.classList.toggle('collapsed')">
+            ${cat.name}
+            <i class="fa-solid fa-chevron-down"></i>
+          </div>
+          <div class="perm-category-items">
+            ${cat.permissions.map(p => {
+              const state = perms[p] === true ? 'allow' : perms[p] === false ? 'deny' : 'inherit';
+              return `
+                <div class="perm-item">
+                  <span class="perm-item-name">${p}</span>
+                  <div class="perm-toggle-group">
+                    <button class="perm-toggle-btn ${state === 'allow' ? 'active-allow' : ''}" data-perm="${p}" data-action="allow">Allow</button>
+                    <button class="perm-toggle-btn ${state === 'inherit' ? 'active-inherit' : ''}" data-perm="${p}" data-action="inherit">Inherit</button>
+                    <button class="perm-toggle-btn ${state === 'deny' ? 'active-deny' : ''}" data-perm="${p}" data-action="deny">Deny</button>
+                  </div>
+                </div>`;
+            }).join('')}
+          </div>
+        </div>
+      `).join('');
+
+      container.querySelectorAll('.perm-toggle-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+          const perm = btn.dataset.perm;
+          const action = btn.dataset.action;
+          if (action === 'inherit') {
+            ws.send('REMOVE_RANK_PERMISSION', { rankId: rank.id, permission: perm });
+          } else {
+            ws.send('SET_RANK_PERMISSION', { rankId: rank.id, permission: perm, granted: action === 'allow' });
+          }
+        });
+      });
+    }
+
+    function renderPlayerSearchResults(players) {
+      const container = document.getElementById('playerSearchResults');
+      if (!container) return;
+      if (players.length === 0) {
+        container.innerHTML = '<div style="padding:8px;color:var(--text-muted);font-size:0.85rem">No players found</div>';
+        container.style.display = '';
+        return;
+      }
+      container.style.display = '';
+      container.innerHTML = players.map(p => `
+        <div class="player-search-item" data-uuid="${p.uuid}" data-name="${escHtml(p.name)}">
+          <img src="https://mc-heads.net/avatar/${p.uuid}/24" alt="">
+          <span>${escHtml(p.name)}</span>
+        </div>
+      `).join('');
+
+      container.querySelectorAll('.player-search-item').forEach(item => {
+        item.addEventListener('click', () => {
+          const uuid = item.dataset.uuid;
+          const name = item.dataset.name;
+          container.style.display = 'none';
+          document.getElementById('playerSearchInput').value = name;
+          const assignment = document.getElementById('playerRankAssignment');
+          assignment.style.display = '';
+          assignment.dataset.uuid = uuid;
+          assignment.dataset.playerName = name;
+          document.getElementById('playerRankHeader').innerHTML = `<img src="https://mc-heads.net/avatar/${uuid}/24" style="border-radius:4px"> ${escHtml(name)}`;
+          // Populate rank select
+          const sel = document.getElementById('assignRankSelect');
+          sel.innerHTML = ranksData.map(r => `<option value="${r.id}">${escHtml(r.displayName)}</option>`).join('');
+          // Load current ranks
+          ws.send('GET_PLAYER_RANKS', { uuid });
+        });
+      });
+    }
+
+    function renderPlayerRanks(uuid, ranks) {
+      const container = document.getElementById('playerCurrentRanks');
+      if (!container) return;
+      if (ranks.length === 0) {
+        container.innerHTML = '<div style="color:var(--text-muted);font-size:0.85rem;padding:4px 0">No ranks assigned</div>';
+        return;
+      }
+      container.innerHTML = ranks.map(r => `
+        <span class="player-rank-chip">
+          ${escHtml(r.displayName)} ${r.isPrimary ? '<i class="fa-solid fa-star" style="color:var(--warning);font-size:0.7rem"></i>' : ''}
+          <i class="fa-solid fa-xmark remove-rank" data-uuid="${uuid}" data-rank-id="${r.rankId}"></i>
+        </span>
+      `).join('');
+
+      container.querySelectorAll('.remove-rank').forEach(btn => {
+        btn.addEventListener('click', () => {
+          ws.send('REMOVE_PLAYER_RANK', { uuid: btn.dataset.uuid, rankId: parseInt(btn.dataset.rankId) });
+        });
+      });
+    }
+
+    function extractColor(prefix) {
+      if (!prefix) return '#8b5cf6';
+      // Extract hex color from prefix like <#ff5555> or &#ff5555
+      const hexMatch = prefix.match(/#([0-9a-fA-F]{6})/);
+      if (hexMatch) return '#' + hexMatch[1];
+      // Legacy color code mapping
+      const legacyColors = { '0':'#000','1':'#0000AA','2':'#00AA00','3':'#00AAAA','4':'#AA0000','5':'#AA00AA','6':'#FFAA00','7':'#AAAAAA','8':'#555555','9':'#5555FF','a':'#55FF55','b':'#55FFFF','c':'#FF5555','d':'#FF55FF','e':'#FFFF55','f':'#FFFFFF' };
+      const legacyMatch = prefix.match(/&([0-9a-fA-F])/);
+      if (legacyMatch) return legacyColors[legacyMatch[1].toLowerCase()] || '#8b5cf6';
+      return '#8b5cf6';
+    }
+
+    function parsePrefixPreview(prefix) {
+      if (!prefix) return '<span style="color:var(--text-muted)">No prefix</span>';
+      // Parse hex colors like <#ff5555>
+      let html = escHtml(prefix);
+      html = html.replace(/&lt;#([0-9a-fA-F]{6})&gt;/g, '<span style="color:#$1">');
+      html = html.replace(/&lt;\/[^&]*&gt;/g, '</span>');
+      // Parse legacy & codes
+      const legacyColors = { '0':'#000','1':'#0000AA','2':'#00AA00','3':'#00AAAA','4':'#AA0000','5':'#AA00AA','6':'#FFAA00','7':'#AAAAAA','8':'#555555','9':'#5555FF','a':'#55FF55','b':'#55FFFF','c':'#FF5555','d':'#FF55FF','e':'#FFFF55','f':'#FFFFFF' };
+      html = html.replace(/&amp;([0-9a-fA-F])/g, (_, code) => {
+        const color = legacyColors[code.toLowerCase()] || '#fff';
+        return `<span style="color:${color}">`;
+      });
+      return html;
+    }
+
+    function escHtml(str) {
+      if (!str) return '';
+      return str.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+    }
+  })();
+
+  // ==================== LICENSE ACCEPTANCE MODULE ====================
+  (function initLicense() {
+    const LICENSE_TEXT = `
+<h2>ModereX Software License Agreement</h2>
+
+<p>This license agreement ("Agreement") governs the use of ModereX software ("Software"). By using this Software, you agree to the terms below.</p>
+
+<h2>1. Grant of License</h2>
+<p>You are granted a non-exclusive, non-transferable license to use the Software for managing Minecraft servers. You may install and use the Software on servers you own or operate.</p>
+
+<h2>2. Restrictions</h2>
+<p>You may not: (a) reverse engineer, decompile, or disassemble the Software; (b) redistribute, sell, lease, or sublicense the Software; (c) remove or alter any proprietary notices or labels; (d) use the Software for any unlawful purpose.</p>
+
+<h2>3. Intellectual Property</h2>
+<p>The Software and all associated intellectual property rights are owned by BlockForge Studio. This Agreement does not transfer ownership of any intellectual property.</p>
+
+<h2>4. Data Collection</h2>
+<p>The Software collects server metrics (player count, version, server ID) for gateway connectivity and functionality purposes. No personal player data is transmitted to external services beyond what is required for core functionality.</p>
+
+<h2>5. Disclaimer of Warranties</h2>
+<p>THE SOFTWARE IS PROVIDED "AS IS" WITHOUT WARRANTY OF ANY KIND. BLOCKFORGE STUDIO DISCLAIMS ALL WARRANTIES, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE.</p>
+
+<h2>6. Limitation of Liability</h2>
+<p>IN NO EVENT SHALL BLOCKFORGE STUDIO BE LIABLE FOR ANY INDIRECT, INCIDENTAL, SPECIAL, OR CONSEQUENTIAL DAMAGES ARISING FROM THE USE OF THE SOFTWARE.</p>
+
+<h2>7. Termination</h2>
+<p>This license is effective until terminated. It will terminate automatically if you fail to comply with any term. Upon termination, you must destroy all copies of the Software.</p>
+
+<h2>8. Modifications</h2>
+<p>BlockForge Studio reserves the right to modify this Agreement at any time. Continued use of the Software after modifications constitutes acceptance of the updated terms.</p>
+
+<p class="license-date">Last Updated: February 2026 &mdash; License Version 1</p>
+    `;
+
+    function showLicenseModal() {
+      let overlay = document.getElementById('licenseOverlay');
+      if (!overlay) {
+        overlay = document.createElement('div');
+        overlay.id = 'licenseOverlay';
+        overlay.className = 'license-overlay';
+        overlay.innerHTML = \`
+          <div class="license-modal">
+            <div class="license-modal-header">
+              <i class="fa-solid fa-scale-balanced"></i>
+              <span>Software License Agreement</span>
+            </div>
+            <div class="license-modal-body">
+              \${LICENSE_TEXT}
+            </div>
+            <div class="license-modal-footer">
+              <button class="license-btn license-btn-decline" id="licenseDeclineBtn">I DO NOT ACCEPT</button>
+              <button class="license-btn license-btn-accept" id="licenseAcceptBtn">I ACCEPT</button>
+            </div>
+          </div>
+        \`;
+        document.body.appendChild(overlay);
+
+        document.getElementById('licenseAcceptBtn').addEventListener('click', () => {
+          const ws = window.MX?.ws;
+          if (ws) ws.send('ACCEPT_LICENSE', {});
+          overlay.classList.remove('show');
+          setTimeout(() => overlay.remove(), 300);
+        });
+
+        document.getElementById('licenseDeclineBtn').addEventListener('click', () => {
+          // Show inaccessible state
+          overlay.querySelector('.license-modal-body').innerHTML = \`
+            <div style="text-align:center;padding:40px 0">
+              <i class="fa-solid fa-ban" style="font-size:3rem;color:#da3633;margin-bottom:16px"></i>
+              <h2 style="border:none;margin:0 0 8px 0">Access Denied</h2>
+              <p>You must accept the license agreement to use the ModereX web panel.</p>
+              <p style="margin-top:16px"><button class="license-btn license-btn-accept" onclick="location.reload()">TRY AGAIN</button></p>
+            </div>
+          \`;
+          overlay.querySelector('.license-modal-footer').style.display = 'none';
+          // Disconnect
+          const ws = window.MX?.ws;
+          if (ws) ws.disconnect();
+        });
+      }
+      overlay.classList.add('show');
+    }
+
+    const ws = window.MX?.ws;
+    if (!ws) return;
+
+    ws.on('LICENSE_STATUS', (data) => {
+      if (!data.accepted) {
+        showLicenseModal();
+      }
+    });
+
+    ws.on('LICENSE_ACCEPTED', () => {
+      // License accepted, nothing more to do
+    });
+
+    // Check license on authentication
+    window.addEventListener('mx:authenticated', () => {
+      setTimeout(() => {
+        const ws = window.MX?.ws;
+        if (ws && ws.isConnected()) {
+          ws.send('CHECK_LICENSE_ACCEPTED', {});
+        }
+      }, 500);
+    });
+  })();
 })();

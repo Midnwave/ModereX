@@ -237,6 +237,7 @@
           <div class="sb-item" data-page="messages"><i class="fa-solid fa-language"></i> Messages</div>
           <div class="sb-item" data-page="actions"><i class="fa-solid fa-sliders"></i> Configuration</div>
           <div class="sb-item" data-page="integrations"><i class="fa-solid fa-plug"></i> Integrations</div>
+          <div class="sb-item" data-page="permissions" id="sbPermissions"><i class="fa-solid fa-shield-halved"></i> Permissions</div>
         </div>
 
         <!-- Developer Section (shown when dev mode enabled) -->
@@ -2857,6 +2858,103 @@
           </div>
         </section>
 
+        <!-- Permissions Page -->
+        <section class="page" id="page-permissions">
+          <div class="page-head">
+            <div class="page-title">
+              <h1>Permissions</h1>
+              <p>Manage ranks, permissions, and player assignments.</p>
+            </div>
+            <div class="page-actions">
+              <button class="btn btn-primary" id="btnCreateRank"><i class="fa-solid fa-plus"></i> Create Rank</button>
+              <button class="btn btn-secondary" id="btnExportLP" style="display:none"><i class="fa-solid fa-file-export"></i> Export to LuckPerms</button>
+            </div>
+          </div>
+
+          <div class="perm-layout">
+            <!-- Left: Rank List -->
+            <div class="perm-rank-list">
+              <div class="panel pad">
+                <h3 style="margin:0 0 12px 0"><i class="fa-solid fa-layer-group"></i> Ranks</h3>
+                <div id="rankListContainer" class="rank-list-items">
+                  <div class="empty-state"><i class="fa-solid fa-spinner fa-spin"></i> Loading ranks...</div>
+                </div>
+              </div>
+
+              <!-- Player Assignment -->
+              <div class="panel pad" style="margin-top:12px">
+                <h3 style="margin:0 0 12px 0"><i class="fa-solid fa-users"></i> Player Assignment</h3>
+                <div class="input-row">
+                  <input type="text" id="playerSearchInput" class="input" placeholder="Search player name..." />
+                </div>
+                <div id="playerSearchResults" class="player-search-results" style="display:none"></div>
+                <div id="playerRankAssignment" style="display:none">
+                  <div class="player-rank-header" id="playerRankHeader"></div>
+                  <div id="playerCurrentRanks"></div>
+                  <div class="input-row" style="margin-top:8px">
+                    <select id="assignRankSelect" class="input"></select>
+                    <button class="btn btn-sm btn-primary" id="btnAssignRank"><i class="fa-solid fa-plus"></i> Assign</button>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Right: Rank Editor -->
+            <div class="perm-rank-editor">
+              <div class="panel pad" id="rankEditorPanel">
+                <div class="empty-state" id="rankEditorEmpty">
+                  <i class="fa-solid fa-hand-pointer" style="font-size:2rem;color:var(--text-muted);margin-bottom:8px"></i>
+                  <p>Select a rank to edit its properties and permissions.</p>
+                </div>
+                <div id="rankEditor" style="display:none">
+                  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
+                    <h3 id="rankEditorTitle" style="margin:0"><i class="fa-solid fa-pen"></i> Edit Rank</h3>
+                    <button class="btn btn-sm btn-danger" id="btnDeleteRank"><i class="fa-solid fa-trash"></i> Delete</button>
+                  </div>
+
+                  <!-- Rank Properties -->
+                  <div class="rank-props">
+                    <div class="form-group">
+                      <label>Display Name</label>
+                      <input type="text" id="rankDisplayName" class="input" placeholder="Display Name" />
+                    </div>
+                    <div class="form-group">
+                      <label>Prefix <span class="hint">(supports hex, MiniMessage, legacy)</span></label>
+                      <input type="text" id="rankPrefix" class="input" placeholder="<#ff5555>[Admin]" />
+                      <div class="prefix-preview" id="prefixPreview"></div>
+                    </div>
+                    <div class="form-group">
+                      <label>Suffix</label>
+                      <input type="text" id="rankSuffix" class="input" placeholder="" />
+                    </div>
+                    <div class="form-row">
+                      <div class="form-group" style="flex:1">
+                        <label>Weight</label>
+                        <input type="number" id="rankWeight" class="input" value="0" />
+                      </div>
+                      <div class="form-group" style="flex:1">
+                        <label>Default Rank</label>
+                        <label class="toggle-switch"><input type="checkbox" id="rankIsDefault"><span class="toggle-slider"></span></label>
+                      </div>
+                    </div>
+                    <div class="form-group">
+                      <label>Inherits From</label>
+                      <div id="rankInheritance" class="rank-inheritance-list"></div>
+                    </div>
+                    <button class="btn btn-primary" id="btnSaveRank" style="width:100%;margin-top:8px"><i class="fa-solid fa-save"></i> Save Changes</button>
+                  </div>
+
+                  <!-- Permissions Section -->
+                  <div style="margin-top:20px">
+                    <h4 style="margin:0 0 12px 0"><i class="fa-solid fa-key"></i> Permissions</h4>
+                    <div id="rankPermissions" class="rank-perm-categories"></div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
         <!-- Developer Tools Page -->
         <section class="page" id="page-devtools">
           <div class="page-head">
@@ -3563,6 +3661,9 @@
     </div>
   </div>
   
+  <!-- Three.js for 3D Replay Viewer -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+
   <!-- Scripts (load in order: utils -> state -> ui -> app -> extensions) -->
   <script src="js/utils.js"></script>
   <script src="js/websocket.js"></script>
@@ -3574,5 +3675,7 @@
   <script src="js/app.js"></script>
   <script src="js/status.js"></script>
   <script src="js/extensions.js"></script>
+  <script src="js/replay3d-terrain.js"></script>
+  <script src="js/replay3d.js"></script>
 </body>
 </html>
