@@ -14,6 +14,109 @@
 
 window.MX_CHANGELOGS = [
   {
+    build: 250,
+    version: "2.0dev-250",
+    date: "2026-02-05",
+    title: "3D Terrain Replay Viewer",
+    sections: [
+      {
+        type: "new",
+        title: "New Features",
+        items: [
+          "**3D Replay Viewer** - View replay recordings in a full 3D environment with actual Minecraft terrain rendered in the browser",
+          "**Chunk Terrain Capture** - Automatically captures surrounding terrain (7x7 chunk area) when a replay recording starts",
+          "**Greedy Mesh Rendering** - Optimized voxel rendering engine with 150+ block types, face culling, and face-based ambient shading",
+          "**Free Camera Mode** - WASD + mouse controls for FPS-style free camera navigation through the terrain",
+          "**Follow Camera Mode** - Camera automatically tracks the recorded player during playback",
+          "**Block Change Replay** - Block breaks and placements are replayed at the correct timestamps on the terrain"
+        ]
+      },
+      {
+        type: "improved",
+        title: "Improvements",
+        items: [
+          "**Replay Viewer Modal** - Fullscreen 3D viewer with timeline scrubbing, play/pause, skip, and 0.25x-4x speed control",
+          "**Player Models** - Animated Minecraft player models with walk cycles, sneaking, and name tags",
+          "**Orbit Camera** - Drag to rotate, scroll to zoom orbit camera as default viewing mode",
+          "**Terrain Fallback** - Older replays without terrain data gracefully fall back to a flat ground plane"
+        ]
+      },
+      {
+        type: "technical",
+        title: "Technical Changes",
+        items: [
+          "**MXCHUNK Binary Format** - Custom palette-based chunk serialization with GZIP compression (~200KB-1MB for 49 chunks)",
+          "**Three.js Integration** - WebGL-based 3D rendering loaded via CDN for the replay viewer",
+          "**Block Log Transmission** - Block change logs now included in replay data responses for terrain updates"
+        ]
+      },
+      {
+        type: "config",
+        title: "Configuration Options",
+        items: [
+          "**replay-chunk-capture-enabled** - Enable/disable terrain capture on replay start (default: true)",
+          "**replay-chunk-capture-radius** - Chunk capture radius 0-6, where 3 = 7x7 chunks (default: 3)"
+        ]
+      }
+    ]
+  },
+  {
+    build: 249,
+    version: "2.0dev-249",
+    date: "2026-02-05",
+    title: "Security Hardening & Permission System",
+    sections: [
+      {
+        type: "new",
+        title: "New Features",
+        items: [
+          "**Built-in Permission System** - Full rank management system with inheritance, drag-reorder, and web panel tab",
+          "**Default Ranks** - Helper, Moderator, Admin, Developer, and Owner ranks created on first startup",
+          "**Permissions Tab** - Visual rank editor with permission toggles, player assignment, and LuckPerms export",
+          "**License Acceptance** - First-time users must accept the software license before accessing the panel",
+          "**Auth CAPTCHA Challenge** - Math challenge after 3 failed login attempts to prevent brute force",
+          "**Gateway Rate Limiting** - Max 3 browser connections per IP, 100 messages/sec per connection"
+        ]
+      },
+      {
+        type: "improved",
+        title: "Improvements",
+        items: [
+          "**Gateway Authentication** - Auto-generated shared secret prevents server impersonation",
+          "**Token Encryption** - Permanent tokens are now AES-GCM encrypted in localStorage",
+          "**Session Storage** - Session tokens moved to sessionStorage (cleared when tab closes)",
+          "**Token Expiration** - Permanent tokens now expire after 90 days",
+          "**Exponential Backoff** - Progressive delay between failed auth attempts"
+        ]
+      },
+      {
+        type: "fixed",
+        title: "Bug Fixes",
+        items: [
+          "**Disconnect Loop** - Fixed web panel constantly disconnecting/reconnecting on direct IP:port connections",
+          "**Connect Code RNG** - Fixed connect codes using weak Random instead of SecureRandom",
+          "**Gateway Client IDs** - Fixed browser client IDs using Math.random instead of crypto.randomBytes"
+        ]
+      },
+      {
+        type: "permissions",
+        title: "New Permissions",
+        items: [
+          "**moderex.admin.permissions** - Required to manage ranks and permissions via web panel"
+        ]
+      },
+      {
+        type: "technical",
+        title: "Technical Changes",
+        items: [
+          "**Permission Fallback** - hasViewPermission now uses built-in permission system instead of returning true when LuckPerms is unavailable",
+          "**Gateway Secret DB** - Server secrets stored as SHA-256 hashes in gateway SQLite database",
+          "**New DB Tables** - moderex_ranks, moderex_rank_permissions, moderex_rank_inheritance, moderex_player_ranks, moderex_license_acceptance"
+        ]
+      }
+    ]
+  },
+  {
     build: 248,
     version: "2.0dev-248",
     date: "2026-02-05",
