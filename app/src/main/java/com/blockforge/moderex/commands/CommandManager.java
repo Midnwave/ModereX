@@ -225,6 +225,12 @@ public class CommandManager {
 
         registerSpigotCommand("replay", new ReplayCommand(plugin));
 
+        // Staff utility commands
+        registerSpigotCommand("fly", new FlyCommand(plugin));
+        registerSpigotCommand("broadcast", new BroadcastCommand(plugin));
+        registerSpigotCommand("invsee", new InvseeCommand(plugin));
+        registerSpigotCommand("echest", new EchestCommand(plugin));
+
         registerSpigotCommand("mban", new BanCommand(plugin));
         registerSpigotCommand("munban", new UnbanCommand(plugin));
         registerSpigotCommand("mmute", new MuteCommand(plugin));

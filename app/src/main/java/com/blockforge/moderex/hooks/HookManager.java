@@ -14,6 +14,7 @@ public class HookManager {
     private FloodgateHook floodgateHook;
     private CitizensHook citizensHook;
     private SparkHook sparkHook;
+    private SimpleVoiceChatHook voiceChatHook;
     private AnticheatManager anticheatManager;
     private String detectedAnticheat;
 
@@ -114,6 +115,21 @@ public class HookManager {
             } catch (Exception e) {
                 plugin.logDebug("[Spark] Exception during hook: " + e.getMessage());
                 sparkHook = null;
+            }
+        }
+
+        // Hook into Simple Voice Chat
+        if (isPluginEnabled("voicechat")) {
+            try {
+                voiceChatHook = new SimpleVoiceChatHook(plugin);
+                if (voiceChatHook.isAvailable()) {
+                    plugin.getLogger().info("Hooked into Simple Voice Chat " + voiceChatHook.getVersion());
+                } else {
+                    voiceChatHook = null;
+                }
+            } catch (Exception e) {
+                plugin.logDebug("[VoiceChat] Exception during hook: " + e.getMessage());
+                voiceChatHook = null;
             }
         }
 
@@ -322,6 +338,18 @@ public class HookManager {
 
     public SparkHook getSparkHook() {
         return sparkHook;
+    }
+
+    public boolean isVoiceChatAvailable() {
+        return voiceChatHook != null && voiceChatHook.isAvailable();
+    }
+
+    public String getVoiceChatVersion() {
+        return voiceChatHook != null ? voiceChatHook.getVersion() : null;
+    }
+
+    public SimpleVoiceChatHook getVoiceChatHook() {
+        return voiceChatHook;
     }
 
     public void shutdown() {

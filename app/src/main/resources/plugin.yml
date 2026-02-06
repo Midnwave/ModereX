@@ -30,6 +30,7 @@ softdepend:
   - CoreProtect
   - Geyser-Spigot
   - floodgate
+  - voicechat
 
 commands:
   # Main Command
@@ -309,6 +310,31 @@ commands:
     aliases: [serverrules]
     permission: moderex.rules
 
+  # Staff Utility Commands
+  fly:
+    description: Toggle flight mode for yourself or another player
+    usage: /<command> [player]
+    aliases: [mxfly, flight]
+    permission: moderex.command.fly
+
+  broadcast:
+    description: Broadcast a message to all players
+    usage: /<command> <message>
+    aliases: [bc, mxbc, announce]
+    permission: moderex.command.broadcast
+
+  invsee:
+    description: View another player's inventory
+    usage: /<command> <player>
+    aliases: [mxinvsee, openinv]
+    permission: moderex.command.invsee
+
+  echest:
+    description: View a player's ender chest
+    usage: /<command> [player]
+    aliases: [enderchest, endersee, mxechest]
+    permission: moderex.command.echest
+
   # Replay system commands
   replay:
     description: Replay system - record and playback player actions
@@ -429,6 +455,12 @@ permissions:
       moderex.command.lastuuid: true
       moderex.command.staffchat: true
       moderex.command.watchlist: true
+      moderex.command.fly: true
+      moderex.command.fly.others: true
+      moderex.command.broadcast: true
+      moderex.command.invsee: true
+      moderex.command.echest: true
+      moderex.command.echest.others: true
       moderex.dupeip: true
       moderex.ipreport: true
       moderex.geoip: true
@@ -979,6 +1011,42 @@ permissions:
     children:
       moderex.watchlist.add: true
       moderex.watchlist.remove: true
+
+  moderex.command.fly:
+    description: Toggle flight mode
+    default: op
+
+  moderex.command.fly.others:
+    description: Toggle flight for other players
+    default: op
+
+  moderex.command.broadcast:
+    description: Send server broadcast
+    default: op
+
+  moderex.command.invsee:
+    description: View player inventory
+    default: op
+
+  moderex.command.echest:
+    description: View player ender chest
+    default: op
+
+  moderex.command.echest.others:
+    description: View other player ender chests
+    default: op
+
+  moderex.exempt.invsee:
+    description: Exempt from /invsee
+    default: false
+
+  moderex.exempt.echest:
+    description: Exempt from /echest
+    default: false
+
+  moderex.exempt.bypass:
+    description: Bypass exemptions
+    default: op
 
   # ==================== WATCHLIST PERMISSIONS ====================
   moderex.watchlist.add:
