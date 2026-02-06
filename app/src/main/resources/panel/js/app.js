@@ -8924,6 +8924,12 @@
       }
     });
 
+    // Handle server coming back online via gateway
+    ws.on('server_online', () => {
+      hideServerOffline();
+      hideDisconnect();
+    });
+
     // Handle reconnect attempt updates (for status display)
     ws.on('reconnect_attempt', (data) => {
       const seconds = Math.ceil(data.delay / 1000);
@@ -10102,6 +10108,9 @@
   let lastPongTime = Date.now();
 
   function showDisconnect(serverName) {
+    // In gateway mode, server offline is handled by auth.js — don't show disconnect overlay
+    if (window.MX?.ws?.isGatewayMode?.()) return;
+
     serverNameForDisconnect = serverName || 'Server';
 
     // Clear any existing timeout

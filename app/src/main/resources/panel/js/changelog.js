@@ -14,6 +14,39 @@
 
 window.MX_CHANGELOGS = [
   {
+    build: 251,
+    version: "2.0dev-251",
+    date: "2026-02-05",
+    title: "Disconnect Handling & Error Pages",
+    sections: [
+      {
+        type: "new",
+        title: "New Features",
+        items: [
+          "**Cloudflare-Style Error Pages** - Server Not Found (404) and Gateway Error (502) now show professional full-page error screens with connection chain visualization",
+          "**Server Online Detection** - Gateway now broadcasts when a Minecraft server reconnects, allowing the panel to auto-detect and re-authenticate"
+        ]
+      },
+      {
+        type: "improved",
+        title: "Improvements",
+        items: [
+          "**Server Offline Overlay** - Redesigned with pulsing indicator instead of spinner, no more 'Reconnecting...' messages during silent wait",
+          "**Auto Re-authentication** - When a server comes back online, the panel automatically re-authenticates using saved tokens",
+          "**Gateway Mode Disconnect** - Server offline handled separately from direct mode disconnects for cleaner UX",
+          "**Silent Retry** - Fixed 5-second retry interval when gateway connection drops during server offline state"
+        ]
+      },
+      {
+        type: "fixed",
+        title: "Bug Fixes",
+        items: [
+          "**CSS Variable Bug** - Fixed undefined --bg-card variable in server offline overlay, now uses --surface"
+        ]
+      }
+    ]
+  },
+  {
     build: 250,
     version: "2.0dev-250",
     date: "2026-02-05",

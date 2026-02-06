@@ -6520,7 +6520,7 @@ textarea.input {
 }
 
 .serverOfflineBox {
-  background: var(--bg-card);
+  background: var(--surface);
   border: 1px solid var(--border);
   border-radius: 16px;
   padding: 48px;
@@ -6575,10 +6575,218 @@ textarea.input {
   font-size: 13px;
 }
 
-.offline-status .spinner.small {
-  width: 16px;
-  height: 16px;
-  border-width: 2px;
+.offline-pulse-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--warn);
+  animation: offlinePulse 2s ease-in-out infinite;
+  flex-shrink: 0;
+}
+
+@keyframes offlinePulse {
+  0%, 100% { opacity: 0.4; transform: scale(0.9); }
+  50% { opacity: 1; transform: scale(1.1); }
+}
+
+/* ===== CLOUDFLARE-STYLE ERROR PAGES ===== */
+.errorPage {
+  position: fixed;
+  inset: 0;
+  background: var(--bg0);
+  z-index: 10001;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  overflow-y: auto;
+}
+
+.errorPage.show {
+  display: flex;
+  animation: fadeIn 0.3s ease;
+}
+
+.errorPageContainer {
+  width: 100%;
+  max-width: 580px;
+  margin: 40px 20px;
+}
+
+/* Connection chain header */
+.errorPageHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 18px 24px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px 12px 0 0;
+  gap: 0;
+}
+
+.errorPageHeaderSection {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  color: var(--text-secondary);
+  white-space: nowrap;
+  flex-shrink: 0;
+  z-index: 1;
+}
+
+.errorPageLine {
+  flex: 1;
+  height: 2px;
+  background: var(--border);
+  min-width: 20px;
+}
+
+.errorPageLine.dashed {
+  background: none;
+  border-top: 2px dashed var(--border);
+  height: 0;
+}
+
+.errorPageDot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.errorPageDot.green {
+  background: var(--ok);
+  box-shadow: 0 0 8px rgba(var(--ok-rgb), 0.5);
+}
+
+.errorPageDot.red {
+  background: var(--bad);
+  box-shadow: 0 0 8px rgba(var(--bad-rgb), 0.5);
+}
+
+.errorPageDot.gray {
+  background: var(--muted2);
+}
+
+.errorPageDot.amber {
+  background: var(--warn);
+  box-shadow: 0 0 8px rgba(var(--warn-rgb), 0.5);
+}
+
+/* Error page body */
+.errorPageBody {
+  padding: 48px 40px;
+  background: linear-gradient(180deg, var(--bg2), var(--bg1));
+  border-left: 1px solid var(--border);
+  border-right: 1px solid var(--border);
+  text-align: center;
+}
+
+.errorPageCode {
+  font-size: 72px;
+  font-weight: 800;
+  color: var(--bad);
+  line-height: 1;
+  margin-bottom: 8px;
+  letter-spacing: -2px;
+}
+
+.errorPageBody h1 {
+  font-size: 24px;
+  font-weight: 700;
+  color: var(--text);
+  margin: 0 0 12px 0;
+}
+
+.errorPageBody > p {
+  font-size: 14px;
+  color: var(--text-secondary);
+  line-height: 1.6;
+  margin: 0 0 24px 0;
+}
+
+.errorPageDetails {
+  text-align: left;
+  padding: 20px;
+  background: rgba(0, 0, 0, 0.3);
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+  margin-bottom: 32px;
+}
+
+.errorPageDetails p {
+  font-size: 13px;
+  color: var(--text-secondary);
+  line-height: 1.5;
+  margin: 0 0 8px 0;
+}
+
+.errorPageDetails p:last-child {
+  margin-bottom: 0;
+}
+
+.errorPageDetails strong {
+  color: var(--text);
+}
+
+.errorPageDetails code {
+  background: rgba(var(--primary-rgb), 0.15);
+  color: var(--primary-light);
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-size: 12px;
+}
+
+.errorPageActions {
+  display: flex;
+  gap: 12px;
+  justify-content: center;
+}
+
+/* Error page footer */
+.errorPageFooter {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 16px 24px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-top: none;
+  border-radius: 0 0 12px 12px;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.errorPageFooterDot {
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: var(--muted2);
+}
+
+/* Error page responsive */
+@media (max-width: 640px) {
+  .errorPageContainer {
+    margin: 20px 12px;
+  }
+
+  .errorPageBody {
+    padding: 32px 24px;
+  }
+
+  .errorPageCode {
+    font-size: 56px;
+  }
+
+  .errorPageHeaderSection span:not(.errorPageDot) {
+    font-size: 10px;
+  }
+
+  .errorPageActions {
+    flex-direction: column;
+  }
 }
 
 /* ===== RESPONSIVE BREAKPOINTS ===== */

@@ -111,7 +111,7 @@
     </div>
   </div>
 
-  <!-- Server Offline Overlay (non-dismissable) -->
+  <!-- Server Offline Overlay (non-dismissable, gateway mode) -->
   <div class="serverOfflineOverlay" id="serverOfflineOverlay">
     <div class="serverOfflineBox">
       <div class="offlineIcon">
@@ -119,10 +119,90 @@
       </div>
       <h2>Server Offline</h2>
       <p>The Minecraft server is currently offline or unreachable.</p>
-      <p class="offline-hint">Attempting to reconnect automatically in the background...</p>
+      <p class="offline-hint">The panel will reconnect automatically when the server comes back online.</p>
       <div class="offline-status">
-        <span class="spinner small"></span>
-        <span id="offlineReconnectStatus">Reconnecting...</span>
+        <span class="offline-pulse-dot"></span>
+        <span id="offlineReconnectStatus">Waiting for server...</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Server Not Found Page (gateway mode - invalid server ID) -->
+  <div class="errorPage serverNotFoundPage" id="serverNotFoundPage">
+    <div class="errorPageContainer">
+      <div class="errorPageHeader">
+        <div class="errorPageHeaderSection">
+          <span class="errorPageDot green"></span>
+          <span>Your Browser</span>
+        </div>
+        <div class="errorPageLine"></div>
+        <div class="errorPageHeaderSection">
+          <span class="errorPageDot green"></span>
+          <span>ModereX Gateway</span>
+        </div>
+        <div class="errorPageLine dashed"></div>
+        <div class="errorPageHeaderSection">
+          <span class="errorPageDot red"></span>
+          <span>Server</span>
+        </div>
+      </div>
+      <div class="errorPageBody">
+        <div class="errorPageCode">404</div>
+        <h1>Server Not Found</h1>
+        <p>The server ID in the URL does not match any server connected to the ModereX gateway.</p>
+        <div class="errorPageDetails">
+          <p><strong>What happened?</strong></p>
+          <p>The server ID <code id="notFoundServerId"></code> is either invalid or the server has never connected to the gateway.</p>
+        </div>
+        <div class="errorPageActions">
+          <a href="https://moderex.net" class="btn primary"><i class="fa-solid fa-house"></i> ModereX Home</a>
+          <button class="btn ghost" onclick="location.reload()"><i class="fa-solid fa-rotate-right"></i> Try Again</button>
+        </div>
+      </div>
+      <div class="errorPageFooter">
+        <span>ModereX Gateway</span>
+        <span class="errorPageFooterDot"></span>
+        <span id="notFoundTimestamp"></span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Gateway Error Page (infrastructure issue) -->
+  <div class="errorPage gatewayErrorPage" id="gatewayErrorPage">
+    <div class="errorPageContainer">
+      <div class="errorPageHeader">
+        <div class="errorPageHeaderSection">
+          <span class="errorPageDot green"></span>
+          <span>Your Browser</span>
+        </div>
+        <div class="errorPageLine"></div>
+        <div class="errorPageHeaderSection">
+          <span class="errorPageDot red"></span>
+          <span>ModereX Gateway</span>
+        </div>
+        <div class="errorPageLine dashed"></div>
+        <div class="errorPageHeaderSection">
+          <span class="errorPageDot gray"></span>
+          <span>Server</span>
+        </div>
+      </div>
+      <div class="errorPageBody">
+        <div class="errorPageCode">502</div>
+        <h1 id="gatewayErrorTitle">Gateway Error</h1>
+        <p id="gatewayErrorMessage">The ModereX gateway encountered an error while processing your request.</p>
+        <div class="errorPageDetails">
+          <p><strong>What happened?</strong></p>
+          <p>The ModereX gateway infrastructure is experiencing issues. This is usually temporary.</p>
+        </div>
+        <div class="errorPageActions">
+          <button class="btn primary" onclick="location.reload()"><i class="fa-solid fa-rotate-right"></i> Try Again</button>
+          <a href="https://moderex.net" class="btn ghost"><i class="fa-solid fa-house"></i> ModereX Home</a>
+        </div>
+      </div>
+      <div class="errorPageFooter">
+        <span>ModereX Gateway</span>
+        <span class="errorPageFooterDot"></span>
+        <span id="gatewayErrorTimestamp"></span>
       </div>
     </div>
   </div>
