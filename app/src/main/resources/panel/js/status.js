@@ -106,6 +106,21 @@
       updateHealthScore(healthScore);
     }
 
+    // Update Heap Memory Graph
+    if (data.memoryHistory) {
+      drawHeapGraph(data.memoryHistory);
+    }
+
+    // Update GC Activity Graph
+    if (data.gcHistory) {
+      drawGcGraph(data.gcHistory);
+    }
+
+    // Update alert tier badge
+    if (data.alertTier) {
+      updateAlertTier(data.alertTier);
+    }
+
     // Update Heat Map (if on resources tab)
     if (data.laggyChunks && document.getElementById('tab-resources')?.classList.contains('active')) {
       drawChunkHeatMap(data.laggyChunks);
@@ -1143,6 +1158,190 @@
         </div>
       `;
     }).join('');
+  }
+
+  // ====== HEAP MEMORY GRAPH ======
+
+  function drawHeapGraph(memoryHistory) {
+    const canvas = document.getElementById('heapGraph');
+    if (!canvas || !memoryHistory || memoryHistory.length < 2) return;
+
+    const ctx = canvas.getContext('2d');
+    const container = canvas.parentElement;
+    canvas.width = container.offsetWidth;
+    canvas.height = 200;
+
+    const width = canvas.width;
+    const height = canvas.height;
+    const padding = { top: 10, right: 10, bottom: 25, left: 45 };
+    const graphW = width - padding.left - padding.right;
+    const graphH = height - padding.top - padding.bottom;
+
+    // Clear
+    ctx.clearRect(0, 0, width, height);
+
+    const maxMb = memoryHistory[0].max || 1;
+    const points = memoryHistory.length;
+
+    // Background
+    ctx.fillStyle = 'rgba(0,0,0,0.2)';
+    ctx.fillRect(padding.left, padding.top, graphW, graphH);
+
+    // Grid lines
+    ctx.strokeStyle = 'rgba(255,255,255,0.08)';
+    ctx.lineWidth = 1;
+    for (let i = 0; i <= 4; i++) {
+      const y = padding.top + (graphH / 4) * i;
+      ctx.beginPath();
+      ctx.moveTo(padding.left, y);
+      ctx.lineTo(width - padding.right, y);
+      ctx.stroke();
+
+      ctx.fillStyle = 'rgba(255,255,255,0.4)';
+      ctx.font = '10px "Plus Jakarta Sans", sans-serif';
+      ctx.textAlign = 'right';
+      ctx.fillText(Math.round(maxMb * (1 - i / 4)) + 'MB', padding.left - 5, y + 4);
+    }
+
+    // Draw old gen area fill
+    ctx.beginPath();
+    ctx.moveTo(padding.left, padding.top + graphH);
+    for (let i = 0; i < points; i++) {
+      const x = padding.left + (i / (points - 1)) * graphW;
+      const y = padding.top + graphH - (memoryHistory[i].oldGen / maxMb) * graphH;
+      ctx.lineTo(x, y);
+    }
+    ctx.lineTo(padding.left + graphW, padding.top + graphH);
+    ctx.closePath();
+    ctx.fillStyle = 'rgba(231, 76, 60, 0.2)';
+    ctx.fill();
+
+    // Draw old gen line
+    ctx.beginPath();
+    for (let i = 0; i < points; i++) {
+      const x = padding.left + (i / (points - 1)) * graphW;
+      const y = padding.top + graphH - (memoryHistory[i].oldGen / maxMb) * graphH;
+      i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+    }
+    ctx.strokeStyle = '#e74c3c';
+    ctx.lineWidth = 1.5;
+    ctx.stroke();
+
+    // Draw used memory area fill
+    ctx.beginPath();
+    ctx.moveTo(padding.left, padding.top + graphH);
+    for (let i = 0; i < points; i++) {
+      const x = padding.left + (i / (points - 1)) * graphW;
+      const y = padding.top + graphH - (memoryHistory[i].used / maxMb) * graphH;
+      ctx.lineTo(x, y);
+    }
+    ctx.lineTo(padding.left + graphW, padding.top + graphH);
+    ctx.closePath();
+    ctx.fillStyle = 'rgba(var(--primary-rgb), 0.15)';
+    ctx.fill();
+
+    // Draw used memory line
+    ctx.beginPath();
+    for (let i = 0; i < points; i++) {
+      const x = padding.left + (i / (points - 1)) * graphW;
+      const y = padding.top + graphH - (memoryHistory[i].used / maxMb) * graphH;
+      i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+    }
+    ctx.strokeStyle = 'rgb(var(--primary-rgb))';
+    ctx.lineWidth = 2;
+    ctx.stroke();
+
+    // Current value label
+    const last = memoryHistory[memoryHistory.length - 1];
+    ctx.fillStyle = 'rgba(255,255,255,0.6)';
+    ctx.font = '10px "Plus Jakarta Sans", sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText(last.used + '/' + last.max + ' MB', width / 2, height - 5);
+  }
+
+  // ====== GC ACTIVITY GRAPH ======
+
+  function drawGcGraph(gcHistory) {
+    const canvas = document.getElementById('gcGraph');
+    if (!canvas || !gcHistory || gcHistory.length < 2) return;
+
+    const ctx = canvas.getContext('2d');
+    const container = canvas.parentElement;
+    canvas.width = container.offsetWidth;
+    canvas.height = 200;
+
+    const width = canvas.width;
+    const height = canvas.height;
+    const padding = { top: 10, right: 10, bottom: 25, left: 45 };
+    const graphW = width - padding.left - padding.right;
+    const graphH = height - padding.top - padding.bottom;
+
+    // Clear
+    ctx.clearRect(0, 0, width, height);
+
+    const points = gcHistory.length;
+    const maxPause = Math.max(10, ...gcHistory.map(g => g.pauseMs));
+
+    // Background
+    ctx.fillStyle = 'rgba(0,0,0,0.2)';
+    ctx.fillRect(padding.left, padding.top, graphW, graphH);
+
+    // Grid lines
+    ctx.strokeStyle = 'rgba(255,255,255,0.08)';
+    ctx.lineWidth = 1;
+    for (let i = 0; i <= 4; i++) {
+      const y = padding.top + (graphH / 4) * i;
+      ctx.beginPath();
+      ctx.moveTo(padding.left, y);
+      ctx.lineTo(width - padding.right, y);
+      ctx.stroke();
+
+      ctx.fillStyle = 'rgba(255,255,255,0.4)';
+      ctx.font = '10px "Plus Jakarta Sans", sans-serif';
+      ctx.textAlign = 'right';
+      ctx.fillText(Math.round(maxPause * (1 - i / 4)) + 'ms', padding.left - 5, y + 4);
+    }
+
+    // Draw pause time bars
+    const barWidth = Math.max(2, graphW / points - 1);
+    for (let i = 0; i < points; i++) {
+      const x = padding.left + (i / (points - 1)) * graphW - barWidth / 2;
+      const barH = (gcHistory[i].pauseMs / maxPause) * graphH;
+      const y = padding.top + graphH - barH;
+
+      // Color based on pause time severity
+      if (gcHistory[i].pauseMs > 50) {
+        ctx.fillStyle = 'rgba(231, 76, 60, 0.8)';
+      } else if (gcHistory[i].pauseMs > 20) {
+        ctx.fillStyle = 'rgba(245, 158, 11, 0.8)';
+      } else {
+        ctx.fillStyle = 'rgba(52, 152, 219, 0.6)';
+      }
+      ctx.fillRect(x, y, barWidth, barH);
+    }
+
+    // Total collections label
+    const last = gcHistory[gcHistory.length - 1];
+    ctx.fillStyle = 'rgba(255,255,255,0.6)';
+    ctx.font = '10px "Plus Jakarta Sans", sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText('Total: ' + last.count + ' collections | ' + last.timeMs + 'ms total pause', width / 2, height - 5);
+  }
+
+  // ====== ALERT TIER BADGE ======
+
+  function updateAlertTier(tier) {
+    const badge = document.getElementById('alertTierBadge');
+    if (!badge) return;
+
+    if (tier === 'NONE') {
+      badge.style.display = 'none';
+    } else {
+      badge.style.display = 'inline-flex';
+      const cls = tier === 'CRITICAL' ? 'bad' : tier === 'WARNING' ? 'warn' : 'gray';
+      badge.className = 'badge ' + cls;
+      badge.textContent = tier;
+    }
   }
 
   registerHandlers();

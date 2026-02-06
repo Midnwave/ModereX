@@ -982,7 +982,11 @@
       }
       ui.renderRules();
     }
-    if (page === 'cmdblacklist') renderCmdBlacklist();
+    if (page === 'cmdblacklist') {
+      const ws = window.MX?.ws;
+      if (ws && ws.isConnected()) ws.send('GET_CMD_BLACKLIST_ENTRIES');
+      renderCmdBlacklist();
+    }
     if (page === 'anticheat') ui.renderAnticheat();
     if (page === 'templates') ui.renderTemplates();
     if (page === 'messages') ui.renderMessages();
@@ -2269,14 +2273,15 @@
     } else {
       dom().drawerActivePun.innerHTML = active.length ? active.map(x => {
         const badgeClass = x.type === 'BAN' ? 'red' : x.type === 'MUTE' ? 'yellow' : x.type === 'KICK' ? 'purple' : 'blue';
-        const canRevokeType = x.type !== 'KICK' && canRevokePunishment(x.type);
+        const xExpired = x.expiresAt && x.expiresAt !== -1 && x.expiresAt < Date.now();
+        const canRevokeType = x.type !== 'KICK' && !xExpired && canRevokePunishment(x.type);
         const canViewDetails = hasPermission('moderex.command.viewpunishment');
         return `
           <div class="drawer-row" style="cursor:${canViewDetails ? 'pointer' : 'default'}" ${canViewDetails ? `onclick="viewPunishmentDetails('${x.id}')"` : ''}>
-            <div class="meta"><b>${escapeHtml(x.type)} | ${escapeHtml(x.duration || 'instant')}</b><small>${escapeHtml(truncateText(x.reason || 'No reason', 40))}<br>Case: <span style="font-family:var(--font-mono)">${escapeHtml(x.id)}</span> | by ${escapeHtml(x.staff)}</small></div>
+            <div class="meta"><b>${escapeHtml(x.type)} | ${escapeHtml(x.duration || 'instant')}</b><small>${escapeHtml(truncateText(x.reason || 'No reason', 40))}<br>Case: <span style="font-family:var(--font-mono)">${escapeHtml(x.id)}</span> | by ${escapeHtml(x.staff)}${xExpired ? ' | <span style="color:var(--warn)">Expired</span>' : ''}</small></div>
             <div class="drawer-actions">
-              <span class="badge ${badgeClass}"><i class="fa-solid fa-file-lines"></i></span>
-              ${canRevokeType ? `<button class="mini bad" onclick="event.stopPropagation(); revokePunishmentConfirm('${x.id}')"><i class="fa-solid fa-xmark"></i></button>` : x.type !== 'KICK' ? `<span class="badge gray" title="No revoke permission"><i class="fa-solid fa-lock"></i></span>` : ''}
+              <span class="badge ${xExpired ? 'orange' : badgeClass}"><i class="fa-solid fa-${xExpired ? 'clock' : 'file-lines'}"></i></span>
+              ${canRevokeType ? `<button class="mini bad" onclick="event.stopPropagation(); revokePunishmentConfirm('${x.id}')"><i class="fa-solid fa-xmark"></i></button>` : x.type !== 'KICK' && !xExpired ? `<span class="badge gray" title="No revoke permission"><i class="fa-solid fa-lock"></i></span>` : ''}
             </div>
           </div>
         `;
@@ -2447,10 +2452,7 @@
     dom().punishTypeSelect.value = state.pendingPunishType;
     updatePunishTitle(dom().punishTitle, state.pendingPunishType, state.selectedPlayerId);
 
-    const tplOptions = ['<option value="none">(none)</option>'].concat(
-      state.templates.filter(t => t.id !== 'none' && canIssuePunishment(t.type)).map(t => `<option value="${t.id}">${escapeHtml(t.name)}</option>`)
-    );
-    dom().punishTemplate.innerHTML = tplOptions.join('');
+    updateTemplateDropdown(dom().punishTemplate, state.pendingPunishType);
     dom().punishTemplate.value = 'none';
     applyTemplateToPunish('none');
 
@@ -2461,7 +2463,38 @@
     state.pendingPunishType = type;
     if (dom().punishTypeSelect) dom().punishTypeSelect.value = type;
     updatePunishTitle(dom().punishTitle, state.pendingPunishType, state.selectedPlayerId);
+    // Re-filter template dropdown by selected type
+    updateTemplateDropdown(dom().punishTemplate, type);
   };
+
+  /**
+   * Update template dropdown, filtering by punishment type and sorting favorites first.
+   */
+  function updateTemplateDropdown(selectEl, filterType) {
+    if (!selectEl) return;
+    const current = selectEl.value;
+    let templates = state.templates.filter(t => t.id !== 'none' && canIssuePunishment(t.type));
+    // Filter by type if specified
+    if (filterType) {
+      templates = templates.filter(t => t.type === filterType);
+    }
+    // Sort: favorites first, then by name
+    templates.sort((a, b) => {
+      if (a.favorite && !b.favorite) return -1;
+      if (!a.favorite && b.favorite) return 1;
+      return (a.name || '').localeCompare(b.name || '');
+    });
+    const options = ['<option value="none">(none)</option>'].concat(
+      templates.map(t => `<option value="${t.id}">${t.favorite ? '\u2605 ' : ''}${escapeHtml(t.name)}</option>`)
+    );
+    selectEl.innerHTML = options.join('');
+    // Restore selection if still valid
+    if (templates.some(t => t.id === current)) {
+      selectEl.value = current;
+    } else {
+      selectEl.value = 'none';
+    }
+  }
 
   window.openPunishFromList = function() {
     openPunishCreateModal();
@@ -3864,19 +3897,38 @@
           </div>`;
         } else if (evidence.type === 'FILE') {
           const fileType = evidence.fileType || '';
-          const isVideo = fileType.startsWith('VIDEO') || ['MP4', 'MKV', 'MOV'].includes(fileType);
-          const isImage = fileType.startsWith('IMAGE') || ['PNG', 'JPG', 'JPEG'].includes(fileType);
+          const fileMissing = evidence.fileMissing === true;
+          // Use backend boolean flags with string parsing fallback
+          const isVideo = evidence.isVideo === true || fileType.startsWith('VIDEO') || ['MP4', 'MKV', 'MOV'].includes(fileType);
+          const isImage = evidence.isImage === true || fileType.startsWith('IMAGE') || ['PNG', 'JPG', 'JPEG'].includes(fileType);
           const fileId = evidence.evidenceId || evidence.id;
+          const fileSize = evidence.fileSize ? (evidence.fileSize < 1024*1024 ? (evidence.fileSize/1024).toFixed(1) + ' KB' : (evidence.fileSize/(1024*1024)).toFixed(1) + ' MB') : '';
+
           evidenceHtml += `<div class="evidence-item">
             <div class="evidence-item-header">
-              <span class="badge ${isVideo ? 'purple' : 'blue'}"><i class="fa-solid fa-${isVideo ? 'video' : 'image'}"></i> ${isVideo ? 'Video' : 'Image'}</span>
-              <span class="evidence-item-time">${escapeHtml(evidence.fileName || 'file')}</span>
+              <span class="badge ${fileMissing ? 'gray' : isVideo ? 'purple' : 'blue'}">
+                <i class="fa-solid fa-${fileMissing ? 'file-circle-exclamation' : isVideo ? 'video' : 'image'}"></i>
+                ${fileMissing ? 'Missing File' : isVideo ? 'Video' : 'Image'}
+              </span>
+              <span class="evidence-item-time">${escapeHtml(evidence.fileName || 'file')}${fileSize ? ' (' + fileSize + ')' : ''}</span>
             </div>
             <div class="evidence-item-content" style="margin-top:8px">
-              ${isImage ? `<img src="/api/evidence/${fileId}" alt="Evidence" class="evidence-image" onclick="openImageLightbox('/api/evidence/${fileId}')" style="max-width:100%;max-height:200px;border-radius:var(--radius-sm);cursor:pointer">` : ''}
-              ${isVideo ? `<div class="evidence-video-preview" onclick="openVideoPlayer('/api/evidence/${fileId}')" style="cursor:pointer;padding:20px;background:rgba(0,0,0,0.3);border-radius:var(--radius-sm);text-align:center">
-                <i class="fa-solid fa-play-circle" style="font-size:32px;color:var(--primary-light)"></i>
-                <div style="margin-top:8px;font-size:12px;color:var(--muted)">Click to play video</div>
+              ${fileMissing ? `<div style="padding:16px;background:rgba(239,68,68,0.1);border:1px solid rgba(239,68,68,0.2);border-radius:var(--radius-sm);text-align:center">
+                <i class="fa-solid fa-file-circle-exclamation" style="font-size:24px;color:var(--bad)"></i>
+                <div style="margin-top:8px;font-size:12px;color:var(--muted)">Evidence file not found on disk</div>
+              </div>` : ''}
+              ${!fileMissing && isImage ? `<img src="/api/evidence/${fileId}" alt="Evidence" class="evidence-image" onclick="openImageLightbox('/api/evidence/${fileId}')" style="max-width:100%;max-height:200px;border-radius:var(--radius-sm);cursor:pointer" onerror="this.style.display='none';this.nextElementSibling.style.display='block'" loading="lazy">
+              <div style="display:none;padding:16px;background:rgba(239,68,68,0.1);border-radius:var(--radius-sm);text-align:center">
+                <i class="fa-solid fa-image" style="font-size:24px;color:var(--muted)"></i>
+                <div style="margin-top:8px;font-size:12px;color:var(--muted)">Failed to load image</div>
+              </div>` : ''}
+              ${!fileMissing && isVideo ? `<div class="evidence-video-preview" onclick="openVideoPlayer('/api/evidence/${fileId}')" style="cursor:pointer;padding:20px;background:rgba(0,0,0,0.3);border-radius:var(--radius-sm);text-align:center;transition:background var(--transition)" onmouseover="this.style.background='rgba(0,0,0,0.5)'" onmouseout="this.style.background='rgba(0,0,0,0.3)'">
+                <i class="fa-solid fa-play-circle" style="font-size:36px;color:var(--primary-light)"></i>
+                <div style="margin-top:8px;font-size:12px;color:var(--muted)">Click to play video${fileSize ? ' (' + fileSize + ')' : ''}</div>
+              </div>` : ''}
+              ${!fileMissing && !isVideo && !isImage ? `<div style="padding:16px;background:rgba(0,0,0,0.2);border-radius:var(--radius-sm);text-align:center">
+                <i class="fa-solid fa-file" style="font-size:24px;color:var(--muted)"></i>
+                <div style="margin-top:8px;font-size:12px;color:var(--muted)">Unknown file type: ${escapeHtml(fileType)}</div>
               </div>` : ''}
             </div>
           </div>`;
@@ -3941,6 +3993,42 @@
       <button class="btn ghost" onclick="closeDetailsModal()"><i class="fa-solid fa-xmark"></i> Close</button>
     `;
     dom().detailsOverlay.classList.add('show', 'top');
+
+    // In gateway mode, inline evidence images use HTTP URLs that don't work
+    // Fetch them via WebSocket and replace with blob URLs
+    if (window.MX?.ws?.isGatewayMode && window.MX.ws.isGatewayMode()) {
+      const evidenceImages = dom().detailsBody.querySelectorAll('img.evidence-image[src*="/api/evidence/"]');
+      evidenceImages.forEach(async (img) => {
+        const fileId = img.src.split('/api/evidence/')[1];
+        if (!fileId) return;
+        try {
+          img.src = ''; // Clear while loading
+          img.alt = 'Loading...';
+          const blobUrl = await fetchEvidenceViaWebSocket(fileId);
+          img.src = blobUrl;
+          img.alt = 'Evidence';
+          // Update the onclick to use blob URL for lightbox too
+          img.onclick = () => openImageLightbox(blobUrl);
+        } catch (e) {
+          console.error('[Evidence] Gateway fetch failed for', fileId, e);
+          img.style.display = 'none';
+          if (img.nextElementSibling) img.nextElementSibling.style.display = 'block';
+        }
+      });
+
+      // Also fix video preview onclick URLs for gateway mode
+      const videoPreviews = dom().detailsBody.querySelectorAll('.evidence-video-preview');
+      videoPreviews.forEach((preview) => {
+        const originalOnclick = preview.getAttribute('onclick');
+        if (originalOnclick && originalOnclick.includes('/api/evidence/')) {
+          const match = originalOnclick.match(/openVideoPlayer\('\/api\/evidence\/([^']+)'\)/);
+          if (match) {
+            const fileId = match[1];
+            preview.onclick = () => openVideoPlayer('/api/evidence/' + fileId);
+          }
+        }
+      });
+    }
   };
 
   window.closeDetailsModal = function(e) {
@@ -4015,6 +4103,14 @@
     dom().punishTemplate.value = tplId;
     applyTemplateToPunish(tplId);
     toast('info', 'Template Applied', t.name);
+  };
+
+  window.toggleTemplateFavorite = function(tplId) {
+    if (!tplId || tplId === 'none') return;
+    const ws = window.MX?.ws;
+    if (ws && ws.isConnected()) {
+      ws.send('TOGGLE_TEMPLATE_FAVORITE', { id: tplId });
+    }
   };
 
   window.deleteTemplate = function(tplId) {
@@ -4951,23 +5047,85 @@
   };
 
   window.openCmdBlacklistModal = function() {
-    // Check permission
     if (!hasPermission('moderex.cmdblacklist')) {
       toast('error', 'No Permission', 'You do not have permission to add command blacklist entries.');
       return;
     }
-    // TODO: Implement add blacklist modal
-    toast('info', 'Coming Soon', 'Command blacklist management will be available soon. Use /cmdblacklist in-game.');
+
+    if (genericModalEl) genericModalEl.remove();
+    const overlay = document.createElement('div');
+    overlay.className = 'overlay show top';
+    overlay.style.zIndex = 8000;
+    overlay.innerHTML = `
+      <div class="modal" onclick="event.stopPropagation()" style="max-width:420px">
+        <div class="modal-top">
+          <div style="display:flex;align-items:center;gap:10px">
+            <i class="fa-solid fa-ban" style="color:var(--bad)"></i>
+            <b>Blacklist Command</b>
+          </div>
+          <button class="mini" id="cblClose"><i class="fa-solid fa-xmark"></i></button>
+        </div>
+        <div class="modal-body" style="display:flex;flex-direction:column;gap:12px">
+          <div>
+            <label style="display:block;margin-bottom:4px;font-size:13px;color:var(--text-secondary)">Player Name</label>
+            <input type="text" class="input" id="cblPlayerName" placeholder="Enter player name...">
+          </div>
+          <div>
+            <label style="display:block;margin-bottom:4px;font-size:13px;color:var(--text-secondary)">Command</label>
+            <input type="text" class="input" id="cblCommand" placeholder="e.g. home, tpa, spawn">
+          </div>
+          <div>
+            <label style="display:block;margin-bottom:4px;font-size:13px;color:var(--text-secondary)">Duration</label>
+            <select class="input" id="cblDuration">
+              <option value="-1">Permanent</option>
+              <option value="3600000">1 Hour</option>
+              <option value="86400000">1 Day</option>
+              <option value="604800000">7 Days</option>
+              <option value="2592000000">30 Days</option>
+            </select>
+          </div>
+        </div>
+        <div class="modal-foot">
+          <span class="badge gray"><i class="fa-solid fa-circle-info"></i> This blacklists a command for a specific player</span>
+          <div style="display:flex;gap:10px">
+            <button class="btn ghost" id="cblCancel"><i class="fa-solid fa-xmark"></i> Cancel</button>
+            <button class="btn bad" id="cblConfirm"><i class="fa-solid fa-ban"></i> Blacklist</button>
+          </div>
+        </div>
+      </div>
+    `;
+    document.body.appendChild(overlay);
+    genericModalEl = overlay;
+    const $ = (sel) => overlay.querySelector(sel);
+    $('#cblClose').onclick = () => closeOverlayAnimated(overlay);
+    $('#cblCancel').onclick = () => closeOverlayAnimated(overlay);
+    $('#cblConfirm').onclick = () => {
+      const playerName = $('#cblPlayerName').value.trim();
+      const command = $('#cblCommand').value.trim();
+      const duration = parseInt($('#cblDuration').value);
+      if (!playerName || !command) {
+        toast('warn', 'Missing Fields', 'Player name and command are required.');
+        return;
+      }
+      const expiresAt = duration === -1 ? -1 : Date.now() + duration;
+      ws.send('ADD_CMD_BLACKLIST_ENTRY', { playerName, command, expiresAt });
+      closeOverlayAnimated(overlay);
+    };
   };
 
   window.removeCmdBlacklist = function(id) {
-    // Check permission
     if (!hasPermission('moderex.cmdunblacklist')) {
       toast('error', 'No Permission', 'You do not have permission to remove command blacklist entries.');
       return;
     }
-    // TODO: Implement remove via WebSocket
-    toast('info', 'Coming Soon', 'Command blacklist removal will be available soon. Use /cmdunblacklist in-game.');
+    openConfirmPanel({
+      title: 'Remove Command Blacklist',
+      body: 'Are you sure you want to remove this command blacklist entry?',
+      confirmText: 'Remove',
+      onConfirm: () => {
+        ws.send('REMOVE_CMD_BLACKLIST_ENTRY', { id: parseInt(id) });
+      }
+    });
   };
 
   // ===== RULES =====
@@ -6492,7 +6650,10 @@
     logEvent('WARN', 'chat', 'Chat cleared', 'Chat cleared via panel.');
   };
 
-  // ===== KICK ALL PLAYERS =====
+  // ===== KICK ALL PLAYERS (with 10-second countdown) =====
+  let kickAllCountdownTimer = null;
+  let kickAllCountdownRemaining = 0;
+
   window.kickAllPlayers = function() {
     const ws = window.MX?.ws;
     const reason = document.getElementById('kickAllReason')?.value || 'Server maintenance';
@@ -6502,20 +6663,65 @@
       return;
     }
 
-    openConfirmPanel({
-      icon: 'people-group',
-      title: 'Kick All Players',
-      message: `Are you sure you want to kick all players from the server?`,
-      subtext: `Reason: "${reason}"`,
-      confirmLabel: 'Kick All',
-      confirmClass: 'bad',
-      onConfirm: () => {
+    // Show countdown popup
+    let overlay = document.getElementById('kickAllCountdownOverlay');
+    if (!overlay) {
+      overlay = document.createElement('div');
+      overlay.id = 'kickAllCountdownOverlay';
+      overlay.className = 'overlay';
+      overlay.innerHTML = `
+        <div class="card" style="max-width:420px;margin:auto;margin-top:20vh;padding:32px;text-align:center" onclick="event.stopPropagation()">
+          <i class="fa-solid fa-people-group" style="font-size:40px;color:var(--bad);margin-bottom:16px"></i>
+          <h2 style="margin-bottom:8px">Kick All Players</h2>
+          <p style="color:var(--muted);margin-bottom:16px" id="kickAllCountdownReason"></p>
+          <div id="kickAllCountdownDisplay" style="font-size:48px;font-weight:bold;color:var(--bad);margin:16px 0"></div>
+          <p style="color:var(--muted);font-size:12px;margin-bottom:20px">All players will be kicked when countdown reaches 0</p>
+          <button class="btn ghost" onclick="cancelKickAll()" style="width:100%"><i class="fa-solid fa-xmark"></i> Cancel</button>
+        </div>
+      `;
+      document.body.appendChild(overlay);
+    }
+
+    document.getElementById('kickAllCountdownReason').textContent = `Reason: "${reason}"`;
+    overlay.classList.add('show');
+    kickAllCountdownRemaining = 10;
+    document.getElementById('kickAllCountdownDisplay').textContent = kickAllCountdownRemaining;
+
+    // Notify server to warn players in chat
+    ws.send('KICK_ALL_COUNTDOWN', { reason, seconds: 10 });
+
+    // Start countdown
+    clearInterval(kickAllCountdownTimer);
+    kickAllCountdownTimer = setInterval(() => {
+      kickAllCountdownRemaining--;
+      const display = document.getElementById('kickAllCountdownDisplay');
+      if (display) display.textContent = kickAllCountdownRemaining;
+
+      if (kickAllCountdownRemaining <= 0) {
+        clearInterval(kickAllCountdownTimer);
+        kickAllCountdownTimer = null;
+        overlay.classList.remove('show');
+
+        // Execute kick
         ws.send('KICK_ALL_PLAYERS', { reason });
         window.MX.sounds?.success();
         toast('ok', 'Kicked', 'All players have been kicked from the server.', {silent: true});
         logEvent('WARN', 'action', 'Kick All Players', `All players kicked: ${reason}`);
       }
-    });
+    }, 1000);
+  };
+
+  window.cancelKickAll = function() {
+    clearInterval(kickAllCountdownTimer);
+    kickAllCountdownTimer = null;
+    const overlay = document.getElementById('kickAllCountdownOverlay');
+    if (overlay) overlay.classList.remove('show');
+    // Notify server to cancel countdown chat messages
+    const ws = window.MX?.ws;
+    if (ws && ws.isConnected()) {
+      ws.send('KICK_ALL_CANCEL', {});
+    }
+    toast('info', 'Cancelled', 'Kick all cancelled.');
   };
 
   // ===== WARNING ESCALATION SETTINGS =====
@@ -7890,10 +8096,10 @@
     { name: 'Alert Duration', page: 'mysettings', keywords: ['duration', 'time', 'alert', 'seconds'], elementId: 'staffSettingsContainer' },
     { name: 'Alert Sounds', page: 'mysettings', keywords: ['sound', 'audio', 'alert', 'notification'], elementId: 'staffSettingsContainer' },
     { name: 'Alert Rate Limiting', page: 'mysettings', keywords: ['rate', 'limit', 'spam', 'cooldown'], elementId: 'staffSettingsContainer' },
-    // Actions
-    { name: 'Chat Lock', page: 'actions', keywords: ['disable', 'mute all', 'lock chat'] },
-    { name: 'Slowmode', page: 'actions', keywords: ['rate limit', 'spam', 'slow'] },
-    { name: 'Kick All', page: 'actions', keywords: ['clear', 'server', 'disconnect'] },
+    // Actions - require admin permissions
+    { name: 'Chat Lock', page: 'actions', keywords: ['disable', 'mute all', 'lock chat'], permission: 'moderex.admin.chat' },
+    { name: 'Slowmode', page: 'actions', keywords: ['rate limit', 'spam', 'slow'], permission: 'moderex.admin.chat' },
+    { name: 'Kick All', page: 'actions', keywords: ['clear', 'server', 'disconnect'], permission: 'moderex.admin.kickall' },
     // Developer Tools
     { name: 'Debug Permissions', page: 'devtools', keywords: ['permission', 'check', 'debug', 'perms'], elementId: 'devDebugPermissions' },
     { name: 'Test Notifications', page: 'devtools', keywords: ['test', 'alert', 'notification', 'toast'], elementId: 'devNotificationTest' },
@@ -7927,9 +8133,15 @@
         results.push({ category: 'Players', items: playerMatches });
       }
 
-      // Search punishments by case ID (limit 5)
+      // Search punishments by case ID or MX-<number> format (limit 5)
+      const mxPrefix = q.match(/^mx-?(\d+)/i);
       const caseMatches = state.punishments
-        .filter(p => p.caseId && p.caseId.toLowerCase().includes(q))
+        .filter(p => {
+          if (!p.caseId) return false;
+          const cid = p.caseId.toLowerCase();
+          if (mxPrefix) return cid.includes('mx-' + mxPrefix[1]);
+          return cid.includes(q);
+        })
         .slice(0, 5)
         .map(p => ({
           type: 'case',
@@ -7979,9 +8191,12 @@
         results.push({ category: 'Pages', items: pageMatches });
       }
 
-      // Search settings (limit 3)
+      // Search settings (limit 3) - filter by permission
       const settingMatches = searchableSettings
-        .filter(s => s.name.toLowerCase().includes(q) || s.keywords.some(k => k.includes(q)))
+        .filter(s => {
+          if (s.permission && !hasPermission(s.permission)) return false;
+          return s.name.toLowerCase().includes(q) || s.keywords.some(k => k.includes(q));
+        })
         .slice(0, 3)
         .map(s => ({
           type: 'setting',
@@ -8631,12 +8846,28 @@
       toast('ok', 'Deleted', 'Template removed');
     });
 
+    // Handle template favorite toggle
+    ws.on('TEMPLATE_FAVORITE_TOGGLED', (data) => {
+      const t = state.templates.find(x => x.id === data.id);
+      if (t) {
+        t.favorite = data.favorite;
+        ui.renderTemplates();
+      }
+    });
+
     // Handle template errors
     ws.on('TEMPLATE_ERROR', (data) => {
       if (!isLiveMode) return;
       if (window.hideLoadingLine) window.hideLoadingLine();
       console.error('[Templates] Error:', data);
       toast('warn', 'Error', data.message || 'Template operation failed');
+    });
+
+    // Handle command blacklist entries from server
+    ws.on('CMD_BLACKLIST_ENTRIES', (data) => {
+      if (!isLiveMode) return;
+      state.cmdBlacklist = data.entries || [];
+      if (window.renderCmdBlacklist) renderCmdBlacklist();
     });
 
     // Handle replay list from server

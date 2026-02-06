@@ -263,6 +263,10 @@ public class ReplayManager {
         return Collections.unmodifiableCollection(activeSessions.values());
     }
 
+    public int getActiveRecordingCount() {
+        return activeSessions.size();
+    }
+
     /**
      * Get the active session for a player.
      */

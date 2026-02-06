@@ -723,6 +723,26 @@
     replayState.replays = data.replays || [];
     replayState.page = 1;
     renderReplayList();
+
+    // Update Citizens status on the replay tab
+    const citizensNote = document.getElementById('replayCitizensNote');
+    if (citizensNote) {
+      if (data.citizensAvailable) {
+        citizensNote.innerHTML = '<i class="fa-solid fa-check-circle" style="color:var(--ok)"></i> Citizens v' +
+          (data.citizensVersion || 'Unknown') + ' detected - NPC playback available';
+        citizensNote.style.color = 'var(--ok)';
+      } else {
+        citizensNote.innerHTML = '<i class="fa-solid fa-exclamation-triangle" style="color:var(--warn)"></i> ' +
+          'Citizens plugin not detected - NPC playback unavailable. Replays can still be recorded.';
+        citizensNote.style.color = 'var(--warn)';
+      }
+    }
+
+    // Update recording count stat
+    const recordingStat = document.getElementById('replayRecordingStat');
+    if (recordingStat && data.activeRecordings !== undefined) {
+      recordingStat.textContent = data.activeRecordings;
+    }
   }
 
   function handleReplayData(data) {

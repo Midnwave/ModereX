@@ -1288,7 +1288,11 @@ public class HybridPanelServer implements com.blockforge.moderex.gateway.Gateway
                 props.load(in);
                 version.addProperty("version", props.getProperty("version", "UNKNOWN"));
                 version.addProperty("buildDate", props.getProperty("buildDate", ""));
-                version.addProperty("buildNumber", Integer.parseInt(props.getProperty("buildNumber", "0")));
+                int buildNum = 0;
+                try {
+                    buildNum = Integer.parseInt(props.getProperty("buildNumber", "0").trim());
+                } catch (NumberFormatException ignored) {}
+                version.addProperty("buildNumber", buildNum);
                 version.addProperty("notes", props.getProperty("notes", ""));
             } else {
                 version.addProperty("version", "UNKNOWN");
@@ -1320,7 +1324,11 @@ public class HybridPanelServer implements com.blockforge.moderex.gateway.Gateway
                 props.load(in);
                 data.addProperty("version", props.getProperty("version", "UNKNOWN"));
                 data.addProperty("buildDate", props.getProperty("buildDate", ""));
-                data.addProperty("buildNumber", Integer.parseInt(props.getProperty("buildNumber", "0")));
+                int buildNum = 0;
+                try {
+                    buildNum = Integer.parseInt(props.getProperty("buildNumber", "0").trim());
+                } catch (NumberFormatException ignored) {}
+                data.addProperty("buildNumber", buildNum);
                 data.addProperty("notes", props.getProperty("notes", ""));
             } else {
                 data.addProperty("version", "UNKNOWN");
@@ -2376,10 +2384,11 @@ public class HybridPanelServer implements com.blockforge.moderex.gateway.Gateway
             case "GET_WATCHLIST" -> sendWatchlist(conn);
             case "GET_SETTINGS" -> sendSettings(conn);
             case "GET_USER_SETTINGS" -> sendUserSettings(conn, session);
-            case "GET_TEMPLATES" -> sendTemplates(conn);
+            case "GET_TEMPLATES" -> sendTemplates(conn, session);
             case "CREATE_TEMPLATE" -> createTemplate(conn, data, session);
             case "UPDATE_TEMPLATE" -> updateTemplate(conn, data, session);
             case "DELETE_TEMPLATE" -> deleteTemplate(conn, data, session);
+            case "TOGGLE_TEMPLATE_FAVORITE" -> toggleTemplateFavorite(conn, data, session);
             case "GET_STATS" -> sendStats(conn);
             case "CREATE_PUNISHMENT" -> createPunishment(conn, data, session);
             case "REVOKE_PUNISHMENT" -> revokePunishment(conn, data, session);
@@ -2399,10 +2408,15 @@ public class HybridPanelServer implements com.blockforge.moderex.gateway.Gateway
             case "GET_EXTERNAL_PUNISHMENTS" -> getExternalPunishments(conn, data);
             case "IMPORT_EXTERNAL_PUNISHMENTS" -> importExternalPunishments(conn, data, session);
             case "KICK_ALL", "KICK_ALL_PLAYERS" -> kickAllPlayers(conn, data, session);
+            case "KICK_ALL_COUNTDOWN" -> kickAllCountdown(conn, data, session);
+            case "KICK_ALL_CANCEL" -> kickAllCancel(conn, session);
             case "SET_LOCKDOWN" -> setLockdown(conn, data, session);
             case "UPDATE_LOCKDOWN_SETTINGS" -> updateLockdownSettings(conn, data, session);
             case "UPDATE_NOTIFICATION_SETTINGS" -> updateNotificationSettings(conn, data, session);
             case "UPDATE_COMMAND_BLACKLIST" -> updateCommandBlacklist(conn, data, session);
+            case "GET_CMD_BLACKLIST_ENTRIES" -> sendCmdBlacklistEntries(conn);
+            case "ADD_CMD_BLACKLIST_ENTRY" -> addCmdBlacklistEntry(conn, data, session);
+            case "REMOVE_CMD_BLACKLIST_ENTRY" -> removeCmdBlacklistEntry(conn, data, session);
             case "GET_REPLAYS" -> sendReplayList(conn);
             case "GET_REPLAY" -> sendReplayData(conn, data);
             case "GET_SERVER_STATUS" -> sendServerStatus(conn);
@@ -2415,6 +2429,7 @@ public class HybridPanelServer implements com.blockforge.moderex.gateway.Gateway
             case "GET_CITIZENS_STATUS" -> sendCitizensStatus(conn);
             case "GET_ESSENTIALS_STATUS" -> sendEssentialsStatus(conn);
             case "GET_PLACEHOLDERAPI_STATUS" -> sendPlaceholderAPIStatus(conn);
+            case "GET_VOICECHAT_STATUS" -> sendVoiceChatStatus(conn);
 
             // Monitoring endpoints
             case "GET_ENTITY_BREAKDOWN" -> sendEntityBreakdown(conn);
@@ -5218,18 +5233,29 @@ public class HybridPanelServer implements com.blockforge.moderex.gateway.Gateway
         }
     }
 
-    private void sendTemplates(WebSocketConnection conn) {
+    private void sendTemplates(WebSocketConnection conn, WebPanelSession session) {
         JsonObject response = new JsonObject();
         response.addProperty("type", "TEMPLATES");
         JsonArray templates = new JsonArray();
 
+        // Get favorites for this user
+        Set<String> favorites = session != null && session.playerUuid != null
+                ? plugin.getTemplateManager().getFavorites(session.playerUuid)
+                : Set.of();
+
         // Get templates from database
         for (com.blockforge.moderex.punishment.PunishmentTemplate template : plugin.getTemplateManager().getAllTemplates()) {
-            templates.add(template.toJson());
+            JsonObject json = template.toJson();
+            json.addProperty("favorite", favorites.contains(template.getId()));
+            templates.add(json);
         }
 
         response.add("data", templates);
         conn.send(GSON.toJson(response));
+    }
+
+    private void sendTemplates(WebSocketConnection conn) {
+        sendTemplates(conn, null);
     }
 
     private void createTemplate(WebSocketConnection conn, JsonObject data, WebPanelSession session) {
@@ -5350,6 +5376,26 @@ public class HybridPanelServer implements com.blockforge.moderex.gateway.Gateway
         } catch (Exception e) {
             sendError(conn, "TEMPLATE_ERROR", "Failed to delete template: " + e.getMessage());
             plugin.logError("Failed to delete template from web panel", e);
+        }
+    }
+
+    private void toggleTemplateFavorite(WebSocketConnection conn, JsonObject data, WebPanelSession session) {
+        try {
+            String templateId = data.has("id") ? data.get("id").getAsString() : null;
+            if (templateId == null || templateId.isEmpty()) {
+                sendError(conn, "TEMPLATE_ERROR", "Missing template ID");
+                return;
+            }
+
+            boolean isFavorite = plugin.getTemplateManager().toggleFavorite(session.playerUuid, templateId);
+
+            JsonObject response = new JsonObject();
+            response.addProperty("type", "TEMPLATE_FAVORITE_TOGGLED");
+            response.addProperty("id", templateId);
+            response.addProperty("favorite", isFavorite);
+            conn.send(GSON.toJson(response));
+        } catch (Exception e) {
+            sendError(conn, "TEMPLATE_ERROR", "Failed to toggle favorite: " + e.getMessage());
         }
     }
 
@@ -6533,6 +6579,34 @@ public class HybridPanelServer implements com.blockforge.moderex.gateway.Gateway
         return net.kyori.adventure.text.Component.text(message);
     }
 
+    private void kickAllCountdown(WebSocketConnection conn, JsonObject data, WebPanelSession session) {
+        String reason = data.has("reason") ? data.get("reason").getAsString() : "Server maintenance";
+        int seconds = data.has("seconds") ? data.get("seconds").getAsInt() : 10;
+
+        plugin.getServer().getScheduler().runTask(plugin, () -> {
+            net.kyori.adventure.text.Component warning = net.kyori.adventure.text.minimessage.MiniMessage.miniMessage().deserialize(
+                    "<dark_gray>[<red><bold>WARNING</bold></red>]</dark_gray> " +
+                            "<yellow>All players will be kicked in <red>" + seconds + " seconds</red>!</yellow> " +
+                            "<dark_gray>»</dark_gray> <white>" + reason + "</white>"
+            );
+            for (org.bukkit.entity.Player player : plugin.getServer().getOnlinePlayers()) {
+                player.sendMessage(warning);
+            }
+        });
+    }
+
+    private void kickAllCancel(WebSocketConnection conn, WebPanelSession session) {
+        plugin.getServer().getScheduler().runTask(plugin, () -> {
+            net.kyori.adventure.text.Component cancel = net.kyori.adventure.text.minimessage.MiniMessage.miniMessage().deserialize(
+                    "<dark_gray>[<green><bold>CANCELLED</bold></green>]</dark_gray> " +
+                            "<gray>Kick all has been cancelled by </gray><gold>" + session.playerName + "</gold>"
+            );
+            for (org.bukkit.entity.Player player : plugin.getServer().getOnlinePlayers()) {
+                player.sendMessage(cancel);
+            }
+        });
+    }
+
     // ==================== Server Lockdown ====================
 
     private void setLockdown(WebSocketConnection conn, JsonObject data, WebPanelSession session) {
@@ -6728,6 +6802,114 @@ public class HybridPanelServer implements com.blockforge.moderex.gateway.Gateway
         });
     }
 
+    private void sendCmdBlacklistEntries(WebSocketConnection conn) {
+        plugin.getServer().getScheduler().runTaskAsynchronously(plugin, () -> {
+            try {
+                var entries = plugin.getDatabaseManager().query(
+                    "SELECT rowid, player_uuid, command, staff_name, created_at, expires_at, reason FROM moderex_command_blacklist ORDER BY created_at DESC LIMIT 200",
+                    rs -> {
+                        JsonArray arr = new JsonArray();
+                        while (rs.next()) {
+                            JsonObject e = new JsonObject();
+                            e.addProperty("id", rs.getInt("rowid"));
+                            e.addProperty("playerUuid", rs.getString("player_uuid"));
+                            e.addProperty("command", rs.getString("command"));
+                            e.addProperty("staffName", rs.getString("staff_name"));
+                            e.addProperty("createdAt", rs.getLong("created_at"));
+                            e.addProperty("expiresAt", rs.getLong("expires_at"));
+                            e.addProperty("reason", rs.getString("reason"));
+                            arr.add(e);
+                        }
+                        return arr;
+                    }
+                );
+
+                // Resolve player names from UUIDs
+                JsonObject response = new JsonObject();
+                response.addProperty("type", "CMD_BLACKLIST_ENTRIES");
+                JsonObject data = new JsonObject();
+                data.add("entries", entries);
+                response.add("data", data);
+                conn.send(GSON.toJson(response));
+            } catch (Exception e) {
+                sendError(conn, "CMD_BLACKLIST_ERROR", "Failed to load command blacklist entries");
+                plugin.logError("Failed to load command blacklist entries", e);
+            }
+        });
+    }
+
+    private void addCmdBlacklistEntry(WebSocketConnection conn, JsonObject msgData, WebPanelSession session) {
+        if (!hasViewPermission(session.playerUuid, "moderex.cmdblacklist")) {
+            sendError(conn, "PERMISSION_DENIED", "You do not have permission to blacklist commands.");
+            return;
+        }
+
+        String playerName = msgData.has("playerName") ? msgData.get("playerName").getAsString() : null;
+        String command = msgData.has("command") ? msgData.get("command").getAsString().toLowerCase() : null;
+        long expiresAt = msgData.has("expiresAt") ? msgData.get("expiresAt").getAsLong() : -1;
+
+        if (playerName == null || command == null || command.isEmpty()) {
+            sendError(conn, "INVALID_INPUT", "Player name and command are required");
+            return;
+        }
+
+        if (command.startsWith("/")) command = command.substring(1);
+        final String finalCommand = command;
+
+        plugin.getServer().getScheduler().runTaskAsynchronously(plugin, () -> {
+            try {
+                // Resolve player UUID
+                var offlinePlayer = org.bukkit.Bukkit.getOfflinePlayer(playerName);
+                if (offlinePlayer.getUniqueId() == null) {
+                    sendError(conn, "PLAYER_NOT_FOUND", "Player not found: " + playerName);
+                    return;
+                }
+
+                plugin.getDatabaseManager().update(
+                    "INSERT INTO moderex_command_blacklist (player_uuid, command, staff_uuid, staff_name, created_at, expires_at, reason, server) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+                    offlinePlayer.getUniqueId().toString(),
+                    finalCommand,
+                    session.playerUuid != null ? session.playerUuid.toString() : null,
+                    session.playerName,
+                    System.currentTimeMillis(),
+                    expiresAt,
+                    "Blacklisted by " + session.playerName + " via web panel",
+                    plugin.getServer().getName()
+                );
+
+                sendSuccess(conn, "Command /" + finalCommand + " blacklisted for " + playerName);
+                sendCmdBlacklistEntries(conn);
+            } catch (Exception e) {
+                sendError(conn, "CMD_BLACKLIST_ERROR", "Failed to add command blacklist entry");
+                plugin.logError("Failed to add command blacklist entry", e);
+            }
+        });
+    }
+
+    private void removeCmdBlacklistEntry(WebSocketConnection conn, JsonObject msgData, WebPanelSession session) {
+        if (!hasViewPermission(session.playerUuid, "moderex.cmdunblacklist")) {
+            sendError(conn, "PERMISSION_DENIED", "You do not have permission to remove command blacklist entries.");
+            return;
+        }
+
+        int rowId = msgData.has("id") ? msgData.get("id").getAsInt() : -1;
+        if (rowId < 0) {
+            sendError(conn, "INVALID_INPUT", "Entry ID is required");
+            return;
+        }
+
+        plugin.getServer().getScheduler().runTaskAsynchronously(plugin, () -> {
+            try {
+                plugin.getDatabaseManager().update("DELETE FROM moderex_command_blacklist WHERE rowid = ?", rowId);
+                sendSuccess(conn, "Command blacklist entry removed");
+                sendCmdBlacklistEntries(conn);
+            } catch (Exception e) {
+                sendError(conn, "CMD_BLACKLIST_ERROR", "Failed to remove command blacklist entry");
+                plugin.logError("Failed to remove command blacklist entry", e);
+            }
+        });
+    }
+
     private void sendReplayList(WebSocketConnection conn) {
         plugin.getReplayManager().getSavedReplays().thenAccept(replays -> {
             JsonObject response = new JsonObject();
@@ -6763,6 +6945,18 @@ public class HybridPanelServer implements com.blockforge.moderex.gateway.Gateway
             replayArray.add(example);
 
             data.add("replays", replayArray);
+
+            // Include Citizens detection status for the replay tab
+            var hookManager = plugin.getHookManager();
+            boolean citizensAvailable = hookManager != null && hookManager.hasCitizens();
+            data.addProperty("citizensAvailable", citizensAvailable);
+            if (citizensAvailable) {
+                data.addProperty("citizensVersion", hookManager.getCitizensVersion());
+            }
+
+            // Recording stats
+            data.addProperty("activeRecordings", plugin.getReplayManager().getActiveRecordingCount());
+
             response.add("data", data);
             conn.send(GSON.toJson(response));
         });
@@ -7873,6 +8067,27 @@ public class HybridPanelServer implements com.blockforge.moderex.gateway.Gateway
         conn.send(GSON.toJson(response));
     }
 
+    private void sendVoiceChatStatus(WebSocketConnection conn) {
+        JsonObject response = new JsonObject();
+        response.addProperty("type", "VOICECHAT_STATUS");
+
+        JsonObject data = new JsonObject();
+        var hookManager = plugin.getHookManager();
+
+        boolean available = hookManager != null && hookManager.isVoiceChatAvailable();
+        data.addProperty("available", available);
+
+        if (available) {
+            String version = hookManager.getVoiceChatVersion();
+            if (version != null) {
+                data.addProperty("version", version);
+            }
+        }
+
+        response.add("data", data);
+        conn.send(GSON.toJson(response));
+    }
+
     // ==================== Monitoring Endpoints ====================
 
     private void sendEntityBreakdown(WebSocketConnection conn) {
@@ -7996,6 +8211,14 @@ public class HybridPanelServer implements com.blockforge.moderex.gateway.Gateway
         double tpsEmergency = msgData.has("tpsEmergency") ? msgData.get("tpsEmergency").getAsDouble() : 10.0;
         int memoryWarning = msgData.has("memoryWarning") ? msgData.get("memoryWarning").getAsInt() : 80;
         int memoryCritical = msgData.has("memoryCritical") ? msgData.get("memoryCritical").getAsInt() : 90;
+
+        // Apply thresholds to the server status manager
+        var statusManager = plugin.getServerStatusManager();
+        if (statusManager != null) {
+            statusManager.setTpsWarningThreshold(tpsWarning);
+            statusManager.setTpsCriticalThreshold(tpsCritical);
+            statusManager.setTpsEmergencyThreshold(tpsEmergency);
+        }
 
         plugin.logDebug("[Monitoring] Alert thresholds updated - TPS: " + tpsWarning + "/" + tpsCritical + "/" + tpsEmergency +
             " Memory: " + memoryWarning + "/" + memoryCritical);
@@ -9449,10 +9672,11 @@ public class HybridPanelServer implements com.blockforge.moderex.gateway.Gateway
                 case "GET_ALERT_PRESETS" -> sendAlertPresets(wrapper);
 
                 // Templates
-                case "GET_TEMPLATES" -> sendTemplates(wrapper);
+                case "GET_TEMPLATES" -> sendTemplates(wrapper, session);
                 case "CREATE_TEMPLATE" -> createTemplate(wrapper, data, session);
                 case "UPDATE_TEMPLATE" -> updateTemplate(wrapper, data, session);
                 case "DELETE_TEMPLATE" -> deleteTemplate(wrapper, data, session);
+                case "TOGGLE_TEMPLATE_FAVORITE" -> toggleTemplateFavorite(wrapper, data, session);
 
                 // Watchlist - support both old and new naming
                 case "GET_WATCHLIST" -> sendWatchlist(wrapper);
@@ -9475,7 +9699,9 @@ public class HybridPanelServer implements com.blockforge.moderex.gateway.Gateway
 
                 // Player actions
                 case "KICK_PLAYER" -> kickPlayer(wrapper, data, session);
-                case "KICK_ALL" -> kickAllPlayers(wrapper, data, session);
+                case "KICK_ALL", "KICK_ALL_PLAYERS" -> kickAllPlayers(wrapper, data, session);
+                case "KICK_ALL_COUNTDOWN" -> kickAllCountdown(wrapper, data, session);
+                case "KICK_ALL_CANCEL" -> kickAllCancel(wrapper, session);
 
                 // Stats and status
                 case "GET_STATS" -> sendStats(wrapper);
@@ -9489,6 +9715,7 @@ public class HybridPanelServer implements com.blockforge.moderex.gateway.Gateway
                 case "GET_CITIZENS_STATUS" -> sendCitizensStatus(wrapper);
                 case "GET_ESSENTIALS_STATUS" -> sendEssentialsStatus(wrapper);
                 case "GET_PLACEHOLDERAPI_STATUS" -> sendPlaceholderAPIStatus(wrapper);
+                case "GET_VOICECHAT_STATUS" -> sendVoiceChatStatus(wrapper);
 
                 // Monitoring endpoints
                 case "GET_ENTITY_BREAKDOWN" -> sendEntityBreakdown(wrapper);
@@ -9516,6 +9743,9 @@ public class HybridPanelServer implements com.blockforge.moderex.gateway.Gateway
                 case "UPDATE_LOCKDOWN_SETTINGS" -> updateLockdownSettings(wrapper, data, session);
                 case "UPDATE_NOTIFICATION_SETTINGS" -> updateNotificationSettings(wrapper, data, session);
                 case "UPDATE_COMMAND_BLACKLIST" -> updateCommandBlacklist(wrapper, data, session);
+                case "GET_CMD_BLACKLIST_ENTRIES" -> sendCmdBlacklistEntries(wrapper);
+                case "ADD_CMD_BLACKLIST_ENTRY" -> addCmdBlacklistEntry(wrapper, data, session);
+                case "REMOVE_CMD_BLACKLIST_ENTRY" -> removeCmdBlacklistEntry(wrapper, data, session);
 
                 // Replays
                 case "GET_REPLAYS" -> sendReplayList(wrapper);
