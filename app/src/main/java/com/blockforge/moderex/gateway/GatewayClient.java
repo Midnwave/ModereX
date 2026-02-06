@@ -7,7 +7,12 @@ import com.google.gson.JsonParser;
 import org.java_websocket.client.WebSocketClient;
 import org.java_websocket.handshake.ServerHandshake;
 
+import com.google.gson.JsonArray;
+
 import java.net.URI;
+import java.util.List;
+import java.util.Map;
+import java.util.UUID;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -77,6 +82,12 @@ public class GatewayClient {
 
         shuttingDown.set(false);
         scheduler = Executors.newScheduledThreadPool(2);
+
+        // Register LuckPerms permission change listener (if LP is available)
+        if (plugin.getHookManager().isLuckPermsEnabled()) {
+            plugin.getHookManager().getLuckPermsHook().registerPermissionChangeListener(plugin);
+            log("Registered LuckPerms permission change listener for gateway sync");
+        }
 
         logImportant("Connecting to gateway: " + gatewayUrl);
         connect();
@@ -202,6 +213,7 @@ public class GatewayClient {
                 case "browser_disconnected" -> handleBrowserDisconnected(json);
                 case "error" -> handleGatewayError(json);
                 case "admin_announcement" -> handleAdminAnnouncement(json);
+                case "global_pre_auth" -> handleGlobalPreAuth(json);
                 default -> {
                     // Forward to message handler (panel requests)
                     if (messageHandler != null) {
@@ -292,6 +304,28 @@ public class GatewayClient {
         if (premium) {
             logImportant("Premium status: ACTIVE");
         }
+
+        // After registration, sync all player permissions to gateway
+        triggerPermissionSync();
+    }
+
+    /**
+     * Sync all players with web panel access to the gateway.
+     * Called after successful gateway registration.
+     * LuckPerms is optional — if not available, skips the sync.
+     */
+    private void triggerPermissionSync() {
+        if (!plugin.getHookManager().isLuckPermsEnabled()) {
+            log("LuckPerms not available — skipping permission sync");
+            return;
+        }
+
+        log("Starting permission sync to gateway...");
+        plugin.getHookManager().getLuckPermsHook().getAllWebPanelPlayers(plugin, players -> {
+            if (!players.isEmpty() && isConnected() && isRegistered()) {
+                syncAllPermissions(players);
+            }
+        });
     }
 
     /**
@@ -360,6 +394,51 @@ public class GatewayClient {
 
             // Use the message handler to broadcast (HybridPanelServer implements this)
             messageHandler.broadcastToAllClients(broadcastMsg);
+        }
+    }
+
+    /**
+     * Handle global pre-auth request from gateway.
+     * Creates a session for a user authenticated via global token,
+     * so they can access this server's panel without a local token.
+     */
+    private void handleGlobalPreAuth(JsonObject json) {
+        String clientId = json.has("clientId") ? json.get("clientId").getAsString() : null;
+        String uuid = json.has("uuid") ? json.get("uuid").getAsString() : null;
+        String username = json.has("username") ? json.get("username").getAsString() : null;
+
+        if (clientId == null || uuid == null) {
+            log("Invalid global_pre_auth: missing clientId or uuid");
+            return;
+        }
+
+        log("Global pre-auth request for " + username + " (clientId: " + clientId + ")");
+
+        // Create session via the message handler (HybridPanelServer)
+        if (messageHandler != null) {
+            try {
+                // Parse permissions from the request
+                JsonArray permsArray = json.has("permissions") ? json.getAsJsonArray("permissions") : new JsonArray();
+                List<String> permissions = new java.util.ArrayList<>();
+                for (int i = 0; i < permsArray.size(); i++) {
+                    permissions.add(permsArray.get(i).getAsString());
+                }
+
+                // Delegate to message handler to create session
+                messageHandler.handleGlobalPreAuth(clientId, UUID.fromString(uuid), username, permissions);
+            } catch (Exception e) {
+                logWarning("Failed to handle global pre-auth: " + e.getMessage());
+
+                // Send failure response back to gateway
+                JsonObject response = new JsonObject();
+                response.addProperty("type", "global_pre_auth_result");
+                response.addProperty("clientId", clientId);
+                response.addProperty("success", false);
+                response.addProperty("error", "Session creation failed: " + e.getMessage());
+                send(response);
+            }
+        } else {
+            logWarning("No message handler for global pre-auth");
         }
     }
 
@@ -501,6 +580,139 @@ public class GatewayClient {
      */
     public boolean isReconnecting() {
         return !connected.get() && !shuttingDown.get() && reconnectTask != null && !reconnectTask.isDone();
+    }
+
+    // ========================================================================
+    // Global Token System — Outbound Messages to Gateway
+    // ========================================================================
+
+    /**
+     * Bulk sync all players with web panel access to the gateway.
+     * Called on server startup after gateway registration.
+     *
+     * @param players List of maps with keys: uuid, username, rank, permissions (List<String>)
+     */
+    public void syncAllPermissions(List<Map<String, Object>> players) {
+        if (!isConnected() || !isRegistered()) return;
+
+        JsonObject msg = new JsonObject();
+        msg.addProperty("type", "permission_sync");
+
+        JsonArray playersArray = new JsonArray();
+        for (Map<String, Object> player : players) {
+            JsonObject p = new JsonObject();
+            p.addProperty("uuid", (String) player.get("uuid"));
+            p.addProperty("username", (String) player.get("username"));
+            p.addProperty("rank", (String) player.get("rank"));
+
+            JsonArray perms = new JsonArray();
+            @SuppressWarnings("unchecked")
+            List<String> permList = (List<String>) player.get("permissions");
+            if (permList != null) {
+                for (String perm : permList) perms.add(perm);
+            }
+            p.add("permissions", perms);
+            playersArray.add(p);
+        }
+        msg.add("players", playersArray);
+
+        send(msg);
+        logImportant("Synced " + players.size() + " player permissions to gateway");
+    }
+
+    /**
+     * Sync a single player's permission change to the gateway.
+     * Called when LuckPerms fires a permission recalculate event.
+     */
+    public void syncPlayerPermission(UUID uuid, String username, String rank,
+                                      List<String> permissions, boolean hasAccess) {
+        if (!isConnected() || !isRegistered()) return;
+
+        JsonObject msg = new JsonObject();
+        msg.addProperty("type", "permission_update");
+        msg.addProperty("uuid", uuid.toString());
+        msg.addProperty("username", username);
+        msg.addProperty("rank", rank);
+        msg.addProperty("hasAccess", hasAccess);
+
+        JsonArray perms = new JsonArray();
+        if (permissions != null) {
+            for (String perm : permissions) perms.add(perm);
+        }
+        msg.add("permissions", perms);
+
+        send(msg);
+        log("Permission update sent for " + username + " (access: " + hasAccess + ")");
+    }
+
+    /**
+     * Register a global token on the gateway.
+     * Called when /mx gettoken generates a token with gateway enabled.
+     */
+    public void registerGlobalToken(UUID uuid, String username, String tokenHash, long expiresAt) {
+        if (!isConnected() || !isRegistered()) return;
+
+        JsonObject msg = new JsonObject();
+        msg.addProperty("type", "token_register");
+        msg.addProperty("uuid", uuid.toString());
+        msg.addProperty("username", username);
+        msg.addProperty("tokenHash", tokenHash);
+        msg.addProperty("expiresAt", expiresAt);
+
+        send(msg);
+        log("Global token registered for " + username);
+    }
+
+    /**
+     * Revoke a global token on the gateway.
+     * Called when /mx revoketoken is used with gateway enabled.
+     */
+    public void revokeGlobalToken(UUID uuid) {
+        if (!isConnected() || !isRegistered()) return;
+
+        JsonObject msg = new JsonObject();
+        msg.addProperty("type", "token_revoke");
+        msg.addProperty("uuid", uuid.toString());
+
+        send(msg);
+        log("Global token revoked for " + uuid);
+    }
+
+    /**
+     * Sync user settings (color scheme + device fingerprints) to gateway.
+     * Called when a user changes settings in the panel.
+     */
+    public void syncUserSettings(UUID uuid, String colorScheme, List<String> deviceFingerprints) {
+        if (!isConnected() || !isRegistered()) return;
+
+        JsonObject msg = new JsonObject();
+        msg.addProperty("type", "settings_sync");
+        msg.addProperty("uuid", uuid.toString());
+        msg.addProperty("colorScheme", colorScheme);
+
+        JsonArray fps = new JsonArray();
+        if (deviceFingerprints != null) {
+            for (String fp : deviceFingerprints) fps.add(fp);
+        }
+        msg.add("deviceFingerprints", fps);
+
+        send(msg);
+        log("Settings synced for " + uuid);
+    }
+
+    /**
+     * Unregister this server from the gateway.
+     * Called when gateway.enabled is set to false in config.
+     * Removes all server_access entries for this server on the gateway.
+     */
+    public void unregisterServer() {
+        if (!isConnected()) return;
+
+        JsonObject msg = new JsonObject();
+        msg.addProperty("type", "server_unregister");
+
+        send(msg);
+        logImportant("Server unregistered from gateway (access entries removed)");
     }
 
     /**

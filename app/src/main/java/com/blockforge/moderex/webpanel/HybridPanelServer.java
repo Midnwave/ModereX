@@ -7951,6 +7951,66 @@ public class HybridPanelServer implements com.blockforge.moderex.gateway.Gateway
         plugin.logDebug("[Panel] Broadcast to all clients: " + message.get("type"));
     }
 
+    /**
+     * Handle a global pre-auth request from the gateway.
+     * Creates a session for a user authenticated via global token,
+     * allowing them to access this server's panel without a local token.
+     * Implements GatewayMessageHandler interface.
+     */
+    @Override
+    public void handleGlobalPreAuth(String clientId, java.util.UUID uuid, String username, java.util.List<String> permissions) {
+        // Check if the player has web panel permission (via the synced permissions or LuckPerms)
+        boolean hasPermission = permissions != null && (
+                permissions.contains("moderex.webpanel") ||
+                permissions.contains("moderex.*") ||
+                permissions.contains("moderex.staff")
+        );
+
+        // Also check LuckPerms directly as fallback
+        if (!hasPermission && plugin.getHookManager().isLuckPermsEnabled()) {
+            hasPermission = plugin.getHookManager().getLuckPermsHook().hasPermission(uuid, "moderex.webpanel");
+        }
+
+        JsonObject response = new JsonObject();
+        response.addProperty("type", "global_pre_auth_result");
+        response.addProperty("clientId", clientId);
+
+        if (!hasPermission) {
+            response.addProperty("success", false);
+            response.addProperty("error", "No web panel permission on this server");
+            plugin.getGatewayClient().send(response);
+            return;
+        }
+
+        // Get player prefix/suffix for display
+        String prefix = "", suffix = "";
+        if (plugin.getHookManager().isLuckPermsEnabled()) {
+            prefix = plugin.getHookManager().getLuckPermsHook().getPrefix(uuid);
+            suffix = plugin.getHookManager().getLuckPermsHook().getSuffix(uuid);
+        }
+
+        // Create a session for this globally-authenticated user
+        WebPanelSession session = new WebPanelSession();
+        session.playerUuid = uuid;
+        session.playerName = username != null ? username : uuid.toString();
+        session.authMethod = "global_token";
+        session.authSessionId = java.util.UUID.randomUUID().toString();
+        session.hasPermission = true;
+        session.prefix = prefix;
+        session.suffix = suffix;
+        session.connectedAt = System.currentTimeMillis();
+        session.lastActivity = System.currentTimeMillis();
+
+        // Register the session for this gateway client
+        gatewaySessions.put(clientId, session);
+
+        response.addProperty("success", true);
+        response.addProperty("sessionId", session.authSessionId);
+        plugin.getGatewayClient().send(response);
+
+        plugin.logDebug("[Gateway] Global pre-auth session created for " + session.playerName + " (clientId: " + clientId + ")");
+    }
+
     // ==================== Event Broadcasting ====================
 
     public void broadcastChatMessage(String playerName, UUID playerUuid, String message) {
@@ -8666,6 +8726,16 @@ public class HybridPanelServer implements com.blockforge.moderex.gateway.Gateway
         settings.fromJson(settingsJson);
         userSettings.put(uuid, settings);
         saveUserSettingsForUuid(uuid, settings);
+
+        // Sync color scheme to gateway if enabled (dual-write)
+        if (plugin.getGatewayClient() != null && plugin.getGatewayClient().isConnected()) {
+            // Get trusted device fingerprints for this user
+            java.util.List<String> fingerprints = new java.util.ArrayList<>();
+            if (plugin.getWebAuthManager() != null) {
+                fingerprints = plugin.getWebAuthManager().getTrustedDeviceHashes(uuid);
+            }
+            plugin.getGatewayClient().syncUserSettings(uuid, settings.themeColor, fingerprints);
+        }
     }
 
     public JsonObject getUserSettingsJson(UUID uuid) {

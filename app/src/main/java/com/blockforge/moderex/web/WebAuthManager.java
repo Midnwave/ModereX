@@ -1,6 +1,7 @@
 package com.blockforge.moderex.web;
 
 import com.blockforge.moderex.ModereX;
+import com.google.gson.JsonObject;
 
 import java.io.*;
 import java.nio.charset.StandardCharsets;
@@ -111,8 +112,16 @@ public class WebAuthManager {
         String hash = hashSHA256(tokenStr);
 
         // Store hash -> uuid:timestamp mapping
-        permanentTokenHashes.put(hash, playerUuid.toString() + ":" + System.currentTimeMillis());
+        long now = System.currentTimeMillis();
+        long expiresAt = now + TOKEN_EXPIRY_MS;
+        permanentTokenHashes.put(hash, playerUuid.toString() + ":" + now);
         savePermanentTokens();
+
+        // Sync to gateway if enabled (global token)
+        if (plugin.getGatewayClient() != null && plugin.getGatewayClient().isConnected()) {
+            String username = org.bukkit.Bukkit.getOfflinePlayer(playerUuid).getName();
+            plugin.getGatewayClient().registerGlobalToken(playerUuid, username, hash, expiresAt);
+        }
 
         plugin.logDebug("Generated permanent token for " + playerUuid);
         return tokenStr;
@@ -207,6 +216,11 @@ public class WebAuthManager {
         // Disconnect any active sessions for this player
         if (removed) {
             disconnectPlayerSessions(playerUuid);
+        }
+
+        // Sync revocation to gateway if enabled
+        if (removed && plugin.getGatewayClient() != null && plugin.getGatewayClient().isConnected()) {
+            plugin.getGatewayClient().revokeGlobalToken(playerUuid);
         }
 
         return removed;
@@ -472,6 +486,9 @@ public class WebAuthManager {
         trustedDevices.put(hash, device);
         saveTrustedDevices();
 
+        // Sync device fingerprints to gateway
+        syncDeviceFingerprintsToGateway(playerUuid);
+
         plugin.logDebug("Registered trusted device for " + playerName);
         return true;
     }
@@ -494,6 +511,8 @@ public class WebAuthManager {
         TrustedDevice removed = trustedDevices.remove(hash);
         if (removed != null) {
             saveTrustedDevices();
+            // Sync updated fingerprints to gateway
+            syncDeviceFingerprintsToGateway(removed.playerUuid);
             return true;
         }
         return false;
@@ -511,6 +530,8 @@ public class WebAuthManager {
         }
         if (count > 0) {
             saveTrustedDevices();
+            // Sync cleared fingerprints to gateway
+            syncDeviceFingerprintsToGateway(playerUuid);
         }
         return count;
     }
@@ -532,6 +553,41 @@ public class WebAuthManager {
             }
         }
         return false;
+    }
+
+    /**
+     * Get all trusted device fingerprint hashes for a player.
+     * Used for syncing device fingerprints to the gateway.
+     */
+    public List<String> getTrustedDeviceHashes(UUID playerUuid) {
+        List<String> hashes = new ArrayList<>();
+        for (Map.Entry<String, TrustedDevice> entry : trustedDevices.entrySet()) {
+            if (entry.getValue().playerUuid.equals(playerUuid)) {
+                hashes.add(entry.getKey());
+            }
+        }
+        return hashes;
+    }
+
+    // ==================== GATEWAY SYNC ====================
+
+    /**
+     * Sync a player's trusted device fingerprint hashes to the gateway.
+     * Called after registering/removing devices so the gateway can validate device auth.
+     */
+    private void syncDeviceFingerprintsToGateway(UUID playerUuid) {
+        if (plugin.getGatewayClient() != null && plugin.getGatewayClient().isConnected()) {
+            List<String> hashes = getTrustedDeviceHashes(playerUuid);
+            // Get current color scheme from panel settings
+            String colorScheme = "blue";
+            if (plugin.getWebPanelServer() != null) {
+                JsonObject settingsJson = plugin.getWebPanelServer().getUserSettingsJson(playerUuid);
+                if (settingsJson.has("themeColor")) {
+                    colorScheme = settingsJson.get("themeColor").getAsString();
+                }
+            }
+            plugin.getGatewayClient().syncUserSettings(playerUuid, colorScheme, hashes);
+        }
     }
 
     // ==================== UTILITIES ====================
