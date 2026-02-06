@@ -14,6 +14,37 @@
 
 window.MX_CHANGELOGS = [
   {
+    build: 253,
+    version: "2.0dev-253",
+    date: "2026-02-06",
+    title: "Security Hardening",
+    sections: [
+      {
+        type: "fixed",
+        title: "Security Fixes",
+        items: [
+          "**Path Traversal** - Fixed directory traversal in gateway panel file serving and plugin static file handler",
+          "**XSS Prevention** - Fixed DOM-based XSS in player drawer onclick handlers and portal script injection",
+          "**Response Splitting** - Sanitized evidence filenames in HTTP Content-Disposition headers",
+          "**Timing Attack** - Challenge answer validation now uses constant-time comparison",
+          "**Evidence Upload** - Added filename sanitization (path components, null bytes, length limit)",
+          "**MIME Type Injection** - Escaped MIME types in portal evidence display to prevent attribute injection",
+          "**Integer Overflow** - Evidence upload size check now uses long to prevent bypass via overflow"
+        ]
+      },
+      {
+        type: "improved",
+        title: "Improvements",
+        items: [
+          "**Gateway Rate Limiting** - Device fingerprint auth now rate-limited with exponential backoff",
+          "**Gateway Message Size** - WebSocket messages capped at 2MB to prevent memory exhaustion",
+          "**Admin Auth** - Email domain validation now uses exact domain match instead of suffix match",
+          "**CORS Headers** - Added Vary: Origin and X-Content-Type-Options: nosniff headers"
+        ]
+      }
+    ]
+  },
+  {
     build: 252,
     version: "2.0dev-252",
     date: "2026-02-05",

@@ -17,6 +17,7 @@ const { WebSocketServer, WebSocket } = require('ws');
 const path = require('path');
 const fs = require('fs');
 const crypto = require('crypto');
+const { spawn } = require('child_process');
 
 // Configuration
 const CONFIG = {
@@ -159,6 +160,18 @@ function createTables() {
             last_seen_at INTEGER NOT NULL
         )
     `);
+
+    // Migrate: add registered_ip column if missing (pre-security-fix databases)
+    try {
+        const tableInfo = db.prepare('PRAGMA table_info(server_secrets)').all();
+        const hasRegisteredIp = tableInfo.some(col => col.name === 'registered_ip');
+        if (!hasRegisteredIp) {
+            db.exec('ALTER TABLE server_secrets ADD COLUMN registered_ip TEXT');
+            console.log('[DB] Migrated server_secrets: added registered_ip column');
+        }
+    } catch (e) {
+        console.error('[DB] Failed to migrate server_secrets:', e.message);
+    }
 
     // Global tokens (one per player UUID, shared across all servers)
     db.exec(`
@@ -550,25 +563,30 @@ const server = http.createServer((req, res) => {
     }
 
     // Serve panel files if they exist locally (for development)
-    const panelPath = path.join(__dirname, 'panel', url.pathname === '/' ? 'index.html' : url.pathname);
-    if (fs.existsSync(panelPath) && fs.statSync(panelPath).isFile()) {
-        const ext = path.extname(panelPath);
-        const contentTypes = {
-            '.html': 'text/html',
-            '.css': 'text/css',
-            '.js': 'application/javascript',
-            '.json': 'application/json',
-            '.png': 'image/png',
-            '.jpg': 'image/jpeg',
-            '.svg': 'image/svg+xml',
-            '.ico': 'image/x-icon',
-            '.woff': 'font/woff',
-            '.woff2': 'font/woff2',
-            '.ttf': 'font/ttf'
-        };
-        res.writeHead(200, { 'Content-Type': contentTypes[ext] || 'text/plain' });
-        fs.createReadStream(panelPath).pipe(res);
-        return;
+    const panelDir = path.resolve(path.join(__dirname, 'panel'));
+    const requestedFile = url.pathname === '/' ? 'index.html' : url.pathname;
+    const panelPath = path.resolve(path.join(panelDir, requestedFile));
+    // Prevent path traversal - resolved path must stay within panel directory
+    if (panelPath.startsWith(panelDir + path.sep) || panelPath === panelDir) {
+        if (fs.existsSync(panelPath) && fs.statSync(panelPath).isFile()) {
+            const ext = path.extname(panelPath);
+            const contentTypes = {
+                '.html': 'text/html',
+                '.css': 'text/css',
+                '.js': 'application/javascript',
+                '.json': 'application/json',
+                '.png': 'image/png',
+                '.jpg': 'image/jpeg',
+                '.svg': 'image/svg+xml',
+                '.ico': 'image/x-icon',
+                '.woff': 'font/woff',
+                '.woff2': 'font/woff2',
+                '.ttf': 'font/ttf'
+            };
+            res.writeHead(200, { 'Content-Type': contentTypes[ext] || 'text/plain' });
+            fs.createReadStream(panelPath).pipe(res);
+            return;
+        }
     }
 
     // For any other path, serve index.html (SPA routing)
@@ -599,7 +617,7 @@ const server = http.createServer((req, res) => {
 });
 
 // Create WebSocket server
-const wss = new WebSocketServer({ server });
+const wss = new WebSocketServer({ server, maxPayload: 2 * 1024 * 1024 }); // 2MB max message size
 
 // Track failed server registration attempts per IP for rate limiting
 const failedServerAuthAttempts = new Map(); // IP → { count, firstAttempt }
@@ -1634,6 +1652,20 @@ function handleGlobalPanelConnection(ws, clientIp) {
                 }
 
                 case 'global_device_auth': {
+                    // Rate limit device fingerprint auth attempts per IP
+                    const fpAttempts = failedTokenAuthAttempts.get(clientIp);
+                    if (fpAttempts && fpAttempts.count >= 5) {
+                        const cooldown = Math.min(300000, 1000 * Math.pow(2, fpAttempts.count - 5));
+                        if (Date.now() - fpAttempts.lastAttempt < cooldown) {
+                            ws.send(JSON.stringify({
+                                type: 'global_auth_result',
+                                success: false,
+                                error: 'Too many failed attempts. Please wait before trying again.'
+                            }));
+                            break;
+                        }
+                    }
+
                     // Authenticate with device fingerprint
                     const result = validateDeviceFingerprint(message.fingerprintHash || '');
                     if (result.valid) {
@@ -1653,6 +1685,12 @@ function handleGlobalPanelConnection(ws, clientIp) {
                         }));
                         console.log(`[Global] ${authedUsername || authedUuid} authenticated via device fingerprint`);
                     } else {
+                        // Track failed device auth attempt
+                        const attempts = failedTokenAuthAttempts.get(clientIp) || { count: 0, lastAttempt: 0 };
+                        attempts.count++;
+                        attempts.lastAttempt = Date.now();
+                        failedTokenAuthAttempts.set(clientIp, attempts);
+
                         ws.send(JSON.stringify({
                             type: 'global_auth_result',
                             success: false,
@@ -1789,7 +1827,9 @@ function handleAdminConnection(ws, clientIp, cfEmail, req) {
     }
 
     // Check email domain for authorization (skip for dev)
-    if (!isDev && !CONFIG.adminEmails.some(domain => cfEmail.endsWith(domain))) {
+    // Use exact domain match after @ to prevent suffix attacks (e.g. attacker@evil.blockforge.studio)
+    const emailDomain = cfEmail.includes('@') ? cfEmail.split('@')[1] : '';
+    if (!isDev && !CONFIG.adminEmails.some(domain => emailDomain === domain || cfEmail === domain)) {
         ws.send(JSON.stringify({
             type: 'error',
             code: 'FORBIDDEN',
@@ -2495,11 +2535,108 @@ function cleanupDeadServers() {
 // Run cleanup every 30 seconds
 setInterval(cleanupDeadServers, CONFIG.heartbeatInterval);
 
+// ============================================================================
+// Cloudflare Tunnel Auto-Launch & Panel URL Updater
+// ============================================================================
+
+const PANEL_FILES_TO_UPDATE = [
+    path.join(__dirname, 'panel', 'js', 'websocket.js'),
+    path.join(__dirname, '..', 'app', 'src', 'main', 'resources', 'panel', 'js', 'websocket.js'),
+    path.join(__dirname, '..', 'moderex-panel', 'js', 'websocket.js'),
+    path.join(__dirname, '..', 'website', 'admin', 'js', 'admin.js'),
+];
+
+function updatePanelUrls(tunnelHost) {
+    const wssPattern = /wss:\/\/[a-zA-Z0-9-]+\.trycloudflare\.com/g;
+    const newWss = `wss://${tunnelHost}`;
+    let updated = 0;
+
+    for (const filePath of PANEL_FILES_TO_UPDATE) {
+        try {
+            if (!fs.existsSync(filePath)) continue;
+            const content = fs.readFileSync(filePath, 'utf8');
+            if (!wssPattern.test(content)) continue;
+            // Reset regex lastIndex since we're reusing it
+            wssPattern.lastIndex = 0;
+            const newContent = content.replace(wssPattern, newWss);
+            if (newContent !== content) {
+                fs.writeFileSync(filePath, newContent, 'utf8');
+                updated++;
+                console.log(`[Tunnel] Updated URL in ${path.relative(path.join(__dirname, '..'), filePath)}`);
+            }
+        } catch (err) {
+            console.error(`[Tunnel] Failed to update ${filePath}: ${err.message}`);
+        }
+    }
+    if (updated > 0) {
+        console.log(`[Tunnel] Updated ${updated} file(s) with new tunnel URL: ${tunnelHost}`);
+    }
+}
+
+function startCloudflaredTunnel() {
+    return new Promise((resolve) => {
+        const port = CONFIG.port;
+        console.log('[Tunnel] Starting cloudflared tunnel...');
+
+        const cf = spawn('cloudflared', ['tunnel', '--url', `http://localhost:${port}`], {
+            stdio: ['ignore', 'pipe', 'pipe'],
+            shell: process.platform === 'win32',
+        });
+
+        let resolved = false;
+        const urlRegex = /https?:\/\/([a-zA-Z0-9-]+\.trycloudflare\.com)/;
+
+        function handleOutput(data) {
+            const text = data.toString();
+            // cloudflared prints the URL to stderr
+            const match = text.match(urlRegex);
+            if (match && !resolved) {
+                resolved = true;
+                const tunnelHost = match[1];
+                console.log(`[Tunnel] Tunnel established: https://${tunnelHost}`);
+                updatePanelUrls(tunnelHost);
+                resolve(tunnelHost);
+            }
+        }
+
+        cf.stdout.on('data', handleOutput);
+        cf.stderr.on('data', handleOutput);
+
+        cf.on('error', (err) => {
+            console.error(`[Tunnel] Failed to start cloudflared: ${err.message}`);
+            console.error('[Tunnel] Make sure cloudflared is installed: https://developers.cloudflare.com/cloudflare-one/connections/connect-networks/downloads/');
+            if (!resolved) {
+                resolved = true;
+                resolve(null);
+            }
+        });
+
+        cf.on('exit', (code) => {
+            if (code !== null && code !== 0) {
+                console.error(`[Tunnel] cloudflared exited with code ${code}`);
+            }
+            if (!resolved) {
+                resolved = true;
+                resolve(null);
+            }
+        });
+
+        // Timeout after 30 seconds
+        setTimeout(() => {
+            if (!resolved) {
+                console.error('[Tunnel] Timed out waiting for tunnel URL (30s)');
+                resolved = true;
+                resolve(null);
+            }
+        }, 30000);
+    });
+}
+
 // Start gateway (async to support sql.js initialization)
 async function startGateway() {
     await initDatabase();
 
-    server.listen(CONFIG.port, () => {
+    server.listen(CONFIG.port, async () => {
         const dbStatus = db ? 'SQLite' : 'In-Memory';
         console.log('');
         console.log('+---------------------------------------------------------------+');
@@ -2519,6 +2656,19 @@ async function startGateway() {
         console.log('|  Admin WebSocket:      ws://localhost:' + CONFIG.port + '/admin                |');
         console.log('+---------------------------------------------------------------+');
         console.log('');
+
+        // Auto-launch cloudflared tunnel unless GATEWAY_URL env var is set
+        if (process.env.GATEWAY_URL) {
+            const host = process.env.GATEWAY_URL.replace(/^https?:\/\//, '').replace(/\/$/, '');
+            console.log(`[Tunnel] Using GATEWAY_URL from env: ${host}`);
+            updatePanelUrls(host);
+        } else {
+            const tunnelHost = await startCloudflaredTunnel();
+            if (!tunnelHost) {
+                console.warn('[Tunnel] No tunnel URL available. Panel files not updated.');
+                console.warn('[Tunnel] Set GATEWAY_URL env var or install cloudflared.');
+            }
+        }
     });
 }
 

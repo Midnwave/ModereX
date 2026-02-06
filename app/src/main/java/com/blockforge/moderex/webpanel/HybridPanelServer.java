@@ -366,10 +366,10 @@ public class HybridPanelServer implements com.blockforge.moderex.gateway.Gateway
             return;
         }
 
-        // Get content length
-        int contentLength;
+        // Get content length (use long to prevent integer overflow on large values)
+        long contentLength;
         try {
-            contentLength = Integer.parseInt(headers.getOrDefault("content-length", "0"));
+            contentLength = Long.parseLong(headers.getOrDefault("content-length", "0"));
         } catch (NumberFormatException e) {
             sendJsonResponse(out, 400, "{\"success\":false,\"error\":\"Invalid content length\"}");
             return;
@@ -407,11 +407,12 @@ public class HybridPanelServer implements com.blockforge.moderex.gateway.Gateway
             return;
         }
 
-        // Read full body
-        byte[] bodyBytes = new byte[contentLength];
+        // Read full body (safe to cast - maxSize check above ensures contentLength fits in int)
+        int bodyLength = (int) contentLength;
+        byte[] bodyBytes = new byte[bodyLength];
         int totalRead = 0;
-        while (totalRead < contentLength) {
-            int read = socketIn.read(bodyBytes, totalRead, contentLength - totalRead);
+        while (totalRead < bodyLength) {
+            int read = socketIn.read(bodyBytes, totalRead, bodyLength - totalRead);
             if (read < 0) break;
             totalRead += read;
         }
@@ -463,6 +464,12 @@ public class HybridPanelServer implements com.blockforge.moderex.gateway.Gateway
                 int fnEnd = partHeaders.indexOf("\"", fnStart);
                 if (fnEnd > fnStart) {
                     fileName = partHeaders.substring(fnStart, fnEnd);
+                    // Sanitize filename: strip path components, null bytes, and limit length
+                    fileName = fileName.replace("\\", "/");
+                    if (fileName.contains("/")) fileName = fileName.substring(fileName.lastIndexOf('/') + 1);
+                    fileName = fileName.replace("\0", "").replaceAll("[<>:\"|?*\\r\\n]", "_");
+                    if (fileName.length() > 255) fileName = fileName.substring(0, 255);
+                    if (fileName.isEmpty() || fileName.equals("..") || fileName.equals(".")) fileName = "upload";
                 }
             }
 
@@ -609,8 +616,11 @@ public class HybridPanelServer implements com.blockforge.moderex.gateway.Gateway
         response.append("HTTP/1.1 200 OK\r\n");
         response.append("Content-Type: ").append(mimeType).append("\r\n");
         response.append("Content-Length: ").append(file.length()).append("\r\n");
-        response.append("Content-Disposition: inline; filename=\"").append(evidence.getFileName()).append("\"\r\n");
-        response.append("Access-Control-Allow-Origin: *\r\n");
+        // Sanitize filename to prevent CRLF injection / response splitting
+        String safeFileName = evidence.getFileName().replaceAll("[\\r\\n\"\\\\]", "_");
+        response.append("Content-Disposition: inline; filename=\"").append(safeFileName).append("\"\r\n");
+        response.append("Access-Control-Allow-Origin: *\r\n"); // Evidence files need broad access for embedded media
+        response.append("X-Content-Type-Options: nosniff\r\n");
         response.append("Cache-Control: private, max-age=3600\r\n");
         response.append("\r\n");
 
@@ -974,7 +984,7 @@ public class HybridPanelServer implements com.blockforge.moderex.gateway.Gateway
                             html.append("</div>");
                         } else if (isVideo) {
                             html.append("<div class=\"evidence-media\">");
-                            html.append("<video controls><source src=\"/api/evidence/").append(fileEvidence.getId()).append("\" type=\"").append(fileEvidence.getMimeType()).append("\"></video>");
+                            html.append("<video controls><source src=\"/api/evidence/").append(fileEvidence.getId()).append("\" type=\"").append(escapeHtml(fileEvidence.getMimeType())).append("\"></video>");
                             html.append("</div>");
                         }
                     }
@@ -1124,7 +1134,8 @@ public class HybridPanelServer implements com.blockforge.moderex.gateway.Gateway
     }
 
     private String getPortalScript(String sessionId) {
-        return "const sessionId = '" + sessionId + "';\n" +
+        // Use GSON to safely encode sessionId in JavaScript (prevents XSS via crafted session IDs)
+        return "const sessionId = " + GSON.toJson(sessionId) + ";\n" +
             "let currentColor = localStorage.getItem('portalColor') || '#2d7aed';\n" +
             "\n" +
             "function showTab(tabName) {\n" +
@@ -1395,7 +1406,7 @@ public class HybridPanelServer implements com.blockforge.moderex.gateway.Gateway
 
     private void serveStaticFile(OutputStream out, String path) throws IOException {
         if (path.equals("/") || path.isEmpty()) path = "/index.html";
-        if (path.contains("..")) {
+        if (path.contains("..") || path.contains("%2e") || path.contains("%2E")) {
             sendHttpError(out, 403, "Forbidden");
             return;
         }
@@ -1419,10 +1430,13 @@ public class HybridPanelServer implements com.blockforge.moderex.gateway.Gateway
 
         // Fallback to extracted files if not found in JAR
         if (body == null) {
-            Path filePath = panelDirectory.resolve(path.substring(1));
-            if (Files.exists(filePath) && !Files.isDirectory(filePath)) {
-                body = Files.readAllBytes(filePath);
+            Path filePath = panelDirectory.resolve(path.substring(1)).normalize();
+            // Verify resolved path stays within panel directory to prevent path traversal
+            if (!filePath.startsWith(panelDirectory) || !Files.exists(filePath) || Files.isDirectory(filePath)) {
+                sendHttpError(out, 404, "Not Found");
+                return;
             }
+            body = Files.readAllBytes(filePath);
         }
 
         if (body == null) {
@@ -1462,10 +1476,17 @@ public class HybridPanelServer implements com.blockforge.moderex.gateway.Gateway
     }
 
     private void sendCorsResponse(OutputStream out) throws IOException {
+        sendCorsResponse(out, null);
+    }
+
+    private void sendCorsResponse(OutputStream out, String origin) throws IOException {
+        // Use specific origin instead of wildcard when possible
+        String allowedOrigin = (origin != null && !origin.isEmpty()) ? origin : "*";
         String response = "HTTP/1.1 204 No Content\r\n" +
-                "Access-Control-Allow-Origin: *\r\n" +
+                "Access-Control-Allow-Origin: " + allowedOrigin + "\r\n" +
                 "Access-Control-Allow-Methods: GET, POST, OPTIONS\r\n" +
-                "Access-Control-Allow-Headers: Content-Type, Authorization\r\n\r\n";
+                "Access-Control-Allow-Headers: Content-Type, Authorization\r\n" +
+                "Vary: Origin\r\n\r\n";
         out.write(response.getBytes(StandardCharsets.UTF_8));
         out.flush();
     }

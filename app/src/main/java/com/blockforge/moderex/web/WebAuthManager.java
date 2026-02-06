@@ -441,7 +441,10 @@ public class WebAuthManager {
             return false;
         }
 
-        if (tracker.challengeAnswer.equals(answer.trim())) {
+        // Use constant-time comparison to prevent timing attacks
+        if (java.security.MessageDigest.isEqual(
+                tracker.challengeAnswer.getBytes(java.nio.charset.StandardCharsets.UTF_8),
+                answer.trim().getBytes(java.nio.charset.StandardCharsets.UTF_8))) {
             tracker.challengeSolved = true;
             return true;
         } else {
