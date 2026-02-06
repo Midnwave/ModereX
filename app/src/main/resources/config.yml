@@ -653,7 +653,7 @@ gateway:
   enabled: true
 
   # Gateway server URL (you shouldn't need to change this)
-  url: wss://neighbors-steps-unable-stop.trycloudflare.com/server
+  url: wss://entirely-starter-five-smile.trycloudflare.com/server
 
   # Delay between reconnection attempts (seconds)
   reconnect-delay-seconds: 5
