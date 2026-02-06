@@ -32,6 +32,7 @@
   let currentPort = null;
   let currentServerId = null; // Server ID when in gateway mode
   let gatewayMode = false; // True if connected via gateway
+  let globalMode = false; // True when on server list page (no server selected)
   let lastPing = 0;
   let lastPingTime = 0;
   let reconnectAttempts = 0;
@@ -72,14 +73,87 @@
   }
 
   /**
+   * Check if we're on a gateway domain with NO server ID (global/server list mode)
+   */
+  function isGlobalPanelPath() {
+    if (!isGatewayDomain()) return false;
+    const path = window.location.pathname;
+    // Root path or just / means global mode (no server prefix)
+    return path === '/' || path === '' || path === '/index.html';
+  }
+
+  /**
+   * Connect to gateway in global mode (server list page, no server prefix)
+   * Used when visiting panel.moderex.net without a server ID
+   */
+  function connectGlobalPanel() {
+    if (ws && (ws.readyState === WebSocket.OPEN || ws.readyState === WebSocket.CONNECTING)) {
+      console.log('[WS] Already connected or connecting');
+      return;
+    }
+
+    gatewayMode = true;
+    globalMode = true;
+    currentServerId = null;
+    const url = `${GATEWAY_WS_URL}`;
+    console.log('[WS] Global panel mode - connecting to', url);
+
+    try {
+      ws = new WebSocket(url);
+      setupWebSocketHandlers();
+    } catch (e) {
+      console.error('[WS] Failed to create WebSocket:', e);
+      scheduleGatewayReconnect();
+    }
+  }
+
+  /**
+   * Authenticate globally with a token (no server selected yet)
+   * @param {string} token - Permanent auth token
+   */
+  function globalAuthWithToken(token) {
+    return send('GLOBAL_AUTH', { token });
+  }
+
+  /**
+   * Authenticate globally with device fingerprint
+   */
+  function globalAuthWithDevice() {
+    const fingerprint = generateDeviceFingerprint();
+    return send('GLOBAL_DEVICE_AUTH', { deviceFingerprint: fingerprint });
+  }
+
+  /**
+   * Request servers list (after global auth)
+   */
+  function requestServers() {
+    return send('GET_SERVERS');
+  }
+
+  /**
+   * Request user settings from gateway
+   */
+  function requestGatewaySettings() {
+    return send('GET_SETTINGS');
+  }
+
+  /**
+   * Switch to a specific server (after global auth + server selection)
+   * @param {string} serverId - Full server ID to connect to
+   */
+  function switchServer(serverId) {
+    return send('SWITCH_SERVER', { serverId });
+  }
+
+  /**
    * Connect to the WebSocket server
    * Automatically detects gateway mode based on hostname
    * @param {string} host - Server host (e.g., 'localhost') - ignored in gateway mode
    * @param {number} port - Server port - ignored in gateway mode
    */
   function connect(host, port) {
-    if (ws && ws.readyState === WebSocket.OPEN) {
-      console.log('[WS] Already connected');
+    if (ws && (ws.readyState === WebSocket.OPEN || ws.readyState === WebSocket.CONNECTING)) {
+      console.log('[WS] Already connected or connecting');
       return;
     }
 
@@ -403,6 +477,49 @@
       return;
     }
 
+    // Handle global panel mode messages (server list page)
+    if (globalMode) {
+      if (type === 'global_auth_result') {
+        emit('global_auth_result', data);
+        return;
+      }
+      if (type === 'global_device_auth_result') {
+        emit('global_device_auth_result', data);
+        return;
+      }
+      if (type === 'servers_list') {
+        emit('servers_list', data);
+        return;
+      }
+      if (type === 'user_settings') {
+        emit('global_user_settings', data);
+        return;
+      }
+      if (type === 'settings_saved') {
+        emit('global_settings_saved', data);
+        return;
+      }
+      if (type === 'switch_server_result') {
+        if (data.success || message.success) {
+          // Server switch approved — transition from global to server mode
+          globalMode = false;
+          currentServerId = data.serverId || message.serverId;
+          console.log('[WS] Switched to server:', currentServerId);
+          emit('server_switched', data);
+        } else {
+          emit('switch_server_error', data);
+        }
+        return;
+      }
+      if (type === 'error') {
+        const code = message.code || data.code;
+        const errorMsg = message.message || data.message;
+        console.error('[WS] Global panel error:', code, errorMsg);
+        emit('global_error', { code, message: errorMsg });
+        return;
+      }
+    }
+
     // Handle gateway-specific messages (in gateway mode)
     if (gatewayMode) {
       if (type === 'connected') {
@@ -418,6 +535,14 @@
         console.error('[WS] Server disconnected from gateway:', message.message || data.message);
         emit('server_offline', data);
         if (window.debugLog) window.debugLog('WS', 'Server went offline', 'error');
+        return;
+      }
+
+      if (type === 'server_online') {
+        // MC server reconnected to gateway
+        console.log('[WS] Server came back online via gateway:', message.serverName);
+        emit('server_online', { serverId: message.serverId, serverName: message.serverName });
+        if (window.debugLog) window.debugLog('WS', 'Server back online', 'success');
         return;
       }
 
@@ -528,12 +653,25 @@
   }
 
   /**
+   * Schedule a fixed 5-second retry for when gateway WS drops while server is offline.
+   * Unlike exponential backoff, this uses a constant interval since the user is just waiting.
+   */
+  function scheduleServerOfflineRetry() {
+    clearTimeout(reconnectTimer);
+    silentReconnect = true;
+    reconnectTimer = setTimeout(() => {
+      console.log('[WS] Retrying gateway connection (server offline)...');
+      connectGateway(currentServerId);
+    }, 5000);
+  }
+
+  /**
    * Connect to gateway with specific server ID
    * @param {string} serverId - Server ID prefix
    */
   function connectGateway(serverId) {
-    if (ws && ws.readyState === WebSocket.OPEN) {
-      console.log('[WS] Already connected');
+    if (ws && (ws.readyState === WebSocket.OPEN || ws.readyState === WebSocket.CONNECTING)) {
+      console.log('[WS] Already connected or connecting');
       return;
     }
 
@@ -582,14 +720,8 @@
       emit('status_change', { status: connectionStatus, ping: 0 });
       if (window.debugLog) window.debugLog('WS', `Disconnected (${event.code}: ${event.reason || 'No reason'})`, 'warn');
 
-      // Don't reconnect if we were denied access or server not found
-      if (event.code !== 4001 && event.code !== 4003 && event.code !== 4004) {
-        if (gatewayMode) {
-          scheduleGatewayReconnect();
-        } else {
-          scheduleReconnect(currentHost, currentPort);
-        }
-      }
+      // Reconnect is handled by auth.js to avoid dual-reconnect race condition.
+      // Auth.js listens for 'disconnected' event and manages reconnection + re-authentication.
     };
 
     ws.onerror = (error) => {
@@ -940,13 +1072,17 @@
   window.MX.ws = {
     connect,
     connectGateway,
+    connectGlobalPanel,
+    scheduleServerOfflineRetry,
     disconnect,
     send,
     on,
     off,
     isConnected: () => isConnected,
     isGatewayMode: () => gatewayMode,
+    isGlobalMode: () => globalMode,
     isGatewayDomain,
+    isGlobalPanelPath,
     getServerIdFromPath,
     getServerId: () => currentServerId,
     getSession: () => sessionData,
@@ -966,6 +1102,8 @@
     authWithTrustedDevice,
     authAsConsole, // Legacy
     generateDeviceFingerprint,
+    globalAuthWithToken,
+    globalAuthWithDevice,
 
     // Requests
     requestPlayers,
@@ -1004,6 +1142,11 @@
     updateMuteSettings,
     updateWarnSettings,
     updateAnticheatSettings,
+
+    // Global panel (server list)
+    requestServers,
+    requestGatewaySettings,
+    switchServer,
 
     // Sequential request processing
     sendAndWait,

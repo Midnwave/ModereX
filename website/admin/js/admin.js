@@ -164,9 +164,17 @@
     // ========================================
 
     function handleMessage(message) {
-        const { type, data } = message;
+        const type = message.type;
+        // Gateway sends some responses with a 'data' wrapper, some without.
+        // Fall back to the message itself so fields like servers, entries, etc. are accessible.
+        const data = message.data || message;
 
         switch (type) {
+            case 'connected':
+                // Gateway sends this on initial WebSocket connection
+                console.log('[Admin] Connected to gateway');
+                break;
+
             case 'auth_success':
                 console.log('[Admin] Authenticated successfully');
                 break;
@@ -181,12 +189,22 @@
                 break;
 
             case 'servers_list':
-                updateServersList(data.servers);
+                updateServersList(data.servers || []);
                 break;
 
-            case 'announcements_list':
-                updateAnnouncementsList(data);
+            case 'active_announcements':
+            case 'announcements_list': {
+                // Gateway sends flat array as 'announcements' — sort into active/scheduled/history
+                const announcements = data.announcements || [];
+                const now = Date.now();
+                const sorted = {
+                    active: announcements.filter(a => a.active && (!a.scheduledAt || a.scheduledAt <= now)),
+                    scheduled: announcements.filter(a => a.scheduledAt && a.scheduledAt > now),
+                    history: announcements.filter(a => !a.active)
+                };
+                updateAnnouncementsList(sorted);
                 break;
+            }
 
             case 'gateway_health':
                 updateGatewayHealth(data);
@@ -201,7 +219,7 @@
                 break;
 
             case 'audit_log':
-                updateAuditLog(data.entries);
+                updateAuditLog(data.entries || []);
                 break;
 
             case 'announcement_created':
@@ -211,13 +229,18 @@
                 break;
 
             case 'announcement_error':
-                toast('error', 'Error', data.error);
+                toast('error', 'Error', data.error || data.message || 'Unknown error');
                 break;
 
             case 'license_key_created':
                 toast('success', 'License Key Generated', `Key: ${data.key}`);
                 hideLicenseKeyModal();
                 requestPremiumData();
+                break;
+
+            case 'error':
+                console.error('[Admin] Gateway error:', data.message || data.error);
+                toast('error', 'Error', data.message || data.error || 'Unknown error');
                 break;
 
             default:
@@ -264,15 +287,16 @@
     // ========================================
 
     function updateDashboard(data) {
-        document.getElementById('totalServers').textContent = data.totalServers || 0;
-        document.getElementById('totalPlayers').textContent = data.totalPlayers || 0;
+        document.getElementById('totalServers').textContent = data.totalServers || data.servers || 0;
+        document.getElementById('totalPlayers').textContent = data.totalPlayers || data.players || 0;
         document.getElementById('premiumServers').textContent = data.premiumServers || 0;
-        document.getElementById('activeAnnouncements').textContent = data.activeAnnouncements || 0;
+        document.getElementById('activeAnnouncements').textContent = data.activeAnnouncements || data.announcements || 0;
 
         // Update recent activity
-        if (data.recentActivity && data.recentActivity.length > 0) {
+        const activity = data.recentActivity || data.activity;
+        if (activity && activity.length > 0) {
             const activityList = document.getElementById('recentActivity');
-            activityList.innerHTML = data.recentActivity.map(activity => `
+            activityList.innerHTML = activity.map(activity => `
                 <div class="activity-item">
                     <div class="activity-icon"><i class="fas fa-${getActivityIcon(activity.type)}"></i></div>
                     <div class="activity-info">
@@ -344,13 +368,13 @@
         }
 
         container.innerHTML = announcements.map(ann => `
-            <div class="announcement-card ${ann.type}">
+            <div class="announcement-card ${ann.level || ann.type || 'info'}">
                 <div class="announcement-header">
-                    <span class="announcement-type ${ann.type}">${ann.type.toUpperCase()}</span>
+                    <span class="announcement-type ${ann.level || ann.type || 'info'}">${(ann.level || ann.type || 'info').toUpperCase()}</span>
                     <span class="announcement-time">${formatTime(ann.createdAt)}</span>
                 </div>
-                <h4>${escapeHtml(ann.title)}</h4>
-                <p>${escapeHtml(ann.message)}</p>
+                <h4>${escapeHtml(ann.title || 'Announcement')}</h4>
+                <p>${escapeHtml(ann.content || ann.message || '')}</p>
                 <div class="announcement-footer">
                     <span class="announcement-stats">
                         <i class="fas fa-paper-plane"></i> Sent to ${ann.sentCount || 0} servers
