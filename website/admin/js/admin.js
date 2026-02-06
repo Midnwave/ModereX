@@ -7,7 +7,7 @@
     'use strict';
 
     // Gateway WebSocket URL
-    const GATEWAY_WS_URL = 'wss://phillips-cache-northeast-photographer.trycloudflare.com/admin';
+    const GATEWAY_WS_URL = 'wss://entirely-starter-five-smile.trycloudflare.com/admin';
 
     // State
     let ws = null;
