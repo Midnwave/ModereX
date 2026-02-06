@@ -78,8 +78,8 @@
    * @param {number} port - Server port - ignored in gateway mode
    */
   function connect(host, port) {
-    if (ws && ws.readyState === WebSocket.OPEN) {
-      console.log('[WS] Already connected');
+    if (ws && (ws.readyState === WebSocket.OPEN || ws.readyState === WebSocket.CONNECTING)) {
+      console.log('[WS] Already connected or connecting');
       return;
     }
 
@@ -421,6 +421,14 @@
         return;
       }
 
+      if (type === 'server_online') {
+        // MC server reconnected to gateway
+        console.log('[WS] Server came back online via gateway:', message.serverName);
+        emit('server_online', { serverId: message.serverId, serverName: message.serverName });
+        if (window.debugLog) window.debugLog('WS', 'Server back online', 'success');
+        return;
+      }
+
       if (type === 'error') {
         // Gateway error (e.g., server not found)
         // Gateway sends: { type, code, message } (no data wrapper)
@@ -528,12 +536,25 @@
   }
 
   /**
+   * Schedule a fixed 5-second retry for when gateway WS drops while server is offline.
+   * Unlike exponential backoff, this uses a constant interval since the user is just waiting.
+   */
+  function scheduleServerOfflineRetry() {
+    clearTimeout(reconnectTimer);
+    silentReconnect = true;
+    reconnectTimer = setTimeout(() => {
+      console.log('[WS] Retrying gateway connection (server offline)...');
+      connectGateway(currentServerId);
+    }, 5000);
+  }
+
+  /**
    * Connect to gateway with specific server ID
    * @param {string} serverId - Server ID prefix
    */
   function connectGateway(serverId) {
-    if (ws && ws.readyState === WebSocket.OPEN) {
-      console.log('[WS] Already connected');
+    if (ws && (ws.readyState === WebSocket.OPEN || ws.readyState === WebSocket.CONNECTING)) {
+      console.log('[WS] Already connected or connecting');
       return;
     }
 
@@ -582,14 +603,8 @@
       emit('status_change', { status: connectionStatus, ping: 0 });
       if (window.debugLog) window.debugLog('WS', `Disconnected (${event.code}: ${event.reason || 'No reason'})`, 'warn');
 
-      // Don't reconnect if we were denied access or server not found
-      if (event.code !== 4001 && event.code !== 4003 && event.code !== 4004) {
-        if (gatewayMode) {
-          scheduleGatewayReconnect();
-        } else {
-          scheduleReconnect(currentHost, currentPort);
-        }
-      }
+      // Reconnect is handled by auth.js to avoid dual-reconnect race condition.
+      // Auth.js listens for 'disconnected' event and manages reconnection + re-authentication.
     };
 
     ws.onerror = (error) => {
@@ -940,6 +955,7 @@
   window.MX.ws = {
     connect,
     connectGateway,
+    scheduleServerOfflineRetry,
     disconnect,
     send,
     on,

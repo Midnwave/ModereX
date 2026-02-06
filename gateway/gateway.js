@@ -593,6 +593,18 @@ function handleMCServerConnection(ws, clientIp) {
                     panelUrl: `panel.moderex.net/${prefix}/`,
                     message: 'Successfully registered with gateway'
                 }));
+
+                // Notify waiting browsers that this server is back online
+                browserClients.forEach((client, clientId) => {
+                    if (client.serverId === serverId && client.ws.readyState === WebSocket.OPEN) {
+                        client.ws.send(JSON.stringify({
+                            type: 'server_online',
+                            serverId: serverId,
+                            serverName: message.serverName || 'Unknown Server'
+                        }));
+                    }
+                });
+
                 return;
             }
 
