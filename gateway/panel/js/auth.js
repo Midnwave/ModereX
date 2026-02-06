@@ -83,6 +83,91 @@
     return newId;
   }
 
+  // ========== Secure Token Storage (AES-GCM encryption) ==========
+
+  /**
+   * Derive an AES-GCM key from the device fingerprint using Web Crypto API.
+   */
+  async function deriveEncryptionKey(fingerprint) {
+    const encoder = new TextEncoder();
+    const keyMaterial = await crypto.subtle.importKey(
+      'raw', encoder.encode(fingerprint),
+      { name: 'PBKDF2' }, false, ['deriveKey']
+    );
+    return crypto.subtle.deriveKey(
+      { name: 'PBKDF2', salt: encoder.encode('mx_token_salt'), iterations: 100000, hash: 'SHA-256' },
+      keyMaterial,
+      { name: 'AES-GCM', length: 256 }, false, ['encrypt', 'decrypt']
+    );
+  }
+
+  /**
+   * Encrypt a token and store it in localStorage.
+   */
+  async function saveEncryptedToken(token, fingerprint) {
+    try {
+      const key = await deriveEncryptionKey(fingerprint);
+      const iv = crypto.getRandomValues(new Uint8Array(12));
+      const encoder = new TextEncoder();
+      const encrypted = await crypto.subtle.encrypt(
+        { name: 'AES-GCM', iv }, key, encoder.encode(token)
+      );
+      // Store IV + ciphertext as base64
+      const combined = new Uint8Array(iv.length + encrypted.byteLength);
+      combined.set(iv);
+      combined.set(new Uint8Array(encrypted), iv.length);
+      localStorage.setItem('mx_permanent_token_enc', btoa(String.fromCharCode(...combined)));
+      // Remove old plaintext token if exists
+      localStorage.removeItem('mx_permanent_token');
+    } catch (e) {
+      // Fallback: store plaintext if Web Crypto unavailable (e.g., HTTP without secure context)
+      console.warn('[Auth] Web Crypto unavailable, storing token in plaintext');
+      localStorage.setItem('mx_permanent_token', token);
+    }
+  }
+
+  /**
+   * Read and decrypt the token from localStorage.
+   */
+  async function loadEncryptedToken(fingerprint) {
+    try {
+      // Check for encrypted token first
+      const encData = localStorage.getItem('mx_permanent_token_enc');
+      if (encData) {
+        const key = await deriveEncryptionKey(fingerprint);
+        const combined = Uint8Array.from(atob(encData), c => c.charCodeAt(0));
+        const iv = combined.slice(0, 12);
+        const ciphertext = combined.slice(12);
+        const decrypted = await crypto.subtle.decrypt(
+          { name: 'AES-GCM', iv }, key, ciphertext
+        );
+        return new TextDecoder().decode(decrypted);
+      }
+      // Fallback: read old plaintext token and migrate it
+      const plainToken = localStorage.getItem('mx_permanent_token');
+      if (plainToken) {
+        // Migrate to encrypted storage
+        await saveEncryptedToken(plainToken, fingerprint);
+        return plainToken;
+      }
+      return null;
+    } catch (e) {
+      // Decryption failed (different device/fingerprint changed) - require re-auth
+      console.warn('[Auth] Token decryption failed - fingerprint may have changed');
+      localStorage.removeItem('mx_permanent_token_enc');
+      localStorage.removeItem('mx_permanent_token');
+      return null;
+    }
+  }
+
+  /**
+   * Remove encrypted token from storage.
+   */
+  function removeEncryptedToken() {
+    localStorage.removeItem('mx_permanent_token_enc');
+    localStorage.removeItem('mx_permanent_token');
+  }
+
   /**
    * Show connection toast alert
    */
@@ -370,13 +455,13 @@
    * Try to authenticate using available methods
    * Priority: URL token > Saved token with device trust check > Session
    */
-  function tryAuthenticate() {
+  async function tryAuthenticate() {
     authState.connectionPhase = 'authenticating';
     authState.status = AuthStatus.PENDING_VERIFICATION;
     updateStatus('Authenticating...', 'Verifying credentials');
 
     const urlToken = authState.urlToken;
-    const savedToken = localStorage.getItem('mx_permanent_token');
+    const savedToken = await loadEncryptedToken(authState.deviceFingerprint);
     const savedSession = getSavedSession();
     const savedDeviceFingerprint = localStorage.getItem('mx_token_device');
 
@@ -393,14 +478,12 @@
       if (savedDeviceFingerprint === authState.deviceFingerprint) {
         console.log('[Auth] Same device - authenticating with saved token');
         updateStatus('Authenticating...', 'Verifying token');
-        // Use AUTH_PERMANENT_TOKEN which the server understands
         ws.send('AUTH_PERMANENT_TOKEN', {
           token: savedToken,
           deviceFingerprint: authState.deviceFingerprint
         });
       } else {
         console.log('[Auth] Different device - requiring manual auth');
-        // Different device - require re-entering token
         showManualAuth('Please enter your token to continue on this device.');
       }
     } else if (savedSession) {
@@ -449,10 +532,11 @@
     }
 
     // Load saved token into field (but user must re-enter if device trust is off)
-    const savedToken = localStorage.getItem('mx_permanent_token');
-    if (savedToken && dom.authToken) {
-      dom.authToken.value = savedToken;
-    }
+    loadEncryptedToken(authState.deviceFingerprint).then(savedToken => {
+      if (savedToken && dom.authToken) {
+        dom.authToken.value = savedToken;
+      }
+    });
   }
 
   /**
@@ -574,9 +658,9 @@
 
       authState.deviceTrustEnabled = data.deviceTrustEnabled || false;
 
-      // Save token with device fingerprint
+      // Save token with device fingerprint (encrypted)
       if (authState.token) {
-        localStorage.setItem('mx_permanent_token', authState.token);
+        saveEncryptedToken(authState.token, authState.deviceFingerprint);
         localStorage.setItem('mx_token_device', authState.deviceFingerprint);
       }
 
@@ -599,8 +683,19 @@
       if (data?.code === 'INVALID_TOKEN') {
         errorTitle = 'Invalid Token';
         errorMessage = 'The token is invalid or expired. Get a new one with /mx gettoken';
-        localStorage.removeItem('mx_permanent_token');
+        removeEncryptedToken();
         localStorage.removeItem('mx_token_device');
+      } else if (data?.code === 'TOKEN_EXPIRED') {
+        errorTitle = 'Token Expired';
+        errorMessage = 'Your token has expired (90-day limit). Run /mx token in-game to generate a new one.';
+        removeEncryptedToken();
+        localStorage.removeItem('mx_token_device');
+      } else if (data?.code === 'RATE_LIMITED') {
+        errorTitle = 'Rate Limited';
+        const waitSeconds = data?.waitSeconds || 0;
+        errorMessage = waitSeconds > 0
+          ? `Too many failed attempts. Please wait ${waitSeconds} seconds before trying again.`
+          : 'Too many failed attempts. Please try again later.';
       } else if (data?.code === 'NO_PERMISSION') {
         errorTitle = 'No Permission';
         errorMessage = 'You need moderex.webpanel permission to access the panel';
@@ -610,8 +705,38 @@
         clearSavedSession();
       }
 
+      setLoading(false);
       showConnectionToast('bad', errorTitle, errorMessage);
       showManualAuth(errorMessage);
+    });
+
+    // Auth challenge (CAPTCHA-like math question after failed attempts)
+    ws.on('AUTH_CHALLENGE', (data) => {
+      console.log('[Auth] Challenge required:', data?.question);
+      if (window.devtoolsLog) window.devtoolsLog('AUTH', 'CAPTCHA challenge required', 'warn');
+
+      authState.connectionPhase = 'idle';
+      setLoading(false);
+      showChallengeModal(data?.question || 'Solve the challenge to continue');
+    });
+
+    // Challenge solved - allow retry
+    ws.on('AUTH_CHALLENGE_SOLVED', () => {
+      console.log('[Auth] Challenge solved - retrying auth');
+      if (window.devtoolsLog) window.devtoolsLog('AUTH', 'Challenge solved', 'success');
+      hideChallengeModal();
+      showConnectionToast('ok', 'Verified', 'Challenge solved. You can now try again.');
+      showManualAuth();
+    });
+
+    ws.on('AUTH_CHALLENGE_FAILED', (data) => {
+      console.log('[Auth] Challenge failed');
+      if (window.devtoolsLog) window.devtoolsLog('AUTH', 'Challenge answer incorrect', 'error');
+      // Show new challenge
+      if (data?.newQuestion) {
+        showChallengeModal(data.newQuestion);
+        showConnectionToast('bad', 'Incorrect', 'Wrong answer. Try again.');
+      }
     });
 
     ws.on('access_denied', (data) => {
@@ -638,9 +763,7 @@
       console.log('[Auth] Session terminated:', data?.reason);
       if (window.devtoolsLog) window.devtoolsLog('AUTH', `Session terminated: ${data?.reason || 'unknown'}`, 'warn');
       // Clear all saved auth data
-      localStorage.removeItem('mx_permanent_token');
-      localStorage.removeItem('mx_token_device');
-      localStorage.removeItem('mx_session');
+      clearSavedAuth();
       forceLogout(data?.reason || 'Session terminated. Please re-authenticate.');
     });
 
@@ -939,8 +1062,8 @@
       console.log('[Auth] Detected UUID input - using dev authentication');
       // Don't save UUID as token
     } else {
-      // Save token with device fingerprint
-      localStorage.setItem('mx_permanent_token', token);
+      // Save token with device fingerprint (encrypted)
+      saveEncryptedToken(token, authState.deviceFingerprint);
       localStorage.setItem('mx_token_device', authState.deviceFingerprint);
       authState.token = token;
     }
@@ -1182,13 +1305,13 @@
    */
   function saveSession(sessionId) {
     try {
-      localStorage.setItem('mx_session', sessionId);
+      sessionStorage.setItem('mx_session', sessionId);
     } catch (e) {}
   }
 
   function getSavedSession() {
     try {
-      return localStorage.getItem('mx_session');
+      return sessionStorage.getItem('mx_session');
     } catch (e) {
       return null;
     }
@@ -1196,17 +1319,90 @@
 
   function clearSavedSession() {
     try {
-      localStorage.removeItem('mx_session');
+      sessionStorage.removeItem('mx_session');
     } catch (e) {}
   }
 
   function clearSavedAuth() {
     try {
       localStorage.removeItem('mx_auth');
-      localStorage.removeItem('mx_session');
-      localStorage.removeItem('mx_permanent_token');
       localStorage.removeItem('mx_token_device');
+      removeEncryptedToken();
+      clearSavedSession();
     } catch (e) {}
+  }
+
+  // ========== Challenge Modal (Anti-brute-force CAPTCHA) ==========
+
+  /**
+   * Show the math challenge modal
+   */
+  function showChallengeModal(question) {
+    let modal = document.getElementById('authChallengeModal');
+    if (!modal) {
+      modal = document.createElement('div');
+      modal.id = 'authChallengeModal';
+      modal.className = 'auth-challenge-overlay';
+      modal.innerHTML = `
+        <div class="auth-challenge-modal">
+          <div class="auth-challenge-icon">
+            <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+            </svg>
+          </div>
+          <h3>Security Verification</h3>
+          <p class="auth-challenge-desc">Too many failed attempts. Solve this to continue:</p>
+          <p class="auth-challenge-question" id="challengeQuestion"></p>
+          <input type="text" id="challengeAnswer" class="auth-challenge-input" placeholder="Your answer" autocomplete="off" />
+          <p class="auth-challenge-error" id="challengeError" style="display:none;"></p>
+          <button class="btn btn-primary auth-challenge-btn" id="challengeSubmitBtn">
+            <i class="fa-solid fa-check"></i> Submit
+          </button>
+        </div>
+      `;
+      document.body.appendChild(modal);
+
+      // Event listeners
+      document.getElementById('challengeSubmitBtn').addEventListener('click', submitChallenge);
+      document.getElementById('challengeAnswer').addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') submitChallenge();
+      });
+    }
+
+    document.getElementById('challengeQuestion').textContent = question;
+    document.getElementById('challengeAnswer').value = '';
+    document.getElementById('challengeError').style.display = 'none';
+    modal.classList.add('show');
+
+    setTimeout(() => document.getElementById('challengeAnswer')?.focus(), 100);
+  }
+
+  /**
+   * Hide the challenge modal
+   */
+  function hideChallengeModal() {
+    const modal = document.getElementById('authChallengeModal');
+    if (modal) {
+      modal.classList.remove('show');
+      setTimeout(() => modal.remove(), 300);
+    }
+  }
+
+  /**
+   * Submit challenge answer
+   */
+  function submitChallenge() {
+    const answer = document.getElementById('challengeAnswer')?.value?.trim();
+    if (!answer) {
+      const errorEl = document.getElementById('challengeError');
+      if (errorEl) {
+        errorEl.textContent = 'Please enter an answer';
+        errorEl.style.display = 'block';
+      }
+      return;
+    }
+
+    ws.send('AUTH_CHALLENGE_RESPONSE', { answer });
   }
 
   /**
