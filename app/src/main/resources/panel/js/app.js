@@ -3511,13 +3511,7 @@
         }, 60000); // 60 second timeout
 
         // Send via WebSocket
-        window.MX.ws.send(JSON.stringify({
-          type: 'UPLOAD_EVIDENCE_WS',
-          data: {
-            fileName: file.name,
-            data: base64Data
-          }
-        }));
+        window.MX.ws.send('UPLOAD_EVIDENCE_WS', { fileName: file.name, data: base64Data });
 
         // Update progress to 75% (data sent)
         if (progressFill) progressFill.style.width = '75%';
@@ -3591,10 +3585,7 @@
       }, 30000); // 30 second timeout
 
       // Request file via WebSocket
-      window.MX.ws.send(JSON.stringify({
-        type: 'GET_EVIDENCE_FILE',
-        data: { fileId: fileId }
-      }));
+      window.MX.ws.send('GET_EVIDENCE_FILE', { fileId });
     });
   }
 
@@ -4136,10 +4127,7 @@
         // Send to backend via WebSocket
         const ws = window.MX?.ws;
         if (ws && ws.isConnected()) {
-          ws.send({
-            type: 'DELETE_TEMPLATE',
-            id: tplId
-          });
+          ws.send('DELETE_TEMPLATE', { id: tplId });
           // Optimistically remove from local state
           state.templates = state.templates.filter(t => t.id !== tplId);
           ui.renderTemplates();
@@ -4184,14 +4172,7 @@
         const ws = window.MX?.ws;
         if (ws && ws.isConnected()) {
           // Note: message 'type' is 'CREATE_TEMPLATE', punishment type goes in separate field
-          ws.send({
-            type: 'CREATE_TEMPLATE',
-            name: name,
-            punishmentType: type,
-            duration: duration,
-            reason: reason,
-            category: category
-          });
+          ws.send('CREATE_TEMPLATE', { name, punishmentType: type, duration, reason, category });
         } else {
           toast('warn', 'Not Connected', 'WebSocket not connected');
           return false;
@@ -4242,15 +4223,7 @@
         // Send to backend via WebSocket
         const ws = window.MX?.ws;
         if (ws && ws.isConnected()) {
-          ws.send({
-            type: 'UPDATE_TEMPLATE',
-            id: tplId,
-            name: name,
-            punishmentType: type,
-            duration: duration,
-            reason: reason,
-            category: category
-          });
+          ws.send('UPDATE_TEMPLATE', { id: tplId, name, punishmentType: type, duration, reason, category });
         } else {
           toast('warn', 'Not Connected', 'WebSocket not connected');
           return false;
@@ -4370,14 +4343,14 @@
   window.refreshReplays = function() {
     const ws = window.MX?.ws;
     if (ws && ws.isConnected()) {
-      ws.send({ type: 'GET_REPLAYS' });
+      ws.send('GET_REPLAYS');
     }
   };
 
   window.viewReplay = function(replayId) {
     const ws = window.MX?.ws;
     if (ws && ws.isConnected()) {
-      ws.send({ type: 'GET_REPLAY', sessionId: replayId });
+      ws.send('GET_REPLAY', { sessionId: replayId });
     }
   };
 
@@ -4396,7 +4369,7 @@
         }
         const ws = window.MX?.ws;
         if (ws && ws.isConnected()) {
-          ws.send({ type: 'RENAME_REPLAY', sessionId: replayId, name: newName });
+          ws.send('RENAME_REPLAY', { sessionId: replayId, name: newName });
           toast('ok', 'Renamed', 'Replay renamed');
         }
         return true;
@@ -4412,7 +4385,7 @@
       onConfirm: () => {
         const ws = window.MX?.ws;
         if (ws && ws.isConnected()) {
-          ws.send({ type: 'DELETE_REPLAY', sessionId: replayId });
+          ws.send('DELETE_REPLAY', { sessionId: replayId });
         }
       }
     });
@@ -4449,7 +4422,7 @@
         }
         const ws = window.MX?.ws;
         if (ws && ws.isConnected()) {
-          ws.send({ type: 'START_REPLAY', name, playerUuids: selected });
+          ws.send('START_REPLAY', { name, playerUuids: selected });
           toast('ok', 'Recording Started', `Recording ${selected.length} player(s)`);
         }
         return true;
@@ -4501,7 +4474,7 @@
 
     const ws = window.MX?.ws;
     if (ws && ws.isConnected()) {
-      ws.send({ type: 'UPDATE_REPLAY_SETTINGS', ...settings });
+      ws.send('UPDATE_REPLAY_SETTINGS', settings);
       toast('ok', 'Saved', 'Replay settings updated');
     }
   };
@@ -5539,10 +5512,7 @@
     // Sync with server
     const ws = window.MX?.ws;
     if (ws && ws.isConnected()) {
-      ws.send(JSON.stringify({
-        type: 'UPDATE_USER_SETTINGS',
-        data: { watchlistToasts: state.settings.watchToasts }
-      }));
+      ws.send('UPDATE_USER_SETTINGS', { watchlistToasts: state.settings.watchToasts });
     }
 
     window.MX.sounds?.toggle();
@@ -12119,7 +12089,7 @@
           // Small delay to ensure connection is stable
           setTimeout(() => {
             if (window.MX.ws.isConnected()) {
-              window.MX.ws.send(JSON.stringify({ type: 'GET_PANEL_VERSION' }));
+              window.MX.ws.send('GET_PANEL_VERSION');
             }
           }, 500);
         };
@@ -12127,7 +12097,7 @@
         return;
       }
       // Request version via WebSocket
-      window.MX.ws.send(JSON.stringify({ type: 'GET_PANEL_VERSION' }));
+      window.MX.ws.send('GET_PANEL_VERSION');
       // Response is handled by the PANEL_VERSION handler below
       return;
     }

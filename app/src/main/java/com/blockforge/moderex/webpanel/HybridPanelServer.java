@@ -2419,6 +2419,7 @@ public class HybridPanelServer implements com.blockforge.moderex.gateway.Gateway
             case "REMOVE_CMD_BLACKLIST_ENTRY" -> removeCmdBlacklistEntry(conn, data, session);
             case "GET_REPLAYS" -> sendReplayList(conn);
             case "GET_REPLAY" -> sendReplayData(conn, data);
+            case "GET_REPLAY_SETTINGS" -> sendReplaySettings(conn);
             case "GET_SERVER_STATUS" -> sendServerStatus(conn);
             case "TELEPORT_TO_CHUNK" -> teleportToChunk(conn, data, session);
             case "TELEPORT_TO_PLAYER" -> teleportToPlayerByName(conn, data, session);
@@ -6910,6 +6911,29 @@ public class HybridPanelServer implements com.blockforge.moderex.gateway.Gateway
         });
     }
 
+    private void sendReplaySettings(WebSocketConnection conn) {
+        JsonObject response = new JsonObject();
+        response.addProperty("type", "REPLAY_SETTINGS");
+        JsonObject data = new JsonObject();
+
+        var replayManager = plugin.getReplayManager();
+        var config = plugin.getConfigManager().getSettings();
+
+        data.addProperty("enabled", replayManager != null && config.isReplayEnabled());
+        data.addProperty("maxDuration", config.getReplayMaxDurationSeconds());
+        data.addProperty("maxStored", config.getReplayMaxStored());
+        data.addProperty("triggerOnAnticheat", config.isReplayRecordOnAnticheat());
+        data.addProperty("triggerOnWatchlist", config.isReplayRecordWatchlist());
+        data.addProperty("nearbyRadius", config.getReplayNearbyRadius());
+
+        // Citizens status
+        var hookManager = plugin.getHookManager();
+        data.addProperty("citizensAvailable", hookManager != null && hookManager.hasCitizens());
+
+        response.add("data", data);
+        conn.send(GSON.toJson(response));
+    }
+
     private void sendReplayList(WebSocketConnection conn) {
         plugin.getReplayManager().getSavedReplays().thenAccept(replays -> {
             JsonObject response = new JsonObject();
@@ -7813,22 +7837,35 @@ public class HybridPanelServer implements com.blockforge.moderex.gateway.Gateway
 
     private void sendServerStatus(WebSocketConnection conn) {
         plugin.logDebug("[WebPanel] sendServerStatus called, connection type: " + conn.getClass().getSimpleName());
-        JsonObject response = new JsonObject();
-        response.addProperty("type", "SERVER_STATUS");
 
         var statusManager = plugin.getServerStatusManager();
-        if (statusManager != null) {
-            response.add("data", statusManager.getStatusJson());
-            plugin.logDebug("[WebPanel] Sending server status with data from StatusManager");
-        } else {
+        if (statusManager == null) {
+            JsonObject response = new JsonObject();
+            response.addProperty("type", "SERVER_STATUS");
             JsonObject data = new JsonObject();
             data.addProperty("error", "Server status monitoring is not enabled");
             response.add("data", data);
-            plugin.logDebug("[WebPanel] Server status monitoring is not enabled");
+            conn.send(GSON.toJson(response));
+            return;
         }
 
-        conn.send(GSON.toJson(response));
-        plugin.logDebug("[WebPanel] Server status sent successfully");
+        // Must run on main thread - getStatusJson() accesses Bukkit API
+        Bukkit.getScheduler().runTask(plugin, () -> {
+            try {
+                JsonObject response = new JsonObject();
+                response.addProperty("type", "SERVER_STATUS");
+                response.add("data", statusManager.getStatusJson());
+                conn.send(GSON.toJson(response));
+            } catch (Exception e) {
+                plugin.logDebug("[WebPanel] Error building server status: " + e.getMessage());
+                JsonObject response = new JsonObject();
+                response.addProperty("type", "SERVER_STATUS");
+                JsonObject data = new JsonObject();
+                data.addProperty("error", "Failed to collect server status");
+                response.add("data", data);
+                conn.send(GSON.toJson(response));
+            }
+        });
     }
 
     public void broadcastServerStatus(JsonObject statusData) {
@@ -8091,58 +8128,72 @@ public class HybridPanelServer implements com.blockforge.moderex.gateway.Gateway
     // ==================== Monitoring Endpoints ====================
 
     private void sendEntityBreakdown(WebSocketConnection conn) {
-        JsonObject response = new JsonObject();
-        response.addProperty("type", "ENTITY_BREAKDOWN");
+        // Must run on main thread - world.getEntities() is not thread-safe
+        Bukkit.getScheduler().runTask(plugin, () -> {
+            try {
+                JsonObject response = new JsonObject();
+                response.addProperty("type", "ENTITY_BREAKDOWN");
 
-        JsonObject data = new JsonObject();
-        JsonArray entities = new JsonArray();
-        java.util.Map<String, Integer> entityCounts = new java.util.HashMap<>();
-        int totalEntities = 0;
+                JsonObject data = new JsonObject();
+                JsonArray entities = new JsonArray();
+                java.util.Map<String, Integer> entityCounts = new java.util.HashMap<>();
+                int totalEntities = 0;
 
-        for (org.bukkit.World world : Bukkit.getWorlds()) {
-            for (org.bukkit.entity.Entity entity : world.getEntities()) {
-                String type = entity.getType().name();
-                entityCounts.merge(type, 1, Integer::sum);
-                totalEntities++;
+                for (org.bukkit.World world : Bukkit.getWorlds()) {
+                    for (org.bukkit.entity.Entity entity : world.getEntities()) {
+                        String type = entity.getType().name();
+                        entityCounts.merge(type, 1, Integer::sum);
+                        totalEntities++;
+                    }
+                }
+
+                int finalTotal = totalEntities;
+                entityCounts.entrySet().stream()
+                    .sorted((a, b) -> b.getValue().compareTo(a.getValue()))
+                    .limit(25)
+                    .forEach(entry -> {
+                        JsonObject entityObj = new JsonObject();
+                        entityObj.addProperty("type", entry.getKey());
+                        entityObj.addProperty("count", entry.getValue());
+                        entities.add(entityObj);
+                    });
+
+                data.add("entities", entities);
+                data.addProperty("total", finalTotal);
+                response.add("data", data);
+                conn.send(GSON.toJson(response));
+            } catch (Exception e) {
+                plugin.logDebug("[WebPanel] Error building entity breakdown: " + e.getMessage());
             }
-        }
-
-        // Sort by count descending
-        entityCounts.entrySet().stream()
-            .sorted((a, b) -> b.getValue().compareTo(a.getValue()))
-            .limit(25)
-            .forEach(entry -> {
-                JsonObject entityObj = new JsonObject();
-                entityObj.addProperty("type", entry.getKey());
-                entityObj.addProperty("count", entry.getValue());
-                entities.add(entityObj);
-            });
-
-        data.add("entities", entities);
-        data.addProperty("total", totalEntities);
-        response.add("data", data);
-        conn.send(GSON.toJson(response));
+        });
     }
 
     private void sendChunkBreakdown(WebSocketConnection conn) {
-        JsonObject response = new JsonObject();
-        response.addProperty("type", "CHUNK_BREAKDOWN");
+        // Must run on main thread - world.getLoadedChunks() is not thread-safe
+        Bukkit.getScheduler().runTask(plugin, () -> {
+            try {
+                JsonObject response = new JsonObject();
+                response.addProperty("type", "CHUNK_BREAKDOWN");
 
-        JsonObject data = new JsonObject();
-        JsonArray worlds = new JsonArray();
+                JsonObject data = new JsonObject();
+                JsonArray worlds = new JsonArray();
 
-        for (org.bukkit.World world : Bukkit.getWorlds()) {
-            JsonObject worldObj = new JsonObject();
-            worldObj.addProperty("name", world.getName());
-            worldObj.addProperty("chunks", world.getLoadedChunks().length);
-            worldObj.addProperty("entities", world.getEntities().size());
-            worldObj.addProperty("players", world.getPlayers().size());
-            worlds.add(worldObj);
-        }
+                for (org.bukkit.World world : Bukkit.getWorlds()) {
+                    JsonObject worldObj = new JsonObject();
+                    worldObj.addProperty("name", world.getName());
+                    worldObj.addProperty("chunks", world.getLoadedChunks().length);
+                    worldObj.addProperty("entities", world.getEntities().size());
+                    worldObj.addProperty("players", world.getPlayers().size());
+                    worlds.add(worldObj);
+                }
 
-        data.add("worlds", worlds);
-        response.add("data", data);
-        conn.send(GSON.toJson(response));
+                data.add("worlds", worlds);
+                response.add("data", data);
+                conn.send(GSON.toJson(response));
+            } catch (Exception e) {
+                plugin.logDebug("[WebPanel] Error building chunk breakdown: " + e.getMessage());
+            }
+        });
     }
 
     private void sendDiagnostics(WebSocketConnection conn) {
@@ -9750,6 +9801,7 @@ public class HybridPanelServer implements com.blockforge.moderex.gateway.Gateway
                 // Replays
                 case "GET_REPLAYS" -> sendReplayList(wrapper);
                 case "GET_REPLAY" -> sendReplayData(wrapper, data);
+                case "GET_REPLAY_SETTINGS" -> sendReplaySettings(wrapper);
 
                 // Trusted devices
                 case "CLEAR_TRUSTED_DEVICES" -> clearTrustedDevices(wrapper, session);

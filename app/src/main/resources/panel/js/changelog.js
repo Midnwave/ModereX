@@ -14,6 +14,35 @@
 
 window.MX_CHANGELOGS = [
   {
+    build: 247,
+    version: "2.0dev-247",
+    date: "2026-02-05",
+    title: "Critical Bug Fixes",
+    sections: [
+      {
+        type: "fixed",
+        title: "Bug Fixes",
+        items: [
+          "**Server Status** - Fixed INTERNAL_ERROR when loading server status on gateway connections",
+          "**Entity/Chunk Breakdown** - Fixed async thread safety errors for entity and chunk data",
+          "**Panel Version** - Fixed version check sending malformed WebSocket messages",
+          "**Template CRUD** - Fixed create, edit, and delete templates sending [object Object] instead of proper data",
+          "**Replay Operations** - Fixed all replay WebSocket messages (start, rename, delete, settings) sending as objects",
+          "**Evidence Upload** - Fixed evidence upload and fetch sending double-wrapped JSON",
+          "**User Settings Sync** - Fixed watchlist toast setting sync sending malformed data",
+          "**Discord Popup** - Removed server descriptions from Discord links"
+        ]
+      },
+      {
+        type: "new",
+        title: "New Features",
+        items: [
+          "**Replay Settings** - Added GET_REPLAY_SETTINGS WebSocket handler for replay configuration"
+        ]
+      }
+    ]
+  },
+  {
     build: 246,
     version: "2.0dev-246",
     date: "2026-02-05",
