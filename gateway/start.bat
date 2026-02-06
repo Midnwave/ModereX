@@ -25,4 +25,8 @@ echo  Starting gateway on port 3000...
 echo  Press Ctrl+C to stop
 echo.
 
+REM Set GATEWAY_URL to skip cloudflared tunnel (use localhost for development)
+REM For production with tunnel: set GATEWAY_URL=https://your-tunnel-domain.trycloudflare.com
+set GATEWAY_URL=http://localhost:3000
+
 node gateway.js

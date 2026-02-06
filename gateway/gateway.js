@@ -2579,8 +2579,7 @@ function startCloudflaredTunnel() {
         console.log('[Tunnel] Starting cloudflared tunnel...');
 
         const cf = spawn('cloudflared', ['tunnel', '--url', `http://localhost:${port}`], {
-            stdio: ['ignore', 'pipe', 'pipe'],
-            shell: process.platform === 'win32',
+            stdio: ['ignore', 'pipe', 'pipe']
         });
 
         let resolved = false;
