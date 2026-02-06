@@ -14,6 +14,82 @@
 
 window.MX_CHANGELOGS = [
   {
+    build: 246,
+    version: "2.0dev-246",
+    date: "2026-02-05",
+    title: "Mega Update: Performance, Integrations & Polish",
+    sections: [
+      {
+        type: "new",
+        title: "New Features",
+        items: [
+          "**Template Favorites** - Star your most-used punishment templates for quick access",
+          "**Heap Memory Graph** - Real-time heap memory visualization with Eden/Old Gen breakdown",
+          "**GC Activity Graph** - Garbage collection pause time tracking and visualization",
+          "**Server Health Score** - Server-calculated 0-100 health score with TPS/Memory/Entity/Chunk weighting",
+          "**3-Tier TPS Alerts** - Mild (below 18), Warning (below 15), and Critical (below 10) alert levels",
+          "**Simple Voice Chat Integration** - Auto-detect Simple Voice Chat plugin with web panel status",
+          "**Voice Chat Status** - See if Simple Voice Chat is installed on the integrations tab",
+          "**Command Blacklist Web Panel** - Full CRUD management of per-player command blacklists from the web panel",
+          "**Kick All Countdown** - 10-second countdown with cancel option before kicking all players",
+          "**Citizens Detection on Replay Tab** - Shows Citizens plugin status directly in the replay section"
+        ]
+      },
+      {
+        type: "improved",
+        title: "Improvements",
+        items: [
+          "**Search Permission Filtering** - Search results now respect user permissions",
+          "**MX-Case Live Search** - Search for punishments by case ID (MX-xxx) in the live search dropdown",
+          "**Search Result Glow** - Animated 3-pulse glow effect when scrolling to search results",
+          "**Template Type Filtering** - Template dropdown auto-filters by selected punishment type",
+          "**Sound Volume** - Increased notification sound volume (0.55 to 0.85 multiplier)",
+          "**Automod Caps Filter** - Now properly logs to activity log and triggers auto-punishments",
+          "**Automod Dual Logging** - Each automod incident logs both a flag entry and action entry",
+          "**Gateway Status Caching** - Server status data cached for immediate delivery to new connections",
+          "**Alert Thresholds** - Configured thresholds now actually apply to the monitoring system",
+          "**Replay List** - Shows active recording count and Citizens availability"
+        ]
+      },
+      {
+        type: "fixed",
+        title: "Bug Fixes",
+        items: [
+          "**Evidence Display in Gateway Mode** - Inline evidence images now load correctly through the gateway",
+          "**Expired Punishment Revoke** - Expired punishments can no longer be revoked (shows proper badge)",
+          "**Gateway Kick All Dispatch** - KICK_ALL_COUNTDOWN and KICK_ALL_CANCEL now work through gateway connections"
+        ]
+      },
+      {
+        type: "technical",
+        title: "Technical Changes",
+        items: [
+          "**Staff Commands for Spigot** - /fly, /broadcast, /invsee, /echest now registered for Spigot servers",
+          "**SimpleVoiceChatHook** - New hook class for Simple Voice Chat soft dependency",
+          "**ServerStatusManager** - Added health score calculation, GC history tracking, memory history, 3-tier alerts",
+          "**HybridPanelServer** - Added GET_VOICECHAT_STATUS, CMD blacklist CRUD, replay Citizens status endpoints",
+          "**ReplayManager** - Added getActiveRecordingCount() method",
+          "**Template favorites table** - New moderex_template_favorites database table"
+        ]
+      },
+      {
+        type: "permissions",
+        title: "New Permissions",
+        items: [
+          "**moderex.command.fly** - Toggle flight mode",
+          "**moderex.command.fly.others** - Toggle flight for other players",
+          "**moderex.command.broadcast** - Send server broadcast",
+          "**moderex.command.invsee** - View player inventory",
+          "**moderex.command.echest** - View player ender chest",
+          "**moderex.command.echest.others** - View other players' ender chests",
+          "**moderex.exempt.invsee** - Exempt from /invsee",
+          "**moderex.exempt.echest** - Exempt from /echest",
+          "**moderex.exempt.bypass** - Bypass exemptions"
+        ]
+      }
+    ]
+  },
+  {
     build: 244,
     version: "2.0dev-244",
     date: "2026-02-05",
