@@ -14,6 +14,29 @@
 
 window.MX_CHANGELOGS = [
   {
+    build: 248,
+    version: "2.0dev-248",
+    date: "2026-02-05",
+    title: "Automod Persistence Fix",
+    sections: [
+      {
+        type: "fixed",
+        title: "Bug Fixes",
+        items: [
+          "**Automod Rules** - Fixed rules resetting on page reload by unifying serialization to include all fields (spam, caps, AFK, filter mode, conditions, etc.)",
+          "**Automod Broadcast** - Fixed broadcast method using incomplete serialization, now uses same full serializer as single-rule updates"
+        ]
+      },
+      {
+        type: "technical",
+        title: "Technical Changes",
+        items: [
+          "**Code Deduplication** - Removed ~200 lines of duplicated automod serialization code in favor of single serializeRule() method"
+        ]
+      }
+    ]
+  },
+  {
     build: 247,
     version: "2.0dev-247",
     date: "2026-02-05",
