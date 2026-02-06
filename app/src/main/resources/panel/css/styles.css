@@ -6789,6 +6789,248 @@ textarea.input {
   }
 }
 
+/* ===== SERVER LIST PAGE (Global Mode) ===== */
+
+.serverListPage {
+  position: fixed;
+  inset: 0;
+  background: var(--bg0);
+  z-index: 5500;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  overflow-y: auto;
+}
+
+.serverListPage.show {
+  display: flex;
+  animation: fadeIn 0.3s ease;
+}
+
+.serverListContainer {
+  width: 100%;
+  max-width: 720px;
+  margin: 40px 20px;
+}
+
+.serverListHeader {
+  text-align: center;
+  margin-bottom: 32px;
+}
+
+.serverListLogo {
+  width: 64px;
+  height: 64px;
+  border-radius: var(--radius);
+  margin-bottom: 16px;
+}
+
+.serverListHeader h1 {
+  font-size: 28px;
+  font-weight: 800;
+  color: var(--text);
+  margin: 0 0 6px 0;
+}
+
+.serverListSub {
+  font-size: 14px;
+  color: var(--muted);
+  margin: 0;
+}
+
+.serverListUser {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 16px;
+  padding: 6px 12px 6px 6px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 99px;
+  font-size: 13px;
+  color: var(--text-secondary);
+}
+
+.serverListUser img {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+}
+
+.serverListGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: 12px;
+}
+
+.serverListLoading {
+  grid-column: 1 / -1;
+  text-align: center;
+  padding: 48px 0;
+  color: var(--muted);
+}
+
+.serverListLoading .spinner {
+  margin: 0 auto 12px;
+}
+
+.serverListEmpty {
+  grid-column: 1 / -1;
+  text-align: center;
+  padding: 48px 24px;
+  color: var(--muted);
+}
+
+.serverListEmpty i {
+  font-size: 36px;
+  margin-bottom: 12px;
+  display: block;
+  color: var(--muted2);
+}
+
+/* Server card */
+.serverCard {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 20px;
+  cursor: pointer;
+  transition: all var(--transition);
+  position: relative;
+  overflow: hidden;
+}
+
+.serverCard:hover {
+  border-color: var(--primary);
+  transform: translateY(-2px);
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.3);
+}
+
+.serverCard:active {
+  transform: translateY(0);
+}
+
+.serverCard-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+
+.serverCard-name {
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--text);
+}
+
+.serverCard-status {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+}
+
+.serverCard-status .status-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.serverCard-status .status-dot.online {
+  background: var(--ok);
+  box-shadow: 0 0 6px rgba(var(--ok-rgb), 0.5);
+}
+
+.serverCard-status .status-dot.offline {
+  background: var(--bad);
+  box-shadow: 0 0 6px rgba(var(--bad-rgb), 0.5);
+}
+
+.serverCard-status .status-text {
+  color: var(--muted);
+}
+
+.serverCard-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.serverCard-meta-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+
+.serverCard-meta-row i {
+  width: 14px;
+  text-align: center;
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.serverCard-id {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--muted);
+  filter: blur(4px);
+  transition: filter var(--transition);
+  cursor: pointer;
+  user-select: none;
+}
+
+.serverCard-id.revealed {
+  filter: none;
+  user-select: text;
+}
+
+.serverCard-id:hover {
+  color: var(--primary-light);
+}
+
+.serverCard-arrow {
+  position: absolute;
+  right: 16px;
+  top: 50%;
+  transform: translateY(-50%);
+  font-size: 16px;
+  color: var(--muted2);
+  transition: all var(--transition);
+}
+
+.serverCard:hover .serverCard-arrow {
+  color: var(--primary-light);
+  right: 12px;
+}
+
+.serverListFooter {
+  text-align: center;
+  margin-top: 24px;
+}
+
+.serverListNote {
+  font-size: 12px;
+  color: var(--muted2);
+  margin: 0;
+}
+
+@media (max-width: 640px) {
+  .serverListContainer {
+    margin: 20px 12px;
+  }
+
+  .serverListGrid {
+    grid-template-columns: 1fr;
+  }
+
+  .serverListHeader h1 {
+    font-size: 22px;
+  }
+}
+
 /* ===== RESPONSIVE BREAKPOINTS ===== */
 
 /* Large screens (1400px+) - default styles apply */

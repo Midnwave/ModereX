@@ -1,0 +1,658 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ModereX Admin Panel</title>
+    <meta name="description" content="ModereX Admin Panel - Internal administration dashboard for BlockForge Studios">
+    <meta name="robots" content="noindex, nofollow">
+    <meta name="theme-color" content="#2d7aed">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <link rel="stylesheet" href="css/admin.css">
+</head>
+<body>
+    <!-- Sidebar -->
+    <aside class="sidebar">
+        <div class="sidebar-header">
+            <div class="logo">
+                <span class="logo-icon">MX</span>
+                <span class="logo-text">Admin</span>
+            </div>
+        </div>
+        <nav class="sidebar-nav">
+            <a href="#dashboard" class="nav-item active" data-page="dashboard">
+                <i class="fas fa-home"></i>
+                <span>Dashboard</span>
+            </a>
+            <a href="#announcements" class="nav-item" data-page="announcements">
+                <i class="fas fa-bullhorn"></i>
+                <span>Announcements</span>
+            </a>
+            <a href="#servers" class="nav-item" data-page="servers">
+                <i class="fas fa-server"></i>
+                <span>Servers</span>
+            </a>
+            <a href="#gateway" class="nav-item" data-page="gateway">
+                <i class="fas fa-network-wired"></i>
+                <span>Gateway Health</span>
+            </a>
+            <a href="#analytics" class="nav-item" data-page="analytics">
+                <i class="fas fa-chart-line"></i>
+                <span>Analytics</span>
+            </a>
+            <a href="#premium" class="nav-item" data-page="premium">
+                <i class="fas fa-crown"></i>
+                <span>Premium</span>
+            </a>
+            <a href="#features" class="nav-item" data-page="features">
+                <i class="fas fa-toggle-on"></i>
+                <span>Feature Flags</span>
+            </a>
+            <a href="#audit" class="nav-item" data-page="audit">
+                <i class="fas fa-clipboard-list"></i>
+                <span>Audit Log</span>
+            </a>
+        </nav>
+        <div class="sidebar-footer">
+            <div class="admin-user">
+                <div class="admin-avatar">
+                    <i class="fas fa-user"></i>
+                </div>
+                <div class="admin-info">
+                    <span class="admin-name" id="adminName">Loading...</span>
+                    <span class="admin-role">Administrator</span>
+                </div>
+            </div>
+        </div>
+    </aside>
+
+    <!-- Main Content -->
+    <main class="main-content">
+        <!-- Header -->
+        <header class="main-header">
+            <div class="header-left">
+                <button class="mobile-menu-btn" id="mobileMenuBtn">
+                    <i class="fas fa-bars"></i>
+                </button>
+                <h1 class="page-title" id="pageTitle">Dashboard</h1>
+            </div>
+            <div class="header-right">
+                <div class="gateway-status" id="gatewayStatus">
+                    <span class="status-dot"></span>
+                    <span class="status-text">Connecting...</span>
+                </div>
+                <button class="btn btn-outline btn-sm" onclick="location.href='/'">
+                    <i class="fas fa-external-link-alt"></i> Main Site
+                </button>
+            </div>
+        </header>
+
+        <!-- Page Content -->
+        <div class="page-content">
+            <!-- Dashboard Page -->
+            <section class="page" id="page-dashboard">
+                <div class="stats-grid">
+                    <div class="stat-card">
+                        <div class="stat-icon blue"><i class="fas fa-server"></i></div>
+                        <div class="stat-info">
+                            <span class="stat-value" id="totalServers">--</span>
+                            <span class="stat-label">Connected Servers</span>
+                        </div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-icon green"><i class="fas fa-users"></i></div>
+                        <div class="stat-info">
+                            <span class="stat-value" id="totalPlayers">--</span>
+                            <span class="stat-label">Total Players Online</span>
+                        </div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-icon purple"><i class="fas fa-crown"></i></div>
+                        <div class="stat-info">
+                            <span class="stat-value" id="premiumServers">--</span>
+                            <span class="stat-label">Premium Servers</span>
+                        </div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-icon orange"><i class="fas fa-bullhorn"></i></div>
+                        <div class="stat-info">
+                            <span class="stat-value" id="activeAnnouncements">--</span>
+                            <span class="stat-label">Active Announcements</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="dashboard-grid">
+                    <div class="card">
+                        <div class="card-header">
+                            <h3><i class="fas fa-clock"></i> Recent Activity</h3>
+                        </div>
+                        <div class="card-body">
+                            <div class="activity-list" id="recentActivity">
+                                <div class="activity-item">
+                                    <div class="activity-icon"><i class="fas fa-plug"></i></div>
+                                    <div class="activity-info">
+                                        <span class="activity-text">Loading recent activity...</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="card">
+                        <div class="card-header">
+                            <h3><i class="fas fa-chart-pie"></i> Version Distribution</h3>
+                        </div>
+                        <div class="card-body">
+                            <div class="version-chart" id="versionChart">
+                                <div class="chart-placeholder">
+                                    <i class="fas fa-chart-pie"></i>
+                                    <span>Loading version data...</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="card">
+                    <div class="card-header">
+                        <h3><i class="fas fa-globe"></i> Server Locations</h3>
+                    </div>
+                    <div class="card-body">
+                        <div class="geo-distribution" id="geoDistribution">
+                            <div class="geo-placeholder">
+                                <i class="fas fa-map-marked-alt"></i>
+                                <span>Loading geographic data...</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Announcements Page -->
+            <section class="page hidden" id="page-announcements">
+                <div class="page-actions">
+                    <button class="btn btn-primary" onclick="showAnnouncementModal()">
+                        <i class="fas fa-plus"></i> New Announcement
+                    </button>
+                    <button class="btn btn-outline" onclick="showEmergencyModal()">
+                        <i class="fas fa-exclamation-triangle"></i> Emergency Broadcast
+                    </button>
+                </div>
+
+                <div class="tabs">
+                    <button class="tab active" data-tab="active">Active</button>
+                    <button class="tab" data-tab="scheduled">Scheduled</button>
+                    <button class="tab" data-tab="history">History</button>
+                </div>
+
+                <div class="tab-content" id="tab-active">
+                    <div class="announcements-list" id="activeAnnouncementsList">
+                        <div class="empty-state">
+                            <i class="fas fa-bullhorn"></i>
+                            <h4>No Active Announcements</h4>
+                            <p>Create a new announcement to display on all connected web panels.</p>
+                        </div>
+                    </div>
+                </div>
+                <div class="tab-content hidden" id="tab-scheduled">
+                    <div class="announcements-list" id="scheduledAnnouncementsList">
+                        <div class="empty-state">
+                            <i class="fas fa-calendar-alt"></i>
+                            <h4>No Scheduled Announcements</h4>
+                            <p>Schedule announcements for future delivery.</p>
+                        </div>
+                    </div>
+                </div>
+                <div class="tab-content hidden" id="tab-history">
+                    <div class="announcements-list" id="historyAnnouncementsList">
+                        <div class="empty-state">
+                            <i class="fas fa-history"></i>
+                            <h4>No Announcement History</h4>
+                            <p>Past announcements will appear here.</p>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Servers Page -->
+            <section class="page hidden" id="page-servers">
+                <div class="page-actions">
+                    <div class="search-box">
+                        <i class="fas fa-search"></i>
+                        <input type="text" placeholder="Search servers..." id="serverSearch">
+                    </div>
+                    <select class="filter-select" id="serverFilter">
+                        <option value="all">All Servers</option>
+                        <option value="premium">Premium Only</option>
+                        <option value="free">Free Tier</option>
+                    </select>
+                </div>
+
+                <div class="servers-table-container">
+                    <table class="data-table" id="serversTable">
+                        <thead>
+                            <tr>
+                                <th>Server ID</th>
+                                <th>Name</th>
+                                <th>Version</th>
+                                <th>Players</th>
+                                <th>Status</th>
+                                <th>Connected</th>
+                            </tr>
+                        </thead>
+                        <tbody id="serversTableBody">
+                            <tr>
+                                <td colspan="6" class="table-loading">
+                                    <i class="fas fa-spinner fa-spin"></i> Loading servers...
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+
+                <div class="privacy-notice">
+                    <i class="fas fa-shield-alt"></i>
+                    <span>Server data only - No access to player information, IPs, chat logs, or punishments.</span>
+                </div>
+            </section>
+
+            <!-- Gateway Health Page -->
+            <section class="page hidden" id="page-gateway">
+                <div class="health-grid">
+                    <div class="health-card">
+                        <div class="health-header">
+                            <h3>Gateway Status</h3>
+                            <span class="health-badge good" id="gatewayHealthBadge">Healthy</span>
+                        </div>
+                        <div class="health-stats">
+                            <div class="health-stat">
+                                <span class="health-label">Uptime</span>
+                                <span class="health-value" id="gatewayUptime">--</span>
+                            </div>
+                            <div class="health-stat">
+                                <span class="health-label">Connections</span>
+                                <span class="health-value" id="gatewayConnections">--</span>
+                            </div>
+                            <div class="health-stat">
+                                <span class="health-label">Messages/sec</span>
+                                <span class="health-value" id="gatewayMsgRate">--</span>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="health-card">
+                        <div class="health-header">
+                            <h3>System Resources</h3>
+                        </div>
+                        <div class="resource-bars">
+                            <div class="resource-bar">
+                                <span class="resource-label">CPU</span>
+                                <div class="bar-container">
+                                    <div class="bar-fill" id="cpuBar" style="width: 0%"></div>
+                                </div>
+                                <span class="resource-value" id="cpuValue">--%</span>
+                            </div>
+                            <div class="resource-bar">
+                                <span class="resource-label">Memory</span>
+                                <div class="bar-container">
+                                    <div class="bar-fill" id="memoryBar" style="width: 0%"></div>
+                                </div>
+                                <span class="resource-value" id="memoryValue">--%</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="card">
+                    <div class="card-header">
+                        <h3><i class="fas fa-history"></i> Connection History (24h)</h3>
+                    </div>
+                    <div class="card-body">
+                        <div class="connection-chart" id="connectionChart">
+                            <div class="chart-placeholder">
+                                <i class="fas fa-chart-area"></i>
+                                <span>Loading connection history...</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="card">
+                    <div class="card-header">
+                        <h3><i class="fas fa-exclamation-circle"></i> Recent Errors</h3>
+                    </div>
+                    <div class="card-body">
+                        <div class="error-list" id="errorList">
+                            <div class="empty-state small">
+                                <i class="fas fa-check-circle"></i>
+                                <span>No recent errors</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Analytics Page -->
+            <section class="page hidden" id="page-analytics">
+                <div class="stats-grid">
+                    <div class="stat-card">
+                        <div class="stat-icon blue"><i class="fas fa-gavel"></i></div>
+                        <div class="stat-info">
+                            <span class="stat-value" id="totalPunishments">--</span>
+                            <span class="stat-label">Total Punishments (All Servers)</span>
+                        </div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-icon green"><i class="fas fa-robot"></i></div>
+                        <div class="stat-info">
+                            <span class="stat-value" id="automodBlocks">--</span>
+                            <span class="stat-label">AutoMod Blocks Today</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="card">
+                    <div class="card-header">
+                        <h3><i class="fas fa-star"></i> Most Used Features</h3>
+                    </div>
+                    <div class="card-body">
+                        <div class="feature-usage" id="featureUsage">
+                            <div class="chart-placeholder">
+                                <i class="fas fa-chart-bar"></i>
+                                <span>Loading feature usage data...</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="card">
+                    <div class="card-header">
+                        <h3><i class="fas fa-clock"></i> Peak Usage Hours</h3>
+                    </div>
+                    <div class="card-body">
+                        <div class="peak-hours" id="peakHours">
+                            <div class="chart-placeholder">
+                                <i class="fas fa-chart-line"></i>
+                                <span>Loading peak hour data...</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Premium Page -->
+            <section class="page hidden" id="page-premium">
+                <div class="page-actions">
+                    <button class="btn btn-primary" onclick="showLicenseKeyModal()">
+                        <i class="fas fa-key"></i> Generate License Key
+                    </button>
+                </div>
+
+                <div class="stats-grid">
+                    <div class="stat-card">
+                        <div class="stat-icon purple"><i class="fas fa-crown"></i></div>
+                        <div class="stat-info">
+                            <span class="stat-value" id="activePremium">--</span>
+                            <span class="stat-label">Active Premium</span>
+                        </div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-icon green"><i class="fas fa-key"></i></div>
+                        <div class="stat-info">
+                            <span class="stat-value" id="unusedKeys">--</span>
+                            <span class="stat-label">Unused Keys</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="card">
+                    <div class="card-header">
+                        <h3><i class="fas fa-list"></i> License Keys</h3>
+                    </div>
+                    <div class="card-body">
+                        <table class="data-table" id="licenseTable">
+                            <thead>
+                                <tr>
+                                    <th>Key</th>
+                                    <th>Status</th>
+                                    <th>Duration</th>
+                                    <th>Redeemed By</th>
+                                    <th>Created</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody id="licenseTableBody">
+                                <tr>
+                                    <td colspan="6" class="table-loading">
+                                        <i class="fas fa-spinner fa-spin"></i> Loading license keys...
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Feature Flags Page -->
+            <section class="page hidden" id="page-features">
+                <div class="feature-flags-list" id="featureFlagsList">
+                    <div class="feature-flag-card">
+                        <div class="flag-info">
+                            <h4>Replays System</h4>
+                            <p>Enable player action replay recording and playback (requires Citizens)</p>
+                        </div>
+                        <label class="toggle">
+                            <input type="checkbox" data-flag="replays" checked>
+                            <span class="toggle-slider"></span>
+                        </label>
+                    </div>
+                    <div class="feature-flag-card">
+                        <div class="flag-info">
+                            <h4>Server Monitoring</h4>
+                            <p>TPS, memory, and performance monitoring in web panel</p>
+                        </div>
+                        <label class="toggle">
+                            <input type="checkbox" data-flag="monitoring" checked>
+                            <span class="toggle-slider"></span>
+                        </label>
+                    </div>
+                    <div class="feature-flag-card">
+                        <div class="flag-info">
+                            <h4>Heat Map</h4>
+                            <p>Visual chunk performance heat map (experimental)</p>
+                        </div>
+                        <label class="toggle">
+                            <input type="checkbox" data-flag="heatmap">
+                            <span class="toggle-slider"></span>
+                        </label>
+                    </div>
+                    <div class="feature-flag-card">
+                        <div class="flag-info">
+                            <h4>Global Ban List</h4>
+                            <p>Opt-in shared ban database across participating servers</p>
+                        </div>
+                        <label class="toggle">
+                            <input type="checkbox" data-flag="globalBanList">
+                            <span class="toggle-slider"></span>
+                        </label>
+                    </div>
+                    <div class="feature-flag-card">
+                        <div class="flag-info">
+                            <h4>AI Moderation Assistant</h4>
+                            <p>AI-powered chat analysis and moderation suggestions (beta)</p>
+                        </div>
+                        <label class="toggle">
+                            <input type="checkbox" data-flag="aiAssistant">
+                            <span class="toggle-slider"></span>
+                        </label>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Audit Log Page -->
+            <section class="page hidden" id="page-audit">
+                <div class="page-actions">
+                    <div class="search-box">
+                        <i class="fas fa-search"></i>
+                        <input type="text" placeholder="Search audit log..." id="auditSearch">
+                    </div>
+                    <button class="btn btn-outline" onclick="exportAuditLog()">
+                        <i class="fas fa-download"></i> Export
+                    </button>
+                </div>
+
+                <div class="audit-log" id="auditLog">
+                    <div class="audit-entry">
+                        <div class="audit-time">Loading...</div>
+                        <div class="audit-info">
+                            <span class="audit-admin">--</span>
+                            <span class="audit-action">Loading audit log...</span>
+                        </div>
+                    </div>
+                </div>
+            </section>
+        </div>
+    </main>
+
+    <!-- Announcement Modal -->
+    <div class="modal-overlay hidden" id="announcementModal">
+        <div class="modal">
+            <div class="modal-header">
+                <h2><i class="fas fa-bullhorn"></i> New Announcement</h2>
+                <button class="modal-close" onclick="hideAnnouncementModal()">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="form-group">
+                    <label>Title</label>
+                    <input type="text" id="annTitle" placeholder="Announcement title..." maxlength="128">
+                </div>
+                <div class="form-group">
+                    <label>Message</label>
+                    <textarea id="annMessage" placeholder="Announcement message..." rows="4"></textarea>
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>Type</label>
+                        <select id="annType">
+                            <option value="info">Info (Blue)</option>
+                            <option value="feature">Feature (Green)</option>
+                            <option value="warning">Warning (Orange)</option>
+                            <option value="maintenance">Maintenance (Purple)</option>
+                            <option value="critical">Critical (Red)</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>Priority</label>
+                        <select id="annPriority">
+                            <option value="0">Normal</option>
+                            <option value="1">High</option>
+                            <option value="2">Urgent</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>Action URL (optional)</label>
+                        <input type="url" id="annActionUrl" placeholder="https://...">
+                    </div>
+                    <div class="form-group">
+                        <label>Button Text</label>
+                        <input type="text" id="annActionText" placeholder="Learn More">
+                    </div>
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>Schedule (optional)</label>
+                        <input type="datetime-local" id="annSchedule">
+                    </div>
+                    <div class="form-group">
+                        <label>Expires (optional)</label>
+                        <input type="datetime-local" id="annExpires">
+                    </div>
+                </div>
+                <div class="form-group checkbox">
+                    <label>
+                        <input type="checkbox" id="annDismissible" checked>
+                        Allow users to dismiss
+                    </label>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-outline" onclick="hideAnnouncementModal()">Cancel</button>
+                <button class="btn btn-primary" onclick="createAnnouncement()">
+                    <i class="fas fa-paper-plane"></i> Send Announcement
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Emergency Broadcast Modal -->
+    <div class="modal-overlay hidden" id="emergencyModal">
+        <div class="modal modal-danger">
+            <div class="modal-header">
+                <h2><i class="fas fa-exclamation-triangle"></i> Emergency Broadcast</h2>
+                <button class="modal-close" onclick="hideEmergencyModal()">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="warning-banner">
+                    <i class="fas fa-exclamation-circle"></i>
+                    <p>Emergency broadcasts are <strong>non-dismissible</strong> and will be shown to ALL connected web panels immediately. Use only for critical security issues or urgent updates.</p>
+                </div>
+                <div class="form-group">
+                    <label>Title</label>
+                    <input type="text" id="emergencyTitle" placeholder="URGENT: ...">
+                </div>
+                <div class="form-group">
+                    <label>Message</label>
+                    <textarea id="emergencyMessage" placeholder="Critical message..." rows="4"></textarea>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-outline" onclick="hideEmergencyModal()">Cancel</button>
+                <button class="btn btn-danger" onclick="sendEmergencyBroadcast()">
+                    <i class="fas fa-broadcast-tower"></i> Send Emergency Broadcast
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- License Key Modal -->
+    <div class="modal-overlay hidden" id="licenseKeyModal">
+        <div class="modal">
+            <div class="modal-header">
+                <h2><i class="fas fa-key"></i> Generate License Key</h2>
+                <button class="modal-close" onclick="hideLicenseKeyModal()">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="form-group">
+                    <label>Duration</label>
+                    <select id="keyDuration">
+                        <option value="30">30 Days</option>
+                        <option value="90">90 Days</option>
+                        <option value="180">180 Days</option>
+                        <option value="365">1 Year</option>
+                        <option value="-1">Lifetime</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>Note (optional)</label>
+                    <input type="text" id="keyNote" placeholder="Internal note...">
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-outline" onclick="hideLicenseKeyModal()">Cancel</button>
+                <button class="btn btn-primary" onclick="generateLicenseKey()">
+                    <i class="fas fa-plus"></i> Generate Key
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Toast Container -->
+    <div id="toastContainer"></div>
+
+    <script src="js/admin.js"></script>
+</body>
+</html>

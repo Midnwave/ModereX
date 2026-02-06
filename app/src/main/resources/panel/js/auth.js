@@ -214,7 +214,25 @@
     const isGateway = ws.isGatewayDomain();
 
     if (isGateway) {
-      // Gateway mode: connect directly to gateway without config fetch
+      // Check if this is global mode (no server ID - server list page)
+      if (ws.isGlobalPanelPath()) {
+        console.log('[Auth] Global panel mode - connecting to gateway for server list');
+        updateStatus('Connecting...', 'Connecting to ModereX gateway');
+
+        try {
+          await connectGlobalPanelWebSocket();
+        } catch (err) {
+          console.error('[Auth] Global panel connection failed:', err);
+          authState.connectionPhase = 'idle';
+          authState.status = AuthStatus.UNAUTHENTICATED;
+          authState.lastError = err.message || 'Gateway connection failed';
+          showConnectionToast('bad', 'Connection Failed', authState.lastError);
+          showGatewayErrorPage('Connection Failed', authState.lastError);
+        }
+        return;
+      }
+
+      // Gateway mode with server ID: connect directly to gateway
       const serverId = ws.getServerIdFromPath();
       if (!serverId) {
         authState.connectionPhase = 'idle';
@@ -362,6 +380,83 @@
       // Start gateway connection
       ws.connectGateway(serverId);
     });
+  }
+
+  /**
+   * Connect to gateway in global panel mode (no server selected)
+   */
+  function connectGlobalPanelWebSocket() {
+    return new Promise((resolve, reject) => {
+      let connectionTimeout = null;
+      let resolved = false;
+
+      const cleanup = () => {
+        if (connectionTimeout) clearTimeout(connectionTimeout);
+        ws.off('connected', onConnected);
+        ws.off('error', onError);
+      };
+
+      const onConnected = () => {
+        if (resolved) return;
+        resolved = true;
+        cleanup();
+        authState.connected = true;
+        console.log('[Auth] Connected to gateway in global mode');
+        resolve();
+
+        // Try to authenticate globally
+        tryGlobalAuthenticate();
+      };
+
+      const onError = (err) => {
+        if (resolved) return;
+        resolved = true;
+        cleanup();
+        reject(new Error('WebSocket connection failed'));
+      };
+
+      ws.on('connected', onConnected);
+      ws.on('error', onError);
+
+      connectionTimeout = setTimeout(() => {
+        if (resolved) return;
+        resolved = true;
+        cleanup();
+        reject(new Error('Connection timed out'));
+      }, 15000);
+
+      ws.connectGlobalPanel();
+    });
+  }
+
+  /**
+   * Try to authenticate globally (for server list page)
+   * Priority: Saved token > Device trust
+   */
+  async function tryGlobalAuthenticate() {
+    authState.connectionPhase = 'authenticating';
+    authState.status = AuthStatus.PENDING_VERIFICATION;
+    updateStatus('Authenticating...', 'Verifying global token');
+
+    const savedToken = await loadEncryptedToken(authState.deviceFingerprint);
+    const savedDeviceFingerprint = localStorage.getItem('mx_token_device');
+
+    if (savedToken && savedDeviceFingerprint === authState.deviceFingerprint) {
+      console.log('[Auth] Global auth with saved token');
+      ws.globalAuthWithToken(savedToken);
+    } else {
+      // No saved token — show auth overlay
+      console.log('[Auth] No saved global token - showing auth screen');
+      showManualAuth('Enter your token to access your servers');
+    }
+
+    // Auth timeout
+    setTimeout(() => {
+      if (authState.connectionPhase === 'authenticating' && !authState.authenticated) {
+        console.log('[Auth] Global auth timeout - showing manual auth');
+        showManualAuth('Authentication timed out');
+      }
+    }, 10000);
   }
 
   /**
@@ -809,6 +904,64 @@
       }
     });
 
+    // Global panel auth events (server list page)
+    ws.on('global_auth_result', (data) => {
+      if (data.success) {
+        console.log('[Auth] Global auth success:', data.username);
+        authState.authenticated = true;
+        authState.status = AuthStatus.VERIFIED;
+        authState.connectionPhase = 'connected';
+        authState.reconnectAttempts = 0;
+
+        hideAuthOverlay();
+        showServerListPage(data);
+      } else {
+        console.log('[Auth] Global auth failed:', data.error);
+        showManualAuth(data.error || 'Authentication failed');
+
+        if (data.error === 'Token expired' || data.error === 'Invalid token') {
+          removeEncryptedToken();
+          localStorage.removeItem('mx_token_device');
+        }
+      }
+    });
+
+    ws.on('global_device_auth_result', (data) => {
+      if (data.success) {
+        console.log('[Auth] Global device auth success:', data.username);
+        authState.authenticated = true;
+        authState.status = AuthStatus.VERIFIED;
+        authState.connectionPhase = 'connected';
+
+        hideAuthOverlay();
+        showServerListPage(data);
+      } else {
+        showManualAuth('Device not recognized. Please enter your token.');
+      }
+    });
+
+    ws.on('servers_list', (data) => {
+      // Update server list UI
+      if (window.MX.renderServerList) {
+        window.MX.renderServerList(data.servers || data);
+      }
+    });
+
+    ws.on('server_switched', (data) => {
+      console.log('[Auth] Server switched, session:', data.sessionId);
+      // Hide server list, show normal panel
+      hideServerListPage();
+      // Auth with the pre-auth session from gateway
+      if (data.sessionId) {
+        ws.authWithSession(data.sessionId);
+      }
+    });
+
+    ws.on('switch_server_error', (data) => {
+      console.error('[Auth] Server switch failed:', data.error || data.message);
+      showConnectionToast('bad', 'Switch Failed', data.error || data.message || 'Could not connect to server');
+    });
+
     // Gateway-specific events (when connected via panel.moderex.net)
     ws.on('server_offline', (data) => {
       console.log('[Auth] Server went offline via gateway');
@@ -1133,6 +1286,20 @@
       authState.connectionPhase = 'authenticating';
       authState.status = AuthStatus.PENDING_VERIFICATION;
 
+      // Global mode: use global auth
+      if (ws.isGlobalMode()) {
+        updateStatus('Authenticating...', 'Verifying global token');
+        ws.globalAuthWithToken(token);
+
+        setTimeout(() => {
+          if (!authState.authenticated) {
+            setLoading(false);
+            showError('Authentication timed out');
+          }
+        }, 8000);
+        return;
+      }
+
       if (isDevUuidAuth) {
         updateStatus('Authenticating...', 'Dev UUID authentication');
         ws.send('AUTH_DEV_UUID_LOGIN', {
@@ -1406,6 +1573,152 @@
 
     ws.send('AUTH_CHALLENGE_RESPONSE', { answer });
   }
+
+  // ========== Server List Page (Global Mode) ==========
+
+  /**
+   * Show the server list page after global authentication
+   */
+  function showServerListPage(authData) {
+    const page = document.getElementById('serverListPage');
+    if (!page) return;
+
+    // Show user info
+    const userEl = document.getElementById('serverListUser');
+    const avatarEl = document.getElementById('serverListAvatar');
+    const usernameEl = document.getElementById('serverListUsername');
+
+    if (userEl && authData.username) {
+      userEl.style.display = '';
+      if (avatarEl && authData.uuid) {
+        avatarEl.src = `https://mc-heads.net/avatar/${authData.uuid}/28`;
+      }
+      if (usernameEl) usernameEl.textContent = authData.username;
+    }
+
+    // Show server list page
+    page.classList.add('show');
+
+    // Hide the main app and auth overlay
+    const app = document.querySelector('.app');
+    if (app) app.style.display = 'none';
+
+    // Render servers if included in auth response
+    if (authData.servers) {
+      renderServerList(authData.servers);
+    } else {
+      // Request servers separately
+      ws.requestServers();
+    }
+  }
+
+  /**
+   * Hide server list page and show normal panel
+   */
+  function hideServerListPage() {
+    const page = document.getElementById('serverListPage');
+    if (page) page.classList.remove('show');
+
+    const app = document.querySelector('.app');
+    if (app) app.style.display = '';
+  }
+
+  /**
+   * Render the server list grid
+   */
+  function renderServerList(servers) {
+    const grid = document.getElementById('serverListGrid');
+    if (!grid) return;
+
+    if (!servers || servers.length === 0) {
+      grid.innerHTML = `
+        <div class="serverListEmpty">
+          <i class="fa-solid fa-server"></i>
+          <p>No servers found</p>
+          <p style="font-size:12px">You don't have access to any servers, or no servers are connected to the gateway.</p>
+        </div>
+      `;
+      return;
+    }
+
+    grid.innerHTML = servers.map(server => {
+      const isOnline = server.online !== false;
+      const statusClass = isOnline ? 'online' : 'offline';
+      const statusText = isOnline
+        ? `${server.playerCount || 0} player${(server.playerCount || 0) !== 1 ? 's' : ''}`
+        : 'Offline';
+      const rank = server.rank || server.primaryGroup || 'Member';
+
+      return `
+        <div class="serverCard" onclick="window.MX.switchToServer('${escapeHtml(server.serverId)}')" title="Connect to ${escapeHtml(server.serverName || server.serverId)}">
+          <div class="serverCard-header">
+            <span class="serverCard-name">${escapeHtml(server.serverName || server.serverId)}</span>
+            <div class="serverCard-status">
+              <span class="status-dot ${statusClass}"></span>
+              <span class="status-text">${statusText}</span>
+            </div>
+          </div>
+          <div class="serverCard-meta">
+            <div class="serverCard-meta-row">
+              <i class="fa-solid fa-id-badge"></i>
+              <span class="serverCard-id" onclick="event.stopPropagation(); toggleServerId(this)" title="Click to reveal">${escapeHtml(server.serverId)}</span>
+            </div>
+            <div class="serverCard-meta-row">
+              <i class="fa-solid fa-crown"></i>
+              <span>${escapeHtml(rank)}</span>
+            </div>
+          </div>
+          <i class="fa-solid fa-chevron-right serverCard-arrow"></i>
+        </div>
+      `;
+    }).join('');
+  }
+
+  // Expose render function for external updates
+  window.MX = window.MX || {};
+  window.MX.renderServerList = renderServerList;
+
+  /**
+   * Switch to a specific server from the server list
+   */
+  window.MX.switchToServer = function(serverId) {
+    console.log('[Auth] Switching to server:', serverId);
+    showConnectionToast('info', 'Connecting', 'Connecting to server...');
+    ws.switchServer(serverId);
+  };
+
+  /**
+   * Toggle server ID visibility (blur/reveal)
+   */
+  window.toggleServerId = function(el) {
+    el.classList.toggle('revealed');
+    if (el.classList.contains('revealed')) {
+      // Copy to clipboard
+      if (navigator.clipboard) {
+        navigator.clipboard.writeText(el.textContent).then(() => {
+          if (window.MX?.toast) {
+            window.MX.toast('ok', 'Copied', 'Server ID copied to clipboard', { ttl: 2000 });
+          }
+        }).catch(() => {});
+      }
+    }
+  };
+
+  /**
+   * Navigate back to server list (from within a server panel)
+   */
+  window.goToServerList = function() {
+    if (ws.isGlobalMode()) {
+      // Already in global mode — just show the page
+      const page = document.getElementById('serverListPage');
+      if (page) page.classList.add('show');
+      const app = document.querySelector('.app');
+      if (app) app.style.display = 'none';
+    } else if (ws.isGatewayMode()) {
+      // In server mode via gateway — navigate to root
+      window.location.href = '/';
+    }
+  };
 
   /**
    * Public API

@@ -207,6 +207,31 @@
     </div>
   </div>
 
+  <!-- Server List Page (global mode - no server selected) -->
+  <div class="serverListPage" id="serverListPage">
+    <div class="serverListContainer">
+      <div class="serverListHeader">
+        <img src="537154108207028818e303ef9465c1f66717660d_96.png" class="serverListLogo" alt="ModereX">
+        <h1>ModereX Panel</h1>
+        <p class="serverListSub">Select a server to manage</p>
+        <div class="serverListUser" id="serverListUser" style="display:none">
+          <img id="serverListAvatar" src="" alt="">
+          <span id="serverListUsername">Player</span>
+          <button class="btn mini ghost" onclick="window.MX.auth.logout()" title="Log out"><i class="fa-solid fa-right-from-bracket"></i></button>
+        </div>
+      </div>
+      <div class="serverListGrid" id="serverListGrid">
+        <div class="serverListLoading">
+          <div class="spinner"></div>
+          <p>Loading servers...</p>
+        </div>
+      </div>
+      <div class="serverListFooter">
+        <p class="serverListNote">Only servers using the ModereX gateway are shown.</p>
+      </div>
+    </div>
+  </div>
+
   <!-- Alert Bar (slide down for watchlist/anticheat) -->
   <div class="alertBar" id="alertBar">
     <div class="alertBar-content" id="alertBarContent">
@@ -427,6 +452,10 @@
                 <i class="fa-solid fa-bell"></i>
                 <span>Notifications</span>
                 <span class="notification-count" id="notificationCount" style="display:none">0</span>
+              </div>
+              <div class="profile-dropdown-item gateway-only" id="serversDropdownItem" onclick="goToServerList(); closeProfileDropdown()" style="display:none">
+                <i class="fa-solid fa-server"></i>
+                <span>Servers</span>
               </div>
               <div class="profile-dropdown-divider"></div>
               <div class="profile-dropdown-item logout" onclick="logout()">

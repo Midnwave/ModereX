@@ -8134,6 +8134,19 @@
   function setupEventListeners() {
     $$('.sb-item').forEach(item => item.addEventListener('click', () => { if (item.dataset.page) go(item.dataset.page); }));
 
+    // Logo click: if in gateway mode, navigate to server list
+    const sbHead = document.querySelector('.sb-head');
+    if (sbHead) {
+      sbHead.style.cursor = 'pointer';
+      sbHead.addEventListener('click', () => {
+        if (ws.isGatewayMode() && window.goToServerList) {
+          window.goToServerList();
+        } else {
+          go('dashboard');
+        }
+      });
+    }
+
     dom().playerSearch?.addEventListener('input', ui.renderPlayers);
     dom().punishSearch?.addEventListener('input', ui.renderPunishments);
     dom().templateSearch?.addEventListener('input', ui.renderTemplates);
@@ -8894,6 +8907,12 @@
 
       // Start permission auto-refresh (15 second interval)
       startPermissionRefresh();
+
+      // Show "Servers" dropdown button if in gateway mode
+      if (ws.isGatewayMode()) {
+        const serversBtn = document.getElementById('serversDropdownItem');
+        if (serversBtn) serversBtn.style.display = '';
+      }
     });
 
     // Handle disconnect

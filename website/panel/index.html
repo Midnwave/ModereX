@@ -1,0 +1,322 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ModereX Panel - Server Select</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <style>
+        :root {
+            --bg: #0a0f1a;
+            --bg-card: #1e293b;
+            --border: #334155;
+            --text: #f1f5f9;
+            --text-secondary: #94a3b8;
+            --primary: #3b82f6;
+            --accent: #8b5cf6;
+        }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: 'Inter', sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+        .container {
+            max-width: 600px;
+            width: 100%;
+        }
+        .logo {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 12px;
+            margin-bottom: 40px;
+        }
+        .logo-icon {
+            width: 50px;
+            height: 50px;
+            background: linear-gradient(135deg, var(--primary), var(--accent));
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 800;
+            font-size: 18px;
+        }
+        .logo-text {
+            font-size: 28px;
+            font-weight: 700;
+        }
+        h1 {
+            text-align: center;
+            margin-bottom: 8px;
+            font-size: 24px;
+        }
+        .subtitle {
+            text-align: center;
+            color: var(--text-secondary);
+            margin-bottom: 32px;
+        }
+        .server-input {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 24px;
+            margin-bottom: 16px;
+        }
+        .input-group {
+            display: flex;
+            gap: 12px;
+        }
+        input {
+            flex: 1;
+            background: var(--bg);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 14px 16px;
+            color: var(--text);
+            font-size: 16px;
+            font-family: 'Inter', monospace;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+        }
+        input::placeholder {
+            color: var(--text-secondary);
+            text-transform: none;
+            letter-spacing: normal;
+        }
+        input:focus {
+            outline: none;
+            border-color: var(--primary);
+        }
+        button {
+            background: linear-gradient(135deg, var(--primary), var(--accent));
+            border: none;
+            border-radius: 8px;
+            padding: 14px 24px;
+            color: white;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+        button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 20px rgba(59, 130, 246, 0.3);
+        }
+        .recent-servers {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 20px;
+        }
+        .recent-servers h3 {
+            font-size: 14px;
+            color: var(--text-secondary);
+            margin-bottom: 12px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+        .server-list {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+        .server-item {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 12px;
+            background: var(--bg);
+            border-radius: 8px;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+        .server-item:hover {
+            background: rgba(59, 130, 246, 0.1);
+        }
+        .server-id {
+            font-family: monospace;
+            font-weight: 600;
+            color: var(--primary);
+        }
+        .server-name {
+            flex: 1;
+            color: var(--text-secondary);
+        }
+        .server-item i {
+            color: var(--text-secondary);
+        }
+        .no-recent {
+            color: var(--text-secondary);
+            text-align: center;
+            padding: 20px;
+            font-size: 14px;
+        }
+        .error {
+            background: rgba(239, 68, 68, 0.1);
+            border: 1px solid rgba(239, 68, 68, 0.3);
+            color: #ef4444;
+            padding: 12px;
+            border-radius: 8px;
+            margin-top: 12px;
+            display: none;
+        }
+        .info {
+            text-align: center;
+            margin-top: 24px;
+            color: var(--text-secondary);
+            font-size: 13px;
+        }
+        .info a {
+            color: var(--primary);
+            text-decoration: none;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="logo">
+            <div class="logo-icon">MX</div>
+            <span class="logo-text">ModereX</span>
+        </div>
+
+        <h1>Staff Panel</h1>
+        <p class="subtitle">Enter your server ID to connect</p>
+
+        <div class="server-input">
+            <div class="input-group">
+                <input type="text" id="serverIdInput" placeholder="Server ID (e.g., xK7mQ9pL)" maxlength="8" autocomplete="off">
+                <button onclick="connectToServer()">
+                    <i class="fas fa-arrow-right"></i>
+                </button>
+            </div>
+            <div class="error" id="error"></div>
+        </div>
+
+        <div class="recent-servers">
+            <h3><i class="fas fa-clock"></i> Recent Servers</h3>
+            <div class="server-list" id="recentServers">
+                <div class="no-recent">No recent servers</div>
+            </div>
+        </div>
+
+        <p class="info">
+            Don't know your server ID? Run <code>/mx debug serverid</code> in-game.<br>
+            <a href="/">Back to ModereX Home</a>
+        </p>
+    </div>
+
+    <script>
+        // Server ID to tunnel URL mapping
+        // This will be populated when you set up tunnels
+        // Format: { "serverId": "https://tunnel-url.com" }
+        const SERVER_TUNNELS = {
+            // Example: "xK7mQ9pL": "https://moderex-survival.cfargotunnel.com"
+            // Add your servers here or fetch from an API
+        };
+
+        // For development/testing, you can also use direct IP:port
+        const DEV_MODE = true;
+        const DEV_SERVER = "http://localhost:8080"; // Change to your test server
+
+        function connectToServer() {
+            const input = document.getElementById('serverIdInput');
+            const error = document.getElementById('error');
+            const serverId = input.value.trim().toUpperCase();
+
+            error.style.display = 'none';
+
+            if (!serverId || serverId.length !== 8) {
+                error.textContent = 'Please enter a valid 8-character server ID';
+                error.style.display = 'block';
+                return;
+            }
+
+            // Check if we have a tunnel URL for this server
+            let tunnelUrl = SERVER_TUNNELS[serverId];
+
+            if (!tunnelUrl && DEV_MODE) {
+                // In dev mode, use localhost
+                tunnelUrl = DEV_SERVER;
+            }
+
+            if (!tunnelUrl) {
+                error.textContent = 'Server not found. Make sure the server ID is correct and the server is online.';
+                error.style.display = 'block';
+                return;
+            }
+
+            // Save to recent servers
+            saveRecentServer(serverId);
+
+            // Redirect to the panel
+            window.location.href = tunnelUrl;
+        }
+
+        function saveRecentServer(serverId) {
+            let recent = JSON.parse(localStorage.getItem('recentServers') || '[]');
+            recent = recent.filter(s => s.id !== serverId);
+            recent.unshift({ id: serverId, lastUsed: Date.now() });
+            recent = recent.slice(0, 5); // Keep only 5 recent
+            localStorage.setItem('recentServers', JSON.stringify(recent));
+        }
+
+        function loadRecentServers() {
+            const container = document.getElementById('recentServers');
+            const recent = JSON.parse(localStorage.getItem('recentServers') || '[]');
+
+            if (recent.length === 0) {
+                container.innerHTML = '<div class="no-recent">No recent servers</div>';
+                return;
+            }
+
+            container.innerHTML = recent.map(server => `
+                <div class="server-item" onclick="quickConnect('${server.id}')">
+                    <span class="server-id">${server.id}</span>
+                    <span class="server-name">${getServerName(server.id)}</span>
+                    <i class="fas fa-chevron-right"></i>
+                </div>
+            `).join('');
+        }
+
+        function getServerName(serverId) {
+            // You could fetch this from an API or store it locally
+            return 'Click to connect';
+        }
+
+        function quickConnect(serverId) {
+            document.getElementById('serverIdInput').value = serverId;
+            connectToServer();
+        }
+
+        // Handle enter key
+        document.getElementById('serverIdInput').addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') connectToServer();
+        });
+
+        // Auto-uppercase input
+        document.getElementById('serverIdInput').addEventListener('input', (e) => {
+            e.target.value = e.target.value.toUpperCase();
+        });
+
+        // Check URL for server ID (panel.moderex.net/{serverid}/)
+        const pathMatch = window.location.pathname.match(/^\/([A-Za-z0-9]{8})\/?$/);
+        if (pathMatch) {
+            document.getElementById('serverIdInput').value = pathMatch[1].toUpperCase();
+            connectToServer();
+        }
+
+        // Load recent servers on page load
+        loadRecentServers();
+    </script>
+</body>
+</html>

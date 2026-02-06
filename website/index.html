@@ -1,0 +1,652 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ModereX - Modern Minecraft Moderation Plugin</title>
+    <meta name="description" content="The most advanced, all-in-one moderation plugin for Minecraft 1.21+. Real-time web panel, evidence system, AutoMod, player portal, and gateway access. Free and open source.">
+    <meta name="keywords" content="minecraft, moderation, plugin, spigot, paper, web panel, automod, punishment, evidence">
+    <meta name="theme-color" content="#2d7aed">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+    <!-- Navigation -->
+    <nav class="navbar">
+        <div class="container nav-container">
+            <a href="/" class="logo">
+                <span class="logo-icon">MX</span>
+                <span class="logo-text">ModereX</span>
+            </a>
+            <div class="nav-links">
+                <a href="#features">Features</a>
+                <a href="#panel">Web Panel</a>
+                <a href="#gateway">Gateway</a>
+                <a href="#why">Why ModereX</a>
+                <a href="#download">Download</a>
+                <a href="https://discord.gg/jQGMhKA5m6" class="btn btn-outline btn-sm" target="_blank">
+                    <i class="fab fa-discord"></i> Discord
+                </a>
+            </div>
+            <button class="mobile-menu-btn" aria-label="Menu">
+                <i class="fas fa-bars"></i>
+            </button>
+        </div>
+    </nav>
+
+    <!-- Hero Section -->
+    <section class="hero">
+        <div class="hero-bg">
+            <div class="hero-glow hero-glow-1"></div>
+            <div class="hero-glow hero-glow-2"></div>
+            <div class="hero-glow hero-glow-3"></div>
+            <div class="hero-grid"></div>
+            <div class="floating-particles"></div>
+        </div>
+        <div class="container hero-content">
+            <div class="hero-badge">
+                <i class="fas fa-shield-halved"></i>
+                <span>Minecraft Moderation</span> Reimagined
+            </div>
+            <h1>
+                <span class="hero-title-white">The Future of</span><br>
+                <span class="text-gradient">Server Moderation</span>
+            </h1>
+            <p class="hero-subtitle">
+                <strong>ModereX</strong> is a next-generation Minecraft moderation plugin featuring a real-time web panel, advanced AutoMod system, comprehensive punishment management, activity logging, staff tools, and more. Built for Paper 1.21+ servers that demand modern, powerful moderation tools.
+            </p>
+            <div class="hero-buttons">
+                <a href="#" class="btn btn-primary btn-lg pulse-glow" onclick="showComingSoon(event)">
+                    <i class="fas fa-download"></i> Download ModereX
+                </a>
+                <a href="#features" class="btn btn-glass btn-lg">
+                    <i class="fas fa-sparkles"></i> Explore Features
+                </a>
+            </div>
+            <div class="hero-stats">
+                <div class="stat">
+                    <div class="stat-icon"><i class="fas fa-server"></i></div>
+                    <span class="stat-value count-up" data-target="0" id="liveServers">--</span>
+                    <span class="stat-label">Servers Online</span>
+                </div>
+                <div class="stat-divider"></div>
+                <div class="stat">
+                    <div class="stat-icon"><i class="fas fa-code-branch"></i></div>
+                    <span class="stat-value">100%</span>
+                    <span class="stat-label">Open Source</span>
+                </div>
+                <div class="stat-divider"></div>
+                <div class="stat">
+                    <div class="stat-icon"><i class="fas fa-cube"></i></div>
+                    <span class="stat-value">1.21+</span>
+                    <span class="stat-label">Spigot & Paper</span>
+                </div>
+                <div class="stat-divider"></div>
+                <div class="stat">
+                    <div class="stat-icon"><i class="fas fa-gift"></i></div>
+                    <span class="stat-value">Free</span>
+                    <span class="stat-label">With Premium Option</span>
+                </div>
+            </div>
+        </div>
+        <div class="hero-scroll">
+            <div class="scroll-indicator">
+                <span></span>
+            </div>
+        </div>
+    </section>
+
+    <!-- Features Overview -->
+    <section id="features" class="features">
+        <div class="container">
+            <div class="section-header fade-in-up">
+                <span class="section-badge"><i class="fas fa-stars"></i> Features</span>
+                <h2>Everything You Need to Moderate Like a Pro</h2>
+                <p>Powerful tools designed for modern Minecraft servers with staff efficiency in mind</p>
+            </div>
+            <div class="features-grid">
+                <div class="feature-card glass-card">
+                    <div class="feature-icon">
+                        <i class="fas fa-display"></i>
+                    </div>
+                    <h3>Real-time Web Panel</h3>
+                    <p>Monitor your server, manage punishments, view player activity, and control AutoMod from any browser. WebSocket-powered real-time updates with zero page refreshes.</p>
+                    <ul class="feature-list">
+                        <li><i class="fas fa-check"></i> Live player list with status</li>
+                        <li><i class="fas fa-check"></i> Dark/Light mode support</li>
+                        <li><i class="fas fa-check"></i> Mobile-responsive design</li>
+                        <li><i class="fas fa-check"></i> Secure token authentication</li>
+                    </ul>
+                </div>
+                <div class="feature-card glass-card">
+                    <div class="feature-icon">
+                        <i class="fas fa-gavel"></i>
+                    </div>
+                    <h3>Smart Punishment System</h3>
+                    <p>Ban, mute, kick, and warn players with customizable durations, punishment templates, and automatic escalation for repeat offenders.</p>
+                    <ul class="feature-list">
+                        <li><i class="fas fa-check"></i> IP bans & range bans</li>
+                        <li><i class="fas fa-check"></i> Temporary & permanent punishments</li>
+                        <li><i class="fas fa-check"></i> Punishment templates for common violations</li>
+                        <li><i class="fas fa-check"></i> Appeal system integration</li>
+                    </ul>
+                </div>
+                <div class="feature-card glass-card">
+                    <div class="feature-icon">
+                        <i class="fas fa-folder-open"></i>
+                    </div>
+                    <h3>Comprehensive Evidence System</h3>
+                    <p>Attach screenshots, videos, chat logs, and activity records to any punishment. Import clips directly from Medal.tv and other platforms.</p>
+                    <ul class="feature-list">
+                        <li><i class="fas fa-check"></i> Screenshot & video uploads</li>
+                        <li><i class="fas fa-check"></i> Medal.tv clip import</li>
+                        <li><i class="fas fa-check"></i> Automatic chat log capture</li>
+                        <li><i class="fas fa-check"></i> Evidence viewer in panel</li>
+                    </ul>
+                </div>
+                <div class="feature-card glass-card">
+                    <div class="feature-icon">
+                        <i class="fas fa-user-shield"></i>
+                    </div>
+                    <h3>Player Punishment Portal</h3>
+                    <p>Give players a secure, read-only portal to view their complete punishment history, active punishments, and understand why they were punished.</p>
+                    <ul class="feature-list">
+                        <li><i class="fas fa-check"></i> Secure session-based access</li>
+                        <li><i class="fas fa-check"></i> View punishment evidence</li>
+                        <li><i class="fas fa-check"></i> Appeal system ready</li>
+                        <li><i class="fas fa-check"></i> Mobile-friendly interface</li>
+                    </ul>
+                </div>
+                <div class="feature-card glass-card">
+                    <div class="feature-icon">
+                        <i class="fas fa-robot"></i>
+                    </div>
+                    <h3>Intelligent AutoMod</h3>
+                    <p>Automatically detect and punish chat violations including spam, advertising, toxicity, caps abuse, and custom regex patterns with configurable rules.</p>
+                    <ul class="feature-list">
+                        <li><i class="fas fa-check"></i> Anti-spam detection</li>
+                        <li><i class="fas fa-check"></i> Advertisement blocking</li>
+                        <li><i class="fas fa-check"></i> Custom regex rules</li>
+                        <li><i class="fas fa-check"></i> Escalating punishments</li>
+                    </ul>
+                </div>
+                <div class="feature-card glass-card">
+                    <div class="feature-icon">
+                        <i class="fas fa-chart-line"></i>
+                    </div>
+                    <h3>Activity & Chat Logging</h3>
+                    <p>Complete logs of player commands, chat messages, joins, quits, deaths, and more. Searchable, filterable, and exportable for investigations.</p>
+                    <ul class="feature-list">
+                        <li><i class="fas fa-check"></i> Full chat history</li>
+                        <li><i class="fas fa-check"></i> Command logging</li>
+                        <li><i class="fas fa-check"></i> Join/Quit tracking</li>
+                        <li><i class="fas fa-check"></i> Advanced search & filter</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Web Panel Showcase -->
+    <section id="panel" class="panel-preview">
+        <div class="container">
+            <div class="section-header fade-in-up">
+                <span class="section-badge"><i class="fas fa-display"></i> Web Panel</span>
+                <h2>A Control Panel You'll Actually Enjoy Using</h2>
+                <p>Modern, lightning-fast, and designed for staff who need to act quickly</p>
+            </div>
+            <div class="panel-showcase">
+                <div class="panel-window glass-card">
+                    <div class="panel-titlebar">
+                        <div class="panel-dots">
+                            <span></span><span></span><span></span>
+                        </div>
+                        <span class="panel-title">ModereX Staff Panel - Real-time Dashboard</span>
+                        <div class="panel-status">
+                            <span class="status-dot"></span>
+                            <span>Live</span>
+                        </div>
+                    </div>
+                    <div class="panel-content">
+                        <div class="panel-mock">
+                            <!-- Animated cursor -->
+                            <div class="panel-cursor"></div>
+
+                            <!-- Sidebar -->
+                            <div class="panel-sidebar">
+                                <div class="panel-sidebar-header">
+                                    <div class="panel-sidebar-logo">MX</div>
+                                    <span class="panel-sidebar-title">ModereX</span>
+                                </div>
+                                <div class="panel-nav-item active">
+                                    <i class="fas fa-home"></i>
+                                    <span>Dashboard</span>
+                                </div>
+                                <div class="panel-nav-item">
+                                    <i class="fas fa-users"></i>
+                                    <span>Players</span>
+                                </div>
+                                <div class="panel-nav-item">
+                                    <i class="fas fa-gavel"></i>
+                                    <span>Punishments</span>
+                                </div>
+                                <div class="panel-nav-item">
+                                    <i class="fas fa-robot"></i>
+                                    <span>AutoMod</span>
+                                </div>
+                                <div class="panel-nav-item">
+                                    <i class="fas fa-chart-line"></i>
+                                    <span>Activity</span>
+                                </div>
+                                <div class="panel-nav-item">
+                                    <i class="fas fa-cog"></i>
+                                    <span>Settings</span>
+                                </div>
+                            </div>
+
+                            <!-- Main Content -->
+                            <div class="panel-main">
+                                <div class="panel-header">
+                                    <span class="panel-header-title">Dashboard</span>
+                                    <div class="panel-header-actions">
+                                        <div class="panel-search">
+                                            <i class="fas fa-search"></i>
+                                            <input type="text" placeholder="Search players..." disabled>
+                                        </div>
+                                        <div class="panel-user">
+                                            <div class="panel-avatar">S</div>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="panel-body">
+                                    <!-- Stats -->
+                                    <div class="panel-stats-grid">
+                                        <div class="panel-stat-card">
+                                            <div class="panel-stat-label">Online Players</div>
+                                            <div class="panel-stat-value online">24</div>
+                                        </div>
+                                        <div class="panel-stat-card">
+                                            <div class="panel-stat-label">Active Bans</div>
+                                            <div class="panel-stat-value danger">12</div>
+                                        </div>
+                                        <div class="panel-stat-card">
+                                            <div class="panel-stat-label">Warnings Today</div>
+                                            <div class="panel-stat-value warning">8</div>
+                                        </div>
+                                        <div class="panel-stat-card">
+                                            <div class="panel-stat-label">AutoMod Blocks</div>
+                                            <div class="panel-stat-value">156</div>
+                                        </div>
+                                    </div>
+
+                                    <!-- Recent Activity Table -->
+                                    <div class="panel-table">
+                                        <div class="panel-table-header">
+                                            <div>Player</div>
+                                            <div>Type</div>
+                                            <div>Reason</div>
+                                            <div>Actions</div>
+                                        </div>
+                                        <div class="panel-table-row">
+                                            <div class="panel-player">
+                                                <div class="panel-player-avatar"></div>
+                                                <span class="panel-player-name">xHacker_Pro</span>
+                                            </div>
+                                            <div><span class="panel-badge ban">BAN</span></div>
+                                            <div style="color: var(--text-secondary)">Hacking (KillAura)</div>
+                                            <div class="panel-table-actions">
+                                                <div class="panel-action-btn"><i class="fas fa-eye"></i></div>
+                                                <div class="panel-action-btn"><i class="fas fa-undo"></i></div>
+                                            </div>
+                                        </div>
+                                        <div class="panel-table-row">
+                                            <div class="panel-player">
+                                                <div class="panel-player-avatar"></div>
+                                                <span class="panel-player-name">ToxicPlayer99</span>
+                                            </div>
+                                            <div><span class="panel-badge mute">MUTE</span></div>
+                                            <div style="color: var(--text-secondary)">Excessive toxicity</div>
+                                            <div class="panel-table-actions">
+                                                <div class="panel-action-btn"><i class="fas fa-eye"></i></div>
+                                                <div class="panel-action-btn"><i class="fas fa-undo"></i></div>
+                                            </div>
+                                        </div>
+                                        <div class="panel-table-row">
+                                            <div class="panel-player">
+                                                <div class="panel-player-avatar"></div>
+                                                <span class="panel-player-name">SpamBot_123</span>
+                                            </div>
+                                            <div><span class="panel-badge warn">WARN</span></div>
+                                            <div style="color: var(--text-secondary)">AutoMod: Spam</div>
+                                            <div class="panel-table-actions">
+                                                <div class="panel-action-btn"><i class="fas fa-eye"></i></div>
+                                                <div class="panel-action-btn"><i class="fas fa-undo"></i></div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="panel-features-grid">
+                <div class="panel-feature">
+                    <div class="panel-feature-icon"><i class="fas fa-bolt"></i></div>
+                    <h4>Real-time Updates</h4>
+                    <p>WebSocket connection provides instant updates without page refreshes</p>
+                </div>
+                <div class="panel-feature">
+                    <div class="panel-feature-icon"><i class="fas fa-moon"></i></div>
+                    <h4>Dark & Light Mode</h4>
+                    <p>Switch between themes based on your preference</p>
+                </div>
+                <div class="panel-feature">
+                    <div class="panel-feature-icon"><i class="fas fa-mobile-alt"></i></div>
+                    <h4>Mobile Responsive</h4>
+                    <p>Manage your server from phone, tablet, or desktop</p>
+                </div>
+                <div class="panel-feature">
+                    <div class="panel-feature-icon"><i class="fas fa-lock"></i></div>
+                    <h4>Secure Authentication</h4>
+                    <p>Permanent tokens and temporary sessions with permission checks</p>
+                </div>
+                <div class="panel-feature">
+                    <div class="panel-feature-icon"><i class="fas fa-bell"></i></div>
+                    <h4>Smart Alerts</h4>
+                    <p>Anticheat integration and real-time staff notifications</p>
+                </div>
+                <div class="panel-feature">
+                    <div class="panel-feature-icon"><i class="fas fa-database"></i></div>
+                    <h4>Advanced Search</h4>
+                    <p>Filter and search through punishments, logs, and player data</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Gateway Section -->
+    <section id="gateway" class="gateway">
+        <div class="container">
+            <div class="gateway-content">
+                <div class="gateway-text fade-in-left">
+                    <span class="section-badge"><i class="fas fa-rocket"></i> New Feature</span>
+                    <h2>Access Your Panel from Anywhere</h2>
+                    <p class="gateway-subtitle">
+                        No port forwarding. No SSL certificates. No networking headaches.
+                    </p>
+                    <p class="gateway-description">
+                        The <strong>ModereX Gateway</strong> lets you access your web panel at <span class="code-highlight">panel.moderex.net/{serverId}/</span> without any networking configuration. Your server connects outbound to our gateway via WebSocket, and we relay traffic securely through Cloudflare.
+                    </p>
+                    <div class="gateway-benefits">
+                        <div class="gateway-benefit">
+                            <i class="fas fa-check-circle"></i>
+                            <div>
+                                <h4>Works Behind Firewalls</h4>
+                                <p>No inbound ports required - works with NAT, CGNAT, and strict firewalls</p>
+                            </div>
+                        </div>
+                        <div class="gateway-benefit">
+                            <i class="fas fa-check-circle"></i>
+                            <div>
+                                <h4>Automatic SSL/HTTPS</h4>
+                                <p>Free SSL certificates via Cloudflare - always encrypted and secure</p>
+                            </div>
+                        </div>
+                        <div class="gateway-benefit">
+                            <i class="fas fa-check-circle"></i>
+                            <div>
+                                <h4>Short, Memorable URLs</h4>
+                                <p>Progressive ID shortening gives you URLs like panel.moderex.net/abc12/</p>
+                            </div>
+                        </div>
+                        <div class="gateway-benefit">
+                            <i class="fas fa-check-circle"></i>
+                            <div>
+                                <h4>Completely Optional</h4>
+                                <p>Disable gateway mode and use direct IP:port access if preferred</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="gateway-demo fade-in-right">
+                    <div class="url-showcase glass-card">
+                        <div class="url-bar">
+                            <i class="fas fa-lock"></i>
+                            <span class="url-protocol">https://</span>
+                            <span class="url-domain">panel.moderex.net/</span>
+                            <span class="url-id typing-animation">abc12</span>
+                            <span class="url-slash">/</span>
+                        </div>
+                        <p class="url-description">
+                            <i class="fas fa-info-circle"></i>
+                            Each server gets a unique short ID based on Server UUID
+                        </p>
+                    </div>
+                    <div class="gateway-flow">
+                        <div class="flow-step">
+                            <div class="flow-node">
+                                <i class="fas fa-globe"></i>
+                            </div>
+                            <span>Staff Browser</span>
+                        </div>
+                        <div class="flow-arrow">
+                            <div class="arrow-line"></div>
+                            <i class="fas fa-chevron-right"></i>
+                        </div>
+                        <div class="flow-step">
+                            <div class="flow-node flow-gateway">
+                                <i class="fas fa-server"></i>
+                            </div>
+                            <span>ModereX Gateway</span>
+                        </div>
+                        <div class="flow-arrow">
+                            <div class="arrow-line"></div>
+                            <i class="fas fa-chevron-right"></i>
+                        </div>
+                        <div class="flow-step">
+                            <div class="flow-node">
+                                <i class="fas fa-cube"></i>
+                            </div>
+                            <span>Your MC Server</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Why ModereX -->
+    <section id="why" class="why-moderex">
+        <div class="container">
+            <div class="section-header fade-in-up">
+                <span class="section-badge"><i class="fas fa-heart"></i> Why Choose ModereX</span>
+                <h2>Everything You Need, Nothing You Don't</h2>
+                <p>See why servers are switching from multiple plugins to one unified solution</p>
+            </div>
+            <div class="comparison-grid">
+                <div class="comparison-card glass-card">
+                    <div class="comparison-icon">
+                        <i class="fas fa-puzzle-piece"></i>
+                    </div>
+                    <h3>All-In-One Solution</h3>
+                    <p>Replace LiteBans + EssentialsX + Staff+ with a single plugin. Punishments, staff tools, chat management, activity logging, and web panel - all integrated seamlessly.</p>
+                </div>
+                <div class="comparison-card glass-card">
+                    <div class="comparison-icon">
+                        <i class="fas fa-display"></i>
+                    </div>
+                    <h3>Modern Web Panel</h3>
+                    <p>Real-time dashboard with WebSocket - no page refreshes. Manage punishments, view chat logs, configure AutoMod rules, and monitor server activity from any browser.</p>
+                </div>
+                <div class="comparison-card glass-card">
+                    <div class="comparison-icon">
+                        <i class="fas fa-robot"></i>
+                    </div>
+                    <h3>Smart AutoMod</h3>
+                    <p>Customizable chat filtering with multiple rule types. Detect spam, toxicity, advertising, and more. Configure actions, cooldowns, and bypass permissions per rule.</p>
+                </div>
+                <div class="comparison-card glass-card">
+                    <div class="comparison-icon">
+                        <i class="fas fa-globe"></i>
+                    </div>
+                    <h3>Gateway Access</h3>
+                    <p>Access your panel from anywhere via panel.moderex.net. No port forwarding or SSL setup - works behind any firewall, even on shared hosting.</p>
+                </div>
+                <div class="comparison-card glass-card">
+                    <div class="comparison-icon">
+                        <i class="fas fa-gift"></i>
+                    </div>
+                    <h3>Free With Limits</h3>
+                    <p>All features included free with a 25MB database limit. Perfect for small-medium servers. Premium removes limits for large networks with high activity.</p>
+                </div>
+                <div class="comparison-card glass-card">
+                    <div class="comparison-icon">
+                        <i class="fas fa-shield-halved"></i>
+                    </div>
+                    <h3>Evidence System</h3>
+                    <p>Attach screenshots, videos, and replay recordings to punishments. Built-in evidence viewer with support for Medal clips and screen recordings.</p>
+                </div>
+                <div class="comparison-card glass-card">
+                    <div class="comparison-icon">
+                        <i class="fas fa-ghost"></i>
+                    </div>
+                    <h3>Packet-Level Vanish</h3>
+                    <p>Advanced vanish system that intercepts 25+ packet types at the Netty level - spawn, movement, animation, sound, equipment, and more. Hierarchical vanish levels, fake join/leave messages, tab list hiding, silent containers, and LuckPerms integration. Better than premium vanish plugins.</p>
+                </div>
+                <div class="comparison-card glass-card">
+                    <div class="comparison-icon">
+                        <i class="fas fa-clock"></i>
+                    </div>
+                    <h3>Active Development</h3>
+                    <p>Regular updates with new features and bug fixes. Active Discord community for support and feature requests. Built by developers who use it daily.</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Download Section -->
+    <section id="download" class="download">
+        <div class="container">
+            <div class="download-card glass-card">
+                <div class="download-glow"></div>
+                <div class="download-content">
+                    <div class="download-icon">
+                        <i class="fas fa-rocket"></i>
+                    </div>
+                    <h2>Ready to Transform Your Moderation?</h2>
+                    <p>ModereX is currently in active development. Join our Discord for updates and early access opportunities.</p>
+                    <div class="download-buttons">
+                        <a href="#" class="btn btn-primary btn-xl pulse-glow" onclick="showComingSoon(event)">
+                            <i class="fas fa-download"></i>
+                            <div class="btn-content">
+                                <span class="btn-label">Download ModereX</span>
+                                <span class="btn-sublabel">Coming Soon</span>
+                            </div>
+                        </a>
+                        <a href="https://discord.gg/jQGMhKA5m6" class="btn btn-glass btn-xl" target="_blank">
+                            <i class="fab fa-discord"></i>
+                            <div class="btn-content">
+                                <span class="btn-label">Join Discord</span>
+                                <span class="btn-sublabel">Get early access & updates</span>
+                            </div>
+                        </a>
+                    </div>
+                    <div class="download-features">
+                        <div class="download-feature">
+                            <i class="fas fa-check-circle"></i>
+                            <span>Paper 1.21+</span>
+                        </div>
+                        <div class="download-feature">
+                            <i class="fas fa-check-circle"></i>
+                            <span>Free With Premium Option</span>
+                        </div>
+                        <div class="download-feature">
+                            <i class="fas fa-check-circle"></i>
+                            <span>Gateway Panel Access</span>
+                        </div>
+                        <div class="download-feature">
+                            <i class="fas fa-check-circle"></i>
+                            <span>Active Development</span>
+                        </div>
+                    </div>
+                    <div class="quick-start">
+                        <h3><i class="fas fa-clock"></i> Setup Preview</h3>
+                        <div class="code-block">
+                            <code>
+                                <span class="comment"># 1. Drop ModereX.jar into plugins/</span><br>
+                                <span class="comment"># 2. Restart server</span><br>
+                                <span class="comment"># 3. Run command to get panel URL:</span><br>
+                                <span class="command">/mx panel</span>
+                            </code>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Footer -->
+    <footer class="footer">
+        <div class="container">
+            <div class="footer-content">
+                <div class="footer-brand">
+                    <div class="logo">
+                        <span class="logo-icon">MX</span>
+                        <span class="logo-text">ModereX</span>
+                    </div>
+                    <p>The future of Minecraft moderation</p>
+                </div>
+                <div class="footer-section">
+                    <h4>Resources</h4>
+                    <a href="https://github.com/Midnwave/ModereX" target="_blank">GitHub</a>
+                    <a href="https://github.com/Midnwave/ModereX/releases" target="_blank">Download</a>
+                    <a href="https://github.com/Midnwave/ModereX/wiki" target="_blank">Documentation</a>
+                </div>
+                <div class="footer-section">
+                    <h4>Community</h4>
+                    <a href="https://discord.gg/jQGMhKA5m6" target="_blank">Discord Server</a>
+                    <a href="https://github.com/Midnwave/ModereX/issues" target="_blank">Bug Reports</a>
+                    <a href="https://github.com/Midnwave/ModereX/discussions" target="_blank">Discussions</a>
+                </div>
+                <div class="footer-section">
+                    <h4>Legal</h4>
+                    <a href="https://github.com/Midnwave/ModereX/blob/main/LICENSE" target="_blank">License</a>
+                    <a href="#">Privacy Policy</a>
+                    <a href="#">Terms of Service</a>
+                </div>
+            </div>
+            <div class="footer-bottom">
+                <p>&copy; 2024-2026 BlockForge Studios. All rights reserved.</p>
+                <div class="footer-links">
+                    <a href="https://github.com/Midnwave/ModereX" target="_blank" aria-label="GitHub"><i class="fab fa-github"></i></a>
+                    <a href="https://discord.gg/jQGMhKA5m6" target="_blank" aria-label="Discord"><i class="fab fa-discord"></i></a>
+                </div>
+            </div>
+        </div>
+    </footer>
+
+    <!-- Coming Soon Modal -->
+    <div class="modal-overlay" id="comingSoonModal">
+        <div class="modal-box">
+            <div class="modal-icon">
+                <i class="fas fa-rocket"></i>
+            </div>
+            <h2>Coming Soon!</h2>
+            <p>ModereX is currently in active development and not yet available for public download.</p>
+            <p class="modal-hint">Want early access to development builds? Contact <strong>Midnwave</strong> on our Discord server.</p>
+            <div class="modal-buttons">
+                <a href="https://discord.gg/jQGMhKA5m6" target="_blank" class="btn btn-primary">
+                    <i class="fab fa-discord"></i> Join Discord
+                </a>
+                <button class="btn btn-outline" onclick="hideComingSoon()">Close</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="js/main.js"></script>
+</body>
+</html>

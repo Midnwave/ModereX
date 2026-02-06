@@ -19,7 +19,7 @@
     'trycloudflare.com'        // Quick Tunnel domain (temporary testing)
   ];
   // Gateway WebSocket URL - update this after deploying your gateway with Cloudflare Tunnel
-  const GATEWAY_WS_URL = 'wss://certain-automotive-programming-cult.trycloudflare.com/panel';
+  const GATEWAY_WS_URL = 'wss://marsh-popularity-chances-newly.trycloudflare.com/panel';
 
   let ws = null;
   let heartbeatTimer = null;
@@ -32,6 +32,7 @@
   let currentPort = null;
   let currentServerId = null; // Server ID when in gateway mode
   let gatewayMode = false; // True if connected via gateway
+  let globalMode = false; // True when on server list page (no server selected)
   let lastPing = 0;
   let lastPingTime = 0;
   let reconnectAttempts = 0;
@@ -69,6 +70,79 @@
       return match[1].toLowerCase();
     }
     return null;
+  }
+
+  /**
+   * Check if we're on a gateway domain with NO server ID (global/server list mode)
+   */
+  function isGlobalPanelPath() {
+    if (!isGatewayDomain()) return false;
+    const path = window.location.pathname;
+    // Root path or just / means global mode (no server prefix)
+    return path === '/' || path === '' || path === '/index.html';
+  }
+
+  /**
+   * Connect to gateway in global mode (server list page, no server prefix)
+   * Used when visiting panel.moderex.net without a server ID
+   */
+  function connectGlobalPanel() {
+    if (ws && (ws.readyState === WebSocket.OPEN || ws.readyState === WebSocket.CONNECTING)) {
+      console.log('[WS] Already connected or connecting');
+      return;
+    }
+
+    gatewayMode = true;
+    globalMode = true;
+    currentServerId = null;
+    const url = `${GATEWAY_WS_URL}`;
+    console.log('[WS] Global panel mode - connecting to', url);
+
+    try {
+      ws = new WebSocket(url);
+      setupWebSocketHandlers();
+    } catch (e) {
+      console.error('[WS] Failed to create WebSocket:', e);
+      scheduleGatewayReconnect();
+    }
+  }
+
+  /**
+   * Authenticate globally with a token (no server selected yet)
+   * @param {string} token - Permanent auth token
+   */
+  function globalAuthWithToken(token) {
+    return send('GLOBAL_AUTH', { token });
+  }
+
+  /**
+   * Authenticate globally with device fingerprint
+   */
+  function globalAuthWithDevice() {
+    const fingerprint = generateDeviceFingerprint();
+    return send('GLOBAL_DEVICE_AUTH', { deviceFingerprint: fingerprint });
+  }
+
+  /**
+   * Request servers list (after global auth)
+   */
+  function requestServers() {
+    return send('GET_SERVERS');
+  }
+
+  /**
+   * Request user settings from gateway
+   */
+  function requestGatewaySettings() {
+    return send('GET_SETTINGS');
+  }
+
+  /**
+   * Switch to a specific server (after global auth + server selection)
+   * @param {string} serverId - Full server ID to connect to
+   */
+  function switchServer(serverId) {
+    return send('SWITCH_SERVER', { serverId });
   }
 
   /**
@@ -401,6 +475,49 @@
       if (window.updateLastPong) window.updateLastPong();
       if (window.hideDisconnect) window.hideDisconnect();
       return;
+    }
+
+    // Handle global panel mode messages (server list page)
+    if (globalMode) {
+      if (type === 'global_auth_result') {
+        emit('global_auth_result', data);
+        return;
+      }
+      if (type === 'global_device_auth_result') {
+        emit('global_device_auth_result', data);
+        return;
+      }
+      if (type === 'servers_list') {
+        emit('servers_list', data);
+        return;
+      }
+      if (type === 'user_settings') {
+        emit('global_user_settings', data);
+        return;
+      }
+      if (type === 'settings_saved') {
+        emit('global_settings_saved', data);
+        return;
+      }
+      if (type === 'switch_server_result') {
+        if (data.success || message.success) {
+          // Server switch approved — transition from global to server mode
+          globalMode = false;
+          currentServerId = data.serverId || message.serverId;
+          console.log('[WS] Switched to server:', currentServerId);
+          emit('server_switched', data);
+        } else {
+          emit('switch_server_error', data);
+        }
+        return;
+      }
+      if (type === 'error') {
+        const code = message.code || data.code;
+        const errorMsg = message.message || data.message;
+        console.error('[WS] Global panel error:', code, errorMsg);
+        emit('global_error', { code, message: errorMsg });
+        return;
+      }
     }
 
     // Handle gateway-specific messages (in gateway mode)
@@ -955,6 +1072,7 @@
   window.MX.ws = {
     connect,
     connectGateway,
+    connectGlobalPanel,
     scheduleServerOfflineRetry,
     disconnect,
     send,
@@ -962,7 +1080,9 @@
     off,
     isConnected: () => isConnected,
     isGatewayMode: () => gatewayMode,
+    isGlobalMode: () => globalMode,
     isGatewayDomain,
+    isGlobalPanelPath,
     getServerIdFromPath,
     getServerId: () => currentServerId,
     getSession: () => sessionData,
@@ -982,6 +1102,8 @@
     authWithTrustedDevice,
     authAsConsole, // Legacy
     generateDeviceFingerprint,
+    globalAuthWithToken,
+    globalAuthWithDevice,
 
     // Requests
     requestPlayers,
@@ -1020,6 +1142,11 @@
     updateMuteSettings,
     updateWarnSettings,
     updateAnticheatSettings,
+
+    // Global panel (server list)
+    requestServers,
+    requestGatewaySettings,
+    switchServer,
 
     // Sequential request processing
     sendAndWait,
