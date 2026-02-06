@@ -26,6 +26,14 @@ const CONFIG = {
     adminEmails: ['@blockforge.studio'], // Cloudflare Access allowed email domains
 };
 
+// Message types that browsers are NOT allowed to send (server-internal only)
+const BLOCKED_BROWSER_TYPES = new Set([
+    'register', 'heartbeat', 'panel_response', 'broadcast',
+    'permission_sync', 'permission_update', 'token_register', 'token_revoke',
+    'settings_sync', 'server_unregister', 'global_pre_auth_result',
+    'browser_connected', 'browser_disconnected'
+]);
+
 // ============================================================================
 // Database Setup (SQLite with fallback chain)
 // ============================================================================
@@ -146,6 +154,7 @@ function createTables() {
         CREATE TABLE IF NOT EXISTS server_secrets (
             server_id TEXT PRIMARY KEY,
             secret_hash TEXT NOT NULL,
+            registered_ip TEXT,
             first_registered_at INTEGER NOT NULL,
             last_seen_at INTEGER NOT NULL
         )
@@ -290,15 +299,17 @@ function isValidServerId(id) {
 
 /**
  * Validate a server's gateway secret.
- * On first registration: stores the SHA-256 hash of the secret.
+ * On first registration: stores the SHA-256 hash of the secret + connecting IP.
  * On subsequent registrations: verifies the secret matches the stored hash.
+ * If secret mismatch but IP matches the registered IP, allows re-registration
+ * (handles config reset / plugin folder deletion without manual intervention).
  * Returns true if valid, false if mismatch.
  */
-function validateServerSecret(serverId, secret) {
+function validateServerSecret(serverId, secret, connectingIp) {
     if (!secret || secret.length === 0) {
         // No secret provided - reject if we already have one stored
-        const existingHash = getStoredSecretHash(serverId);
-        if (existingHash) {
+        const existing = getStoredSecretRecord(serverId);
+        if (existing) {
             return false; // Server previously registered with a secret
         }
         // First registration without secret - allow but warn
@@ -307,49 +318,58 @@ function validateServerSecret(serverId, secret) {
     }
 
     const secretHash = crypto.createHash('sha256').update(secret).digest('hex');
-    const existingHash = getStoredSecretHash(serverId);
+    const existing = getStoredSecretRecord(serverId);
 
-    if (!existingHash) {
-        // First registration - store the secret hash
-        storeSecretHash(serverId, secretHash);
-        console.log(`[Server] ${serverId} first registration - secret hash stored`);
+    if (!existing) {
+        // First registration - store the secret hash + IP
+        storeSecretHash(serverId, secretHash, connectingIp);
+        console.log(`[Server] ${serverId} first registration - secret hash stored (IP: ${connectingIp})`);
         return true;
     }
 
     // Subsequent registration - verify secret matches
-    if (existingHash === secretHash) {
-        updateSecretLastSeen(serverId);
+    if (existing.secret_hash === secretHash) {
+        updateSecretLastSeen(serverId, connectingIp);
         return true;
     }
 
-    return false; // Secret mismatch
+    // Secret mismatch — check if connecting from same IP (config was likely reset)
+    if (connectingIp && existing.registered_ip && connectingIp === existing.registered_ip) {
+        storeSecretHash(serverId, secretHash, connectingIp);
+        console.log(`[Server] ${serverId} secret updated — same IP (${connectingIp}), config likely reset`);
+        addAuditEntry('system', 'secret_reregister', `Server ${serverId} re-registered from same IP (config reset detected)`);
+        return true;
+    }
+
+    return false; // Secret mismatch from different IP
 }
 
 /**
- * Get stored secret hash for a server ID.
+ * Get stored secret record for a server ID (hash + IP).
  */
-function getStoredSecretHash(serverId) {
+function getStoredSecretRecord(serverId) {
     if (db) {
         try {
-            const row = db.prepare('SELECT secret_hash FROM server_secrets WHERE server_id = ?').get(serverId);
-            return row ? row.secret_hash : null;
+            const row = db.prepare('SELECT secret_hash, registered_ip FROM server_secrets WHERE server_id = ?').get(serverId);
+            return row || null;
         } catch (e) {
             console.error('[Server] Failed to query server secret:', e.message);
         }
     }
-    return inMemoryServerSecrets.get(serverId) || null;
+    const hash = inMemoryServerSecrets.get(serverId);
+    return hash ? { secret_hash: hash, registered_ip: null } : null;
 }
 
 /**
- * Store a new secret hash for a server ID.
+ * Store a new secret hash + IP for a server ID.
  */
-function storeSecretHash(serverId, secretHash) {
+function storeSecretHash(serverId, secretHash, registeredIp) {
     const now = Date.now();
     if (db) {
         try {
             db.prepare(
-                'INSERT OR REPLACE INTO server_secrets (server_id, secret_hash, first_registered_at, last_seen_at) VALUES (?, ?, ?, ?)'
-            ).run(serverId, secretHash, now, now);
+                'INSERT OR REPLACE INTO server_secrets (server_id, secret_hash, registered_ip, first_registered_at, last_seen_at) VALUES (?, ?, ?, ?, ?)'
+            ).run(serverId, secretHash, registeredIp || null, now, now);
         } catch (e) {
             console.error('[Server] Failed to store server secret:', e.message);
             inMemoryServerSecrets.set(serverId, secretHash);
@@ -360,12 +380,12 @@ function storeSecretHash(serverId, secretHash) {
 }
 
 /**
- * Update the last_seen_at timestamp for a server.
+ * Update the last_seen_at timestamp and IP for a server.
  */
-function updateSecretLastSeen(serverId) {
+function updateSecretLastSeen(serverId, connectingIp) {
     if (db) {
         try {
-            db.prepare('UPDATE server_secrets SET last_seen_at = ? WHERE server_id = ?').run(Date.now(), serverId);
+            db.prepare('UPDATE server_secrets SET last_seen_at = ?, registered_ip = ? WHERE server_id = ?').run(Date.now(), connectingIp || null, serverId);
         } catch (e) {
             console.error('[Server] Failed to update last_seen_at:', e.message);
         }
@@ -432,16 +452,14 @@ function unregisterUrlPrefix(serverId) {
 function findServerByPrefix(prefix) {
     const lowerPrefix = prefix.toLowerCase();
 
-    // First, check if this exact prefix is registered
+    // Strict match only — check registered prefix registry
     if (urlPrefixRegistry.has(lowerPrefix)) {
         return urlPrefixRegistry.get(lowerPrefix);
     }
 
-    // Otherwise, look for servers that start with this prefix
-    for (const [fullId, server] of mcServers.entries()) {
-        if (fullId.startsWith(lowerPrefix) || fullId.replace(/-/g, '').startsWith(lowerPrefix.replace(/-/g, ''))) {
-            return fullId;
-        }
+    // Also check full server IDs (exact match)
+    if (mcServers.has(lowerPrefix)) {
+        return lowerPrefix;
     }
 
     return null;
@@ -474,8 +492,19 @@ const server = http.createServer((req, res) => {
         return;
     }
 
-    // API: List connected servers (for debugging/landing page stats)
+    // API: List connected servers (admin only — requires ADMIN_DEV_KEY or CF Access)
     if (url.pathname === '/api/servers') {
+        const adminKey = process.env.ADMIN_DEV_KEY;
+        const authHeader = req.headers.authorization;
+        const cfEmail = req.headers['cf-access-authenticated-user-email'];
+        const isAuthed = (adminKey && authHeader === `Bearer ${adminKey}`) || cfEmail;
+
+        if (!isAuthed) {
+            res.writeHead(401, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ error: 'Authentication required' }));
+            return;
+        }
+
         const serverList = [];
         mcServers.forEach((data, id) => {
             serverList.push({
@@ -493,7 +522,7 @@ const server = http.createServer((req, res) => {
     }
 
     // API: Check if server exists by prefix or full ID
-    // Supports both new format (xxxxx-xxxxx) and legacy 8-char format
+    // Only returns exists boolean — no server details to prevent enumeration
     const serverCheckMatch = url.pathname.match(/^\/api\/server\/([A-Za-z0-9-]+)$/);
     if (serverCheckMatch) {
         const query = serverCheckMatch[1].toLowerCase();
@@ -501,16 +530,11 @@ const server = http.createServer((req, res) => {
         const exists = serverId && mcServers.has(serverId);
 
         res.writeHead(200, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({
-            exists: exists,
-            serverId: exists ? serverId : null,
-            serverName: exists ? mcServers.get(serverId).info?.serverName : null,
-            urlPrefix: exists ? mcServers.get(serverId).urlPrefix : null
-        }));
+        res.end(JSON.stringify({ exists: exists }));
         return;
     }
 
-    // API: Stats for landing page
+    // API: Stats for landing page (minimal — no uptime, no details)
     if (url.pathname === '/api/stats') {
         let totalPlayers = 0;
         mcServers.forEach((data) => {
@@ -520,8 +544,7 @@ const server = http.createServer((req, res) => {
         res.writeHead(200, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify({
             servers: mcServers.size,
-            players: totalPlayers,
-            uptime: process.uptime()
+            players: totalPlayers
         }));
         return;
     }
@@ -578,10 +601,22 @@ const server = http.createServer((req, res) => {
 // Create WebSocket server
 const wss = new WebSocketServer({ server });
 
+// Track failed server registration attempts per IP for rate limiting
+const failedServerAuthAttempts = new Map(); // IP → { count, firstAttempt }
+const failedTokenAuthAttempts = new Map(); // IP → { count, lastAttempt }
+const MAX_SERVER_CONNECTIONS_PER_IP = 3;
+const SERVER_AUTH_BAN_THRESHOLD = 3;
+const SERVER_AUTH_BAN_DURATION = 10 * 60 * 1000; // 10 minutes
+
 // Handle WebSocket connections
 wss.on('connection', (ws, req) => {
     const url = new URL(req.url, `http://${req.headers.host}`);
-    const clientIp = req.headers['cf-connecting-ip'] || req.headers['x-forwarded-for'] || req.socket.remoteAddress;
+
+    // Fix 5: Only trust cf-connecting-ip when cf-ray is also present (real Cloudflare)
+    const isBehindCF = !!(req.headers['cf-ray'] && req.headers['cf-connecting-ip']);
+    const clientIp = isBehindCF
+        ? req.headers['cf-connecting-ip']
+        : req.socket.remoteAddress;
 
     console.log(`[WS] New connection from ${clientIp} - ${url.pathname}`);
 
@@ -592,14 +627,59 @@ wss.on('connection', (ws, req) => {
     const isServerConnection = url.pathname === '/server' || url.searchParams.get('type') === 'server';
     const isAdminConnection = url.pathname === '/admin';
 
-    // Rate limit browser connections per IP (server and admin connections exempt)
-    if (!isServerConnection && !isAdminConnection) {
+    // Fix 11: Origin validation for browser/panel connections
+    if (!isServerConnection) {
+        const origin = req.headers.origin;
+        const allowedOrigins = [
+            'https://panel-moderex.pages.dev',
+            'https://panel.moderex.net',
+            'https://moderex.pages.dev',
+            'https://moderex.net'
+        ];
+        // Allow connections with no origin (non-browser) or matching origin
+        // Also allow any trycloudflare.com origin for development
+        if (origin && !allowedOrigins.includes(origin) && !origin.endsWith('.trycloudflare.com')) {
+            console.log(`[Security] Rejected connection from invalid origin: ${origin}`);
+            ws.close(4403, 'Invalid origin');
+            return;
+        }
+    }
+
+    // Fix 4: Rate limit ALL connections per IP (including /server)
+    if (isServerConnection) {
+        // Check for server auth ban
+        const ban = failedServerAuthAttempts.get(clientIp);
+        if (ban && ban.count >= SERVER_AUTH_BAN_THRESHOLD && (Date.now() - ban.firstAttempt) < SERVER_AUTH_BAN_DURATION) {
+            console.log(`[RateLimit] ${clientIp} banned from server connections (${ban.count} failed auths)`);
+            ws.close(4029, 'Too many failed authentication attempts');
+            return;
+        }
+
+        // Per-IP server connection limit
         const ipConns = ipConnectionCounts.get(clientIp) || new Set();
-        // Clean up closed connections from the set
         for (const existingWs of ipConns) {
-            if (existingWs.readyState !== WebSocket.OPEN) {
-                ipConns.delete(existingWs);
+            if (existingWs.readyState !== WebSocket.OPEN) ipConns.delete(existingWs);
+        }
+        if (ipConns.size >= MAX_SERVER_CONNECTIONS_PER_IP) {
+            console.log(`[RateLimit] ${clientIp} exceeded max server connections`);
+            ws.close(4029, 'Too many server connections from this IP');
+            return;
+        }
+        ipConns.add(ws);
+        ipConnectionCounts.set(clientIp, ipConns);
+        ws.on('close', () => {
+            const conns = ipConnectionCounts.get(clientIp);
+            if (conns) {
+                conns.delete(ws);
+                if (conns.size === 0) ipConnectionCounts.delete(clientIp);
             }
+            messageRates.delete(ws);
+        });
+    } else if (!isAdminConnection) {
+        // Browser connection rate limiting (existing logic)
+        const ipConns = ipConnectionCounts.get(clientIp) || new Set();
+        for (const existingWs of ipConns) {
+            if (existingWs.readyState !== WebSocket.OPEN) ipConns.delete(existingWs);
         }
         if (ipConns.size >= MAX_CONNECTIONS_PER_IP) {
             console.log(`[RateLimit] ${clientIp} exceeded max connections (${ipConns.size}/${MAX_CONNECTIONS_PER_IP})`);
@@ -608,15 +688,11 @@ wss.on('connection', (ws, req) => {
         }
         ipConns.add(ws);
         ipConnectionCounts.set(clientIp, ipConns);
-
-        // Clean up on disconnect
         ws.on('close', () => {
             const conns = ipConnectionCounts.get(clientIp);
             if (conns) {
                 conns.delete(ws);
-                if (conns.size === 0) {
-                    ipConnectionCounts.delete(clientIp);
-                }
+                if (conns.size === 0) ipConnectionCounts.delete(clientIp);
             }
             messageRates.delete(ws);
         });
@@ -688,17 +764,31 @@ function handleMCServerConnection(ws, clientIp) {
 
                 // Validate gateway secret authentication
                 const secret = message.secret || '';
-                const secretValid = validateServerSecret(serverId, secret);
+                const secretValid = validateServerSecret(serverId, secret, clientIp);
                 if (!secretValid) {
-                    console.log(`[Server] ${serverId} rejected: invalid gateway secret`);
+                    console.log(`[Server] ${serverId} rejected: invalid gateway secret from ${clientIp}`);
+
+                    // Track failed auth attempts per IP for rate limiting
+                    const attempts = failedServerAuthAttempts.get(clientIp) || { count: 0, firstAttempt: Date.now() };
+                    attempts.count++;
+                    if (Date.now() - attempts.firstAttempt > SERVER_AUTH_BAN_DURATION) {
+                        // Reset window
+                        attempts.count = 1;
+                        attempts.firstAttempt = Date.now();
+                    }
+                    failedServerAuthAttempts.set(clientIp, attempts);
+
                     ws.send(JSON.stringify({
                         type: 'error',
                         code: 'INVALID_SECRET',
-                        message: 'Gateway authentication failed. Server secret mismatch. If this server was previously registered with a different secret, contact the gateway administrator.'
+                        message: 'Gateway authentication failed. Server secret mismatch. If you reset your config, the server will auto-recover if connecting from the same IP.'
                     }));
                     ws.close(4005, 'Invalid gateway secret');
                     return;
                 }
+
+                // Clear failed auth tracking on success
+                failedServerAuthAttempts.delete(clientIp);
 
                 // Check if server ID already registered
                 if (mcServers.has(serverId)) {
@@ -949,10 +1039,18 @@ function handleBrowserConnection(ws, prefix, clientIp) {
 
             const message = JSON.parse(data.toString());
 
+            // Fix 6: Allowlist browser message types — block server-internal types
+            if (message.type && BLOCKED_BROWSER_TYPES.has(message.type)) {
+                ws.send(JSON.stringify({ type: 'error', code: 'INVALID_TYPE', message: 'Message type not allowed from browser' }));
+                return;
+            }
+
             // Forward to MC server
             const server = mcServers.get(serverId);
             if (server && server.ws.readyState === WebSocket.OPEN) {
-                // Add client ID so server knows who to respond to
+                // Strip any client-supplied clientId/clientIp and set authenticated values
+                delete message.clientId;
+                delete message.clientIp;
                 message.clientId = clientId;
                 message.clientIp = clientIp;
                 server.ws.send(JSON.stringify(message));
@@ -1363,6 +1461,15 @@ function handleGlobalPreAuthResult(message) {
         const serverId = client.pendingSwitchServerId;
         if (!serverId) return;
 
+        // Fix 8: Check TTL on pending switch (5 minute max)
+        const PRE_AUTH_TTL = 5 * 60 * 1000;
+        if (client.pendingSwitchAt && (Date.now() - client.pendingSwitchAt) > PRE_AUTH_TTL) {
+            client.ws.send(JSON.stringify({ type: 'switch_server_result', success: false, error: 'Pre-auth session expired. Please try again.' }));
+            delete client.pendingSwitchServerId;
+            delete client.pendingSwitchAt;
+            return;
+        }
+
         const serverData = mcServers.get(serverId);
         if (!serverData) {
             client.ws.send(JSON.stringify({ type: 'switch_server_result', success: false, error: 'Server went offline' }));
@@ -1474,9 +1581,26 @@ function handleGlobalPanelConnection(ws, clientIp) {
 
             switch (message.type) {
                 case 'global_auth': {
+                    // Fix 7: Rate limit failed token auth attempts per IP
+                    const authAttempts = failedTokenAuthAttempts.get(clientIp);
+                    if (authAttempts && authAttempts.count >= 5) {
+                        const cooldown = Math.min(300000, 1000 * Math.pow(2, authAttempts.count - 5)); // exponential backoff, max 5min
+                        if (Date.now() - authAttempts.lastAttempt < cooldown) {
+                            ws.send(JSON.stringify({
+                                type: 'global_auth_result',
+                                success: false,
+                                error: 'Too many failed attempts. Please wait before trying again.'
+                            }));
+                            break;
+                        }
+                    }
+
                     // Authenticate with a global token
                     const result = validateGlobalToken(message.token || '');
                     if (result.valid) {
+                        // Clear failed attempts on success
+                        failedTokenAuthAttempts.delete(clientIp);
+
                         authedUuid = result.uuid;
                         authedUsername = result.username;
                         const client = globalPanelClients.get(clientId);
@@ -1494,6 +1618,12 @@ function handleGlobalPanelConnection(ws, clientIp) {
                         }));
                         console.log(`[Global] ${authedUsername || authedUuid} authenticated (${servers.length} servers)`);
                     } else {
+                        // Track failed attempt
+                        const attempts = failedTokenAuthAttempts.get(clientIp) || { count: 0, lastAttempt: 0 };
+                        attempts.count++;
+                        attempts.lastAttempt = Date.now();
+                        failedTokenAuthAttempts.set(clientIp, attempts);
+
                         ws.send(JSON.stringify({
                             type: 'global_auth_result',
                             success: false,
@@ -1589,9 +1719,12 @@ function handleGlobalPanelConnection(ws, clientIp) {
                         break;
                     }
 
-                    // Store pending switch info
+                    // Store pending switch info with TTL
                     const client = globalPanelClients.get(clientId);
-                    if (client) client.pendingSwitchServerId = targetServerId;
+                    if (client) {
+                        client.pendingSwitchServerId = targetServerId;
+                        client.pendingSwitchAt = Date.now();
+                    }
 
                     // Get the user's permissions for this server
                     const accessEntry = userServers.find(s => s.serverId === targetServerId);
@@ -1637,23 +1770,26 @@ function handleGlobalPanelConnection(ws, clientIp) {
 function handleAdminConnection(ws, clientIp, cfEmail, req) {
     const adminId = 'admin_' + crypto.randomBytes(8).toString('hex');
 
-    // Verify Cloudflare Access authentication
-    // In production, cfEmail is set by Cloudflare Access
-    // For development, allow if no CF headers (direct connection)
-    const isDev = !req.headers['cf-access-authenticated-user-email'] && !req.headers['cf-access-jwt-assertion'];
+    // Verify authentication
+    // Production: Cloudflare Access sets cf-access-authenticated-user-email header
+    // Development: Requires ADMIN_DEV_KEY env var + matching x-admin-dev-key header
+    const devKey = process.env.ADMIN_DEV_KEY;
+    const isDev = devKey && req.headers['x-admin-dev-key'] === devKey;
 
-    if (!isDev && !cfEmail) {
+    if (isDev) {
+        cfEmail = 'dev@localhost';
+    } else if (!cfEmail) {
         ws.send(JSON.stringify({
             type: 'error',
             code: 'UNAUTHORIZED',
-            message: 'Cloudflare Access authentication required'
+            message: 'Authentication required. Set ADMIN_DEV_KEY env var for development access.'
         }));
         ws.close(4003, 'Unauthorized');
         return;
     }
 
-    // Check email domain for authorization
-    if (cfEmail && !CONFIG.adminEmails.some(domain => cfEmail.endsWith(domain))) {
+    // Check email domain for authorization (skip for dev)
+    if (!isDev && !CONFIG.adminEmails.some(domain => cfEmail.endsWith(domain))) {
         ws.send(JSON.stringify({
             type: 'error',
             code: 'FORBIDDEN',
@@ -1664,7 +1800,7 @@ function handleAdminConnection(ws, clientIp, cfEmail, req) {
         return;
     }
 
-    const email = cfEmail || 'dev@localhost';
+    const email = cfEmail;
 
     // Register admin client
     adminClients.set(adminId, {
@@ -1794,6 +1930,36 @@ function handleAdminMessage(adminId, email, message) {
                 message: 'Premium license system is not yet available'
             }));
             break;
+
+        case 'reset_server_secret': {
+            const targetServerId = data?.serverId;
+            if (!targetServerId) {
+                admin.ws.send(JSON.stringify({
+                    type: 'error',
+                    code: 'INVALID_DATA',
+                    message: 'serverId is required'
+                }));
+                break;
+            }
+            // Delete from DB
+            if (db) {
+                try {
+                    db.prepare('DELETE FROM server_secrets WHERE server_id = ?').run(targetServerId.toLowerCase());
+                } catch (e) {
+                    console.error('[Admin] Failed to reset server secret:', e.message);
+                }
+            }
+            // Delete from in-memory fallback
+            inMemoryServerSecrets.delete(targetServerId.toLowerCase());
+            console.log(`[Admin] ${email} reset gateway secret for server ${targetServerId}`);
+            addAuditEntry(email, 'reset_server_secret', `Reset gateway secret for server ${targetServerId}`);
+            admin.ws.send(JSON.stringify({
+                type: 'server_secret_reset',
+                serverId: targetServerId,
+                message: `Secret and IP binding reset for ${targetServerId}. Server will re-register on next connection.`
+            }));
+            break;
+        }
 
         default:
             admin.ws.send(JSON.stringify({

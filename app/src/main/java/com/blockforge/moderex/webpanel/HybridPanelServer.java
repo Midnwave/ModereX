@@ -7959,16 +7959,17 @@ public class HybridPanelServer implements com.blockforge.moderex.gateway.Gateway
      */
     @Override
     public void handleGlobalPreAuth(String clientId, java.util.UUID uuid, String username, java.util.List<String> permissions) {
-        // Check if the player has web panel permission (via the synced permissions or LuckPerms)
-        boolean hasPermission = permissions != null && (
-                permissions.contains("moderex.webpanel") ||
-                permissions.contains("moderex.*") ||
-                permissions.contains("moderex.staff")
-        );
-
-        // Also check LuckPerms directly as fallback
-        if (!hasPermission && plugin.getHookManager().isLuckPermsEnabled()) {
+        // Always verify permissions locally via LuckPerms first (don't trust gateway DB alone)
+        boolean hasPermission = false;
+        if (plugin.getHookManager().isLuckPermsEnabled()) {
             hasPermission = plugin.getHookManager().getLuckPermsHook().hasPermission(uuid, "moderex.webpanel");
+        }
+
+        // Fall back to gateway-synced permissions only if LuckPerms is unavailable
+        if (!hasPermission && !plugin.getHookManager().isLuckPermsEnabled() && permissions != null) {
+            hasPermission = permissions.contains("moderex.webpanel") ||
+                    permissions.contains("moderex.*") ||
+                    permissions.contains("moderex.staff");
         }
 
         JsonObject response = new JsonObject();
