@@ -1621,6 +1621,10 @@ public class HybridPanelServer implements com.blockforge.moderex.gateway.Gateway
                 handleDevUuidLogin(conn, json);
                 return;
             }
+            if (type.equals("AUTH_CHALLENGE_RESPONSE")) {
+                handleChallengeResponse(conn, json);
+                return;
+            }
             if (type.equals("DEV_TOKEN_STRESS_TEST")) {
                 handleDevTokenStressTest(conn, json);
                 return;
@@ -1680,7 +1684,7 @@ public class HybridPanelServer implements com.blockforge.moderex.gateway.Gateway
     private String generateRandomCode() {
         String chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
         StringBuilder sb = new StringBuilder();
-        Random random = new Random();
+        java.security.SecureRandom random = new java.security.SecureRandom();
         for (int i = 0; i < 6; i++) {
             sb.append(chars.charAt(random.nextInt(chars.length())));
         }
@@ -1827,8 +1831,32 @@ public class HybridPanelServer implements com.blockforge.moderex.gateway.Gateway
         // Validate permanent token
         UUID playerUuid = authManager.validatePermanentToken(token, clientIp);
         if (playerUuid == null) {
-            sendAuthFailed(conn, "INVALID_TOKEN", "Invalid token. Make sure you're using the correct token.");
-            return;
+            WebAuthManager.TokenValidationResult result = authManager.getLastValidationResult();
+            switch (result) {
+                case EXPIRED -> {
+                    sendAuthFailed(conn, "TOKEN_EXPIRED", "Your token has expired (90-day limit). Run /mx token in-game to generate a new one.");
+                    return;
+                }
+                case CHALLENGE_REQUIRED -> {
+                    String question = authManager.getChallengeQuestion(clientIp);
+                    JsonObject challenge = new JsonObject();
+                    challenge.addProperty("type", "AUTH_CHALLENGE");
+                    challenge.addProperty("question", question != null ? question : "What is 1 + 1?");
+                    challenge.addProperty("message", "Too many failed attempts. Please solve this to continue.");
+                    conn.send(GSON.toJson(challenge));
+                    return;
+                }
+                case RATE_LIMITED -> {
+                    long remaining = authManager.getRemainingLockoutSeconds(clientIp);
+                    sendAuthFailed(conn, "RATE_LIMITED",
+                            "Too many failed attempts. Try again in " + remaining + " seconds.");
+                    return;
+                }
+                default -> {
+                    sendAuthFailed(conn, "INVALID_TOKEN", "Invalid token. Make sure you're using the correct token.");
+                    return;
+                }
+            }
         }
 
         // Check permission - moderex.webpanel is protected, OPs do NOT automatically get it
@@ -2054,6 +2082,44 @@ public class HybridPanelServer implements com.blockforge.moderex.gateway.Gateway
 
     /**
      * Handle UUID-based login from the login screen (dev mode).
+     * Handle a CAPTCHA challenge response from the client.
+     */
+    private void handleChallengeResponse(WebSocketConnection conn, JsonObject json) {
+        JsonObject data = json.has("data") ? json.getAsJsonObject("data") : json;
+        String answer = data.has("answer") ? data.get("answer").getAsString().trim() : "";
+        String clientIp = getClientIp(conn);
+
+        WebAuthManager authManager = plugin.getWebAuthManager();
+        if (authManager == null) {
+            sendAuthFailed(conn, "AUTH_UNAVAILABLE", "Authentication system not available");
+            return;
+        }
+
+        if (authManager.validateChallenge(clientIp, answer)) {
+            // Challenge solved - tell client to retry auth
+            JsonObject response = new JsonObject();
+            response.addProperty("type", "AUTH_CHALLENGE_SOLVED");
+            response.addProperty("message", "Challenge solved. You may try authenticating again.");
+            conn.send(GSON.toJson(response));
+        } else {
+            // Wrong answer
+            if (authManager.isRateLimited(clientIp)) {
+                long remaining = authManager.getRemainingLockoutSeconds(clientIp);
+                sendAuthFailed(conn, "RATE_LIMITED",
+                        "Too many failed attempts. Try again in " + remaining + " seconds.");
+            } else {
+                // Send new challenge
+                String question = authManager.getChallengeQuestion(clientIp);
+                JsonObject challenge = new JsonObject();
+                challenge.addProperty("type", "AUTH_CHALLENGE");
+                challenge.addProperty("question", question != null ? question : "What is 1 + 1?");
+                challenge.addProperty("message", "Incorrect. Please try again.");
+                conn.send(GSON.toJson(challenge));
+            }
+        }
+    }
+
+    /**
      * Allows logging in by entering a player's UUID in the token field.
      * This is for development/testing purposes only.
      */
@@ -2459,6 +2525,26 @@ public class HybridPanelServer implements com.blockforge.moderex.gateway.Gateway
             case "DEV_STRESS_STOP" -> handleDevStressStop(conn);
             case "GET_DATABASE_DEBUG" -> sendDatabaseDebug(conn, data);
             case "IMPORT_MEDAL_CLIP" -> importMedalClip(conn, data, session);
+
+            // Permission system endpoints
+            case "GET_RANKS" -> handleGetRanks(conn, session);
+            case "CREATE_RANK" -> handleCreateRank(conn, data, session);
+            case "UPDATE_RANK" -> handleUpdateRank(conn, data, session);
+            case "DELETE_RANK" -> handleDeleteRank(conn, data, session);
+            case "REORDER_RANKS" -> handleReorderRanks(conn, data, session);
+            case "SET_RANK_PERMISSION" -> handleSetRankPermission(conn, data, session);
+            case "REMOVE_RANK_PERMISSION" -> handleRemoveRankPermission(conn, data, session);
+            case "SET_RANK_INHERITANCE" -> handleSetRankInheritance(conn, data, session);
+            case "GET_PLAYER_RANKS" -> handleGetPlayerRanks(conn, data, session);
+            case "SET_PLAYER_RANK" -> handleSetPlayerRank(conn, data, session);
+            case "REMOVE_PLAYER_RANK" -> handleRemovePlayerRank(conn, data, session);
+            case "SEARCH_PLAYERS_FOR_RANK" -> handleSearchPlayersForRank(conn, data, session);
+            case "EXPORT_TO_LUCKPERMS" -> handleExportToLuckPerms(conn, session);
+
+            // License acceptance
+            case "ACCEPT_LICENSE" -> handleAcceptLicense(conn, session);
+            case "CHECK_LICENSE_ACCEPTED" -> handleCheckLicenseAccepted(conn, session);
+
             default -> sendError(conn, "UNKNOWN_TYPE", "Unknown message type: " + type);
         }
     }
@@ -4966,8 +5052,323 @@ public class HybridPanelServer implements com.blockforge.moderex.gateway.Gateway
             }
             return false;
         } else {
-            // Cannot check - allow by default for web panel users
-            return true;
+            // Use built-in ModereX permission system as fallback
+            if (plugin.getPermissionManager() != null) {
+                return plugin.getPermissionManager().hasPermission(uuid, permission);
+            }
+            // No permission system available - deny by default
+            return false;
+        }
+    }
+
+    // ==================== Permission System Handlers ====================
+
+    private boolean checkPermissionAccess(WebSocketConnection conn, WebPanelSession session) {
+        if (session == null) return false;
+        UUID uuid = session.playerUuid;
+        // OP bypass
+        org.bukkit.entity.Player player = org.bukkit.Bukkit.getPlayer(uuid);
+        if (player != null && player.isOp()) return true;
+        // Check moderex.admin.permissions
+        if (hasViewPermission(uuid, "moderex.admin.permissions")) return true;
+        sendError(conn, "NO_PERMISSION", "You need moderex.admin.permissions to manage permissions");
+        return false;
+    }
+
+    private void handleGetRanks(WebSocketConnection conn, WebPanelSession session) {
+        if (!checkPermissionAccess(conn, session)) return;
+        var pm = plugin.getPermissionManager();
+        JsonObject response = new JsonObject();
+        response.addProperty("type", "RANKS");
+        response.add("ranks", pm.ranksToJson());
+        response.addProperty("luckPermsAvailable", pm.isLuckPermsAvailable());
+        conn.send(GSON.toJson(response));
+    }
+
+    private void handleCreateRank(WebSocketConnection conn, JsonObject data, WebPanelSession session) {
+        if (!checkPermissionAccess(conn, session)) return;
+        try {
+            var pm = plugin.getPermissionManager();
+            String name = data.has("name") ? data.get("name").getAsString() : "";
+            String displayName = data.has("displayName") ? data.get("displayName").getAsString() : name;
+            String prefix = data.has("prefix") ? data.get("prefix").getAsString() : "";
+            String suffix = data.has("suffix") ? data.get("suffix").getAsString() : "";
+            int weight = data.has("weight") ? data.get("weight").getAsInt() : 0;
+            boolean isDefault = data.has("isDefault") && data.get("isDefault").getAsBoolean();
+
+            if (name.isEmpty()) {
+                sendError(conn, "INVALID_NAME", "Rank name is required");
+                return;
+            }
+
+            if (pm.getRankByName(name) != null) {
+                sendError(conn, "RANK_EXISTS", "A rank with this name already exists");
+                return;
+            }
+
+            com.blockforge.moderex.permissions.Rank rank = pm.createRank(name, displayName, prefix, suffix, weight, isDefault);
+
+            JsonObject response = new JsonObject();
+            response.addProperty("type", "RANK_CREATED");
+            response.add("rank", pm.rankToJson(rank));
+            conn.send(GSON.toJson(response));
+        } catch (Exception e) {
+            sendError(conn, "CREATE_FAILED", "Failed to create rank: " + e.getMessage());
+        }
+    }
+
+    private void handleUpdateRank(WebSocketConnection conn, JsonObject data, WebPanelSession session) {
+        if (!checkPermissionAccess(conn, session)) return;
+        try {
+            var pm = plugin.getPermissionManager();
+            int id = data.has("id") ? data.get("id").getAsInt() : -1;
+            if (id < 0 || pm.getRank(id) == null) {
+                sendError(conn, "RANK_NOT_FOUND", "Rank not found");
+                return;
+            }
+
+            String displayName = data.has("displayName") ? data.get("displayName").getAsString() : "";
+            String prefix = data.has("prefix") ? data.get("prefix").getAsString() : "";
+            String suffix = data.has("suffix") ? data.get("suffix").getAsString() : "";
+            int weight = data.has("weight") ? data.get("weight").getAsInt() : 0;
+            boolean isDefault = data.has("isDefault") && data.get("isDefault").getAsBoolean();
+
+            pm.updateRank(id, displayName, prefix, suffix, weight, isDefault);
+
+            JsonObject response = new JsonObject();
+            response.addProperty("type", "RANK_UPDATED");
+            response.add("rank", pm.rankToJson(pm.getRank(id)));
+            conn.send(GSON.toJson(response));
+        } catch (Exception e) {
+            sendError(conn, "UPDATE_FAILED", "Failed to update rank: " + e.getMessage());
+        }
+    }
+
+    private void handleDeleteRank(WebSocketConnection conn, JsonObject data, WebPanelSession session) {
+        if (!checkPermissionAccess(conn, session)) return;
+        try {
+            var pm = plugin.getPermissionManager();
+            int id = data.has("id") ? data.get("id").getAsInt() : -1;
+            if (id < 0 || pm.getRank(id) == null) {
+                sendError(conn, "RANK_NOT_FOUND", "Rank not found");
+                return;
+            }
+
+            pm.deleteRank(id);
+
+            JsonObject response = new JsonObject();
+            response.addProperty("type", "RANK_DELETED");
+            response.addProperty("id", id);
+            conn.send(GSON.toJson(response));
+        } catch (Exception e) {
+            sendError(conn, "DELETE_FAILED", "Failed to delete rank: " + e.getMessage());
+        }
+    }
+
+    private void handleReorderRanks(WebSocketConnection conn, JsonObject data, WebPanelSession session) {
+        if (!checkPermissionAccess(conn, session)) return;
+        try {
+            var pm = plugin.getPermissionManager();
+            com.google.gson.JsonArray orderArray = data.has("order") ? data.getAsJsonArray("order") : new com.google.gson.JsonArray();
+            List<Integer> orderedIds = new java.util.ArrayList<>();
+            for (var el : orderArray) {
+                orderedIds.add(el.getAsInt());
+            }
+
+            pm.reorderRanks(orderedIds);
+
+            JsonObject response = new JsonObject();
+            response.addProperty("type", "RANKS_REORDERED");
+            response.add("ranks", pm.ranksToJson());
+            conn.send(GSON.toJson(response));
+        } catch (Exception e) {
+            sendError(conn, "REORDER_FAILED", "Failed to reorder ranks: " + e.getMessage());
+        }
+    }
+
+    private void handleSetRankPermission(WebSocketConnection conn, JsonObject data, WebPanelSession session) {
+        if (!checkPermissionAccess(conn, session)) return;
+        try {
+            var pm = plugin.getPermissionManager();
+            int rankId = data.has("rankId") ? data.get("rankId").getAsInt() : -1;
+            String permission = data.has("permission") ? data.get("permission").getAsString() : "";
+            boolean granted = !data.has("granted") || data.get("granted").getAsBoolean();
+
+            if (rankId < 0 || pm.getRank(rankId) == null) {
+                sendError(conn, "RANK_NOT_FOUND", "Rank not found");
+                return;
+            }
+
+            pm.setRankPermission(rankId, permission, granted);
+
+            JsonObject response = new JsonObject();
+            response.addProperty("type", "RANK_PERMISSION_SET");
+            response.add("rank", pm.rankToJson(pm.getRank(rankId)));
+            conn.send(GSON.toJson(response));
+        } catch (Exception e) {
+            sendError(conn, "PERMISSION_SET_FAILED", "Failed to set permission: " + e.getMessage());
+        }
+    }
+
+    private void handleRemoveRankPermission(WebSocketConnection conn, JsonObject data, WebPanelSession session) {
+        if (!checkPermissionAccess(conn, session)) return;
+        try {
+            var pm = plugin.getPermissionManager();
+            int rankId = data.has("rankId") ? data.get("rankId").getAsInt() : -1;
+            String permission = data.has("permission") ? data.get("permission").getAsString() : "";
+
+            pm.removeRankPermission(rankId, permission);
+
+            JsonObject response = new JsonObject();
+            response.addProperty("type", "RANK_PERMISSION_REMOVED");
+            response.add("rank", pm.rankToJson(pm.getRank(rankId)));
+            conn.send(GSON.toJson(response));
+        } catch (Exception e) {
+            sendError(conn, "PERMISSION_REMOVE_FAILED", "Failed to remove permission: " + e.getMessage());
+        }
+    }
+
+    private void handleSetRankInheritance(WebSocketConnection conn, JsonObject data, WebPanelSession session) {
+        if (!checkPermissionAccess(conn, session)) return;
+        try {
+            var pm = plugin.getPermissionManager();
+            int rankId = data.has("rankId") ? data.get("rankId").getAsInt() : -1;
+            com.google.gson.JsonArray parentsArray = data.has("parentIds") ? data.getAsJsonArray("parentIds") : new com.google.gson.JsonArray();
+            List<Integer> parentIds = new java.util.ArrayList<>();
+            for (var el : parentsArray) {
+                parentIds.add(el.getAsInt());
+            }
+
+            pm.setRankInheritance(rankId, parentIds);
+
+            JsonObject response = new JsonObject();
+            response.addProperty("type", "RANK_INHERITANCE_SET");
+            response.add("rank", pm.rankToJson(pm.getRank(rankId)));
+            conn.send(GSON.toJson(response));
+        } catch (Exception e) {
+            sendError(conn, "INHERITANCE_SET_FAILED", "Failed to set inheritance: " + e.getMessage());
+        }
+    }
+
+    private void handleGetPlayerRanks(WebSocketConnection conn, JsonObject data, WebPanelSession session) {
+        if (!checkPermissionAccess(conn, session)) return;
+        try {
+            var pm = plugin.getPermissionManager();
+            String uuidStr = data.has("uuid") ? data.get("uuid").getAsString() : "";
+            UUID uuid = UUID.fromString(uuidStr);
+
+            JsonObject response = new JsonObject();
+            response.addProperty("type", "PLAYER_RANKS");
+            response.addProperty("uuid", uuidStr);
+            response.add("ranks", pm.playerRanksToJson(uuid));
+            conn.send(GSON.toJson(response));
+        } catch (Exception e) {
+            sendError(conn, "PLAYER_RANKS_FAILED", "Failed to get player ranks: " + e.getMessage());
+        }
+    }
+
+    private void handleSetPlayerRank(WebSocketConnection conn, JsonObject data, WebPanelSession session) {
+        if (!checkPermissionAccess(conn, session)) return;
+        try {
+            var pm = plugin.getPermissionManager();
+            String uuidStr = data.has("uuid") ? data.get("uuid").getAsString() : "";
+            String playerName = data.has("playerName") ? data.get("playerName").getAsString() : "Unknown";
+            int rankId = data.has("rankId") ? data.get("rankId").getAsInt() : -1;
+            boolean primary = data.has("primary") && data.get("primary").getAsBoolean();
+            UUID uuid = UUID.fromString(uuidStr);
+
+            pm.setPlayerRank(uuid, playerName, rankId, primary, session.playerName);
+
+            JsonObject response = new JsonObject();
+            response.addProperty("type", "PLAYER_RANK_SET");
+            response.addProperty("uuid", uuidStr);
+            response.add("ranks", pm.playerRanksToJson(uuid));
+            conn.send(GSON.toJson(response));
+        } catch (Exception e) {
+            sendError(conn, "PLAYER_RANK_SET_FAILED", "Failed to set player rank: " + e.getMessage());
+        }
+    }
+
+    private void handleRemovePlayerRank(WebSocketConnection conn, JsonObject data, WebPanelSession session) {
+        if (!checkPermissionAccess(conn, session)) return;
+        try {
+            var pm = plugin.getPermissionManager();
+            String uuidStr = data.has("uuid") ? data.get("uuid").getAsString() : "";
+            int rankId = data.has("rankId") ? data.get("rankId").getAsInt() : -1;
+            UUID uuid = UUID.fromString(uuidStr);
+
+            pm.removePlayerRank(uuid, rankId);
+
+            JsonObject response = new JsonObject();
+            response.addProperty("type", "PLAYER_RANK_REMOVED");
+            response.addProperty("uuid", uuidStr);
+            response.add("ranks", pm.playerRanksToJson(uuid));
+            conn.send(GSON.toJson(response));
+        } catch (Exception e) {
+            sendError(conn, "PLAYER_RANK_REMOVE_FAILED", "Failed to remove player rank: " + e.getMessage());
+        }
+    }
+
+    private void handleSearchPlayersForRank(WebSocketConnection conn, JsonObject data, WebPanelSession session) {
+        if (!checkPermissionAccess(conn, session)) return;
+        try {
+            var pm = plugin.getPermissionManager();
+            String query = data.has("query") ? data.get("query").getAsString() : "";
+
+            JsonObject response = new JsonObject();
+            response.addProperty("type", "PLAYER_SEARCH_RESULTS");
+            response.add("players", pm.searchPlayers(query));
+            conn.send(GSON.toJson(response));
+        } catch (Exception e) {
+            sendError(conn, "SEARCH_FAILED", "Failed to search players: " + e.getMessage());
+        }
+    }
+
+    private void handleExportToLuckPerms(WebSocketConnection conn, WebPanelSession session) {
+        if (!checkPermissionAccess(conn, session)) return;
+        var pm = plugin.getPermissionManager();
+        JsonObject result = pm.exportToLuckPerms();
+        result.addProperty("type", "LUCKPERMS_EXPORT_RESULT");
+        conn.send(GSON.toJson(result));
+    }
+
+    // ==================== License Acceptance Handlers ====================
+
+    private void handleAcceptLicense(WebSocketConnection conn, WebPanelSession session) {
+        if (session == null) return;
+        try {
+            plugin.getDatabaseManager().executeAsync(
+                    "INSERT OR REPLACE INTO moderex_license_acceptance (player_uuid, accepted_at, license_version) VALUES (?, ?, ?)",
+                    session.playerUuid.toString(), System.currentTimeMillis(), 1
+            );
+            JsonObject response = new JsonObject();
+            response.addProperty("type", "LICENSE_ACCEPTED");
+            conn.send(GSON.toJson(response));
+        } catch (Exception e) {
+            sendError(conn, "LICENSE_ERROR", "Failed to save license acceptance");
+        }
+    }
+
+    private void handleCheckLicenseAccepted(WebSocketConnection conn, WebPanelSession session) {
+        if (session == null) return;
+        try {
+            boolean accepted = plugin.getDatabaseManager().query(
+                    "SELECT COUNT(*) FROM moderex_license_acceptance WHERE player_uuid = ? AND license_version = ?",
+                    rs -> { rs.next(); return rs.getInt(1) > 0; },
+                    session.playerUuid.toString(), 1
+            );
+            JsonObject response = new JsonObject();
+            response.addProperty("type", "LICENSE_STATUS");
+            response.addProperty("accepted", accepted);
+            response.addProperty("licenseVersion", 1);
+            conn.send(GSON.toJson(response));
+        } catch (Exception e) {
+            // If table doesn't exist yet, treat as not accepted
+            JsonObject response = new JsonObject();
+            response.addProperty("type", "LICENSE_STATUS");
+            response.addProperty("accepted", false);
+            response.addProperty("licenseVersion", 1);
+            conn.send(GSON.toJson(response));
         }
     }
 
@@ -6817,8 +7218,57 @@ public class HybridPanelServer implements com.blockforge.moderex.gateway.Gateway
             }
             data.add("snapshots", snapshots);
 
+            // Load and include block logs
+            try {
+                java.nio.file.Path sessionDir = plugin.getReplayManager().getReplaysDirectory().resolve(sessionId);
+                if (plugin.getBlockLogManager() != null) {
+                    var blockLogs = plugin.getBlockLogManager().loadSessionLogs(sessionId, sessionDir);
+                    JsonArray blockLogArray = new JsonArray();
+                    for (var entry : blockLogs) {
+                        JsonObject b = new JsonObject();
+                        b.addProperty("timestamp", entry.getTimestamp());
+                        b.addProperty("action", entry.getAction().name());
+                        b.addProperty("x", entry.getX());
+                        b.addProperty("y", entry.getY());
+                        b.addProperty("z", entry.getZ());
+                        b.addProperty("oldMaterial", entry.getOldMaterial() != null ? entry.getOldMaterial().name() : "AIR");
+                        b.addProperty("newMaterial", entry.getNewMaterial() != null ? entry.getNewMaterial().name() : "AIR");
+                        if (entry.getNewBlockData() != null) b.addProperty("newBlockData", entry.getNewBlockData());
+                        blockLogArray.add(b);
+                    }
+                    data.add("blockLogs", blockLogArray);
+                }
+
+                // Check if chunk terrain data exists
+                boolean hasChunkData = com.blockforge.moderex.replay.chunk.ChunkCaptureManager.hasChunkData(sessionDir);
+                data.addProperty("hasChunkData", hasChunkData);
+            } catch (Exception e) {
+                plugin.logDebug("[Replay] Failed to load block logs: " + e.getMessage());
+            }
+
             response.add("data", data);
             conn.send(GSON.toJson(response));
+
+            // Send chunk terrain data as a separate message if available
+            try {
+                java.nio.file.Path sessionDir = plugin.getReplayManager().getReplaysDirectory().resolve(sessionId);
+                java.nio.file.Path chunkFile = com.blockforge.moderex.replay.chunk.ChunkCaptureManager.getChunkDataFile(sessionDir);
+                if (java.nio.file.Files.exists(chunkFile)) {
+                    byte[] rawBytes = com.blockforge.moderex.replay.chunk.ChunkDataSerializer.readRawBytes(chunkFile);
+                    String base64 = java.util.Base64.getEncoder().encodeToString(rawBytes);
+
+                    JsonObject chunkResponse = new JsonObject();
+                    chunkResponse.addProperty("type", "REPLAY_CHUNKS");
+                    JsonObject chunkData = new JsonObject();
+                    chunkData.addProperty("sessionId", sessionId);
+                    chunkData.addProperty("chunkData", base64);
+                    chunkData.addProperty("sizeBytes", rawBytes.length);
+                    chunkResponse.add("data", chunkData);
+                    conn.send(GSON.toJson(chunkResponse));
+                }
+            } catch (Exception e) {
+                plugin.logDebug("[Replay] Failed to send chunk data: " + e.getMessage());
+            }
         });
     }
 
@@ -8543,18 +8993,15 @@ public class HybridPanelServer implements com.blockforge.moderex.gateway.Gateway
 
                 baos.write(data);
 
-                // Set a write timeout to prevent blocking forever
-                int originalTimeout = socket.getSoTimeout();
-                try {
-                    socket.setSoTimeout(15000); // 15 second timeout for writes (increased for slow connections)
-                    synchronized (out) {
-                        out.write(baos.toByteArray());
-                        out.flush();
-                    }
-                    return true;
-                } finally {
-                    socket.setSoTimeout(originalTimeout);
+                // Write the frame - use synchronized output stream only
+                // NOTE: Do NOT modify socket.setSoTimeout() here as it affects
+                // the concurrent blocking read on the input stream, causing
+                // SocketTimeoutException and disconnect loops
+                synchronized (out) {
+                    out.write(baos.toByteArray());
+                    out.flush();
                 }
+                return true;
             } catch (IOException e) {
                 return false; // Connection is dead
             }
@@ -9595,6 +10042,25 @@ public class HybridPanelServer implements com.blockforge.moderex.gateway.Gateway
                 // Evidence (for gateway mode - uses Base64 over WebSocket)
                 case "UPLOAD_EVIDENCE_WS" -> handleEvidenceUploadWebSocket(wrapper, data, session);
                 case "GET_EVIDENCE_FILE" -> handleGetEvidenceFileWebSocket(wrapper, data);
+
+                // Permission system
+                case "GET_RANKS" -> handleGetRanks(wrapper, session);
+                case "CREATE_RANK" -> handleCreateRank(wrapper, data, session);
+                case "UPDATE_RANK" -> handleUpdateRank(wrapper, data, session);
+                case "DELETE_RANK" -> handleDeleteRank(wrapper, data, session);
+                case "REORDER_RANKS" -> handleReorderRanks(wrapper, data, session);
+                case "SET_RANK_PERMISSION" -> handleSetRankPermission(wrapper, data, session);
+                case "REMOVE_RANK_PERMISSION" -> handleRemoveRankPermission(wrapper, data, session);
+                case "SET_RANK_INHERITANCE" -> handleSetRankInheritance(wrapper, data, session);
+                case "GET_PLAYER_RANKS" -> handleGetPlayerRanks(wrapper, data, session);
+                case "SET_PLAYER_RANK" -> handleSetPlayerRank(wrapper, data, session);
+                case "REMOVE_PLAYER_RANK" -> handleRemovePlayerRank(wrapper, data, session);
+                case "SEARCH_PLAYERS_FOR_RANK" -> handleSearchPlayersForRank(wrapper, data, session);
+                case "EXPORT_TO_LUCKPERMS" -> handleExportToLuckPerms(wrapper, session);
+
+                // License
+                case "ACCEPT_LICENSE" -> handleAcceptLicense(wrapper, session);
+                case "CHECK_LICENSE_ACCEPTED" -> handleCheckLicenseAccepted(wrapper, session);
 
                 default -> sendError(wrapper, "UNKNOWN_TYPE", "Unknown message type: " + type);
             }

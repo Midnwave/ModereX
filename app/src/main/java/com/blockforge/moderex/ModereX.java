@@ -82,6 +82,7 @@ public final class ModereX extends JavaPlugin {
     private com.blockforge.moderex.portal.AuthSessionManager authSessionManager;
     private com.blockforge.moderex.identity.ServerIdentity serverIdentity;
     private com.blockforge.moderex.gateway.GatewayClient gatewayClient;
+    private com.blockforge.moderex.permissions.PermissionManager permissionManager;
 
     // Lockdown state
     private boolean globalLockdown = false;
@@ -145,6 +146,11 @@ public final class ModereX extends JavaPlugin {
                 getLogger().warning("Failed to register PlaceholderAPI expansion: " + e.getMessage());
             }
         }
+
+        // Initialize built-in permission system
+        logStartup("Initializing permission system...");
+        this.permissionManager = new com.blockforge.moderex.permissions.PermissionManager(this);
+        permissionManager.initialize();
 
         // Initialize core managers
         logStartup("Initializing punishment system...");
@@ -695,6 +701,10 @@ public final class ModereX extends JavaPlugin {
 
     public com.blockforge.moderex.gateway.GatewayClient getGatewayClient() {
         return gatewayClient;
+    }
+
+    public com.blockforge.moderex.permissions.PermissionManager getPermissionManager() {
+        return permissionManager;
     }
 
     public BlockLogManager getBlockLogManager() {

@@ -257,6 +257,12 @@ public class GatewayClient {
         msg.addProperty("version", plugin.getDescription().getVersion());
         msg.addProperty("players", plugin.getServer().getOnlinePlayers().size());
 
+        // Include gateway secret for authentication
+        String secret = plugin.getConfigManager().getSettings().getGatewaySecret();
+        if (secret != null && !secret.isEmpty()) {
+            msg.addProperty("secret", secret);
+        }
+
         send(msg);
         log("Sent registration for server: " + plugin.getServerIdentity().getServerId());
     }

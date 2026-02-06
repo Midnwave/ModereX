@@ -65,6 +65,16 @@ try {
         )
     `);
 
+    // Create server secrets table for gateway authentication
+    db.exec(`
+        CREATE TABLE IF NOT EXISTS server_secrets (
+            server_id TEXT PRIMARY KEY,
+            secret_hash TEXT NOT NULL,
+            first_registered_at INTEGER NOT NULL,
+            last_seen_at INTEGER NOT NULL
+        )
+    `);
+
     console.log('[Admin] Database initialized');
 } catch (e) {
     console.log('[Admin] SQLite not available, using in-memory storage');
@@ -73,6 +83,9 @@ try {
 
 // In-memory fallback for announcements if SQLite not available
 const inMemoryAnnouncements = new Map();
+
+// In-memory fallback for server secrets
+const inMemoryServerSecrets = new Map();
 
 // Store admin connections
 const adminClients = new Map();
@@ -90,6 +103,34 @@ const browserClients = new Map();
 // Used to quickly look up which server owns a URL prefix
 const urlPrefixRegistry = new Map();
 
+// Rate limiting
+const MAX_CONNECTIONS_PER_IP = 3;          // Max browser connections per IP
+const MESSAGE_RATE_LIMIT = 100;            // Max messages per second per connection
+const ipConnectionCounts = new Map();      // ip -> Set of ws connections
+const messageRates = new Map();            // ws -> { count, windowStart }
+
+/**
+ * Check if a WebSocket connection has exceeded the message rate limit.
+ * Uses a sliding window of 1 second.
+ */
+function isMessageRateLimited(ws) {
+    const now = Date.now();
+    let rate = messageRates.get(ws);
+
+    if (!rate || now - rate.windowStart >= 1000) {
+        // New window
+        messageRates.set(ws, { count: 1, windowStart: now });
+        return false;
+    }
+
+    rate.count++;
+    if (rate.count > MESSAGE_RATE_LIMIT) {
+        return true;
+    }
+
+    return false;
+}
+
 /**
  * Validate Server ID format (XXXXX-XXXXX-XXXXX-XXXXX-XXXXX)
  */
@@ -100,6 +141,90 @@ function isValidServerId(id) {
     // Check format: 5 groups of 5 chars separated by dashes
     const pattern = /^[A-HJ-NP-Z2-9]{5}-[A-HJ-NP-Z2-9]{5}-[A-HJ-NP-Z2-9]{5}-[A-HJ-NP-Z2-9]{5}-[A-HJ-NP-Z2-9]{5}$/;
     return pattern.test(normalized);
+}
+
+/**
+ * Validate a server's gateway secret.
+ * On first registration: stores the SHA-256 hash of the secret.
+ * On subsequent registrations: verifies the secret matches the stored hash.
+ * Returns true if valid, false if mismatch.
+ */
+function validateServerSecret(serverId, secret) {
+    if (!secret || secret.length === 0) {
+        // No secret provided - reject if we already have one stored
+        const existingHash = getStoredSecretHash(serverId);
+        if (existingHash) {
+            return false; // Server previously registered with a secret
+        }
+        // First registration without secret - allow but warn
+        console.log(`[Server] WARNING: ${serverId} registered without a gateway secret`);
+        return true;
+    }
+
+    const secretHash = crypto.createHash('sha256').update(secret).digest('hex');
+    const existingHash = getStoredSecretHash(serverId);
+
+    if (!existingHash) {
+        // First registration - store the secret hash
+        storeSecretHash(serverId, secretHash);
+        console.log(`[Server] ${serverId} first registration - secret hash stored`);
+        return true;
+    }
+
+    // Subsequent registration - verify secret matches
+    if (existingHash === secretHash) {
+        updateSecretLastSeen(serverId);
+        return true;
+    }
+
+    return false; // Secret mismatch
+}
+
+/**
+ * Get stored secret hash for a server ID.
+ */
+function getStoredSecretHash(serverId) {
+    if (db) {
+        try {
+            const row = db.prepare('SELECT secret_hash FROM server_secrets WHERE server_id = ?').get(serverId);
+            return row ? row.secret_hash : null;
+        } catch (e) {
+            console.error('[Server] Failed to query server secret:', e.message);
+        }
+    }
+    return inMemoryServerSecrets.get(serverId) || null;
+}
+
+/**
+ * Store a new secret hash for a server ID.
+ */
+function storeSecretHash(serverId, secretHash) {
+    const now = Date.now();
+    if (db) {
+        try {
+            db.prepare(
+                'INSERT OR REPLACE INTO server_secrets (server_id, secret_hash, first_registered_at, last_seen_at) VALUES (?, ?, ?, ?)'
+            ).run(serverId, secretHash, now, now);
+        } catch (e) {
+            console.error('[Server] Failed to store server secret:', e.message);
+            inMemoryServerSecrets.set(serverId, secretHash);
+        }
+    } else {
+        inMemoryServerSecrets.set(serverId, secretHash);
+    }
+}
+
+/**
+ * Update the last_seen_at timestamp for a server.
+ */
+function updateSecretLastSeen(serverId) {
+    if (db) {
+        try {
+            db.prepare('UPDATE server_secrets SET last_seen_at = ? WHERE server_id = ?').run(Date.now(), serverId);
+        } catch (e) {
+            console.error('[Server] Failed to update last_seen_at:', e.message);
+        }
+    }
 }
 
 /**
@@ -319,6 +444,39 @@ wss.on('connection', (ws, req) => {
     // /server - MC server connection
     // /panel/{prefix} - Browser panel connection (prefix can be partial or full)
 
+    const isServerConnection = url.pathname === '/server' || url.searchParams.get('type') === 'server';
+    const isAdminConnection = url.pathname === '/admin';
+
+    // Rate limit browser connections per IP (server and admin connections exempt)
+    if (!isServerConnection && !isAdminConnection) {
+        const ipConns = ipConnectionCounts.get(clientIp) || new Set();
+        // Clean up closed connections from the set
+        for (const existingWs of ipConns) {
+            if (existingWs.readyState !== WebSocket.OPEN) {
+                ipConns.delete(existingWs);
+            }
+        }
+        if (ipConns.size >= MAX_CONNECTIONS_PER_IP) {
+            console.log(`[RateLimit] ${clientIp} exceeded max connections (${ipConns.size}/${MAX_CONNECTIONS_PER_IP})`);
+            ws.close(4029, 'Too many connections from this IP');
+            return;
+        }
+        ipConns.add(ws);
+        ipConnectionCounts.set(clientIp, ipConns);
+
+        // Clean up on disconnect
+        ws.on('close', () => {
+            const conns = ipConnectionCounts.get(clientIp);
+            if (conns) {
+                conns.delete(ws);
+                if (conns.size === 0) {
+                    ipConnectionCounts.delete(clientIp);
+                }
+            }
+            messageRates.delete(ws);
+        });
+    }
+
     if (url.pathname === '/server') {
         handleMCServerConnection(ws, clientIp);
     } else if (url.pathname.startsWith('/panel/')) {
@@ -333,7 +491,7 @@ wss.on('connection', (ws, req) => {
             }));
             ws.close(4001, 'Invalid server ID prefix');
         }
-    } else if (url.pathname === '/admin') {
+    } else if (isAdminConnection) {
         // Admin panel connection - requires Cloudflare Access authentication
         const cfEmail = req.headers['cf-access-authenticated-user-email'];
         handleAdminConnection(ws, clientIp, cfEmail, req);
@@ -379,6 +537,20 @@ function handleMCServerConnection(ws, clientIp) {
                 }
 
                 serverId = rawServerId.toLowerCase();
+
+                // Validate gateway secret authentication
+                const secret = message.secret || '';
+                const secretValid = validateServerSecret(serverId, secret);
+                if (!secretValid) {
+                    console.log(`[Server] ${serverId} rejected: invalid gateway secret`);
+                    ws.send(JSON.stringify({
+                        type: 'error',
+                        code: 'INVALID_SECRET',
+                        message: 'Gateway authentication failed. Server secret mismatch. If this server was previously registered with a different secret, contact the gateway administrator.'
+                    }));
+                    ws.close(4005, 'Invalid gateway secret');
+                    return;
+                }
 
                 // Check if server ID already registered
                 if (mcServers.has(serverId)) {
@@ -556,6 +728,16 @@ function handleBrowserConnection(ws, prefix, clientIp) {
 
     ws.on('message', (data) => {
         try {
+            // Per-connection message rate limiting
+            if (isMessageRateLimited(ws)) {
+                ws.send(JSON.stringify({
+                    type: 'error',
+                    code: 'RATE_LIMITED',
+                    message: 'Too many messages. Slow down.'
+                }));
+                return;
+            }
+
             const message = JSON.parse(data.toString());
 
             // Forward to MC server
@@ -611,7 +793,7 @@ function broadcastToServer(serverId, data) {
  * Generate unique client ID
  */
 function generateClientId() {
-    return 'client_' + Math.random().toString(36).substring(2, 15);
+    return 'client_' + crypto.randomBytes(12).toString('hex');
 }
 
 // ============================================================================

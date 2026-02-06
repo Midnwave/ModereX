@@ -1272,3 +1272,8 @@ permissions:
   moderex.webpanel:
     description: Access to the web panel (protected - must be explicitly granted)
     default: op
+
+  # ==================== ADMIN PERMISSIONS ====================
+  moderex.admin.permissions:
+    description: Manage ranks and permissions via web panel
+    default: op

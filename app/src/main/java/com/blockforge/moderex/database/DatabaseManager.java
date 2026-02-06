@@ -417,6 +417,61 @@ public class DatabaseManager {
                     )
                     """);
 
+            // License acceptance table
+            stmt.execute("""
+                    CREATE TABLE IF NOT EXISTS moderex_license_acceptance (
+                        player_uuid VARCHAR(36) PRIMARY KEY,
+                        accepted_at BIGINT NOT NULL,
+                        license_version INTEGER NOT NULL DEFAULT 1
+                    )
+                    """);
+
+            // Permission system tables
+            stmt.execute("""
+                    CREATE TABLE IF NOT EXISTS moderex_ranks (
+                        id INTEGER PRIMARY KEY %s,
+                        name VARCHAR(64) NOT NULL UNIQUE,
+                        display_name VARCHAR(128) NOT NULL,
+                        prefix TEXT,
+                        suffix TEXT,
+                        weight INTEGER DEFAULT 0,
+                        is_default INTEGER DEFAULT 0,
+                        created_at BIGINT NOT NULL,
+                        updated_at BIGINT NOT NULL
+                    )
+                    """.formatted(isMySQL ? "AUTO_INCREMENT" : "AUTOINCREMENT"));
+
+            stmt.execute("""
+                    CREATE TABLE IF NOT EXISTS moderex_rank_permissions (
+                        id INTEGER PRIMARY KEY %s,
+                        rank_id INTEGER NOT NULL,
+                        permission VARCHAR(256) NOT NULL,
+                        granted INTEGER DEFAULT 1,
+                        UNIQUE(rank_id, permission)
+                    )
+                    """.formatted(isMySQL ? "AUTO_INCREMENT" : "AUTOINCREMENT"));
+
+            stmt.execute("""
+                    CREATE TABLE IF NOT EXISTS moderex_rank_inheritance (
+                        rank_id INTEGER NOT NULL,
+                        parent_rank_id INTEGER NOT NULL,
+                        PRIMARY KEY (rank_id, parent_rank_id)
+                    )
+                    """);
+
+            stmt.execute("""
+                    CREATE TABLE IF NOT EXISTS moderex_player_ranks (
+                        id INTEGER PRIMARY KEY %s,
+                        player_uuid VARCHAR(36) NOT NULL,
+                        player_name VARCHAR(64) NOT NULL,
+                        rank_id INTEGER NOT NULL,
+                        is_primary INTEGER DEFAULT 0,
+                        assigned_by VARCHAR(64),
+                        assigned_at BIGINT NOT NULL,
+                        expires_at BIGINT
+                    )
+                    """.formatted(isMySQL ? "AUTO_INCREMENT" : "AUTOINCREMENT"));
+
             // Create indexes for performance
             createIndexes(stmt);
         }
@@ -486,6 +541,12 @@ public class DatabaseManager {
         executeIfNotExists(stmt, "CREATE INDEX IF NOT EXISTS idx_player_auth_player ON moderex_player_auth_sessions(player_uuid)");
         executeIfNotExists(stmt, "CREATE INDEX IF NOT EXISTS idx_player_auth_expires ON moderex_player_auth_sessions(expires_at)");
         executeIfNotExists(stmt, "CREATE INDEX IF NOT EXISTS idx_player_auth_active ON moderex_player_auth_sessions(active)");
+
+        // Permission system indexes
+        executeIfNotExists(stmt, "CREATE INDEX IF NOT EXISTS idx_rank_perms_rank ON moderex_rank_permissions(rank_id)");
+        executeIfNotExists(stmt, "CREATE INDEX IF NOT EXISTS idx_rank_inherit_rank ON moderex_rank_inheritance(rank_id)");
+        executeIfNotExists(stmt, "CREATE INDEX IF NOT EXISTS idx_player_ranks_player ON moderex_player_ranks(player_uuid)");
+        executeIfNotExists(stmt, "CREATE INDEX IF NOT EXISTS idx_player_ranks_rank ON moderex_player_ranks(rank_id)");
     }
 
     private void executeIfNotExists(Statement stmt, String sql) {

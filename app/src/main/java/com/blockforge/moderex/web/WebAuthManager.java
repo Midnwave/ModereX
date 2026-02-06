@@ -46,6 +46,10 @@ public class WebAuthManager {
     private static final long SESSION_TIMEOUT_MS = 30 * 60 * 1000; // 30 minutes inactivity
     private static final int MAX_LOGIN_ATTEMPTS = 5;
     private static final long LOCKOUT_DURATION_MS = 15 * 60 * 1000; // 15 minutes
+    private static final long TOKEN_EXPIRY_MS = 90L * 24 * 60 * 60 * 1000; // 90 days
+
+    // Challenge constants for CAPTCHA after failed attempts
+    private static final int CHALLENGE_THRESHOLD = 3; // Require challenge after this many fails
 
     private final SecureRandom secureRandom = new SecureRandom();
 
@@ -106,8 +110,8 @@ public class WebAuthManager {
         String tokenStr = token.toString();
         String hash = hashSHA256(tokenStr);
 
-        // Store hash -> uuid mapping
-        permanentTokenHashes.put(hash, playerUuid.toString());
+        // Store hash -> uuid:timestamp mapping
+        permanentTokenHashes.put(hash, playerUuid.toString() + ":" + System.currentTimeMillis());
         savePermanentTokens();
 
         plugin.logDebug("Generated permanent token for " + playerUuid);
@@ -116,25 +120,83 @@ public class WebAuthManager {
 
     public boolean hasPermanentToken(UUID playerUuid) {
         String uuidStr = playerUuid.toString();
-        return permanentTokenHashes.containsValue(uuidStr);
+        for (String value : permanentTokenHashes.values()) {
+            // Handle both "uuid" and "uuid:timestamp" formats
+            String storedUuid = value.contains(":") ? value.split(":", 2)[0] : value;
+            if (storedUuid.equals(uuidStr)) return true;
+        }
+        return false;
+    }
+
+    /**
+     * Result of a permanent token validation.
+     */
+    public enum TokenValidationResult {
+        VALID, EXPIRED, INVALID, RATE_LIMITED, CHALLENGE_REQUIRED
+    }
+
+    /**
+     * Validate a permanent token and return detailed result.
+     * Returns the player UUID if valid, null otherwise. Use getLastValidationResult() for details.
+     */
+    private volatile TokenValidationResult lastValidationResult = TokenValidationResult.INVALID;
+
+    public TokenValidationResult getLastValidationResult() {
+        return lastValidationResult;
     }
 
     public UUID validatePermanentToken(String token, String clientIp) {
         // Check rate limiting
         if (isRateLimited(clientIp)) {
+            lastValidationResult = TokenValidationResult.RATE_LIMITED;
+            return null;
+        }
+
+        // Check if challenge is required
+        AttemptTracker tracker = loginAttempts.get(clientIp);
+        if (tracker != null && tracker.attempts >= CHALLENGE_THRESHOLD && !tracker.challengeSolved) {
+            lastValidationResult = TokenValidationResult.CHALLENGE_REQUIRED;
             return null;
         }
 
         String hash = hashSHA256(token);
-        String uuidStr = permanentTokenHashes.get(hash);
+        String value = permanentTokenHashes.get(hash);
 
-        if (uuidStr != null) {
-            // Reset failed attempts on success
+        if (value != null) {
+            // Parse uuid:timestamp format (backwards compatible with old uuid-only format)
+            String uuidStr;
+            long createdAt = 0;
+
+            if (value.contains(":")) {
+                String[] parts = value.split(":", 2);
+                uuidStr = parts[0];
+                try {
+                    createdAt = Long.parseLong(parts[1]);
+                } catch (NumberFormatException e) {
+                    createdAt = 0; // Treat as legacy token (no expiry check)
+                }
+            } else {
+                uuidStr = value; // Legacy format - no timestamp
+            }
+
+            // Check if token has expired (90 days)
+            if (createdAt > 0 && System.currentTimeMillis() - createdAt > TOKEN_EXPIRY_MS) {
+                // Token expired - remove it
+                permanentTokenHashes.remove(hash);
+                savePermanentTokens();
+                lastValidationResult = TokenValidationResult.EXPIRED;
+                plugin.logDebug("Permanent token expired for " + uuidStr);
+                return null;
+            }
+
+            // Valid token
             loginAttempts.remove(clientIp);
+            lastValidationResult = TokenValidationResult.VALID;
             return UUID.fromString(uuidStr);
         } else {
             // Record failed attempt
             recordFailedAttempt(clientIp);
+            lastValidationResult = TokenValidationResult.INVALID;
             return null;
         }
     }
@@ -171,7 +233,9 @@ public class WebAuthManager {
         String hashToRemove = null;
 
         for (Map.Entry<String, String> entry : permanentTokenHashes.entrySet()) {
-            if (entry.getValue().equals(uuidStr)) {
+            // Handle both "uuid" and "uuid:timestamp" formats
+            String storedUuid = entry.getValue().contains(":") ? entry.getValue().split(":", 2)[0] : entry.getValue();
+            if (storedUuid.equals(uuidStr)) {
                 hashToRemove = entry.getKey();
                 break;
             }
@@ -289,6 +353,11 @@ public class WebAuthManager {
             return false;
         }
 
+        // Check exponential backoff
+        if (tracker.backoffUntil > 0 && System.currentTimeMillis() < tracker.backoffUntil) {
+            return true;
+        }
+
         return tracker.lockedUntil > 0;
     }
 
@@ -306,11 +375,85 @@ public class WebAuthManager {
         AttemptTracker tracker = loginAttempts.computeIfAbsent(ip, k -> new AttemptTracker());
         tracker.attempts++;
         tracker.lastAttempt = System.currentTimeMillis();
+        tracker.challengeSolved = false;
 
         if (tracker.attempts >= MAX_LOGIN_ATTEMPTS) {
+            // Full lockout
             tracker.lockedUntil = System.currentTimeMillis() + LOCKOUT_DURATION_MS;
             plugin.logDebug("IP " + ip + " locked out due to " + tracker.attempts + " failed login attempts");
+        } else if (tracker.attempts >= CHALLENGE_THRESHOLD) {
+            // Generate challenge and set exponential backoff
+            generateChallenge(tracker);
+            // Exponential backoff: 5s after 4th, 15s after 5th
+            int backoffSeconds = (int) Math.pow(3, tracker.attempts - CHALLENGE_THRESHOLD) * 5;
+            tracker.backoffUntil = System.currentTimeMillis() + (backoffSeconds * 1000L);
+            plugin.logDebug("IP " + ip + " requires challenge (attempt " + tracker.attempts + ", backoff " + backoffSeconds + "s)");
         }
+    }
+
+    private void generateChallenge(AttemptTracker tracker) {
+        int a = secureRandom.nextInt(20) + 1;
+        int b = secureRandom.nextInt(20) + 1;
+        boolean add = secureRandom.nextBoolean();
+        if (add) {
+            tracker.challengeQuestion = "What is " + a + " + " + b + "?";
+            tracker.challengeAnswer = String.valueOf(a + b);
+        } else {
+            // Ensure no negative results
+            int max = Math.max(a, b);
+            int min = Math.min(a, b);
+            tracker.challengeQuestion = "What is " + max + " - " + min + "?";
+            tracker.challengeAnswer = String.valueOf(max - min);
+        }
+    }
+
+    /**
+     * Get the current challenge question for an IP, or null if no challenge required.
+     */
+    public String getChallengeQuestion(String ip) {
+        AttemptTracker tracker = loginAttempts.get(ip);
+        if (tracker != null && tracker.attempts >= CHALLENGE_THRESHOLD && !tracker.challengeSolved) {
+            return tracker.challengeQuestion;
+        }
+        return null;
+    }
+
+    /**
+     * Validate a challenge answer. Returns true if correct.
+     */
+    public boolean validateChallenge(String ip, String answer) {
+        AttemptTracker tracker = loginAttempts.get(ip);
+        if (tracker == null || tracker.challengeAnswer == null) {
+            return false;
+        }
+
+        if (tracker.challengeAnswer.equals(answer.trim())) {
+            tracker.challengeSolved = true;
+            return true;
+        } else {
+            // Wrong answer counts as another failed attempt
+            recordFailedAttempt(ip);
+            return false;
+        }
+    }
+
+    /**
+     * Check if an IP is in backoff period (must wait before next attempt).
+     */
+    public boolean isInBackoff(String ip) {
+        AttemptTracker tracker = loginAttempts.get(ip);
+        if (tracker == null || tracker.backoffUntil <= 0) return false;
+        return System.currentTimeMillis() < tracker.backoffUntil;
+    }
+
+    /**
+     * Get remaining backoff seconds for an IP.
+     */
+    public long getRemainingBackoffSeconds(String ip) {
+        AttemptTracker tracker = loginAttempts.get(ip);
+        if (tracker == null || tracker.backoffUntil <= 0) return 0;
+        long remaining = tracker.backoffUntil - System.currentTimeMillis();
+        return Math.max(0, remaining / 1000);
     }
 
     public void clearFailedAttempts(String ip) {
@@ -550,6 +693,26 @@ public class WebAuthManager {
                        (tracker.lockedUntil <= 0 && now - tracker.lastAttempt > LOCKOUT_DURATION_MS);
             });
 
+            // Clean expired permanent tokens (90-day TTL)
+            boolean tokensChanged = false;
+            Iterator<Map.Entry<String, String>> tokenIt = permanentTokenHashes.entrySet().iterator();
+            while (tokenIt.hasNext()) {
+                Map.Entry<String, String> entry = tokenIt.next();
+                String value = entry.getValue();
+                if (value.contains(":")) {
+                    try {
+                        long createdAt = Long.parseLong(value.split(":", 2)[1]);
+                        if (now - createdAt > TOKEN_EXPIRY_MS) {
+                            tokenIt.remove();
+                            tokensChanged = true;
+                        }
+                    } catch (NumberFormatException ignored) {}
+                }
+            }
+            if (tokensChanged) {
+                savePermanentTokens();
+            }
+
         }, 20 * 60, 20 * 60); // Run every minute
     }
 
@@ -589,6 +752,10 @@ public class WebAuthManager {
         int attempts = 0;
         long lastAttempt = 0;
         long lockedUntil = 0;
+        long backoffUntil = 0;        // Exponential backoff timestamp
+        boolean challengeSolved = false; // Whether the CAPTCHA challenge was solved
+        String challengeAnswer = null;   // Current challenge answer
+        String challengeQuestion = null; // Current challenge question
     }
 
     public static class TrustedDevice {
