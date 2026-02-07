@@ -3854,13 +3854,19 @@
     const punishmentEvidence = pun.evidence || [];
     const hasEvidence = punishmentEvidence.length > 0 || ev;
 
-    // Build evidence HTML
-    let evidenceHtml = '';
-    if (hasEvidence) {
-      evidenceHtml = `<div class="card"><h3><i class="fa-solid fa-paperclip" style="color:var(--accent-light)"></i> Evidence</h3>
-        <div class="evidence-list" style="margin-top:12px;display:flex;flex-direction:column;gap:12px">`;
+    // Build evidence HTML - always show the section
+    let evidenceHtml = `<div class="card"><h3><i class="fa-solid fa-paperclip" style="color:var(--accent-light)"></i> Evidence <span class="badge gray" style="margin-left:8px;font-size:11px">${hasEvidence ? (punishmentEvidence.length + (ev ? 1 : 0)) : 0}</span></h3>`;
 
-      // Legacy evidence
+    if (!hasEvidence) {
+      evidenceHtml += `<div class="evidence-empty">
+        <i class="fa-solid fa-folder-open"></i>
+        <div>No evidence attached</div>
+        <div class="evidence-empty-hint">Evidence can be added when creating a punishment</div>
+      </div>`;
+    } else {
+      evidenceHtml += `<div class="evidence-list" style="margin-top:12px;display:flex;flex-direction:column;gap:12px">`;
+
+      // Legacy automod evidence
       if (ev) {
         evidenceHtml += `<div class="evidence-item">
           <div class="evidence-item-header"><span class="badge gray"><i class="fa-solid fa-robot"></i> Automod</span></div>
@@ -3871,10 +3877,9 @@
         </div>`;
       }
 
-      // New evidence (activity logs and files)
+      // Activity logs and file evidence
       for (const evidence of punishmentEvidence) {
         if (evidence.type === 'ACTIVITY_LOG') {
-          // Parse the snapshot JSON to get activity log details
           let snapshot = {};
           try {
             if (evidence.snapshot) {
@@ -3886,27 +3891,28 @@
           const content = snapshot.content || '';
           const playerName = snapshot.playerName || evidence.addedBy || 'Unknown';
           const timestamp = snapshot.timestamp || evidence.addedAt;
+          const logIcon = logType === 'CHAT' ? 'fa-message' : logType === 'COMMAND' ? 'fa-terminal' : logType === 'AUTOMOD_TRIGGER' ? 'fa-shield' : logType === 'ANTICHEAT_ALERT' ? 'fa-exclamation-triangle' : 'fa-scroll';
+          const logColor = logType === 'CHAT' ? 'blue' : logType === 'COMMAND' ? 'purple' : logType === 'AUTOMOD_TRIGGER' ? 'orange' : logType === 'ANTICHEAT_ALERT' ? 'red' : 'gray';
 
-          evidenceHtml += `<div class="evidence-item">
+          evidenceHtml += `<div class="evidence-item evidence-log">
             <div class="evidence-item-header">
-              <span class="badge gray"><i class="fa-solid fa-scroll"></i> ${escapeHtml(logType)}</span>
+              <span class="badge ${logColor}"><i class="fa-solid ${logIcon}"></i> ${escapeHtml(logType.replace(/_/g, ' '))}</span>
               <span class="evidence-item-time">${escapeHtml(fmtShort(timestamp))}</span>
             </div>
-            <div class="evidence-item-content" style="margin-top:8px;padding:10px;background:rgba(0,0,0,0.2);border-radius:var(--radius-sm)">
-              <div style="font-size:12px;color:var(--muted)">Player: ${escapeHtml(playerName)}</div>
-              <div style="margin-top:4px">${escapeHtml(content)}</div>
+            <div class="evidence-log-body">
+              <div class="evidence-log-meta"><i class="fa-solid fa-user"></i> ${escapeHtml(playerName)}</div>
+              <div class="evidence-log-content">${escapeHtml(content)}</div>
             </div>
           </div>`;
         } else if (evidence.type === 'FILE') {
           const fileType = evidence.fileType || '';
           const fileMissing = evidence.fileMissing === true;
-          // Use backend boolean flags with string parsing fallback
           const isVideo = evidence.isVideo === true || fileType.startsWith('VIDEO') || ['MP4', 'MKV', 'MOV'].includes(fileType);
           const isImage = evidence.isImage === true || fileType.startsWith('IMAGE') || ['PNG', 'JPG', 'JPEG'].includes(fileType);
           const fileId = evidence.evidenceId || evidence.id;
           const fileSize = evidence.fileSize ? (evidence.fileSize < 1024*1024 ? (evidence.fileSize/1024).toFixed(1) + ' KB' : (evidence.fileSize/(1024*1024)).toFixed(1) + ' MB') : '';
 
-          evidenceHtml += `<div class="evidence-item">
+          evidenceHtml += `<div class="evidence-item evidence-file">
             <div class="evidence-item-header">
               <span class="badge ${fileMissing ? 'gray' : isVideo ? 'purple' : 'blue'}">
                 <i class="fa-solid fa-${fileMissing ? 'file-circle-exclamation' : isVideo ? 'video' : 'image'}"></i>
@@ -3915,30 +3921,42 @@
               <span class="evidence-item-time">${escapeHtml(evidence.fileName || 'file')}${fileSize ? ' (' + fileSize + ')' : ''}</span>
             </div>
             <div class="evidence-item-content" style="margin-top:8px">
-              ${fileMissing ? `<div style="padding:16px;background:rgba(239,68,68,0.1);border:1px solid rgba(239,68,68,0.2);border-radius:var(--radius-sm);text-align:center">
-                <i class="fa-solid fa-file-circle-exclamation" style="font-size:24px;color:var(--bad)"></i>
-                <div style="margin-top:8px;font-size:12px;color:var(--muted)">Evidence file not found on disk</div>
+              ${fileMissing ? `<div class="evidence-file-missing">
+                <i class="fa-solid fa-file-circle-exclamation"></i>
+                <div>Evidence file not found on disk</div>
               </div>` : ''}
-              ${!fileMissing && isImage ? `<img src="/api/evidence/${fileId}" alt="Evidence" class="evidence-image" onclick="openImageLightbox('/api/evidence/${fileId}')" style="max-width:100%;max-height:200px;border-radius:var(--radius-sm);cursor:pointer" onerror="this.style.display='none';this.nextElementSibling.style.display='block'" loading="lazy">
-              <div style="display:none;padding:16px;background:rgba(239,68,68,0.1);border-radius:var(--radius-sm);text-align:center">
-                <i class="fa-solid fa-image" style="font-size:24px;color:var(--muted)"></i>
-                <div style="margin-top:8px;font-size:12px;color:var(--muted)">Failed to load image</div>
+              ${!fileMissing && isImage ? `<div class="evidence-image-wrapper">
+                <img src="/api/evidence/${fileId}" alt="Evidence" class="evidence-image" onclick="openImageLightbox('/api/evidence/${fileId}')" onerror="this.parentElement.classList.add('load-failed')" loading="lazy">
+                <div class="evidence-image-overlay" onclick="openImageLightbox('/api/evidence/${fileId}')">
+                  <i class="fa-solid fa-expand"></i> View Full Size
+                </div>
+                <div class="evidence-load-error">
+                  <i class="fa-solid fa-image"></i>
+                  <div>Failed to load image</div>
+                </div>
               </div>` : ''}
-              ${!fileMissing && isVideo ? `<div class="evidence-video-preview" onclick="openVideoPlayer('/api/evidence/${fileId}')" style="cursor:pointer;padding:20px;background:rgba(0,0,0,0.3);border-radius:var(--radius-sm);text-align:center;transition:background var(--transition)" onmouseover="this.style.background='rgba(0,0,0,0.5)'" onmouseout="this.style.background='rgba(0,0,0,0.3)'">
-                <i class="fa-solid fa-play-circle" style="font-size:36px;color:var(--primary-light)"></i>
-                <div style="margin-top:8px;font-size:12px;color:var(--muted)">Click to play video${fileSize ? ' (' + fileSize + ')' : ''}</div>
+              ${!fileMissing && isVideo ? `<div class="evidence-video-card" onclick="openVideoPlayer('/api/evidence/${fileId}')">
+                <div class="evidence-video-icon">
+                  <i class="fa-solid fa-play"></i>
+                </div>
+                <div class="evidence-video-info">
+                  <div class="evidence-video-title">${escapeHtml(evidence.fileName || 'Video Evidence')}</div>
+                  <div class="evidence-video-meta">${fileSize ? fileSize + ' - ' : ''}Click to play</div>
+                </div>
               </div>` : ''}
-              ${!fileMissing && !isVideo && !isImage ? `<div style="padding:16px;background:rgba(0,0,0,0.2);border-radius:var(--radius-sm);text-align:center">
-                <i class="fa-solid fa-file" style="font-size:24px;color:var(--muted)"></i>
-                <div style="margin-top:8px;font-size:12px;color:var(--muted)">Unknown file type: ${escapeHtml(fileType)}</div>
+              ${!fileMissing && !isVideo && !isImage ? `<div class="evidence-file-unknown">
+                <i class="fa-solid fa-file"></i>
+                <div>Unsupported file type: ${escapeHtml(fileType)}</div>
               </div>` : ''}
             </div>
           </div>`;
         }
       }
 
-      evidenceHtml += '</div></div>';
+      evidenceHtml += '</div>';
     }
+
+    evidenceHtml += '</div>';
 
     // Build list of players involved (for mass punishments, there could be multiple)
     const involvedPlayers = pun.players || (pl ? [pl] : [{ name: pun.playerName || 'Unknown', uuid: pun.playerId || 'N/A' }]);
@@ -3977,7 +3995,7 @@
         </div>
 
         <!-- Section 3: Evidence -->
-        ${hasEvidence ? evidenceHtml.replace('<div class="card">', '<div class="card" style="margin:0">') : ''}
+        ${evidenceHtml.replace('<div class="card">', '<div class="card" style="margin:0">')}
       </div>
     `;
 
