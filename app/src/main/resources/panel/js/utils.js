@@ -42,6 +42,18 @@
     return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
   };
 
+  // Escape string for use in JavaScript context (onclick attributes, etc.)
+  const escapeJs = str => {
+    if (str == null) return '';
+    return String(str)
+      .replace(/\\/g, '\\\\')
+      .replace(/'/g, "\\'")
+      .replace(/"/g, '\\"')
+      .replace(/\n/g, '\\n')
+      .replace(/\r/g, '\\r')
+      .replace(/\t/g, '\\t');
+  };
+
   const parseDurationToMs = (dur, start) => {
     if (!dur || dur === 'perm' || dur === 'permanent') return null;
     const m = dur.match(/^(\d+)\s*([smhdw])$/);
@@ -63,6 +75,6 @@
   // Export to window
   window.MX = window.MX || {};
   window.MX.utils = {
-    $, $$, clamp, rnd, pick, now, pad2, fmtClock, fmtShort, fmtLong, uid, escapeHtml, parseDurationToMs, avatarUrl
+    $, $$, clamp, rnd, pick, now, pad2, fmtClock, fmtShort, fmtLong, uid, escapeHtml, escapeJs, parseDurationToMs, avatarUrl
   };
 })();

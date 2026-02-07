@@ -36,7 +36,8 @@ public abstract class BaseGui {
     }
 
     public void build() {
-        inventory = Bukkit.createInventory(null, rows * 9, TextUtil.parse(title));
+        // Create inventory with title (Spigot-compatible)
+        inventory = Bukkit.createInventory(null, rows * 9, TextUtil.toLegacy(title));
         clickHandlers.clear();
         populate();
         plugin.logDebug("[GUI] Built " + getClass().getSimpleName() +
