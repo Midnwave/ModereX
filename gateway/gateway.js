@@ -667,10 +667,12 @@ wss.on('connection', (ws, req) => {
     if (!isServerConnection) {
         const origin = req.headers.origin;
         const allowedOrigins = [
-            'https://panel-moderex.pages.dev',
+            'https://moderex.net',
+            'https://www.moderex.net',
             'https://panel.moderex.net',
-            'https://moderex.pages.dev',
-            'https://moderex.net'
+            'https://gateway.moderex.net',
+            'https://panel-moderex.pages.dev',
+            'https://moderex.pages.dev'
         ];
         // Allow connections with no origin (non-browser) or matching origin
         // Also allow any trycloudflare.com origin for development

@@ -14,8 +14,9 @@
 
   // Gateway configuration - domains that indicate we're using gateway mode
   const GATEWAY_DOMAINS = [
-    'panel.moderex.net',       // Future custom domain
-    'panel-moderex.pages.dev', // Cloudflare Pages subdomain (current)
+    'panel.moderex.net',       // Custom domain (production)
+    'moderex.net',             // Main site (admin panel at /admin)
+    'panel-moderex.pages.dev', // Cloudflare Pages subdomain (staging)
     'trycloudflare.com'        // Quick Tunnel domain (temporary testing)
   ];
 
@@ -41,8 +42,13 @@
       return base.startsWith('wss://') ? `${base}/panel` : `wss://${base}/panel`;
     }
 
-    // Default for Cloudflare Pages or other hosted deployments
-    // Users can set this via: localStorage.setItem('moderex_gateway_url', 'wss://duck-charges-employers-feof.trycloudflare.com')
+    // Default for production moderex.net domains → gateway.moderex.net
+    if (hostname === 'panel.moderex.net' || hostname === 'moderex.net' || hostname.endsWith('.moderex.net')) {
+      return 'wss://gateway.moderex.net/panel';
+    }
+
+    // Fallback for Cloudflare Pages staging or other hosted deployments
+    // Users can set this via: localStorage.setItem('moderex_gateway_url', 'wss://your-tunnel.trycloudflare.com')
     return `wss://${hostname}/panel`;
   }
 

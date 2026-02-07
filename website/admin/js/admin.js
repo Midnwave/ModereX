@@ -15,23 +15,22 @@
             return `wss://${window.location.host}/admin`;
         }
 
-        // If served from Cloudflare Pages, MUST have configured gateway URL
-        if (hostname.endsWith('.pages.dev')) {
-            const stored = localStorage.getItem('moderex_gateway_url');
-            if (stored) {
-                const base = stored.replace(/\/+$/, '');
-                return base.startsWith('wss://') ? `${base}/admin` : `wss://${base}/admin`;
-            }
-            // Prompt user to configure gateway URL
-            promptGatewayConfig();
-            return null; // Will prevent connection until configured
-        }
-
-        // Check localStorage for configured gateway URL
+        // Check localStorage for configured gateway URL (override)
         const stored = localStorage.getItem('moderex_gateway_url');
         if (stored) {
             const base = stored.replace(/\/+$/, '');
             return base.startsWith('wss://') ? `${base}/admin` : `wss://${base}/admin`;
+        }
+
+        // Production moderex.net domains → gateway.moderex.net
+        if (hostname === 'moderex.net' || hostname.endsWith('.moderex.net')) {
+            return 'wss://gateway.moderex.net/admin';
+        }
+
+        // Cloudflare Pages staging - need gateway URL configured
+        if (hostname.endsWith('.pages.dev')) {
+            promptGatewayConfig();
+            return null;
         }
 
         // Default fallback for localhost/direct hosting
