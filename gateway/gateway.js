@@ -2602,8 +2602,7 @@ async function deployToCloudflarePages(tunnelHost) {
             const result = await new Promise((resolve, reject) => {
                 const proc = spawn('npx', ['wrangler', 'pages', 'deploy', dir, '--project-name=' + name, '--commit-dirty=true'], {
                     stdio: ['ignore', 'pipe', 'pipe'],
-                    cwd: __dirname,
-                    shell: process.platform === 'win32'
+                    cwd: __dirname
                 });
 
                 let stdout = '';
