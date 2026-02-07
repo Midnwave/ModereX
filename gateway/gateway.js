@@ -2615,7 +2615,13 @@ async function deployToCloudflarePages(tunnelHost) {
                     else reject(new Error(`wrangler exited with code ${code}: ${stderr}`));
                 });
 
-                proc.on('error', reject);
+                proc.on('error', (err) => {
+                    if (err.code === 'ENOENT') {
+                        reject(new Error('npx/wrangler not found. Install with: npm install -g wrangler'));
+                    } else {
+                        reject(err);
+                    }
+                });
 
                 // Timeout after 60 seconds
                 setTimeout(() => reject(new Error('Deployment timed out')), 60000);
@@ -2625,7 +2631,11 @@ async function deployToCloudflarePages(tunnelHost) {
             const urlMatch = result.match(/https:\/\/[a-f0-9]+\.[a-zA-Z0-9-]+\.pages\.dev/);
             console.log(`[Deploy] ${name} deployed successfully${urlMatch ? ': ' + urlMatch[0] : ''}`);
         } catch (err) {
-            console.warn(`[Deploy] Failed to deploy ${name}: ${err.message}`);
+            if (err.message.includes('not found')) {
+                console.log(`[Deploy] Skipping ${name}: Cloudflare Wrangler not installed (optional feature)`);
+            } else {
+                console.warn(`[Deploy] Failed to deploy ${name}: ${err.message}`);
+            }
         }
     }
 
