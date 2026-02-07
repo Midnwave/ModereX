@@ -14,6 +14,160 @@
 
 window.MX_CHANGELOGS = [
   {
+    build: 254,
+    version: "2.0dev-254",
+    date: "2026-02-06",
+    title: "Textured Block Rendering & BlueMap Integration",
+    sections: [
+      {
+        type: "new",
+        title: "New Features",
+        items: [
+          "**Texture Atlas** - 3D replay viewer now renders actual Minecraft block textures loaded from CDN (120+ block types)",
+          "**BlueMap Integration** - When BlueMap is installed, replay viewer loads map tiles for far-range terrain backdrop",
+          "**BlueMap Tile Proxy** - CORS proxy endpoint for fetching BlueMap tiles through the plugin web server",
+          "**BlueMap Integrations Card** - BlueMap status shown on integrations tab with version, map count, and port info"
+        ]
+      },
+      {
+        type: "improved",
+        title: "Improvements",
+        items: [
+          "**Greedy Meshing** - Terrain mesher now generates UV coordinates for textured blocks with per-face AO shading",
+          "**Voice Chat Status** - Simple Voice Chat integration now properly shows status on integrations tab",
+          "**Rendering Fallback** - Three-tier fallback: BlueMap tiles > CDN texture atlas > solid vertex colors"
+        ]
+      },
+      {
+        type: "technical",
+        title: "Technical Changes",
+        items: [
+          "**BlueMapHook** - Reflection-based BlueMap detection (no compile dependency), reads web port and discovers map IDs",
+          "**BLUEMAP_STATUS** - New WebSocket handler for querying BlueMap availability and configuration",
+          "**Texture Atlas System** - Builds combined atlas from individual 16x16 block textures via prismarine-minecraft-data CDN"
+        ]
+      }
+    ]
+  },
+  {
+    build: 253,
+    version: "2.0dev-253",
+    date: "2026-02-06",
+    title: "Security Hardening",
+    sections: [
+      {
+        type: "fixed",
+        title: "Security Fixes",
+        items: [
+          "**Path Traversal** - Fixed directory traversal in gateway panel file serving and plugin static file handler",
+          "**XSS Prevention** - Fixed DOM-based XSS in player drawer onclick handlers and portal script injection",
+          "**Response Splitting** - Sanitized evidence filenames in HTTP Content-Disposition headers",
+          "**Timing Attack** - Challenge answer validation now uses constant-time comparison",
+          "**Evidence Upload** - Added filename sanitization (path components, null bytes, length limit)",
+          "**MIME Type Injection** - Escaped MIME types in portal evidence display to prevent attribute injection",
+          "**Integer Overflow** - Evidence upload size check now uses long to prevent bypass via overflow"
+        ]
+      },
+      {
+        type: "improved",
+        title: "Improvements",
+        items: [
+          "**Gateway Rate Limiting** - Device fingerprint auth now rate-limited with exponential backoff",
+          "**Gateway Message Size** - WebSocket messages capped at 2MB to prevent memory exhaustion",
+          "**Admin Auth** - Email domain validation now uses exact domain match instead of suffix match",
+          "**CORS Headers** - Added Vary: Origin and X-Content-Type-Options: nosniff headers"
+        ]
+      }
+    ]
+  },
+  {
+    build: 252,
+    version: "2.0dev-252",
+    date: "2026-02-05",
+    title: "Global Token System & Server List",
+    sections: [
+      {
+        type: "new",
+        title: "New Features",
+        items: [
+          "**Global Token System** - One token works across all servers connected to the gateway, no need to re-authenticate per server",
+          "**Server List Page** - Visit panel.moderex.net to see all your servers in one place with status, player count, and rank",
+          "**Gateway Database** - SQLite database on the gateway stores tokens, permissions, and settings persistently",
+          "**Permission Sync** - Server permissions automatically sync to gateway on startup and when LuckPerms changes are detected",
+          "**Settings Sync** - Color scheme and device fingerprints sync to both gateway and server databases"
+        ]
+      },
+      {
+        type: "improved",
+        title: "Improvements",
+        items: [
+          "**Multi-Server Navigation** - 'Servers' button in profile dropdown lets you switch servers without re-authenticating",
+          "**Logo Click** - Clicking the sidebar logo in gateway mode returns to the server list",
+          "**Server Card UI** - Server IDs are blurred by default for privacy, click to reveal and copy",
+          "**Token Dual-Write** - Tokens sync to gateway when generated or revoked via /mx gettoken and /mx revoketoken",
+          "**Device Trust Sync** - Trusted device fingerprints sync to gateway for cross-server device auth"
+        ]
+      },
+      {
+        type: "fixed",
+        title: "Bug Fixes",
+        items: [
+          "**Admin Panel** - Fixed 11 out of 14 broken features due to message type mismatches between frontend and gateway",
+          "**Gateway SQLite** - Fixed SQLite crash on startup by using sql.js (pure JS) with better-sqlite3 as optional native fallback",
+          "**Admin Auth** - Added missing admin_auth handler so Cloudflare Access authentication works properly",
+          "**Admin Dashboard** - Added get_dashboard_data handler for server stats and activity overview",
+          "**Admin Announcements** - Fixed type mismatch (announcements_list), added deactivate handler",
+          "**Admin Audit Log** - Fixed field name mismatch (entries vs logs), added export handler"
+        ]
+      },
+      {
+        type: "technical",
+        title: "Technical Changes",
+        items: [
+          "**Gateway DB Tables** - Added global_tokens, server_access, and user_settings tables",
+          "**sql.js Wrapper** - Created better-sqlite3 compatible API wrapper for sql.js with auto-save to disk",
+          "**GatewayClient** - Added syncAllPermissions, registerGlobalToken, revokeGlobalToken, syncUserSettings methods",
+          "**LuckPerms Listener** - Permission change events trigger automatic gateway sync",
+          "**Global Pre-Auth** - Gateway sends pre-auth to MC server for seamless server switching",
+          "**WebSocket Global Mode** - New /panel/ root endpoint for server list page connections"
+        ]
+      }
+    ]
+  },
+  {
+    build: 251,
+    version: "2.0dev-251",
+    date: "2026-02-05",
+    title: "Disconnect Handling & Error Pages",
+    sections: [
+      {
+        type: "new",
+        title: "New Features",
+        items: [
+          "**Cloudflare-Style Error Pages** - Server Not Found (404) and Gateway Error (502) now show professional full-page error screens with connection chain visualization",
+          "**Server Online Detection** - Gateway now broadcasts when a Minecraft server reconnects, allowing the panel to auto-detect and re-authenticate"
+        ]
+      },
+      {
+        type: "improved",
+        title: "Improvements",
+        items: [
+          "**Server Offline Overlay** - Redesigned with pulsing indicator instead of spinner, no more 'Reconnecting...' messages during silent wait",
+          "**Auto Re-authentication** - When a server comes back online, the panel automatically re-authenticates using saved tokens",
+          "**Gateway Mode Disconnect** - Server offline handled separately from direct mode disconnects for cleaner UX",
+          "**Silent Retry** - Fixed 5-second retry interval when gateway connection drops during server offline state"
+        ]
+      },
+      {
+        type: "fixed",
+        title: "Bug Fixes",
+        items: [
+          "**CSS Variable Bug** - Fixed undefined --bg-card variable in server offline overlay, now uses --surface"
+        ]
+      }
+    ]
+  },
+  {
     build: 250,
     version: "2.0dev-250",
     date: "2026-02-05",

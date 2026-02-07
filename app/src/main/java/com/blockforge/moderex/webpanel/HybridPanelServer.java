@@ -258,6 +258,12 @@ public class HybridPanelServer implements com.blockforge.moderex.gateway.Gateway
                 return;
             }
 
+            // BlueMap tile proxy: /api/bluemap/tiles/{mapId}/{tilePath}
+            if (path.startsWith("/api/bluemap/tiles/")) {
+                handleBlueMapTileProxy(out, path);
+                return;
+            }
+
             if (path.equals("/api/config")) {
                 sendConfigResponse(out, headers);
             } else if (path.equals("/api/panel-version")) {
@@ -524,6 +530,55 @@ public class HybridPanelServer implements com.blockforge.moderex.gateway.Gateway
      * Handle evidence file retrieval requests.
      * URL format: /api/evidence/{fileId}
      */
+    private void handleBlueMapTileProxy(OutputStream out, String path) throws IOException {
+        var hookManager = plugin.getHookManager();
+        if (hookManager == null || !hookManager.isBlueMapAvailable()) {
+            sendHttpError(out, 503, "BlueMap not available");
+            return;
+        }
+
+        // Parse: /api/bluemap/tiles/{mapId}/{rest...}
+        String tilePath = path.substring("/api/bluemap/tiles/".length());
+        if (tilePath.isEmpty()) {
+            sendHttpError(out, 400, "Tile path required");
+            return;
+        }
+
+        int port = hookManager.getBlueMapHook().getWebPort();
+        String targetUrl = "http://localhost:" + port + "/maps/" + tilePath;
+
+        try {
+            URL url = new URL(targetUrl);
+            HttpURLConnection conn = (HttpURLConnection) url.openConnection();
+            conn.setRequestMethod("GET");
+            conn.setConnectTimeout(5000);
+            conn.setReadTimeout(10000);
+
+            int responseCode = conn.getResponseCode();
+            if (responseCode != 200) {
+                sendHttpError(out, responseCode, "BlueMap returned " + responseCode);
+                return;
+            }
+
+            String contentType = conn.getContentType();
+            if (contentType == null) contentType = "application/octet-stream";
+            byte[] body = conn.getInputStream().readAllBytes();
+
+            String header = "HTTP/1.1 200 OK\r\n" +
+                "Content-Type: " + contentType + "\r\n" +
+                "Content-Length: " + body.length + "\r\n" +
+                "Access-Control-Allow-Origin: *\r\n" +
+                "Cache-Control: public, max-age=3600\r\n" +
+                "\r\n";
+            out.write(header.getBytes(StandardCharsets.UTF_8));
+            out.write(body);
+            out.flush();
+        } catch (Exception e) {
+            plugin.logDebug("[BlueMap] Tile proxy error: " + e.getMessage());
+            sendHttpError(out, 502, "Failed to proxy BlueMap tile");
+        }
+    }
+
     private void handleEvidenceFileRequest(OutputStream out, String path, Map<String, String> headers) throws IOException {
         // Extract file ID from path
         String fileId = path.substring("/api/evidence/".length());
@@ -2518,6 +2573,7 @@ public class HybridPanelServer implements com.blockforge.moderex.gateway.Gateway
             case "GET_ESSENTIALS_STATUS" -> sendEssentialsStatus(conn);
             case "GET_PLACEHOLDERAPI_STATUS" -> sendPlaceholderAPIStatus(conn);
             case "GET_VOICECHAT_STATUS" -> sendVoiceChatStatus(conn);
+            case "GET_BLUEMAP_STATUS" -> sendBlueMapStatus(conn);
 
             // Monitoring endpoints
             case "GET_ENTITY_BREAKDOWN" -> sendEntityBreakdown(conn);
@@ -7267,6 +7323,21 @@ public class HybridPanelServer implements com.blockforge.moderex.gateway.Gateway
                 plugin.logDebug("[Replay] Failed to load block logs: " + e.getMessage());
             }
 
+            // Include BlueMap availability info for terrain rendering
+            var hookMgr = plugin.getHookManager();
+            boolean blueMapAvailable = hookMgr != null && hookMgr.isBlueMapAvailable();
+            data.addProperty("blueMapAvailable", blueMapAvailable);
+            if (blueMapAvailable) {
+                var blueMap = hookMgr.getBlueMapHook();
+                data.addProperty("blueMapWebUrl", blueMap.getWebUrl());
+                data.addProperty("blueMapWebPort", blueMap.getWebPort());
+                JsonArray blueMapMaps = new JsonArray();
+                for (String mapId : blueMap.getMapIds()) {
+                    blueMapMaps.add(mapId);
+                }
+                data.add("blueMapMapIds", blueMapMaps);
+            }
+
             response.add("data", data);
             conn.send(GSON.toJson(response));
 
@@ -8422,6 +8493,36 @@ public class HybridPanelServer implements com.blockforge.moderex.gateway.Gateway
             if (version != null) {
                 data.addProperty("version", version);
             }
+        }
+
+        response.add("data", data);
+        conn.send(GSON.toJson(response));
+    }
+
+    private void sendBlueMapStatus(WebSocketConnection conn) {
+        JsonObject response = new JsonObject();
+        response.addProperty("type", "BLUEMAP_STATUS");
+
+        JsonObject data = new JsonObject();
+        var hookManager = plugin.getHookManager();
+
+        boolean available = hookManager != null && hookManager.isBlueMapAvailable();
+        data.addProperty("available", available);
+
+        if (available) {
+            var blueMap = hookManager.getBlueMapHook();
+            String version = hookManager.getBlueMapVersion();
+            if (version != null) {
+                data.addProperty("version", version);
+            }
+            data.addProperty("webUrl", blueMap.getWebUrl());
+            data.addProperty("webPort", blueMap.getWebPort());
+
+            JsonArray mapIds = new JsonArray();
+            for (String mapId : blueMap.getMapIds()) {
+                mapIds.add(mapId);
+            }
+            data.add("mapIds", mapIds);
         }
 
         response.add("data", data);

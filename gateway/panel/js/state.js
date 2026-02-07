@@ -102,8 +102,13 @@
       luckPermsDetected: false,
       geyserDetected: false,
       floodgateDetected: false,
+      blueMapDetected: false,
       geyserVersion: null,
       floodgateVersion: null,
+      blueMapVersion: null,
+      blueMapWebUrl: null,
+      blueMapWebPort: 8100,
+      blueMapMapIds: [],
       anticheats: ['Grim', 'Vulcan', 'Matrix', 'Spartan', 'AAC', 'NoCheatPlus', 'Intave', 'NCP', 'Kauri', 'Verus', 'Negativity', 'AntiCheatReloaded', 'Themis', 'Astra', 'Polar', 'Warden', 'Flappy', 'Karhu']
     },
     anticheat: {

@@ -42,7 +42,7 @@
     }
 
     // Default for Cloudflare Pages or other hosted deployments
-    // Users can set this via: localStorage.setItem('moderex_gateway_url', 'wss://your-tunnel.trycloudflare.com')
+    // Users can set this via: localStorage.setItem('moderex_gateway_url', 'wss://duck-charges-employers-feof.trycloudflare.com')
     return `wss://${hostname}/panel`;
   }
 

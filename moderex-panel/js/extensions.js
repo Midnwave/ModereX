@@ -25,6 +25,8 @@
       ws.send('GET_CITIZENS_STATUS');
       ws.send('GET_ESSENTIALS_STATUS');
       ws.send('GET_PLACEHOLDERAPI_STATUS');
+      ws.send('GET_VOICECHAT_STATUS');
+      ws.send('GET_BLUEMAP_STATUS');
     }
   };
 
@@ -272,6 +274,59 @@
     }
   };
 
+  window.renderVoiceChatStatus = function(status) {
+    const badge = document.getElementById('voiceChatStatus');
+
+    const state = window.MX?.state;
+    if (state) {
+      state.integrations = state.integrations || {};
+      state.integrations.voiceChatDetected = status?.available || false;
+      state.integrations.voiceChatVersion = status?.version || null;
+    }
+
+    if (badge) {
+      if (status?.available) {
+        badge.className = 'badge good';
+        badge.innerHTML = '<i class="fa-solid fa-check"></i> Active';
+      } else {
+        badge.className = 'badge gray';
+        badge.innerHTML = '<i class="fa-solid fa-xmark"></i> Not detected';
+      }
+    }
+  };
+
+  window.renderBlueMapStatus = function(status) {
+    const badge = document.getElementById('blueMapStatus');
+    const details = document.getElementById('blueMapDetails');
+
+    const state = window.MX?.state;
+    if (state) {
+      state.integrations = state.integrations || {};
+      state.integrations.blueMapDetected = status?.available || false;
+      state.integrations.blueMapVersion = status?.version || null;
+      state.integrations.blueMapWebUrl = status?.webUrl || null;
+      state.integrations.blueMapWebPort = status?.webPort || 8100;
+      state.integrations.blueMapMapIds = status?.mapIds || [];
+    }
+
+    if (badge) {
+      if (status?.available) {
+        badge.className = 'badge good';
+        badge.innerHTML = '<i class="fa-solid fa-check"></i> Active';
+        if (details) {
+          const maps = status.mapIds?.length || 0;
+          details.textContent = `v${status.version || 'Unknown'} \u2022 ${maps} map${maps !== 1 ? 's' : ''} \u2022 Port ${status.webPort || 8100}`;
+        }
+      } else {
+        badge.className = 'badge gray';
+        badge.innerHTML = '<i class="fa-solid fa-xmark"></i> Not detected';
+        if (details) {
+          details.textContent = 'Install BlueMap for enhanced 3D replay terrain';
+        }
+      }
+    }
+  };
+
   window.importFromPlugin = function(pluginName) {
     const ws = window.MX?.ws;
     if (!ws || !ws.isConnected()) {
@@ -499,6 +554,18 @@
     ws.on('PLACEHOLDERAPI_STATUS', (data) => {
       if (data) {
         renderPlaceholderAPIStatus(data);
+      }
+    });
+
+    ws.on('VOICECHAT_STATUS', (data) => {
+      if (data) {
+        renderVoiceChatStatus(data);
+      }
+    });
+
+    ws.on('BLUEMAP_STATUS', (data) => {
+      if (data) {
+        renderBlueMapStatus(data);
       }
     });
 

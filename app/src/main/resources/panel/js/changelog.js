@@ -14,6 +14,42 @@
 
 window.MX_CHANGELOGS = [
   {
+    build: 254,
+    version: "2.0dev-254",
+    date: "2026-02-06",
+    title: "Textured Block Rendering & BlueMap Integration",
+    sections: [
+      {
+        type: "new",
+        title: "New Features",
+        items: [
+          "**Texture Atlas** - 3D replay viewer now renders actual Minecraft block textures loaded from CDN (120+ block types)",
+          "**BlueMap Integration** - When BlueMap is installed, replay viewer loads map tiles for far-range terrain backdrop",
+          "**BlueMap Tile Proxy** - CORS proxy endpoint for fetching BlueMap tiles through the plugin web server",
+          "**BlueMap Integrations Card** - BlueMap status shown on integrations tab with version, map count, and port info"
+        ]
+      },
+      {
+        type: "improved",
+        title: "Improvements",
+        items: [
+          "**Greedy Meshing** - Terrain mesher now generates UV coordinates for textured blocks with per-face AO shading",
+          "**Voice Chat Status** - Simple Voice Chat integration now properly shows status on integrations tab",
+          "**Rendering Fallback** - Three-tier fallback: BlueMap tiles > CDN texture atlas > solid vertex colors"
+        ]
+      },
+      {
+        type: "technical",
+        title: "Technical Changes",
+        items: [
+          "**BlueMapHook** - Reflection-based BlueMap detection (no compile dependency), reads web port and discovers map IDs",
+          "**BLUEMAP_STATUS** - New WebSocket handler for querying BlueMap availability and configuration",
+          "**Texture Atlas System** - Builds combined atlas from individual 16x16 block textures via prismarine-minecraft-data CDN"
+        ]
+      }
+    ]
+  },
+  {
     build: 253,
     version: "2.0dev-253",
     date: "2026-02-06",

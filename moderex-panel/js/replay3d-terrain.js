@@ -254,6 +254,304 @@
   // Block shapes for non-full-block rendering
   const BLOCK_SHAPES = {};
 
+  // ===== TEXTURE ATLAS SYSTEM =====
+  // Loads Minecraft block textures from prismarine-minecraft-data CDN
+  // Falls back to vertex colors if loading fails
+
+  const TEXTURE_ATLAS = {
+    loaded: false,
+    loading: false,
+    texture: null,
+    material: null,
+    atlasWidth: 0,
+    atlasHeight: 0,
+    blockUVs: {}, // blockName -> { top: [u0,v0,u1,v1], side: [...], bottom: [...] }
+  };
+
+  // Map Minecraft block names to their texture file names
+  // This covers the most common blocks - unknown blocks fall back to vertex colors
+  const BLOCK_TEXTURE_MAP = {
+    'minecraft:stone': { all: 'stone' },
+    'minecraft:granite': { all: 'granite' },
+    'minecraft:polished_granite': { all: 'polished_granite' },
+    'minecraft:diorite': { all: 'diorite' },
+    'minecraft:polished_diorite': { all: 'polished_diorite' },
+    'minecraft:andesite': { all: 'andesite' },
+    'minecraft:polished_andesite': { all: 'polished_andesite' },
+    'minecraft:deepslate': { top: 'deepslate_top', side: 'deepslate' },
+    'minecraft:cobblestone': { all: 'cobblestone' },
+    'minecraft:cobbled_deepslate': { all: 'cobbled_deepslate' },
+    'minecraft:mossy_cobblestone': { all: 'mossy_cobblestone' },
+    'minecraft:stone_bricks': { all: 'stone_bricks' },
+    'minecraft:mossy_stone_bricks': { all: 'mossy_stone_bricks' },
+    'minecraft:cracked_stone_bricks': { all: 'cracked_stone_bricks' },
+    'minecraft:grass_block': { top: 'grass_block_top', side: 'grass_block_side', bottom: 'dirt' },
+    'minecraft:dirt': { all: 'dirt' },
+    'minecraft:coarse_dirt': { all: 'coarse_dirt' },
+    'minecraft:podzol': { top: 'podzol_top', side: 'podzol_side', bottom: 'dirt' },
+    'minecraft:rooted_dirt': { all: 'rooted_dirt' },
+    'minecraft:mud': { all: 'mud' },
+    'minecraft:sand': { all: 'sand' },
+    'minecraft:red_sand': { all: 'red_sand' },
+    'minecraft:gravel': { all: 'gravel' },
+    'minecraft:clay': { all: 'clay' },
+    'minecraft:bedrock': { all: 'bedrock' },
+    'minecraft:oak_log': { top: 'oak_log_top', side: 'oak_log' },
+    'minecraft:spruce_log': { top: 'spruce_log_top', side: 'spruce_log' },
+    'minecraft:birch_log': { top: 'birch_log_top', side: 'birch_log' },
+    'minecraft:jungle_log': { top: 'jungle_log_top', side: 'jungle_log' },
+    'minecraft:acacia_log': { top: 'acacia_log_top', side: 'acacia_log' },
+    'minecraft:dark_oak_log': { top: 'dark_oak_log_top', side: 'dark_oak_log' },
+    'minecraft:cherry_log': { top: 'cherry_log_top', side: 'cherry_log' },
+    'minecraft:mangrove_log': { top: 'mangrove_log_top', side: 'mangrove_log' },
+    'minecraft:oak_planks': { all: 'oak_planks' },
+    'minecraft:spruce_planks': { all: 'spruce_planks' },
+    'minecraft:birch_planks': { all: 'birch_planks' },
+    'minecraft:jungle_planks': { all: 'jungle_planks' },
+    'minecraft:acacia_planks': { all: 'acacia_planks' },
+    'minecraft:dark_oak_planks': { all: 'dark_oak_planks' },
+    'minecraft:cherry_planks': { all: 'cherry_planks' },
+    'minecraft:mangrove_planks': { all: 'mangrove_planks' },
+    'minecraft:oak_leaves': { all: 'oak_leaves' },
+    'minecraft:spruce_leaves': { all: 'spruce_leaves' },
+    'minecraft:birch_leaves': { all: 'birch_leaves' },
+    'minecraft:jungle_leaves': { all: 'jungle_leaves' },
+    'minecraft:acacia_leaves': { all: 'acacia_leaves' },
+    'minecraft:dark_oak_leaves': { all: 'dark_oak_leaves' },
+    'minecraft:cherry_leaves': { all: 'cherry_leaves' },
+    'minecraft:azalea_leaves': { all: 'azalea_leaves' },
+    'minecraft:glass': { all: 'glass' },
+    'minecraft:sandstone': { top: 'sandstone_top', side: 'sandstone', bottom: 'sandstone_bottom' },
+    'minecraft:red_sandstone': { top: 'red_sandstone_top', side: 'red_sandstone', bottom: 'red_sandstone_bottom' },
+    'minecraft:bricks': { all: 'bricks' },
+    'minecraft:bookshelf': { top: 'oak_planks', side: 'bookshelf', bottom: 'oak_planks' },
+    'minecraft:obsidian': { all: 'obsidian' },
+    'minecraft:crying_obsidian': { all: 'crying_obsidian' },
+    'minecraft:netherrack': { all: 'netherrack' },
+    'minecraft:soul_sand': { all: 'soul_sand' },
+    'minecraft:soul_soil': { all: 'soul_soil' },
+    'minecraft:glowstone': { all: 'glowstone' },
+    'minecraft:end_stone': { all: 'end_stone' },
+    'minecraft:end_stone_bricks': { all: 'end_stone_bricks' },
+    'minecraft:purpur_block': { all: 'purpur_block' },
+    'minecraft:prismarine': { all: 'prismarine' },
+    'minecraft:dark_prismarine': { all: 'dark_prismarine' },
+    'minecraft:sea_lantern': { all: 'sea_lantern' },
+    'minecraft:iron_block': { all: 'iron_block' },
+    'minecraft:gold_block': { all: 'gold_block' },
+    'minecraft:diamond_block': { all: 'diamond_block' },
+    'minecraft:emerald_block': { all: 'emerald_block' },
+    'minecraft:lapis_block': { all: 'lapis_block' },
+    'minecraft:redstone_block': { all: 'redstone_block' },
+    'minecraft:coal_block': { all: 'coal_block' },
+    'minecraft:copper_block': { all: 'copper_block' },
+    'minecraft:iron_ore': { all: 'iron_ore' },
+    'minecraft:gold_ore': { all: 'gold_ore' },
+    'minecraft:diamond_ore': { all: 'diamond_ore' },
+    'minecraft:emerald_ore': { all: 'emerald_ore' },
+    'minecraft:lapis_ore': { all: 'lapis_ore' },
+    'minecraft:redstone_ore': { all: 'redstone_ore' },
+    'minecraft:coal_ore': { all: 'coal_ore' },
+    'minecraft:copper_ore': { all: 'copper_ore' },
+    'minecraft:deepslate_iron_ore': { all: 'deepslate_iron_ore' },
+    'minecraft:deepslate_gold_ore': { all: 'deepslate_gold_ore' },
+    'minecraft:deepslate_diamond_ore': { all: 'deepslate_diamond_ore' },
+    'minecraft:deepslate_emerald_ore': { all: 'deepslate_emerald_ore' },
+    'minecraft:deepslate_lapis_ore': { all: 'deepslate_lapis_ore' },
+    'minecraft:deepslate_redstone_ore': { all: 'deepslate_redstone_ore' },
+    'minecraft:deepslate_coal_ore': { all: 'deepslate_coal_ore' },
+    'minecraft:deepslate_copper_ore': { all: 'deepslate_copper_ore' },
+    'minecraft:tuff': { all: 'tuff' },
+    'minecraft:calcite': { all: 'calcite' },
+    'minecraft:amethyst_block': { all: 'amethyst_block' },
+    'minecraft:dripstone_block': { all: 'dripstone_block' },
+    'minecraft:snow_block': { all: 'snow' },
+    'minecraft:ice': { all: 'ice' },
+    'minecraft:packed_ice': { all: 'packed_ice' },
+    'minecraft:blue_ice': { all: 'blue_ice' },
+    'minecraft:mycelium': { top: 'mycelium_top', side: 'mycelium_side', bottom: 'dirt' },
+    'minecraft:terracotta': { all: 'terracotta' },
+    'minecraft:white_terracotta': { all: 'white_terracotta' },
+    'minecraft:orange_terracotta': { all: 'orange_terracotta' },
+    'minecraft:brown_terracotta': { all: 'brown_terracotta' },
+    'minecraft:red_terracotta': { all: 'red_terracotta' },
+    'minecraft:yellow_terracotta': { all: 'yellow_terracotta' },
+    'minecraft:white_concrete': { all: 'white_concrete' },
+    'minecraft:gray_concrete': { all: 'gray_concrete' },
+    'minecraft:black_concrete': { all: 'black_concrete' },
+    'minecraft:white_wool': { all: 'white_wool' },
+    'minecraft:crafting_table': { top: 'crafting_table_top', side: 'crafting_table_side', bottom: 'oak_planks' },
+    'minecraft:furnace': { top: 'furnace_top', side: 'furnace_side', front: 'furnace_front' },
+    'minecraft:tnt': { top: 'tnt_top', side: 'tnt_side', bottom: 'tnt_bottom' },
+    'minecraft:melon': { top: 'melon_top', side: 'melon_side' },
+    'minecraft:pumpkin': { top: 'pumpkin_top', side: 'pumpkin_side' },
+    'minecraft:hay_block': { top: 'hay_block_top', side: 'hay_block_side' },
+    'minecraft:bone_block': { top: 'bone_block_top', side: 'bone_block_side' },
+    'minecraft:quartz_block': { top: 'quartz_block_top', side: 'quartz_block_side', bottom: 'quartz_block_bottom' },
+    'minecraft:smooth_quartz': { all: 'quartz_block_bottom' },
+    'minecraft:nether_bricks': { all: 'nether_bricks' },
+    'minecraft:red_nether_bricks': { all: 'red_nether_bricks' },
+    'minecraft:basalt': { top: 'basalt_top', side: 'basalt_side' },
+    'minecraft:polished_basalt': { top: 'polished_basalt_top', side: 'polished_basalt_side' },
+    'minecraft:blackstone': { top: 'blackstone_top', side: 'blackstone' },
+    'minecraft:polished_blackstone': { all: 'polished_blackstone' },
+    'minecraft:polished_blackstone_bricks': { all: 'polished_blackstone_bricks' },
+    'minecraft:warped_nylium': { top: 'warped_nylium', side: 'warped_nylium_side', bottom: 'netherrack' },
+    'minecraft:crimson_nylium': { top: 'crimson_nylium', side: 'crimson_nylium_side', bottom: 'netherrack' },
+    'minecraft:warped_stem': { top: 'warped_stem_top', side: 'warped_stem' },
+    'minecraft:crimson_stem': { top: 'crimson_stem_top', side: 'crimson_stem' },
+    'minecraft:warped_planks': { all: 'warped_planks' },
+    'minecraft:crimson_planks': { all: 'crimson_planks' },
+    'minecraft:moss_block': { all: 'moss_block' },
+    'minecraft:sculk': { all: 'sculk' },
+    'minecraft:mud_bricks': { all: 'mud_bricks' },
+    'minecraft:bamboo_planks': { all: 'bamboo_planks' },
+  };
+
+  /**
+   * Load texture atlas from prismarine-minecraft-data CDN.
+   * Creates individual block textures and builds a combined atlas.
+   * @returns {Promise<boolean>} true if loaded successfully
+   */
+  async function loadTextureAtlas() {
+    if (TEXTURE_ATLAS.loaded || TEXTURE_ATLAS.loading) return TEXTURE_ATLAS.loaded;
+    TEXTURE_ATLAS.loading = true;
+
+    console.log('[TextureAtlas] Loading Minecraft block textures from CDN...');
+    const startTime = performance.now();
+
+    try {
+      // Collect all unique texture names we need
+      const textureNames = new Set();
+      for (const mapping of Object.values(BLOCK_TEXTURE_MAP)) {
+        if (mapping.all) textureNames.add(mapping.all);
+        if (mapping.top) textureNames.add(mapping.top);
+        if (mapping.side) textureNames.add(mapping.side);
+        if (mapping.bottom) textureNames.add(mapping.bottom);
+        if (mapping.front) textureNames.add(mapping.front);
+      }
+
+      const texNames = [...textureNames];
+      const TILE_SIZE = 16; // Each MC texture is 16x16
+      const ATLAS_COLS = Math.ceil(Math.sqrt(texNames.length));
+      const ATLAS_ROWS = Math.ceil(texNames.length / ATLAS_COLS);
+      const atlasW = ATLAS_COLS * TILE_SIZE;
+      const atlasH = ATLAS_ROWS * TILE_SIZE;
+
+      // Create canvas for atlas
+      const canvas = document.createElement('canvas');
+      canvas.width = atlasW;
+      canvas.height = atlasH;
+      const ctx = canvas.getContext('2d');
+
+      // Load textures from prismarine-minecraft-data CDN
+      const CDN_BASE = 'https://cdn.jsdelivr.net/npm/minecraft-assets@latest/data/1.20.4/blocks';
+      const texCoords = {}; // texName -> { col, row }
+      let loadedCount = 0;
+
+      // Load textures in batches
+      const BATCH_SIZE = 20;
+      for (let b = 0; b < texNames.length; b += BATCH_SIZE) {
+        const batch = texNames.slice(b, b + BATCH_SIZE);
+        await Promise.all(batch.map((name, batchIdx) => {
+          const globalIdx = b + batchIdx;
+          const col = globalIdx % ATLAS_COLS;
+          const row = Math.floor(globalIdx / ATLAS_COLS);
+          texCoords[name] = { col, row };
+
+          return new Promise((resolve) => {
+            const img = new Image();
+            img.crossOrigin = 'anonymous';
+            img.onload = () => {
+              ctx.drawImage(img, col * TILE_SIZE, row * TILE_SIZE, TILE_SIZE, TILE_SIZE);
+              loadedCount++;
+              resolve();
+            };
+            img.onerror = () => {
+              // Draw a solid color fallback from BLOCK_COLORS
+              ctx.fillStyle = '#808080';
+              ctx.fillRect(col * TILE_SIZE, row * TILE_SIZE, TILE_SIZE, TILE_SIZE);
+              resolve();
+            };
+            img.src = `${CDN_BASE}/${name}.png`;
+          });
+        }));
+      }
+
+      console.log(`[TextureAtlas] Loaded ${loadedCount}/${texNames.length} textures`);
+
+      // Build UV map for each block
+      for (const [blockName, mapping] of Object.entries(BLOCK_TEXTURE_MAP)) {
+        const uvs = {};
+        const getUV = (texName) => {
+          const tc = texCoords[texName];
+          if (!tc) return [0, 0, 1/atlasW * TILE_SIZE, 1/atlasH * TILE_SIZE];
+          return [
+            tc.col * TILE_SIZE / atlasW,
+            1.0 - (tc.row + 1) * TILE_SIZE / atlasH, // flip Y for WebGL
+            (tc.col + 1) * TILE_SIZE / atlasW,
+            1.0 - tc.row * TILE_SIZE / atlasH
+          ];
+        };
+
+        if (mapping.all) {
+          const uv = getUV(mapping.all);
+          uvs.top = uv; uvs.bottom = uv; uvs.north = uv;
+          uvs.south = uv; uvs.east = uv; uvs.west = uv;
+        } else {
+          uvs.top = getUV(mapping.top || mapping.side || 'stone');
+          uvs.bottom = getUV(mapping.bottom || mapping.top || mapping.side || 'stone');
+          const sideUV = getUV(mapping.side || mapping.all || 'stone');
+          uvs.north = mapping.front ? getUV(mapping.front) : sideUV;
+          uvs.south = sideUV; uvs.east = sideUV; uvs.west = sideUV;
+        }
+        TEXTURE_ATLAS.blockUVs[blockName] = uvs;
+      }
+
+      // Create Three.js texture
+      const texture = new THREE.CanvasTexture(canvas);
+      texture.magFilter = THREE.NearestFilter;
+      texture.minFilter = THREE.NearestFilter;
+      texture.colorSpace = THREE.SRGBColorSpace;
+
+      // Create textured material
+      const material = new THREE.MeshStandardMaterial({
+        map: texture,
+        vertexColors: true, // Keep vertex colors for AO shading
+        roughness: 0.85,
+        metalness: 0.05,
+        side: THREE.FrontSide,
+      });
+
+      TEXTURE_ATLAS.texture = texture;
+      TEXTURE_ATLAS.material = material;
+      TEXTURE_ATLAS.atlasWidth = atlasW;
+      TEXTURE_ATLAS.atlasHeight = atlasH;
+      TEXTURE_ATLAS.loaded = true;
+      TEXTURE_ATLAS.loading = false;
+
+      const elapsed = (performance.now() - startTime).toFixed(0);
+      console.log(`[TextureAtlas] Atlas ready: ${atlasW}x${atlasH}, ${Object.keys(TEXTURE_ATLAS.blockUVs).length} blocks mapped in ${elapsed}ms`);
+      return true;
+    } catch (err) {
+      console.warn('[TextureAtlas] Failed to load:', err);
+      TEXTURE_ATLAS.loading = false;
+      return false;
+    }
+  }
+
+  /**
+   * Get UV coordinates for a block face.
+   * Returns [u0, v0, u1, v1] or null if not in atlas.
+   */
+  function getBlockFaceUV(blockState, faceName) {
+    if (!TEXTURE_ATLAS.loaded) return null;
+    const { name } = parseBlockState(blockState);
+    const uvs = TEXTURE_ATLAS.blockUVs[name];
+    if (!uvs) return null;
+    return uvs[faceName] || uvs.north || null;
+  }
+
   // Helper: parse block state string to extract base name and properties
   function parseBlockState(stateStr) {
     if (!stateStr) return { name: 'minecraft:air', props: {} };
@@ -479,14 +777,18 @@
 
   /**
    * Build geometry for a chunk section using greedy meshing.
-   * Returns { positions: Float32Array, normals: Float32Array, colors: Float32Array, indices: Uint32Array }
+   * When texture atlas is loaded, also generates UV coordinates and disables
+   * greedy merge across different block types to preserve per-block texturing.
+   * Returns { positions, normals, colors, indices, uvs? }
    */
   function buildSectionMesh(section, chunkX, chunkZ, getNeighborBlock) {
     const positions = [];
     const normals = [];
     const colors = [];
+    const uvs = [];
     const indices = [];
     let vertexCount = 0;
+    const useAtlas = TEXTURE_ATLAS.loaded;
 
     const { palette, blocks, sectionY } = section;
     const baseWorldX = chunkX * 16;
@@ -555,6 +857,7 @@
         }
 
         // Greedy merge: scan the mask and merge rectangles of identical blocks
+        // When texture atlas is loaded, only merge same block types (1x1 if textured)
         const visited = new Array(256).fill(false);
 
         for (let j = 0; j < 16; j++) {
@@ -564,27 +867,29 @@
 
             const color = maskColors[idx];
             const state = mask[idx];
+            const faceUV = useAtlas ? getBlockFaceUV(state, face.name) : null;
 
-            // Expand width (i direction)
+            // When textured, don't merge (each block needs its own UVs)
             let width = 1;
-            while (i + width < 16) {
-              const ni = j * 16 + (i + width);
-              if (!visited[ni] && mask[ni] === state && maskColors[ni] === color) {
-                width++;
-              } else break;
-            }
-
-            // Expand height (j direction)
             let height = 1;
-            outer:
-            while (j + height < 16) {
-              for (let wi = 0; wi < width; wi++) {
-                const ni = (j + height) * 16 + (i + wi);
-                if (visited[ni] || mask[ni] !== state || maskColors[ni] !== color) {
-                  break outer;
-                }
+            if (!faceUV) {
+              // Vertex-color mode: greedy merge across same-color blocks
+              while (i + width < 16) {
+                const ni = j * 16 + (i + width);
+                if (!visited[ni] && mask[ni] === state && maskColors[ni] === color) {
+                  width++;
+                } else break;
               }
-              height++;
+              outer:
+              while (j + height < 16) {
+                for (let wi = 0; wi < width; wi++) {
+                  const ni = (j + height) * 16 + (i + wi);
+                  if (visited[ni] || mask[ni] !== state || maskColors[ni] !== color) {
+                    break outer;
+                  }
+                }
+                height++;
+              }
             }
 
             // Mark visited
@@ -643,6 +948,16 @@
               colors.push(r, g, b);
             }
 
+            // Generate UV coordinates if atlas is loaded and block has texture
+            if (faceUV) {
+              const [u0, v0t, u1, v1t] = faceUV;
+              // Map quad corners to UV (4 vertices, same winding)
+              uvs.push(u0, v0t, u1, v0t, u1, v1t, u0, v1t);
+            } else if (useAtlas) {
+              // No texture for this block - use white pixel region (0,0)
+              uvs.push(0, 0, 0, 0, 0, 0, 0, 0);
+            }
+
             // Two triangles
             indices.push(
               vertexCount, vertexCount + 1, vertexCount + 2,
@@ -654,12 +969,16 @@
       }
     }
 
-    return {
+    const result = {
       positions: new Float32Array(positions),
       normals: new Float32Array(normals),
       colors: new Float32Array(colors),
       indices: new Uint32Array(indices)
     };
+    if (useAtlas && uvs.length > 0) {
+      result.uvs = new Float32Array(uvs);
+    }
+    return result;
   }
 
   // ===== CHUNK COLUMN MANAGER =====
@@ -823,7 +1142,14 @@
       geometry.setAttribute('color', new THREE.BufferAttribute(meshData.colors, 3));
       geometry.setIndex(new THREE.BufferAttribute(meshData.indices, 1));
 
-      const mesh = new THREE.Mesh(geometry, this.opaqueMaterial);
+      // Use textured material when UV data is available
+      let material = this.opaqueMaterial;
+      if (meshData.uvs && TEXTURE_ATLAS.material) {
+        geometry.setAttribute('uv', new THREE.BufferAttribute(meshData.uvs, 2));
+        material = TEXTURE_ATLAS.material;
+      }
+
+      const mesh = new THREE.Mesh(geometry, material);
       mesh.name = `section_${section.sectionY}`;
       mesh.castShadow = true;
       mesh.receiveShadow = true;
@@ -1063,6 +1389,8 @@
     getBlockInfo,
     isAir,
     isTransparent,
+    loadTextureAtlas,
+    TEXTURE_ATLAS,
   };
 
 })();

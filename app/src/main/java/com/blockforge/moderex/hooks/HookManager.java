@@ -15,6 +15,7 @@ public class HookManager {
     private CitizensHook citizensHook;
     private SparkHook sparkHook;
     private SimpleVoiceChatHook voiceChatHook;
+    private BlueMapHook blueMapHook;
     private AnticheatManager anticheatManager;
     private String detectedAnticheat;
 
@@ -130,6 +131,19 @@ public class HookManager {
             } catch (Exception e) {
                 plugin.logDebug("[VoiceChat] Exception during hook: " + e.getMessage());
                 voiceChatHook = null;
+            }
+        }
+
+        // Hook into BlueMap (3D map renderer for replay terrain)
+        if (isPluginEnabled("BlueMap")) {
+            try {
+                blueMapHook = new BlueMapHook(plugin);
+                if (!blueMapHook.isAvailable()) {
+                    blueMapHook = null;
+                }
+            } catch (Exception e) {
+                plugin.logDebug("[BlueMap] Exception during hook: " + e.getMessage());
+                blueMapHook = null;
             }
         }
 
@@ -350,6 +364,18 @@ public class HookManager {
 
     public SimpleVoiceChatHook getVoiceChatHook() {
         return voiceChatHook;
+    }
+
+    public boolean isBlueMapAvailable() {
+        return blueMapHook != null && blueMapHook.isAvailable();
+    }
+
+    public String getBlueMapVersion() {
+        return blueMapHook != null ? blueMapHook.getVersion() : null;
+    }
+
+    public BlueMapHook getBlueMapHook() {
+        return blueMapHook;
     }
 
     public void shutdown() {

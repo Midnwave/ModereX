@@ -35,6 +35,10 @@
       this.blockApplicator = null;
       this.terrainLoaded = false;
 
+      // BlueMap integration
+      this.blueMapConfig = null;
+      this.blueMapTiles = null; // THREE.Group for tile planes
+
       // Camera
       this.freeCamera = null;
       this.orbitTarget = new THREE.Vector3(0, 70, 0);
@@ -221,6 +225,9 @@
       }
 
       try {
+        // Try to load texture atlas before building meshes (non-blocking fallback)
+        await this._initTextureAtlas();
+
         console.log('[Replay3D] Parsing chunk data...');
         const columns = await terrain.ChunkDataParser.parse(base64Data);
         console.log(`[Replay3D] Loaded ${columns.length} chunk columns`);
@@ -235,10 +242,117 @@
           this._updateOrbitCamera();
         }
 
+        // Try to load BlueMap tiles for far terrain
+        if (this.blueMapConfig?.available) {
+          const center = this.chunkManager.getCenter();
+          this._loadBlueMapTiles(center.x, center.z, 256);
+        }
+
         return columns.length;
       } catch (e) {
         console.error('[Replay3D] Failed to load chunk data:', e);
         throw e;
+      }
+    }
+
+    /**
+     * Set BlueMap configuration from server state.
+     */
+    setBlueMapConfig(config) {
+      this.blueMapConfig = config;
+      console.log('[Replay3D] BlueMap config:', config?.available ? 'available' : 'not available');
+    }
+
+    /**
+     * Initialize texture atlas (Mode 2 fallback).
+     * Non-blocking - if it fails, terrain renders with vertex colors.
+     */
+    async _initTextureAtlas() {
+      const terrain = window.MX?.terrain;
+      if (!terrain?.loadTextureAtlas) return;
+      if (terrain.TEXTURE_ATLAS?.loaded || terrain.TEXTURE_ATLAS?.loading) return;
+
+      try {
+        await terrain.loadTextureAtlas();
+      } catch (e) {
+        console.warn('[Replay3D] Texture atlas failed, using vertex colors:', e.message);
+      }
+    }
+
+    /**
+     * Load BlueMap tiles as textured planes for far-range terrain (Mode 1).
+     * Tiles are fetched through the plugin's CORS proxy.
+     */
+    async _loadBlueMapTiles(centerX, centerZ, radius) {
+      if (!this.blueMapConfig?.available || !this.blueMapConfig.mapIds?.length) return;
+
+      const mapId = this.blueMapConfig.mapIds[0]; // Use first available map
+      console.log(`[Replay3D] Loading BlueMap tiles for map "${mapId}" around (${centerX}, ${centerZ})...`);
+
+      // BlueMap uses 500x500 block tiles at low-res
+      const TILE_SIZE = 500;
+      const tileMinX = Math.floor((centerX - radius) / TILE_SIZE);
+      const tileMaxX = Math.floor((centerX + radius) / TILE_SIZE);
+      const tileMinZ = Math.floor((centerZ - radius) / TILE_SIZE);
+      const tileMaxZ = Math.floor((centerZ + radius) / TILE_SIZE);
+
+      // Create group for tiles
+      if (this.blueMapTiles) {
+        this.scene.remove(this.blueMapTiles);
+        this.blueMapTiles.traverse(child => {
+          if (child.geometry) child.geometry.dispose();
+          if (child.material?.map) child.material.map.dispose();
+          if (child.material) child.material.dispose();
+        });
+      }
+      this.blueMapTiles = new THREE.Group();
+      this.blueMapTiles.name = 'blueMapTiles';
+      this.scene.add(this.blueMapTiles);
+
+      const loader = new THREE.TextureLoader();
+      let loadedCount = 0;
+
+      for (let tx = tileMinX; tx <= tileMaxX; tx++) {
+        for (let tz = tileMinZ; tz <= tileMaxZ; tz++) {
+          try {
+            // BlueMap low-res tile path format
+            const tilePath = `${mapId}/tiles/0/x${tx}/z${tz}.png`;
+            const proxyUrl = `/api/bluemap/tiles/${tilePath}`;
+
+            const texture = await new Promise((resolve, reject) => {
+              loader.load(proxyUrl, resolve, undefined, reject);
+            });
+
+            texture.magFilter = THREE.NearestFilter;
+            texture.minFilter = THREE.LinearFilter;
+
+            const geometry = new THREE.PlaneGeometry(TILE_SIZE, TILE_SIZE);
+            const material = new THREE.MeshBasicMaterial({
+              map: texture,
+              side: THREE.DoubleSide,
+              transparent: false,
+            });
+
+            const plane = new THREE.Mesh(geometry, material);
+            // Position tile flat on the ground at y=62 (sea level)
+            plane.rotation.x = -Math.PI / 2;
+            plane.position.set(
+              tx * TILE_SIZE + TILE_SIZE / 2,
+              62, // Sea level
+              tz * TILE_SIZE + TILE_SIZE / 2
+            );
+            plane.renderOrder = -1; // Render behind voxel terrain
+
+            this.blueMapTiles.add(plane);
+            loadedCount++;
+          } catch (e) {
+            // Tile doesn't exist or failed to load - skip silently
+          }
+        }
+      }
+
+      if (loadedCount > 0) {
+        console.log(`[Replay3D] Loaded ${loadedCount} BlueMap tiles`);
       }
     }
 
@@ -666,6 +780,14 @@
       if (this._resizeObserver) this._resizeObserver.disconnect();
       if (this.freeCamera) this.freeCamera.dispose();
       if (this.chunkManager) this.chunkManager.dispose();
+      if (this.blueMapTiles) {
+        this.scene.remove(this.blueMapTiles);
+        this.blueMapTiles.traverse(child => {
+          if (child.geometry) child.geometry.dispose();
+          if (child.material?.map) child.material.map.dispose();
+          if (child.material) child.material.dispose();
+        });
+      }
 
       this.players.forEach(group => {
         group.traverse(child => {

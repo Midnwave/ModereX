@@ -4631,6 +4631,15 @@
           const viewer = new window.MX.Replay3DViewer(container);
           activeReplay3DViewer = viewer;
 
+          // Pass BlueMap config from integrations state or replay data
+          const blueMapConfig = {
+            available: replay.blueMapAvailable || state.integrations?.blueMapDetected || false,
+            webUrl: replay.blueMapWebUrl || state.integrations?.blueMapWebUrl || null,
+            webPort: replay.blueMapWebPort || state.integrations?.blueMapWebPort || 8100,
+            mapIds: replay.blueMapMapIds || state.integrations?.blueMapMapIds || [],
+          };
+          viewer.setBlueMapConfig(blueMapConfig);
+
           // Set replay data
           viewer.setReplayData(replay, snapshots, blockLogs || []);
 
@@ -9168,6 +9177,11 @@
       if (data.replay) {
         // Attach hasChunkData to replay object for the viewer
         data.replay.hasChunkData = !!data.hasChunkData;
+        // Attach BlueMap info from server response
+        data.replay.blueMapAvailable = !!data.blueMapAvailable;
+        data.replay.blueMapWebUrl = data.blueMapWebUrl || null;
+        data.replay.blueMapWebPort = data.blueMapWebPort || 8100;
+        data.replay.blueMapMapIds = data.blueMapMapIds || [];
         openReplayDetailsModal(data.replay, data.snapshots || [], data.blockLogs || []);
       }
     });

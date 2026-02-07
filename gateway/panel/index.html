@@ -111,7 +111,7 @@
     </div>
   </div>
 
-  <!-- Server Offline Overlay (non-dismissable) -->
+  <!-- Server Offline Overlay (non-dismissable, gateway mode) -->
   <div class="serverOfflineOverlay" id="serverOfflineOverlay">
     <div class="serverOfflineBox">
       <div class="offlineIcon">
@@ -119,10 +119,115 @@
       </div>
       <h2>Server Offline</h2>
       <p>The Minecraft server is currently offline or unreachable.</p>
-      <p class="offline-hint">Attempting to reconnect automatically in the background...</p>
+      <p class="offline-hint">The panel will reconnect automatically when the server comes back online.</p>
       <div class="offline-status">
-        <span class="spinner small"></span>
-        <span id="offlineReconnectStatus">Reconnecting...</span>
+        <span class="offline-pulse-dot"></span>
+        <span id="offlineReconnectStatus">Waiting for server...</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Server Not Found Page (gateway mode - invalid server ID) -->
+  <div class="errorPage serverNotFoundPage" id="serverNotFoundPage">
+    <div class="errorPageContainer">
+      <div class="errorPageHeader">
+        <div class="errorPageHeaderSection">
+          <span class="errorPageDot green"></span>
+          <span>Your Browser</span>
+        </div>
+        <div class="errorPageLine"></div>
+        <div class="errorPageHeaderSection">
+          <span class="errorPageDot green"></span>
+          <span>ModereX Gateway</span>
+        </div>
+        <div class="errorPageLine dashed"></div>
+        <div class="errorPageHeaderSection">
+          <span class="errorPageDot red"></span>
+          <span>Server</span>
+        </div>
+      </div>
+      <div class="errorPageBody">
+        <div class="errorPageCode">404</div>
+        <h1>Server Not Found</h1>
+        <p>The server ID in the URL does not match any server connected to the ModereX gateway.</p>
+        <div class="errorPageDetails">
+          <p><strong>What happened?</strong></p>
+          <p>The server ID <code id="notFoundServerId"></code> is either invalid or the server has never connected to the gateway.</p>
+        </div>
+        <div class="errorPageActions">
+          <a href="https://moderex.net" class="btn primary"><i class="fa-solid fa-house"></i> ModereX Home</a>
+          <button class="btn ghost" onclick="location.reload()"><i class="fa-solid fa-rotate-right"></i> Try Again</button>
+        </div>
+      </div>
+      <div class="errorPageFooter">
+        <span>ModereX Gateway</span>
+        <span class="errorPageFooterDot"></span>
+        <span id="notFoundTimestamp"></span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Gateway Error Page (infrastructure issue) -->
+  <div class="errorPage gatewayErrorPage" id="gatewayErrorPage">
+    <div class="errorPageContainer">
+      <div class="errorPageHeader">
+        <div class="errorPageHeaderSection">
+          <span class="errorPageDot green"></span>
+          <span>Your Browser</span>
+        </div>
+        <div class="errorPageLine"></div>
+        <div class="errorPageHeaderSection">
+          <span class="errorPageDot red"></span>
+          <span>ModereX Gateway</span>
+        </div>
+        <div class="errorPageLine dashed"></div>
+        <div class="errorPageHeaderSection">
+          <span class="errorPageDot gray"></span>
+          <span>Server</span>
+        </div>
+      </div>
+      <div class="errorPageBody">
+        <div class="errorPageCode">502</div>
+        <h1 id="gatewayErrorTitle">Gateway Error</h1>
+        <p id="gatewayErrorMessage">The ModereX gateway encountered an error while processing your request.</p>
+        <div class="errorPageDetails">
+          <p><strong>What happened?</strong></p>
+          <p>The ModereX gateway infrastructure is experiencing issues. This is usually temporary.</p>
+        </div>
+        <div class="errorPageActions">
+          <button class="btn primary" onclick="location.reload()"><i class="fa-solid fa-rotate-right"></i> Try Again</button>
+          <a href="https://moderex.net" class="btn ghost"><i class="fa-solid fa-house"></i> ModereX Home</a>
+        </div>
+      </div>
+      <div class="errorPageFooter">
+        <span>ModereX Gateway</span>
+        <span class="errorPageFooterDot"></span>
+        <span id="gatewayErrorTimestamp"></span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Server List Page (global mode - no server selected) -->
+  <div class="serverListPage" id="serverListPage">
+    <div class="serverListContainer">
+      <div class="serverListHeader">
+        <img src="537154108207028818e303ef9465c1f66717660d_96.png" class="serverListLogo" alt="ModereX">
+        <h1>ModereX Panel</h1>
+        <p class="serverListSub">Select a server to manage</p>
+        <div class="serverListUser" id="serverListUser" style="display:none">
+          <img id="serverListAvatar" src="" alt="">
+          <span id="serverListUsername">Player</span>
+          <button class="btn mini ghost" onclick="window.MX.auth.logout()" title="Log out"><i class="fa-solid fa-right-from-bracket"></i></button>
+        </div>
+      </div>
+      <div class="serverListGrid" id="serverListGrid">
+        <div class="serverListLoading">
+          <div class="spinner"></div>
+          <p>Loading servers...</p>
+        </div>
+      </div>
+      <div class="serverListFooter">
+        <p class="serverListNote">Only servers using the ModereX gateway are shown.</p>
       </div>
     </div>
   </div>
@@ -347,6 +452,10 @@
                 <i class="fa-solid fa-bell"></i>
                 <span>Notifications</span>
                 <span class="notification-count" id="notificationCount" style="display:none">0</span>
+              </div>
+              <div class="profile-dropdown-item gateway-only" id="serversDropdownItem" onclick="goToServerList(); closeProfileDropdown()" style="display:none">
+                <i class="fa-solid fa-server"></i>
+                <span>Servers</span>
               </div>
               <div class="profile-dropdown-divider"></div>
               <div class="profile-dropdown-item logout" onclick="logout()">
@@ -2853,6 +2962,13 @@
                 <p>Performance profiler for diagnostics.</p>
                 <div class="hintline">Status: <span class="badge gray" id="sparkStatus">Not detected</span></div>
                 <div id="sparkDetails" style="margin-top:4px;font-size:12px;color:var(--text-secondary)"></div>
+              </div>
+
+              <div class="card" style="margin:0">
+                <h3><i class="fa-solid fa-map" style="color:#2196F3"></i> BlueMap</h3>
+                <p>3D map renderer for enhanced replay terrain.</p>
+                <div class="hintline">Status: <span class="badge gray" id="blueMapStatus">Not detected</span></div>
+                <div id="blueMapDetails" style="margin-top:4px;font-size:12px;color:var(--text-secondary)"></div>
               </div>
             </div>
           </div>

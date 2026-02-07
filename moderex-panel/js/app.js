@@ -382,8 +382,8 @@
     noPermDiv.className = 'no-permission-overlay';
     noPermDiv.innerHTML = `
       <i class="fa-solid fa-ban"></i>
-      <span>${message}</span>
-      <button onclick="closeOverlay('${overlayId}')">Close</button>
+      <span>${escapeHtml(message)}</span>
+      <button onclick="closeOverlay('${escapeHtml(overlayId)}')">Close</button>
     `;
     modal.style.position = 'relative';
     modal.appendChild(noPermDiv);
@@ -2167,7 +2167,7 @@
       ${recentCmds.map(item => `<div class="drawer-row"><div class="meta"><b>${escapeHtml(item.cmd || item)}</b></div></div>`).join('')}
       <div class="drawer-row">
         <div class="meta"><small>${p.recentCommands.length} total commands</small></div>
-        <button class="mini" onclick="openCommandHistory('${p.id}')"><i class="fa-solid fa-up-right-from-square"></i> Expand</button>
+        <button class="mini" onclick="openCommandHistory('${escapeHtml(p.id)}')"><i class="fa-solid fa-up-right-from-square"></i> Expand</button>
       </div>
     ` : `<div class="drawer-row"><div class="meta"><small>No commands.</small></div></div>`;
   }
@@ -2244,14 +2244,15 @@
     }
 
     // Build quick punishment buttons based on permissions
+    const safeId = escapeHtml(p.id);
     const warnBtn = canIssuePunishment('WARN')
-      ? `<button class="action-btn warn" onclick="openPunishModal('WARN','${p.id}')"><i class="fa-solid fa-triangle-exclamation"></i> Warn</button>`
+      ? `<button class="action-btn warn" onclick="openPunishModal('WARN','${safeId}')"><i class="fa-solid fa-triangle-exclamation"></i> Warn</button>`
       : `<button class="action-btn warn btn-disabled" disabled title="You lack permission to warn players"><i class="fa-solid fa-lock"></i> Warn</button>`;
     const muteBtn = canIssuePunishment('MUTE')
-      ? `<button class="action-btn mute" onclick="openPunishModal('MUTE','${p.id}')"><i class="fa-solid fa-volume-xmark"></i> Mute</button>`
+      ? `<button class="action-btn mute" onclick="openPunishModal('MUTE','${safeId}')"><i class="fa-solid fa-volume-xmark"></i> Mute</button>`
       : `<button class="action-btn mute btn-disabled" disabled title="You lack permission to mute players"><i class="fa-solid fa-lock"></i> Mute</button>`;
     const banBtn = canIssuePunishment('BAN')
-      ? `<button class="action-btn ban" onclick="openPunishModal('BAN','${p.id}')"><i class="fa-solid fa-ban"></i> Ban</button>`
+      ? `<button class="action-btn ban" onclick="openPunishModal('BAN','${safeId}')"><i class="fa-solid fa-ban"></i> Ban</button>`
       : `<button class="action-btn ban btn-disabled" disabled title="You lack permission to ban players"><i class="fa-solid fa-lock"></i> Ban</button>`;
 
     dom().drawerActionBar.innerHTML = `
@@ -2307,7 +2308,7 @@
       dom().drawerViolations.innerHTML = `<div class="drawer-row"><div class="meta"><small style="color:var(--muted)"><i class="fa-solid fa-lock"></i> No permission to view violations</small></div></div>`;
     } else {
       dom().drawerViolations.innerHTML = violations.length ? violations.slice(0, 8).map(v => `
-        <div class="drawer-row" style="cursor:${canViewDetails ? 'pointer' : 'default'}" ${canViewDetails ? `onclick="viewPunishmentDetails('${v.id}')"` : ''}>
+        <div class="drawer-row" style="cursor:${canViewDetails ? 'pointer' : 'default'}" ${canViewDetails ? `onclick="viewPunishmentDetails('${escapeHtml(v.id)}')"` : ''}>
           <div class="meta"><b>${escapeHtml(v.type)} | <span style="font-family:var(--font-mono)">${escapeHtml(v.id)}</span></b><small>${escapeHtml(fmtLong(v.createdAt))} | ${escapeHtml(truncateText(v.reason || 'No reason', 35))}</small></div>
           <span class="badge ${v.type === 'BAN' ? 'red' : v.type === 'MUTE' ? 'yellow' : 'blue'}"><i class="fa-solid fa-file-lines"></i></span>
         </div>
@@ -2387,7 +2388,7 @@
         ${recentCmds.map(item => `<div class="drawer-row"><div class="meta"><b>${escapeHtml(item.cmd || item.command || item)}</b><small>${item.t ? escapeHtml(fmtShort(item.t)) : ''}</small></div></div>`).join('')}
         <div class="drawer-row">
           <div class="meta"><small>${(p.recentCommands || []).length} total commands</small></div>
-          <button class="mini" onclick="openCommandHistory('${p.id}')"><i class="fa-solid fa-up-right-from-square"></i> Expand</button>
+          <button class="mini" onclick="openCommandHistory('${escapeHtml(p.id)}')"><i class="fa-solid fa-up-right-from-square"></i> Expand</button>
         </div>
       ` : `<div class="drawer-row"><div class="meta"><small>No commands.</small></div></div>`;
     } else {
@@ -4629,6 +4630,15 @@
         try {
           const viewer = new window.MX.Replay3DViewer(container);
           activeReplay3DViewer = viewer;
+
+          // Pass BlueMap config from integrations state or replay data
+          const blueMapConfig = {
+            available: replay.blueMapAvailable || state.integrations?.blueMapDetected || false,
+            webUrl: replay.blueMapWebUrl || state.integrations?.blueMapWebUrl || null,
+            webPort: replay.blueMapWebPort || state.integrations?.blueMapWebPort || 8100,
+            mapIds: replay.blueMapMapIds || state.integrations?.blueMapMapIds || [],
+          };
+          viewer.setBlueMapConfig(blueMapConfig);
 
           // Set replay data
           viewer.setReplayData(replay, snapshots, blockLogs || []);
@@ -9167,6 +9177,11 @@
       if (data.replay) {
         // Attach hasChunkData to replay object for the viewer
         data.replay.hasChunkData = !!data.hasChunkData;
+        // Attach BlueMap info from server response
+        data.replay.blueMapAvailable = !!data.blueMapAvailable;
+        data.replay.blueMapWebUrl = data.blueMapWebUrl || null;
+        data.replay.blueMapWebPort = data.blueMapWebPort || 8100;
+        data.replay.blueMapMapIds = data.blueMapMapIds || [];
         openReplayDetailsModal(data.replay, data.snapshots || [], data.blockLogs || []);
       }
     });
