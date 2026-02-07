@@ -1,0 +1,16 @@
+services:
+  - type: web
+    name: moderex-gateway
+    runtime: node
+    env: node
+    region: oregon
+    plan: free
+    buildCommand: npm install
+    startCommand: node gateway.js
+    envVars:
+      - key: PORT
+        value: 3000
+      - key: ADMIN_DEV_KEY
+        value: JAlxWlXIpRAZVwoVmRNf_cqC7FhXtdpccV9isTlY47s
+      - key: NODE_ENV
+        value: production
