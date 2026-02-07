@@ -50,8 +50,15 @@ jobs:
         VERSION="2.0dev-${{ steps.buildnum.outputs.number }}"
         echo "version=$VERSION" >> $GITHUB_OUTPUT
         mkdir -p releases
-        cp app/build/libs/ModereX-2.0.0.jar "releases/ModereX-${VERSION}.jar"
-        cp app/build/libs/ModereX-2.0.0.jar releases/ModereX-latest.jar
+        # Find the built JAR (it will be named ModereX-{version}.jar based on build.gradle)
+        JAR_FILE=$(ls app/build/libs/ModereX-*.jar | head -1)
+        if [ -z "$JAR_FILE" ]; then
+          echo "Error: No JAR file found in app/build/libs/"
+          exit 1
+        fi
+        echo "Found JAR: $JAR_FILE"
+        cp "$JAR_FILE" "releases/ModereX-${VERSION}.jar"
+        cp "$JAR_FILE" releases/ModereX-latest.jar
         echo "$(date -u +%Y-%m-%dT%H:%M:%SZ)" > releases/build-info.txt
         echo "Version: $VERSION" >> releases/build-info.txt
         echo "Build: ${{ steps.buildnum.outputs.number }}" >> releases/build-info.txt
