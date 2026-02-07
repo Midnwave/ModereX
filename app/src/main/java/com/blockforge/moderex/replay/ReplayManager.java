@@ -2,6 +2,7 @@ package com.blockforge.moderex.replay;
 
 import com.blockforge.moderex.ModereX;
 import com.blockforge.moderex.replay.chunk.ChunkCaptureManager;
+import com.blockforge.moderex.util.Msg;
 import org.bukkit.Bukkit;
 import org.bukkit.Location;
 import org.bukkit.entity.Player;
@@ -313,7 +314,7 @@ public class ReplayManager {
     public ReplayPlayback startPlayback(Player viewer, ReplaySession session) {
         // Check if Citizens is available
         if (!ReplayPlayback.isAvailable(plugin)) {
-            viewer.sendMessage(net.kyori.adventure.text.Component.text(
+            Msg.send(viewer, net.kyori.adventure.text.Component.text(
                     "Replay playback requires the Citizens plugin. Download from: https://ci.citizensnpcs.co/")
                     .color(net.kyori.adventure.text.format.NamedTextColor.RED));
             return null;

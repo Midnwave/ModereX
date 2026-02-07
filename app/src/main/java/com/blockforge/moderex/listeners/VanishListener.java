@@ -1,6 +1,7 @@
 package com.blockforge.moderex.listeners;
 
 import com.blockforge.moderex.ModereX;
+import com.blockforge.moderex.util.Msg;
 import org.bukkit.GameMode;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
@@ -121,7 +122,7 @@ public class VanishListener implements Listener {
             // Check if player has permission to chat while vanished
             if (!player.hasPermission("moderex.vanish.chat")) {
                 event.setCancelled(true);
-                player.sendMessage(plugin.getLanguageManager().getPrefix()
+                Msg.send(player, plugin.getLanguageManager().getPrefix()
                         .append(net.kyori.adventure.text.Component.text("§cYou cannot chat while vanished!")));
             }
         }
@@ -134,7 +135,7 @@ public class VanishListener implements Listener {
             // Check if player has permission to place blocks while vanished
             if (!player.hasPermission("moderex.vanish.place")) {
                 event.setCancelled(true);
-                player.sendMessage(plugin.getLanguageManager().getPrefix()
+                Msg.send(player, plugin.getLanguageManager().getPrefix()
                         .append(net.kyori.adventure.text.Component.text("§cYou cannot place blocks while vanished!")));
             }
         }
@@ -147,7 +148,7 @@ public class VanishListener implements Listener {
             // Check if player has permission to break blocks while vanished
             if (!player.hasPermission("moderex.vanish.break")) {
                 event.setCancelled(true);
-                player.sendMessage(plugin.getLanguageManager().getPrefix()
+                Msg.send(player, plugin.getLanguageManager().getPrefix()
                         .append(net.kyori.adventure.text.Component.text("§cYou cannot break blocks while vanished!")));
             }
         }
@@ -160,7 +161,7 @@ public class VanishListener implements Listener {
                 // Check if player has permission to attack while vanished
                 if (!player.hasPermission("moderex.vanish.attack")) {
                     event.setCancelled(true);
-                    player.sendMessage(plugin.getLanguageManager().getPrefix()
+                    Msg.send(player, plugin.getLanguageManager().getPrefix()
                             .append(net.kyori.adventure.text.Component.text("§cYou cannot attack while vanished!")));
                 }
             }

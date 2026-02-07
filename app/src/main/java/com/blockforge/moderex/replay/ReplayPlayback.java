@@ -4,6 +4,7 @@ import com.blockforge.moderex.ModereX;
 import com.blockforge.moderex.hooks.CitizensHook;
 import com.blockforge.moderex.replay.block.BlockLogEntry;
 import com.blockforge.moderex.replay.block.FakeBlockManager;
+import com.blockforge.moderex.util.Msg;
 import com.blockforge.moderex.util.TextUtil;
 import net.kyori.adventure.title.Title;
 import org.bukkit.*;
@@ -98,8 +99,8 @@ public class ReplayPlayback {
 
         // Require Citizens for NPC playback
         if (!plugin.getHookManager().hasCitizens()) {
-            viewer.sendMessage(TextUtil.parse("<red>Replay playback requires the Citizens plugin to be installed."));
-            viewer.sendMessage(TextUtil.parse("<gray>Download Citizens from: <aqua>https://ci.citizensnpcs.co/"));
+            Msg.send(viewer, TextUtil.parse("<red>Replay playback requires the Citizens plugin to be installed."));
+            Msg.send(viewer, TextUtil.parse("<gray>Download Citizens from: <aqua>https://ci.citizensnpcs.co/"));
             return false;
         }
 
@@ -136,7 +137,7 @@ public class ReplayPlayback {
         }
 
         if (npcIds.isEmpty()) {
-            viewer.sendMessage(TextUtil.parse("<red>Failed to create replay NPCs. Check console for errors."));
+            Msg.send(viewer, TextUtil.parse("<red>Failed to create replay NPCs. Check console for errors."));
             restoreViewerState();
             return false;
         }
@@ -203,7 +204,7 @@ public class ReplayPlayback {
             }
             npcIds.clear();
 
-            viewer.sendMessage(TextUtil.parse("<gray>Replay playback ended."));
+            Msg.send(viewer, TextUtil.parse("<gray>Replay playback ended."));
             plugin.logDebug("Stopped playback for " + viewer.getName());
         } finally {
             // Cleanup blocks (physical or fake)
@@ -230,10 +231,10 @@ public class ReplayPlayback {
         updateHotbar();
 
         if (paused) {
-            viewer.sendMessage(TextUtil.parse("<yellow>Replay paused. <gray>Press <white>[" +
+            Msg.send(viewer, TextUtil.parse("<yellow>Replay paused. <gray>Press <white>[" +
                     (SLOT_PAUSE_PLAY + 1) + "] <gray>to resume."));
         } else {
-            viewer.sendMessage(TextUtil.parse("<green>Replay resumed."));
+            Msg.send(viewer, TextUtil.parse("<green>Replay resumed."));
         }
     }
 
@@ -252,7 +253,7 @@ public class ReplayPlayback {
         updateNpcs();
 
         String direction = seconds > 0 ? "forward" : "back";
-        viewer.sendMessage(TextUtil.parse("<gray>Skipped " + direction + " <white>" +
+        Msg.send(viewer, TextUtil.parse("<gray>Skipped " + direction + " <white>" +
                 Math.abs(seconds) + "s<gray>."));
     }
 
@@ -303,7 +304,7 @@ public class ReplayPlayback {
         }
 
         updateHotbar();
-        viewer.sendMessage(TextUtil.parse("<gray>Playback speed: <white>" + playbackSpeed + "x"));
+        Msg.send(viewer, TextUtil.parse("<gray>Playback speed: <white>" + playbackSpeed + "x"));
     }
 
     public void handleHotbarClick(int slot) {
@@ -330,7 +331,7 @@ public class ReplayPlayback {
 
             // Check if reached end
             if (currentPlaybackTime >= session.getEndTime()) {
-                viewer.sendMessage(TextUtil.parse("<gray>Replay ended."));
+                Msg.send(viewer, TextUtil.parse("<gray>Replay ended."));
                 stop();
                 return;
             }
@@ -508,7 +509,7 @@ public class ReplayPlayback {
             String timeStr = formatDuration(offsetMs);
 
             if (entry.getPlayerUuid() != null) {
-                viewer.sendMessage(TextUtil.parse(
+                Msg.send(viewer, TextUtil.parse(
                         "<gray>[" + timeStr + "] <red>" + playerName + " <gray>caused explosion at <white>" +
                         entry.getX() + ", " + entry.getY() + ", " + entry.getZ()));
             }
@@ -749,7 +750,7 @@ public class ReplayPlayback {
         };
 
         if (actionText != null) {
-            viewer.sendMessage(TextUtil.parse(actionText));
+            Msg.send(viewer, TextUtil.parse(actionText));
         }
     }
 
@@ -1008,8 +1009,8 @@ public class ReplayPlayback {
     private ItemStack createControlItem(Material material, String name, String description) {
         ItemStack item = new ItemStack(material);
         ItemMeta meta = item.getItemMeta();
-        meta.displayName(TextUtil.parse(name));
-        meta.lore(List.of(TextUtil.parse("<gray>" + description)));
+        Msg.displayName(meta, TextUtil.parse(name));
+        Msg.lore(meta, List.of(TextUtil.parse("<gray>" + description)));
         item.setItemMeta(meta);
         return item;
     }
@@ -1139,7 +1140,7 @@ public class ReplayPlayback {
                 Location safeLoc = findSafeLocationOutsideRadius(center, safetyRadius + 10);
                 player.teleport(safeLoc);
 
-                player.sendMessage(TextUtil.parse(
+                Msg.send(player, TextUtil.parse(
                         "<yellow>You have been teleported away from a replay area. " +
                         "<gray>You will be returned when the replay ends."));
 
@@ -1181,7 +1182,7 @@ public class ReplayPlayback {
             Player player = Bukkit.getPlayer(entry.getKey());
             if (player != null && player.isOnline()) {
                 player.teleport(entry.getValue());
-                player.sendMessage(TextUtil.parse(
+                Msg.send(player, TextUtil.parse(
                         "<green>The replay has ended. You have been returned to your original location."));
             }
         }

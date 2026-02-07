@@ -116,7 +116,7 @@ public class UpdateChecker {
         Bukkit.getScheduler().runTask(plugin, () -> {
             for (Player player : Bukkit.getOnlinePlayers()) {
                 if (player.hasPermission("moderex.admin")) {
-                    player.sendMessage(plugin.getLanguageManager().getPrefixed(MessageKey.UPDATE_AVAILABLE,
+                    Msg.send(player, plugin.getLanguageManager().getPrefixed(MessageKey.UPDATE_AVAILABLE,
                             "version", latestVersion));
                 }
             }
@@ -125,7 +125,7 @@ public class UpdateChecker {
 
     public void notifyPlayer(Player player) {
         if (updateAvailable && player.hasPermission("moderex.admin")) {
-            player.sendMessage(plugin.getLanguageManager().getPrefixed(MessageKey.UPDATE_AVAILABLE,
+            Msg.send(player, plugin.getLanguageManager().getPrefixed(MessageKey.UPDATE_AVAILABLE,
                     "version", latestVersion));
         }
     }

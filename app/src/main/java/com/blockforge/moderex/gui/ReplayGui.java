@@ -3,6 +3,7 @@ package com.blockforge.moderex.gui;
 import com.blockforge.moderex.ModereX;
 import com.blockforge.moderex.replay.ReplayManager.ReplaySessionInfo;
 import com.blockforge.moderex.replay.ReplaySession;
+import com.blockforge.moderex.util.Msg;
 import com.blockforge.moderex.util.TextUtil;
 import com.blockforge.moderex.util.TimeUtil;
 import net.kyori.adventure.text.serializer.legacy.LegacyComponentSerializer;
@@ -187,8 +188,8 @@ public class ReplayGui extends PaginatedGui<ReplaySessionInfo> {
             SkullMeta meta = (SkullMeta) item.getItemMeta();
             OfflinePlayer player = Bukkit.getOfflinePlayer(replay.primaryUuid());
             meta.setOwningPlayer(player);
-            meta.displayName(TextUtil.parseLore(color + replay.primaryName() + " <gray>- " + formatReason(replay.reason())));
-            meta.lore(lore.stream().map(TextUtil::parseLore).toList());
+            Msg.displayName(meta, TextUtil.parseLore(color + replay.primaryName() + " <gray>- " + formatReason(replay.reason())));
+            Msg.lore(meta, lore.stream().map(TextUtil::parseLore).toList());
             item.setItemMeta(meta);
         } catch (Exception e) {
             item = createItem(material,
@@ -260,13 +261,13 @@ public class ReplayGui extends PaginatedGui<ReplaySessionInfo> {
     }
 
     private void startReplayPlayback(ReplaySessionInfo replay) {
-        viewer.sendMessage(TextUtil.parse("<yellow>Loading replay " + replay.sessionId() + "..."));
+        Msg.send(viewer, TextUtil.parse("<yellow>Loading replay " + replay.sessionId() + "..."));
         close();
 
         plugin.getReplayManager().loadReplay(replay.sessionId()).thenAccept(session -> {
             if (session == null) {
                 plugin.getServer().getScheduler().runTask(plugin, () -> {
-                    viewer.sendMessage(TextUtil.parse("<red>Failed to load replay!"));
+                    Msg.send(viewer, TextUtil.parse("<red>Failed to load replay!"));
                 });
                 return;
             }
@@ -285,9 +286,9 @@ public class ReplayGui extends PaginatedGui<ReplaySessionInfo> {
                     plugin.getReplayManager().deleteReplay(replay.sessionId()).thenAccept(success -> {
                         plugin.getServer().getScheduler().runTask(plugin, () -> {
                             if (success) {
-                                viewer.sendMessage(TextUtil.parse("<green>Replay deleted successfully!"));
+                                Msg.send(viewer, TextUtil.parse("<green>Replay deleted successfully!"));
                             } else {
-                                viewer.sendMessage(TextUtil.parse("<red>Failed to delete replay!"));
+                                Msg.send(viewer, TextUtil.parse("<red>Failed to delete replay!"));
                             }
                             openGui(new ReplayGui(plugin));
                         });
@@ -299,8 +300,8 @@ public class ReplayGui extends PaginatedGui<ReplaySessionInfo> {
 
     private void promptPlayerSearch() {
         close();
-        viewer.sendMessage(TextUtil.parse("<aqua>Enter the player name to search replays:"));
-        viewer.sendMessage(TextUtil.parse("<gray>Type 'cancel' to cancel"));
+        Msg.send(viewer, TextUtil.parse("<aqua>Enter the player name to search replays:"));
+        Msg.send(viewer, TextUtil.parse("<gray>Type 'cancel' to cancel"));
 
         new ConversationFactory(plugin)
                 .withModality(true)
@@ -338,10 +339,10 @@ public class ReplayGui extends PaginatedGui<ReplaySessionInfo> {
 
     private void promptDateSearch() {
         close();
-        viewer.sendMessage(TextUtil.parse("<aqua>Enter the date range to search (format: YYYY-MM-DD to YYYY-MM-DD):"));
-        viewer.sendMessage(TextUtil.parse("<gray>Example: 2024-01-01 to 2024-01-31"));
-        viewer.sendMessage(TextUtil.parse("<gray>Or type 'today' for today, 'week' for last 7 days, 'month' for last 30 days"));
-        viewer.sendMessage(TextUtil.parse("<gray>Type 'cancel' to cancel"));
+        Msg.send(viewer, TextUtil.parse("<aqua>Enter the date range to search (format: YYYY-MM-DD to YYYY-MM-DD):"));
+        Msg.send(viewer, TextUtil.parse("<gray>Example: 2024-01-01 to 2024-01-31"));
+        Msg.send(viewer, TextUtil.parse("<gray>Or type 'today' for today, 'week' for last 7 days, 'month' for last 30 days"));
+        Msg.send(viewer, TextUtil.parse("<gray>Type 'cancel' to cancel"));
 
         new ConversationFactory(plugin)
                 .withModality(true)
@@ -595,7 +596,7 @@ public class ReplayGui extends PaginatedGui<ReplaySessionInfo> {
             ItemStack head = new ItemStack(Material.PLAYER_HEAD);
             SkullMeta meta = (SkullMeta) head.getItemMeta();
             meta.setOwningPlayer(player);
-            meta.displayName(TextUtil.parseLore("<yellow>" + player.getName()));
+            Msg.displayName(meta, TextUtil.parseLore("<yellow>" + player.getName()));
 
             List<String> lore = new ArrayList<>();
             lore.add("<gray>UUID: <white>" + player.getUniqueId().toString().substring(0, 8) + "...");
@@ -605,13 +606,13 @@ public class ReplayGui extends PaginatedGui<ReplaySessionInfo> {
             // Would need a method in ReplayManager to check this
             lore.add("<yellow>Click to start recording");
 
-            meta.lore(lore.stream().map(TextUtil::parseLore).toList());
+            Msg.lore(meta, lore.stream().map(TextUtil::parseLore).toList());
             head.setItemMeta(meta);
 
             setItem(slot, head, () -> {
                 plugin.getReplayManager().startRecording(player, ReplaySession.RecordingReason.STAFF_REQUEST);
-                viewer.sendMessage(TextUtil.parse("<green>Started recording " + player.getName() + "!"));
-                viewer.sendMessage(TextUtil.parse("<gray>Use /mx replay stop " + player.getName() + " to stop"));
+                Msg.send(viewer, TextUtil.parse("<green>Started recording " + player.getName() + "!"));
+                Msg.send(viewer, TextUtil.parse("<gray>Use /mx replay stop " + player.getName() + " to stop"));
                 close();
             });
         }

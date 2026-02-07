@@ -3,6 +3,7 @@ package com.blockforge.moderex.commands.utility;
 import com.blockforge.moderex.ModereX;
 import com.blockforge.moderex.commands.BaseCommand;
 import com.blockforge.moderex.config.lang.MessageKey;
+import com.blockforge.moderex.util.Msg;
 import com.blockforge.moderex.util.TextUtil;
 import com.blockforge.moderex.util.TimeUtil;
 import net.kyori.adventure.text.Component;
@@ -96,14 +97,14 @@ public class CmdHistoryCommand extends BaseCommand {
 
                 plugin.getServer().getScheduler().runTask(plugin, () -> {
                     // Header with box-drawing characters
-                    sender.sendMessage(TextUtil.parse(""));
-                    sender.sendMessage(TextUtil.parse("<dark_gray>┌──────────────────┐"));
-                    sender.sendMessage(TextUtil.parse("<dark_gray>│ <white>Command History: <yellow>" + displayName +
+                    Msg.send(sender, TextUtil.parse(""));
+                    Msg.send(sender, TextUtil.parse("<dark_gray>┌──────────────────┐"));
+                    Msg.send(sender, TextUtil.parse("<dark_gray>│ <white>Command History: <yellow>" + displayName +
                             " <dark_gray>(<white>" + finalTotalCount + " total<dark_gray>)"));
-                    sender.sendMessage(TextUtil.parse("<dark_gray>├──────────────────┤"));
+                    Msg.send(sender, TextUtil.parse("<dark_gray>├──────────────────┤"));
 
                     if (entries.isEmpty()) {
-                        sender.sendMessage(TextUtil.parse("<dark_gray>│ <gray>No commands found for this player."));
+                        Msg.send(sender, TextUtil.parse("<dark_gray>│ <gray>No commands found for this player."));
                     } else {
                         for (CommandEntry entry : entries) {
                             String cmd = entry.command;
@@ -120,24 +121,24 @@ public class CmdHistoryCommand extends BaseCommand {
                                                         "<white>" + entry.command + "\n" +
                                                         "<gray>Date: <white>" + TimeUtil.formatDateTime(entry.executedAt) + "\n" +
                                                         "\n<yellow>Click to copy command"))));
-                                sender.sendMessage(line);
+                                Msg.send(sender, line);
                             } else {
-                                sender.sendMessage(TextUtil.parse("<dark_gray>│ <gray>" +
+                                Msg.send(sender, TextUtil.parse("<dark_gray>│ <gray>" +
                                         TimeUtil.formatTime(entry.executedAt) + " <white>" + cmd));
                             }
                         }
                     }
 
-                    sender.sendMessage(TextUtil.parse("<dark_gray>└──────────────────┘"));
+                    Msg.send(sender, TextUtil.parse("<dark_gray>└──────────────────┘"));
 
                     // Build clickable navigation footer
                     if (sender instanceof Player && finalTotalPages > 1) {
-                        sender.sendMessage(buildNavigationFooter(displayName, finalPage, finalTotalPages));
+                        Msg.send(sender, buildNavigationFooter(displayName, finalPage, finalTotalPages));
                     } else if (finalTotalPages > 1) {
                         sendMessage(sender, "<gray>Page " + finalPage + "/" + finalTotalPages +
                                 " - Use /cmdhistory " + displayName + " <page>");
                     }
-                    sender.sendMessage(TextUtil.parse(""));
+                    Msg.send(sender, TextUtil.parse(""));
                 });
             } catch (SQLException e) {
                 plugin.logError("Failed to fetch command history", e);

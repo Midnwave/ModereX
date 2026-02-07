@@ -2,6 +2,7 @@ package com.blockforge.moderex.commands.admin;
 
 import com.blockforge.moderex.ModereX;
 import com.blockforge.moderex.commands.BaseCommand;
+import com.blockforge.moderex.util.Msg;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.minimessage.MiniMessage;
 import org.bukkit.Bukkit;
@@ -33,19 +34,19 @@ public class KickAllCommand extends BaseCommand {
         }
 
         if (playersToKick.isEmpty()) {
-            sender.sendMessage(MM.deserialize("<yellow>No players to kick."));
+            Msg.send(sender, MM.deserialize("<yellow>No players to kick."));
             return;
         }
 
         Component kickMessage = buildKickMessage(reason, staffName);
         int kickedCount = 0;
         for (Player player : playersToKick) {
-            player.kick(kickMessage);
+            Msg.kick(player, kickMessage);
             kickedCount++;
         }
 
-        sender.sendMessage(MM.deserialize("<green>Kicked <white>" + kickedCount + "</white> player(s) from the server."));
-        sender.sendMessage(MM.deserialize("<gray>Reason: <white>" + reason));
+        Msg.send(sender, MM.deserialize("<green>Kicked <white>" + kickedCount + "</white> player(s) from the server."));
+        Msg.send(sender, MM.deserialize("<gray>Reason: <white>" + reason));
 
         Component staffNotification = MM.deserialize(
                 "<dark_gray>[<red><bold>KICKALL</bold></red>]</dark_gray> " +
@@ -55,7 +56,7 @@ public class KickAllCommand extends BaseCommand {
 
         for (Player staff : Bukkit.getOnlinePlayers()) {
             if (staff.hasPermission("moderex.notify.punishments")) {
-                staff.sendMessage(staffNotification);
+                Msg.send(staff, staffNotification);
             }
         }
 

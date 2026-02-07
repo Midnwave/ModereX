@@ -4,6 +4,7 @@ import com.blockforge.moderex.ModereX;
 import com.blockforge.moderex.punishment.Punishment;
 import com.blockforge.moderex.punishment.PunishmentType;
 import com.blockforge.moderex.util.DurationParser;
+import com.blockforge.moderex.util.Msg;
 import com.blockforge.moderex.util.TextUtil;
 import com.blockforge.moderex.util.TimeUtil;
 import net.kyori.adventure.text.Component;
@@ -81,11 +82,11 @@ public class ModLogGui extends PaginatedGui<Punishment> {
                     viewer.hasPermission("moderex.command.unmute")) {
                     revokePunishment(punishment);
                 } else {
-                    viewer.sendMessage(TextUtil.parse("<red>You don't have permission to revoke punishments."));
+                    Msg.send(viewer, TextUtil.parse("<red>You don't have permission to revoke punishments."));
                     viewer.playSound(viewer.getLocation(), Sound.ENTITY_VILLAGER_NO, 1f, 1f);
                 }
             } else {
-                viewer.sendMessage(TextUtil.parse("<yellow>This punishment is already inactive."));
+                Msg.send(viewer, TextUtil.parse("<yellow>This punishment is already inactive."));
             }
         } else {
             showPunishmentDetails(punishment);
@@ -97,17 +98,17 @@ public class ModLogGui extends PaginatedGui<Punishment> {
         UUID staffUuid = viewer.getUniqueId();
         String staffName = viewer.getName();
 
-        viewer.sendMessage(TextUtil.parse("<yellow>Revoking punishment " + caseId + "..."));
+        Msg.send(viewer, TextUtil.parse("<yellow>Revoking punishment " + caseId + "..."));
 
         plugin.getPunishmentManager().removePunishmentByCaseId(caseId, staffUuid, staffName, "Revoked via GUI")
                 .thenAccept(success -> {
                     plugin.getServer().getScheduler().runTask(plugin, () -> {
                         if (success) {
-                            viewer.sendMessage(TextUtil.parse("<green>Successfully revoked punishment <white>" + caseId));
+                            Msg.send(viewer, TextUtil.parse("<green>Successfully revoked punishment <white>" + caseId));
                             viewer.playSound(viewer.getLocation(), Sound.ENTITY_PLAYER_LEVELUP, 0.5f, 1.5f);
                             loadPunishments();
                         } else {
-                            viewer.sendMessage(TextUtil.parse("<red>Failed to revoke punishment."));
+                            Msg.send(viewer, TextUtil.parse("<red>Failed to revoke punishment."));
                             viewer.playSound(viewer.getLocation(), Sound.ENTITY_VILLAGER_NO, 1f, 1f);
                         }
                     });
@@ -351,33 +352,33 @@ public class ModLogGui extends PaginatedGui<Punishment> {
 
     private void showPunishmentDetails(Punishment punishment) {
         viewer.playSound(viewer.getLocation(), Sound.UI_BUTTON_CLICK, 0.5f, 1f);
-        viewer.sendMessage(Component.empty());
-        viewer.sendMessage(TextUtil.parse("<dark_purple><strikethrough>                                              </strikethrough>"));
-        viewer.sendMessage(TextUtil.parse("   <light_purple>Case: <white>" + punishment.getCaseId()));
-        viewer.sendMessage(TextUtil.parse("<dark_purple><strikethrough>                                              </strikethrough>"));
-        viewer.sendMessage(TextUtil.parse("   <gray>Type: " + getColorForType(punishment.getType()) + punishment.getType().name()));
-        viewer.sendMessage(TextUtil.parse("   <gray>Player: <white>" + punishment.getPlayerName()));
+        Msg.send(viewer, Component.empty());
+        Msg.send(viewer, TextUtil.parse("<dark_purple><strikethrough>                                              </strikethrough>"));
+        Msg.send(viewer, TextUtil.parse("   <light_purple>Case: <white>" + punishment.getCaseId()));
+        Msg.send(viewer, TextUtil.parse("<dark_purple><strikethrough>                                              </strikethrough>"));
+        Msg.send(viewer, TextUtil.parse("   <gray>Type: " + getColorForType(punishment.getType()) + punishment.getType().name()));
+        Msg.send(viewer, TextUtil.parse("   <gray>Player: <white>" + punishment.getPlayerName()));
 
         // Wrap reason in chat message
         String reason = punishment.getReason();
         if (reason != null && !reason.isEmpty()) {
             List<String> wrappedReason = TextUtil.wordWrap(reason, 40);
-            viewer.sendMessage(TextUtil.parse("   <gray>Reason: <white>" + wrappedReason.get(0)));
+            Msg.send(viewer, TextUtil.parse("   <gray>Reason: <white>" + wrappedReason.get(0)));
             for (int i = 1; i < wrappedReason.size(); i++) {
-                viewer.sendMessage(TextUtil.parse("           <white>" + wrappedReason.get(i)));
+                Msg.send(viewer, TextUtil.parse("           <white>" + wrappedReason.get(i)));
             }
         } else {
-            viewer.sendMessage(TextUtil.parse("   <gray>Reason: <white>No reason specified"));
+            Msg.send(viewer, TextUtil.parse("   <gray>Reason: <white>No reason specified"));
         }
 
-        viewer.sendMessage(TextUtil.parse("   <gray>Staff: <white>" + punishment.getStaffName()));
-        viewer.sendMessage(TextUtil.parse("   <gray>Date: <white>" + TimeUtil.formatDateTime(punishment.getCreatedAt())));
+        Msg.send(viewer, TextUtil.parse("   <gray>Staff: <white>" + punishment.getStaffName()));
+        Msg.send(viewer, TextUtil.parse("   <gray>Date: <white>" + TimeUtil.formatDateTime(punishment.getCreatedAt())));
 
         if (punishment.getType() != PunishmentType.KICK && punishment.getType() != PunishmentType.WARN) {
             if (punishment.getExpiresAt() == -1) {
-                viewer.sendMessage(TextUtil.parse("   <gray>Duration: <red>Permanent"));
+                Msg.send(viewer, TextUtil.parse("   <gray>Duration: <red>Permanent"));
             } else {
-                viewer.sendMessage(TextUtil.parse("   <gray>Duration: <white>" +
+                Msg.send(viewer, TextUtil.parse("   <gray>Duration: <white>" +
                         DurationParser.format(punishment.getExpiresAt() - punishment.getCreatedAt())));
             }
         }
@@ -393,7 +394,7 @@ public class ModLogGui extends PaginatedGui<Punishment> {
                 status += " <gray>by " + punishment.getRemovedByName();
             }
         }
-        viewer.sendMessage(TextUtil.parse("   <gray>Status: " + status));
-        viewer.sendMessage(TextUtil.parse("<dark_purple><strikethrough>                                              </strikethrough>"));
+        Msg.send(viewer, TextUtil.parse("   <gray>Status: " + status));
+        Msg.send(viewer, TextUtil.parse("<dark_purple><strikethrough>                                              </strikethrough>"));
     }
 }

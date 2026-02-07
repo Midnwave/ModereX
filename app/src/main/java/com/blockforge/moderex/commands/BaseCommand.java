@@ -2,6 +2,7 @@ package com.blockforge.moderex.commands;
 
 import com.blockforge.moderex.ModereX;
 import com.blockforge.moderex.config.lang.MessageKey;
+import com.blockforge.moderex.util.Msg;
 import com.blockforge.moderex.util.TextUtil;
 import net.kyori.adventure.text.Component;
 import org.bukkit.Bukkit;
@@ -31,12 +32,12 @@ public abstract class BaseCommand implements CommandExecutor, TabCompleter {
     @Override
     public boolean onCommand(CommandSender sender, Command command, String label, String[] args) {
         if (playerOnly && !(sender instanceof Player)) {
-            sender.sendMessage(plugin.getLanguageManager().get(MessageKey.PLAYER_ONLY));
+            Msg.send(sender, plugin.getLanguageManager().get(MessageKey.PLAYER_ONLY));
             return true;
         }
 
         if (permission != null && !sender.hasPermission(permission)) {
-            sender.sendMessage(plugin.getLanguageManager().get(MessageKey.NO_PERMISSION));
+            Msg.send(sender, plugin.getLanguageManager().get(MessageKey.NO_PERMISSION));
             return true;
         }
 
@@ -44,7 +45,7 @@ public abstract class BaseCommand implements CommandExecutor, TabCompleter {
             execute(sender, args);
         } catch (Exception e) {
             plugin.logError("Error executing command: " + command.getName(), e);
-            sender.sendMessage(TextUtil.parse("<red>An error occurred while executing this command."));
+            Msg.send(sender, TextUtil.parse("<red>An error occurred while executing this command."));
         }
 
         return true;
@@ -66,15 +67,15 @@ public abstract class BaseCommand implements CommandExecutor, TabCompleter {
     }
 
     protected void sendMessage(CommandSender sender, MessageKey key, String... replacements) {
-        sender.sendMessage(plugin.getLanguageManager().getPrefixed(key, replacements));
+        Msg.send(sender, plugin.getLanguageManager().getPrefixed(key, replacements));
     }
 
     protected void sendMessage(CommandSender sender, Component message) {
-        sender.sendMessage(message);
+        Msg.send(sender, message);
     }
 
     protected void sendMessage(CommandSender sender, String message) {
-        sender.sendMessage(plugin.getLanguageManager().getPrefix().append(TextUtil.parse(message)));
+        Msg.send(sender, plugin.getLanguageManager().getPrefix().append(TextUtil.parse(message)));
     }
 
     protected List<String> getOnlinePlayerNames() {

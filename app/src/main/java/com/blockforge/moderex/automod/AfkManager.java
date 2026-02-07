@@ -2,6 +2,7 @@ package com.blockforge.moderex.automod;
 
 import com.blockforge.moderex.ModereX;
 import com.blockforge.moderex.config.lang.MessageKey;
+import com.blockforge.moderex.util.Msg;
 import org.bukkit.Location;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
@@ -13,7 +14,7 @@ import org.bukkit.event.player.PlayerJoinEvent;
 import org.bukkit.event.player.PlayerMoveEvent;
 import org.bukkit.event.player.PlayerQuitEvent;
 import org.bukkit.scheduler.BukkitRunnable;
-import io.papermc.paper.event.player.AsyncChatEvent;
+import org.bukkit.event.player.AsyncPlayerChatEvent;
 
 import java.util.Map;
 import java.util.UUID;
@@ -106,12 +107,12 @@ public class AfkManager implements Listener {
                 plugin.getServer().getScheduler().runTask(plugin, () -> {
                     if (!player.isOnline()) return;
 
-                    player.kick(plugin.getLanguageManager().get(MessageKey.AFK_KICK_MESSAGE));
+                    Msg.kick(player, plugin.getLanguageManager().get(MessageKey.AFK_KICK_MESSAGE));
 
                     // Notify staff
                     for (Player staff : plugin.getServer().getOnlinePlayers()) {
                         if (staff.hasPermission("moderex.notify.afk")) {
-                            staff.sendMessage(plugin.getLanguageManager().get(MessageKey.AFK_KICK_BROADCAST,
+                            Msg.send(staff, plugin.getLanguageManager().get(MessageKey.AFK_KICK_BROADCAST,
                                     "player", player.getName()));
                         }
                     }
@@ -162,7 +163,7 @@ public class AfkManager implements Listener {
     }
 
     @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
-    public void onPlayerChat(AsyncChatEvent event) {
+    public void onPlayerChat(AsyncPlayerChatEvent event) {
         recordActivity(event.getPlayer());
     }
 

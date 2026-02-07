@@ -2,6 +2,7 @@ package com.blockforge.moderex.commands.utility;
 
 import com.blockforge.moderex.ModereX;
 import com.blockforge.moderex.commands.BaseCommand;
+import com.blockforge.moderex.util.Msg;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
 import org.bukkit.command.CommandSender;
@@ -30,7 +31,7 @@ public class EvidenceCommand extends BaseCommand {
         Player player = (Player) sender;
 
         if (!plugin.getEvidenceSelectionManager().hasActiveSession(player.getUniqueId())) {
-            player.sendMessage(Component.text("No active evidence selection session.", NamedTextColor.RED));
+            Msg.send(player, Component.text("No active evidence selection session.", NamedTextColor.RED));
             return;
         }
 

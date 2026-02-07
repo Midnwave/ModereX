@@ -35,7 +35,10 @@
       "Bash(cmd /c \"gradlew.bat build\")",
       "Bash(powershell.exe -Command \"cd ''c:\\\\projects\\\\Moderex\\\\app''; .\\\\gradlew.bat build\")",
       "Bash(powershell.exe -Command \"cd ''c:\\\\projects\\\\Moderex''; .\\\\gradlew.bat :app:build\")",
-      "Bash(gradlew.bat build:*)"
+      "Bash(gradlew.bat build:*)",
+      "Bash(copy:*)",
+      "Bash(copy /Y \"app\\\\src\\\\main\\\\resources\\\\panel\\\\css\\\\styles.css\" \"moderex-panel\\\\css\\\\styles.css\")",
+      "Bash(copy /Y \"app\\\\src\\\\main\\\\resources\\\\panel\\\\css\\\\styles.css\" \"gateway\\\\panel\\\\css\\\\styles.css\")"
     ]
   }
 }

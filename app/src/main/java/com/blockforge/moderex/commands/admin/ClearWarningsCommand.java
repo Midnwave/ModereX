@@ -3,6 +3,7 @@ package com.blockforge.moderex.commands.admin;
 import com.blockforge.moderex.ModereX;
 import com.blockforge.moderex.commands.BaseCommand;
 import com.blockforge.moderex.config.lang.MessageKey;
+import com.blockforge.moderex.util.Msg;
 import org.bukkit.Bukkit;
 import org.bukkit.OfflinePlayer;
 import org.bukkit.command.CommandSender;
@@ -58,7 +59,7 @@ public class ClearWarningsCommand extends BaseCommand {
 
                         for (Player staff : Bukkit.getOnlinePlayers()) {
                             if (staff.hasPermission("moderex.notify.punishments") && !staff.equals(sender)) {
-                                staff.sendMessage(plugin.getLanguageManager().get(MessageKey.WARN_CLEARED_BROADCAST,
+                                Msg.send(staff, plugin.getLanguageManager().get(MessageKey.WARN_CLEARED_BROADCAST,
                                         "staff", staffName,
                                         "player", displayName));
                             }

@@ -3,6 +3,7 @@ package com.blockforge.moderex.commands.utility;
 import com.blockforge.moderex.ModereX;
 import com.blockforge.moderex.commands.BaseCommand;
 import com.blockforge.moderex.config.lang.MessageKey;
+import com.blockforge.moderex.util.Msg;
 import com.blockforge.moderex.util.TextUtil;
 import net.kyori.adventure.text.Component;
 import org.bukkit.Bukkit;
@@ -25,7 +26,7 @@ public class VanishCommand extends BaseCommand {
     protected void execute(CommandSender sender, String[] args) {
         if (args.length == 0) {
             if (!(sender instanceof Player)) {
-                sender.sendMessage(plugin.getLanguageManager().get(MessageKey.PLAYER_ONLY));
+                Msg.send(sender, plugin.getLanguageManager().get(MessageKey.PLAYER_ONLY));
                 return;
             }
             Player player = (Player) sender;
@@ -47,7 +48,7 @@ public class VanishCommand extends BaseCommand {
             }
 
             if (!sender.hasPermission("moderex.command.vanish.others")) {
-                sender.sendMessage(plugin.getLanguageManager().get(MessageKey.NO_PERMISSION));
+                Msg.send(sender, plugin.getLanguageManager().get(MessageKey.NO_PERMISSION));
                 return;
             }
 
@@ -74,7 +75,7 @@ public class VanishCommand extends BaseCommand {
             }
 
             if (!sender.hasPermission("moderex.command.vanish.others")) {
-                sender.sendMessage(plugin.getLanguageManager().get(MessageKey.NO_PERMISSION));
+                Msg.send(sender, plugin.getLanguageManager().get(MessageKey.NO_PERMISSION));
                 return;
             }
 
@@ -101,7 +102,7 @@ public class VanishCommand extends BaseCommand {
             }
 
             if (!sender.hasPermission("moderex.command.vanish.others")) {
-                sender.sendMessage(plugin.getLanguageManager().get(MessageKey.NO_PERMISSION));
+                Msg.send(sender, plugin.getLanguageManager().get(MessageKey.NO_PERMISSION));
                 return;
             }
 
@@ -123,7 +124,7 @@ public class VanishCommand extends BaseCommand {
 
         if (args.length == 1) {
             if (!sender.hasPermission("moderex.command.vanish.others")) {
-                sender.sendMessage(plugin.getLanguageManager().get(MessageKey.NO_PERMISSION));
+                Msg.send(sender, plugin.getLanguageManager().get(MessageKey.NO_PERMISSION));
                 return;
             }
 
@@ -197,7 +198,7 @@ public class VanishCommand extends BaseCommand {
                     .replace("{level}", String.valueOf(level))
                     .replace("{time}", duration);
 
-            sender.sendMessage(TextUtil.parse(message));
+            Msg.send(sender, TextUtil.parse(message));
         }
     }
 

@@ -5,6 +5,7 @@ import com.blockforge.moderex.config.lang.MessageKey;
 import com.blockforge.moderex.punishment.Punishment;
 import com.blockforge.moderex.punishment.PunishmentType;
 import com.blockforge.moderex.util.DurationParser;
+import com.blockforge.moderex.util.Msg;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
@@ -32,7 +33,7 @@ public class SignListener implements Listener {
                 Punishment mute = plugin.getPunishmentManager().getActivePunishment(uuid, PunishmentType.MUTE);
                 if (mute != null && !mute.isExpired()) {
                     event.setCancelled(true);
-                    player.sendMessage(plugin.getLanguageManager().getPrefixed(MessageKey.MUTED_CHAT_ATTEMPT,
+                    Msg.send(player, plugin.getLanguageManager().getPrefixed(MessageKey.MUTED_CHAT_ATTEMPT,
                             "duration", DurationParser.formatRemaining(mute.getExpiresAt()),
                             "reason", mute.getReason()));
                     return;

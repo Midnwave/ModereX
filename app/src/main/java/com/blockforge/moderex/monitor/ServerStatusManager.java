@@ -1,6 +1,7 @@
 package com.blockforge.moderex.monitor;
 
 import com.blockforge.moderex.ModereX;
+import com.blockforge.moderex.util.Msg;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
 import org.bukkit.Bukkit;
@@ -331,7 +332,7 @@ public class ServerStatusManager {
 
         for (Player staff : Bukkit.getOnlinePlayers()) {
             if (staff.hasPermission("moderex.notify.status")) {
-                staff.sendMessage(com.blockforge.moderex.util.TextUtil.parse(message));
+                Msg.send(staff, com.blockforge.moderex.util.TextUtil.parse(message));
             }
         }
     }

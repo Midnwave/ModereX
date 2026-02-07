@@ -6,6 +6,7 @@ import com.blockforge.moderex.disguise.DisguiseFlags;
 import com.blockforge.moderex.disguise.DisguiseGui;
 import com.blockforge.moderex.disguise.DisguiseProfile;
 import com.blockforge.moderex.util.FlagParser;
+import com.blockforge.moderex.util.Msg;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
 import org.bukkit.Bukkit;
@@ -31,12 +32,12 @@ public class DisguiseCommand extends BaseCommand {
     @Override
     protected void execute(CommandSender sender, String[] args) {
         if (!(sender instanceof Player player)) {
-            sender.sendMessage(Component.text("This command can only be used by players.").color(NamedTextColor.RED));
+            Msg.send(sender, Component.text("This command can only be used by players.").color(NamedTextColor.RED));
             return;
         }
 
         if (!player.hasPermission("moderex.command.disguise")) {
-            player.sendMessage(Component.text("You don't have permission to use this command.").color(NamedTextColor.RED));
+            Msg.send(player, Component.text("You don't have permission to use this command.").color(NamedTextColor.RED));
             return;
         }
 
@@ -86,7 +87,7 @@ public class DisguiseCommand extends BaseCommand {
                 }
 
                 if (!player.hasPermission("moderex.disguise.rank." + rank.toLowerCase())) {
-                    player.sendMessage(Component.text("You don't have permission to disguise as rank: " + rank)
+                    Msg.send(player, Component.text("You don't have permission to disguise as rank: " + rank)
                             .color(NamedTextColor.RED));
                     return;
                 }
@@ -120,28 +121,28 @@ public class DisguiseCommand extends BaseCommand {
      * @param player The player
      */
     private void sendHelp(Player player) {
-        player.sendMessage(Component.text("=== Disguise Command Help ===").color(NamedTextColor.GOLD));
-        player.sendMessage(Component.text("/disguise").color(NamedTextColor.YELLOW)
+        Msg.send(player, Component.text("=== Disguise Command Help ===").color(NamedTextColor.GOLD));
+        Msg.send(player, Component.text("/disguise").color(NamedTextColor.YELLOW)
                 .append(Component.text(" - Open disguise GUI").color(NamedTextColor.GRAY)));
-        player.sendMessage(Component.text("/disguise gui").color(NamedTextColor.YELLOW)
+        Msg.send(player, Component.text("/disguise gui").color(NamedTextColor.YELLOW)
                 .append(Component.text(" - Open disguise GUI").color(NamedTextColor.GRAY)));
-        player.sendMessage(Component.text("/disguise <name> [rank]").color(NamedTextColor.YELLOW)
+        Msg.send(player, Component.text("/disguise <name> [rank]").color(NamedTextColor.YELLOW)
                 .append(Component.text(" - Disguise with specific name").color(NamedTextColor.GRAY)));
-        player.sendMessage(Component.text("/disguise remove").color(NamedTextColor.YELLOW)
+        Msg.send(player, Component.text("/disguise remove").color(NamedTextColor.YELLOW)
                 .append(Component.text(" - Remove disguise").color(NamedTextColor.GRAY)));
-        player.sendMessage(Component.text("").color(NamedTextColor.GRAY));
-        player.sendMessage(Component.text("Available Flags:").color(NamedTextColor.GOLD));
-        player.sendMessage(Component.text("  --hide-rank").color(NamedTextColor.YELLOW)
+        Msg.send(player, Component.text("").color(NamedTextColor.GRAY));
+        Msg.send(player, Component.text("Available Flags:").color(NamedTextColor.GOLD));
+        Msg.send(player, Component.text("  --hide-rank").color(NamedTextColor.YELLOW)
                 .append(Component.text(" - Hide your rank").color(NamedTextColor.GRAY)));
-        player.sendMessage(Component.text("  --fake-rank <rank>").color(NamedTextColor.YELLOW)
+        Msg.send(player, Component.text("  --fake-rank <rank>").color(NamedTextColor.YELLOW)
                 .append(Component.text(" - Shows a fake rank").color(NamedTextColor.GRAY)));
-        player.sendMessage(Component.text("  --set-skin <player>").color(NamedTextColor.YELLOW)
+        Msg.send(player, Component.text("  --set-skin <player>").color(NamedTextColor.YELLOW)
                 .append(Component.text(" - Set skin to copy").color(NamedTextColor.GRAY)));
-        player.sendMessage(Component.text("  --set-display-name <name>").color(NamedTextColor.YELLOW)
+        Msg.send(player, Component.text("  --set-display-name <name>").color(NamedTextColor.YELLOW)
                 .append(Component.text(" - Set display name").color(NamedTextColor.GRAY)));
-        player.sendMessage(Component.text("  --change-tab").color(NamedTextColor.YELLOW)
+        Msg.send(player, Component.text("  --change-tab").color(NamedTextColor.YELLOW)
                 .append(Component.text(" - Change tab list name").color(NamedTextColor.GRAY)));
-        player.sendMessage(Component.text("  --change-tab-complete").color(NamedTextColor.YELLOW)
+        Msg.send(player, Component.text("  --change-tab-complete").color(NamedTextColor.YELLOW)
                 .append(Component.text(" - Change tab completion").color(NamedTextColor.GRAY)));
     }
 

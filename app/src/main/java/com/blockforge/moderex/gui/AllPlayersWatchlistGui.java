@@ -2,6 +2,7 @@ package com.blockforge.moderex.gui;
 
 import com.blockforge.moderex.ModereX;
 import com.blockforge.moderex.player.PlayerProfile;
+import com.blockforge.moderex.util.Msg;
 import com.blockforge.moderex.util.TextUtil;
 import net.kyori.adventure.text.serializer.legacy.LegacyComponentSerializer;
 import org.bukkit.Bukkit;
@@ -204,7 +205,7 @@ public class AllPlayersWatchlistGui extends PaginatedGui<PlayerProfile> {
         nameBuilder.append(profile.getUsername());
         if (hasPunishment) nameBuilder.append(" <red>⚠");
 
-        meta.displayName(TextUtil.parseLore(nameBuilder.toString()));
+        Msg.displayName(meta, TextUtil.parseLore(nameBuilder.toString()));
 
         List<String> lore = new ArrayList<>();
         lore.add("<gray>UUID: <white>" + profile.getUuid().toString().substring(0, 8) + "...");
@@ -231,7 +232,7 @@ public class AllPlayersWatchlistGui extends PaginatedGui<PlayerProfile> {
                 "<green>Right-click: <white>Add to watchlist");
         lore.add("<aqua>Shift-click: <white>Punish player");
 
-        meta.lore(lore.stream().map(TextUtil::parseLore).toList());
+        Msg.lore(meta, lore.stream().map(TextUtil::parseLore).toList());
         head.setItemMeta(meta);
 
         return head;
@@ -243,7 +244,7 @@ public class AllPlayersWatchlistGui extends PaginatedGui<PlayerProfile> {
 
         if (isWatched) {
             plugin.getWatchlistManager().removeFromWatchlist(uuid);
-            viewer.sendMessage(TextUtil.parse("<yellow>Removed <white>" + profile.getUsername() + "<yellow> from watchlist."));
+            Msg.send(viewer, TextUtil.parse("<yellow>Removed <white>" + profile.getUsername() + "<yellow> from watchlist."));
         } else {
             plugin.getWatchlistManager().addToWatchlist(
                     uuid,
@@ -252,41 +253,41 @@ public class AllPlayersWatchlistGui extends PaginatedGui<PlayerProfile> {
                     viewer.getName(),
                     "Added via All Players GUI"
             );
-            viewer.sendMessage(TextUtil.parse("<green>Added <white>" + profile.getUsername() + "<green> to watchlist."));
+            Msg.send(viewer, TextUtil.parse("<green>Added <white>" + profile.getUsername() + "<green> to watchlist."));
         }
 
         refresh();
     }
 
     private void showPlayerDetails(PlayerProfile profile) {
-        viewer.sendMessage(TextUtil.parse(""));
-        viewer.sendMessage(TextUtil.parse("<gray>═══════════════════════════════════"));
-        viewer.sendMessage(TextUtil.parse("<yellow><bold>" + profile.getUsername()));
-        viewer.sendMessage(TextUtil.parse("<gray>═══════════════════════════════════"));
-        viewer.sendMessage(TextUtil.parse("<gray>UUID: <white>" + profile.getUuid()));
-        viewer.sendMessage(TextUtil.parse("<gray>First Join: <white>" + formatTimeAgo(profile.getFirstJoin())));
-        viewer.sendMessage(TextUtil.parse("<gray>Last Seen: <white>" + formatTimeAgo(profile.getLastJoin())));
+        Msg.send(viewer, TextUtil.parse(""));
+        Msg.send(viewer, TextUtil.parse("<gray>═══════════════════════════════════"));
+        Msg.send(viewer, TextUtil.parse("<yellow><bold>" + profile.getUsername()));
+        Msg.send(viewer, TextUtil.parse("<gray>═══════════════════════════════════"));
+        Msg.send(viewer, TextUtil.parse("<gray>UUID: <white>" + profile.getUuid()));
+        Msg.send(viewer, TextUtil.parse("<gray>First Join: <white>" + formatTimeAgo(profile.getFirstJoin())));
+        Msg.send(viewer, TextUtil.parse("<gray>Last Seen: <white>" + formatTimeAgo(profile.getLastJoin())));
 
         if (profile.getIpAddress() != null) {
-            viewer.sendMessage(TextUtil.parse("<gray>Last IP: <white>" + profile.getIpAddress()));
+            Msg.send(viewer, TextUtil.parse("<gray>Last IP: <white>" + profile.getIpAddress()));
         }
         if (profile.getLastServer() != null) {
-            viewer.sendMessage(TextUtil.parse("<gray>Last Server: <white>" + profile.getLastServer()));
+            Msg.send(viewer, TextUtil.parse("<gray>Last Server: <white>" + profile.getLastServer()));
         }
 
         boolean isWatched = plugin.getWatchlistManager().isWatched(profile.getUuid());
-        viewer.sendMessage(TextUtil.parse("<gray>Watchlist: " + (isWatched ? "<yellow>Yes" : "<gray>No")));
+        Msg.send(viewer, TextUtil.parse("<gray>Watchlist: " + (isWatched ? "<yellow>Yes" : "<gray>No")));
 
         boolean hasPunishment = plugin.getPunishmentManager().hasActivePunishment(profile.getUuid());
-        viewer.sendMessage(TextUtil.parse("<gray>Active Punishment: " + (hasPunishment ? "<red>Yes" : "<green>No")));
+        Msg.send(viewer, TextUtil.parse("<gray>Active Punishment: " + (hasPunishment ? "<red>Yes" : "<green>No")));
 
-        viewer.sendMessage(TextUtil.parse("<gray>═══════════════════════════════════"));
+        Msg.send(viewer, TextUtil.parse("<gray>═══════════════════════════════════"));
     }
 
     private void promptSearch() {
         close();
-        viewer.sendMessage(TextUtil.parse("<aqua>Enter player name or UUID to search:"));
-        viewer.sendMessage(TextUtil.parse("<gray>Type 'cancel' to cancel"));
+        Msg.send(viewer, TextUtil.parse("<aqua>Enter player name or UUID to search:"));
+        Msg.send(viewer, TextUtil.parse("<gray>Type 'cancel' to cancel"));
 
         new ConversationFactory(plugin)
                 .withModality(true)
@@ -402,7 +403,7 @@ public class AllPlayersWatchlistGui extends PaginatedGui<PlayerProfile> {
                 for (UUID uuid : new ArrayList<>(plugin.getWatchlistManager().getWatchedPlayers())) {
                     plugin.getWatchlistManager().removeFromWatchlist(uuid);
                 }
-                viewer.sendMessage(TextUtil.parse("<red>Cleared " + count + " players from watchlist."));
+                Msg.send(viewer, TextUtil.parse("<red>Cleared " + count + " players from watchlist."));
                 close();
             });
 
@@ -425,7 +426,7 @@ public class AllPlayersWatchlistGui extends PaginatedGui<PlayerProfile> {
                         count++;
                     }
                 }
-                viewer.sendMessage(TextUtil.parse("<green>Added " + count + " players to watchlist."));
+                Msg.send(viewer, TextUtil.parse("<green>Added " + count + " players to watchlist."));
                 close();
             });
 
@@ -441,7 +442,7 @@ public class AllPlayersWatchlistGui extends PaginatedGui<PlayerProfile> {
                     plugin.getLogger().info(uuid + " - " + (p.getName() != null ? p.getName() : "Unknown"));
                 }
                 plugin.getLogger().info("Total: " + watched.size() + " players");
-                viewer.sendMessage(TextUtil.parse("<green>Watchlist exported to console."));
+                Msg.send(viewer, TextUtil.parse("<green>Watchlist exported to console."));
                 close();
             });
 

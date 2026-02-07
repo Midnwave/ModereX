@@ -5,6 +5,7 @@ import com.blockforge.moderex.commands.BaseCommand;
 import com.blockforge.moderex.config.lang.MessageKey;
 import com.blockforge.moderex.log.ActivityLogEntry;
 import com.blockforge.moderex.log.ActivityLogEntry.ActivityType;
+import com.blockforge.moderex.util.Msg;
 import com.blockforge.moderex.util.TextUtil;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.event.ClickEvent;
@@ -156,7 +157,7 @@ public class LogCommand extends BaseCommand {
         // Header
         Component header = plugin.getLanguageManager().get(MessageKey.LOG_HEADER,
                 "player", playerName, "total", String.valueOf(totalCount));
-        sender.sendMessage(header);
+        Msg.send(sender, header);
 
         // Filter info if applicable
         if (actionFilter != null || timeFilter > 0) {
@@ -172,18 +173,18 @@ public class LogCommand extends BaseCommand {
                 if (!filterInfo.isEmpty()) filterInfo.append(" | ");
                 filterInfo.append("Since: ").append(formatTimeSince(timeFilter));
             }
-            sender.sendMessage(TextUtil.parse("<gray>Filters: <white>" + filterInfo));
+            Msg.send(sender, TextUtil.parse("<gray>Filters: <white>" + filterInfo));
         }
 
         // Entries
         for (ActivityLogEntry entry : entries) {
             Component entryComponent = buildEntryComponent(entry, sender, timezone);
-            sender.sendMessage(entryComponent);
+            Msg.send(sender, entryComponent);
         }
 
         // Paginator
         Component paginator = buildPaginator(playerName, page, totalPages, actionFilter, timeFilter, snapshotTime);
-        sender.sendMessage(paginator);
+        Msg.send(sender, paginator);
     }
 
     /**

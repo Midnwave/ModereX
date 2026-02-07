@@ -7,6 +7,7 @@ import com.blockforge.moderex.gui.ModLogGui;
 import com.blockforge.moderex.punishment.Punishment;
 import com.blockforge.moderex.punishment.PunishmentType;
 import com.blockforge.moderex.util.DurationParser;
+import com.blockforge.moderex.util.Msg;
 import com.blockforge.moderex.util.TimeUtil;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.event.ClickEvent;
@@ -139,22 +140,22 @@ public class ModLogCommand extends BaseCommand {
         plugin.getServer().getScheduler().runTask(plugin, () -> {
             // Header
             String headerText = staffMode ? "Staff Actions by " + displayName : "Moderation Log for " + displayName;
-            sender.sendMessage(Component.text("━━━━━━━━━━━━━ ", NamedTextColor.DARK_GRAY)
+            Msg.send(sender, Component.text("━━━━━━━━━━━━━ ", NamedTextColor.DARK_GRAY)
                     .append(Component.text(headerText, NamedTextColor.GOLD).decorate(TextDecoration.BOLD))
                     .append(Component.text(" ━━━━━━━━━━━━━", NamedTextColor.DARK_GRAY)));
 
             if (pagedResults.isEmpty()) {
-                sender.sendMessage(plugin.getLanguageManager().get(MessageKey.MODLOG_EMPTY,
+                Msg.send(sender, plugin.getLanguageManager().get(MessageKey.MODLOG_EMPTY,
                         "player", displayName));
             } else {
                 for (Punishment p : pagedResults) {
-                    sender.sendMessage(formatEntry(p, staffMode));
+                    Msg.send(sender, formatEntry(p, staffMode));
                 }
             }
 
             // Clickable navigation footer
             String staffFlag = staffMode ? " -staff" : "";
-            sender.sendMessage(buildNavigationFooter(targetName, filter, staffFlag, finalPage, finalTotalPages));
+            Msg.send(sender, buildNavigationFooter(targetName, filter, staffFlag, finalPage, finalTotalPages));
         });
     }
 

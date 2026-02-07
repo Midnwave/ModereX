@@ -7,6 +7,7 @@ import com.blockforge.moderex.punishment.PunishmentType;
 import com.blockforge.moderex.staff.StaffSettings;
 import com.blockforge.moderex.staff.StaffSettings.AlertLevel;
 import com.blockforge.moderex.util.DurationParser;
+import com.blockforge.moderex.util.Msg;
 import com.blockforge.moderex.util.TextUtil;
 import net.kyori.adventure.text.serializer.legacy.LegacyComponentSerializer;
 import org.bukkit.Material;
@@ -166,7 +167,7 @@ public class AutomodGui extends BaseGui {
                             openAnticheatAlertSettings(rule);
                         } else {
                             // Delete non-anticheat rules
-                            viewer.sendMessage(TextUtil.parse("<red>Deleted rule: " + rule.getName()));
+                            Msg.send(viewer, TextUtil.parse("<red>Deleted rule: " + rule.getName()));
                             automod.deleteRule(rule.getId());
                             viewer.playSound(viewer.getLocation(), Sound.BLOCK_NOTE_BLOCK_BASS, 1f, 0.5f);
                             refresh();
@@ -392,8 +393,8 @@ public class AutomodGui extends BaseGui {
 
     private void promptCreateWordFilter() {
         close();
-        viewer.sendMessage(TextUtil.parse("<aqua>Enter a name for your new word filter rule:"));
-        viewer.sendMessage(TextUtil.parse("<gray>Type 'cancel' to cancel"));
+        Msg.send(viewer, TextUtil.parse("<aqua>Enter a name for your new word filter rule:"));
+        Msg.send(viewer, TextUtil.parse("<gray>Type 'cancel' to cancel"));
 
         new ConversationFactory(plugin)
             .withModality(true)
@@ -431,9 +432,9 @@ public class AutomodGui extends BaseGui {
 
     private void promptCreateNicknameRule() {
         close();
-        viewer.sendMessage(TextUtil.parse("<light_purple>Enter a name for your new nickname filter rule:"));
-        viewer.sendMessage(TextUtil.parse("<gray>This rule will block players from using inappropriate nicknames"));
-        viewer.sendMessage(TextUtil.parse("<gray>Type 'cancel' to cancel"));
+        Msg.send(viewer, TextUtil.parse("<light_purple>Enter a name for your new nickname filter rule:"));
+        Msg.send(viewer, TextUtil.parse("<gray>This rule will block players from using inappropriate nicknames"));
+        Msg.send(viewer, TextUtil.parse("<gray>Type 'cancel' to cancel"));
 
         new ConversationFactory(plugin)
             .withModality(true)
@@ -901,7 +902,7 @@ public class AutomodGui extends BaseGui {
             setItem(35, createItem(Material.LIME_CONCRETE, "<green>Save & Close"), () -> {
                 plugin.getStaffSettingsManager().saveSettings(staffSettings);
                 viewer.playSound(viewer.getLocation(), Sound.ENTITY_EXPERIENCE_ORB_PICKUP, 1f, 1f);
-                viewer.sendMessage(TextUtil.parse("<green>Alert settings saved for <white>" + rule.getName()));
+                Msg.send(viewer, TextUtil.parse("<green>Alert settings saved for <white>" + rule.getName()));
                 openGui(parent);
             });
         }
@@ -1098,7 +1099,7 @@ public class AutomodGui extends BaseGui {
                     "<red>Shift+click to confirm"), clickType -> {
                     if (clickType.isShiftClick()) {
                         plugin.getAutomodManager().deleteRule(rule.getId());
-                        viewer.sendMessage(TextUtil.parse("<red>Rule deleted."));
+                        Msg.send(viewer, TextUtil.parse("<red>Rule deleted."));
                         viewer.playSound(viewer.getLocation(), Sound.BLOCK_NOTE_BLOCK_BASS, 1f, 0.5f);
                         openGui(parent);
                     }
@@ -1109,7 +1110,7 @@ public class AutomodGui extends BaseGui {
             setItem(44, createItem(Material.LIME_CONCRETE, "<green>Save & Close",
                 "<gray>Save changes and return"), () -> {
                 plugin.getAutomodManager().saveRule(rule);
-                viewer.sendMessage(TextUtil.parse("<green>Rule saved!"));
+                Msg.send(viewer, TextUtil.parse("<green>Rule saved!"));
                 viewer.playSound(viewer.getLocation(), Sound.ENTITY_EXPERIENCE_ORB_PICKUP, 1f, 1f);
                 openGui(parent);
             });
@@ -1117,9 +1118,9 @@ public class AutomodGui extends BaseGui {
 
         private void promptEditWords() {
             close();
-            viewer.sendMessage(TextUtil.parse("<aqua>Enter phrases to filter (comma-separated):"));
-            viewer.sendMessage(TextUtil.parse("<gray>Current: " + String.join(", ", rule.getBlacklistedPhrases())));
-            viewer.sendMessage(TextUtil.parse("<gray>Type 'cancel' to cancel, 'clear' to remove all"));
+            Msg.send(viewer, TextUtil.parse("<aqua>Enter phrases to filter (comma-separated):"));
+            Msg.send(viewer, TextUtil.parse("<gray>Current: " + String.join(", ", rule.getBlacklistedPhrases())));
+            Msg.send(viewer, TextUtil.parse("<gray>Type 'cancel' to cancel, 'clear' to remove all"));
 
             new ConversationFactory(plugin)
                 .withModality(true)
@@ -1162,9 +1163,9 @@ public class AutomodGui extends BaseGui {
 
         private void promptEditExclusions() {
             close();
-            viewer.sendMessage(TextUtil.parse("<aqua>Enter exclusion phrases (comma-separated):"));
-            viewer.sendMessage(TextUtil.parse("<gray>Current: " + String.join(", ", rule.getExclusionPhrases())));
-            viewer.sendMessage(TextUtil.parse("<gray>Type 'cancel' to cancel, 'clear' to remove all"));
+            Msg.send(viewer, TextUtil.parse("<aqua>Enter exclusion phrases (comma-separated):"));
+            Msg.send(viewer, TextUtil.parse("<gray>Current: " + String.join(", ", rule.getExclusionPhrases())));
+            Msg.send(viewer, TextUtil.parse("<gray>Type 'cancel' to cancel, 'clear' to remove all"));
 
             new ConversationFactory(plugin)
                 .withModality(true)

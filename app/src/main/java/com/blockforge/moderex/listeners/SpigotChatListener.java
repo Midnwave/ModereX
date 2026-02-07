@@ -8,38 +8,37 @@ import com.blockforge.moderex.punishment.PunishmentType;
 import com.blockforge.moderex.replay.ReplaySnapshot;
 import com.blockforge.moderex.util.DurationParser;
 import com.blockforge.moderex.util.Msg;
-import io.papermc.paper.event.player.AsyncChatEvent;
-import net.kyori.adventure.text.Component;
-import net.kyori.adventure.text.serializer.plain.PlainTextComponentSerializer;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
+import org.bukkit.event.player.AsyncPlayerChatEvent;
 
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
- * Paper-specific chat listener using AsyncChatEvent.
- * Only registered on Paper servers. See SpigotChatListener for Spigot.
+ * Spigot-compatible chat listener using AsyncPlayerChatEvent.
+ * Only registered on Spigot servers. See ChatListener for Paper.
  */
-public class ChatListener implements Listener {
+public class SpigotChatListener implements Listener {
 
     private final ModereX plugin;
     private final Map<UUID, Long> lastMessageTime = new ConcurrentHashMap<>();
 
-    public ChatListener(ModereX plugin) {
+    public SpigotChatListener(ModereX plugin) {
         this.plugin = plugin;
     }
 
     @EventHandler(priority = EventPriority.LOWEST)
-    public void onChat(AsyncChatEvent event) {
+    public void onChat(AsyncPlayerChatEvent event) {
         Player player = event.getPlayer();
         UUID uuid = player.getUniqueId();
 
+        String message = event.getMessage();
+
         // Check GUI input handler first
-        String message = PlainTextComponentSerializer.plainText().serialize(event.message());
         if (plugin.getGuiManager().hasPendingInput(player)) {
             event.setCancelled(true);
             plugin.getServer().getScheduler().runTask(plugin, () ->
@@ -133,8 +132,7 @@ public class ChatListener implements Listener {
         String finalMessage = result.isModified() ? result.getModifiedMessage() : message;
 
         if (result.isModified()) {
-            // Replace message with modified version (Paper-specific Component setter)
-            event.message(Component.text(finalMessage));
+            event.setMessage(finalMessage);
         }
 
         // Log message to database

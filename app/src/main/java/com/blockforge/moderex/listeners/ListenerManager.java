@@ -1,6 +1,7 @@
 package com.blockforge.moderex.listeners;
 
 import com.blockforge.moderex.ModereX;
+import com.blockforge.moderex.util.VersionUtil;
 import org.bukkit.event.Listener;
 
 public class ListenerManager {
@@ -13,8 +14,14 @@ public class ListenerManager {
     }
 
     public void registerAll() {
-        // Core listeners
-        registerListener(new ChatListener(plugin));
+        // Chat listener - platform-specific (Paper uses AsyncChatEvent, Spigot uses AsyncPlayerChatEvent)
+        if (VersionUtil.isPaper()) {
+            registerListener(new ChatListener(plugin));
+        } else {
+            registerListener(new SpigotChatListener(plugin));
+        }
+        // Book/anvil moderation - works on both platforms
+        registerListener(new ChatModerationListener(plugin));
         registerListener(new JoinQuitListener(plugin));
         registerListener(new CommandListener(plugin));
         registerListener(new SignListener(plugin));

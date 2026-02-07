@@ -1,6 +1,7 @@
 package com.blockforge.moderex.resourcepack;
 
 import com.blockforge.moderex.ModereX;
+import com.blockforge.moderex.util.Msg;
 import net.kyori.adventure.resource.ResourcePackInfo;
 import net.kyori.adventure.resource.ResourcePackRequest;
 import net.kyori.adventure.text.Component;
@@ -206,7 +207,7 @@ public class ResourcePackManager implements Listener {
             case DECLINED -> {
                 pendingPlayers.remove(uuid);
                 if (required && player.hasPermission("moderex.staff")) {
-                    player.kick(Component.text("Resource pack is required for staff members"));
+                    Msg.kick(player, Component.text("Resource pack is required for staff members"));
                 }
                 plugin.logDebug("[ResourcePack] " + player.getName() + " declined resource pack");
             }

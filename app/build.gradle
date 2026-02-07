@@ -4,7 +4,7 @@ plugins {
 }
 
 group = 'com.blockforge'
-version = '2.0.0'
+version = '2.0dev-270'
 
 repositories {
     mavenCentral()
@@ -56,9 +56,14 @@ dependencies {
     // GeoIP2 for geographic IP lookups
     implementation 'com.maxmind.geoip2:geoip2:4.2.1'
 
-    // Adventure API (included in Paper but good to have explicit)
-    compileOnly 'net.kyori:adventure-api:4.17.0'
-    compileOnly 'net.kyori:adventure-text-minimessage:4.17.0'
+    // Adventure API - bundled for Spigot compatibility (Paper provides its own at runtime)
+    implementation 'net.kyori:adventure-api:4.17.0'
+    implementation 'net.kyori:adventure-text-minimessage:4.17.0'
+    implementation 'net.kyori:adventure-text-serializer-legacy:4.17.0'
+    implementation 'net.kyori:adventure-text-serializer-plain:4.17.0'
+
+    // Adventure Platform - enables sending Components on Spigot via BukkitAudiences
+    implementation 'net.kyori:adventure-platform-bukkit:4.3.4'
 
     // Netty (provided by Minecraft server, used for same-port HTTP handling)
     compileOnly 'io.netty:netty-all:4.1.97.Final'

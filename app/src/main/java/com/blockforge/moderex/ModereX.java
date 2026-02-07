@@ -24,6 +24,7 @@ import com.blockforge.moderex.staff.VanishManager;
 import com.blockforge.moderex.vanish.api.VanishAPI;
 import com.blockforge.moderex.vanish.api.VanishEventFilter;
 import com.blockforge.moderex.util.DebugWebhook;
+import com.blockforge.moderex.util.Msg;
 import com.blockforge.moderex.util.UpdateChecker;
 import com.blockforge.moderex.util.VersionUtil;
 import com.blockforge.moderex.watchlist.WatchlistManager;
@@ -97,7 +98,10 @@ public final class ModereX extends JavaPlugin {
         printBanner();
 
         logStartup("Initializing ModereX v" + getDescription().getVersion());
-        logStartup("Detected Minecraft version: " + VersionUtil.getServerVersion());
+        logStartup("Running on " + VersionUtil.getFormattedVersion());
+
+        // Initialize cross-platform message utility (must be before any managers)
+        Msg.init(this);
 
         // Initialize configuration
         logStartup("Loading configuration...");
@@ -410,6 +414,9 @@ public final class ModereX extends JavaPlugin {
             debugWebhook.success("[ModereX] Plugin disabled.");
             debugWebhook.shutdown();
         }
+
+        // Close cross-platform message utility
+        Msg.close();
 
         instance = null;
         getLogger().info("ModereX disabled.");

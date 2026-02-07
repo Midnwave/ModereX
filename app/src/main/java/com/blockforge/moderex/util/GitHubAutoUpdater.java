@@ -395,7 +395,7 @@ public class GitHubAutoUpdater {
         Bukkit.getScheduler().runTask(plugin, () -> {
             for (Player player : Bukkit.getOnlinePlayers()) {
                 if (player.hasPermission("moderex.admin")) {
-                    player.sendMessage(plugin.getLanguageManager().getPrefixed(MessageKey.GITHUB_UPDATE_AVAILABLE,
+                    Msg.send(player, plugin.getLanguageManager().getPrefixed(MessageKey.GITHUB_UPDATE_AVAILABLE,
                             "version", latestVersion != null ? latestVersion : "new build",
                             "current", plugin.getPluginMeta().getVersion()));
                 }
@@ -407,7 +407,7 @@ public class GitHubAutoUpdater {
         Bukkit.getScheduler().runTask(plugin, () -> {
             for (Player player : Bukkit.getOnlinePlayers()) {
                 if (player.hasPermission("moderex.admin")) {
-                    player.sendMessage(plugin.getLanguageManager().getPrefixed(MessageKey.GITHUB_UPDATE_DOWNLOADED,
+                    Msg.send(player, plugin.getLanguageManager().getPrefixed(MessageKey.GITHUB_UPDATE_DOWNLOADED,
                             "version", latestVersion != null ? latestVersion : "new build"));
                 }
             }
@@ -418,10 +418,10 @@ public class GitHubAutoUpdater {
         if (!player.hasPermission("moderex.admin")) return;
 
         if (updateDownloaded) {
-            player.sendMessage(plugin.getLanguageManager().getPrefixed(MessageKey.GITHUB_UPDATE_PENDING,
+            Msg.send(player, plugin.getLanguageManager().getPrefixed(MessageKey.GITHUB_UPDATE_PENDING,
                     "version", latestVersion != null ? latestVersion : "new build"));
         } else if (updateAvailable) {
-            player.sendMessage(plugin.getLanguageManager().getPrefixed(MessageKey.GITHUB_UPDATE_AVAILABLE,
+            Msg.send(player, plugin.getLanguageManager().getPrefixed(MessageKey.GITHUB_UPDATE_AVAILABLE,
                     "version", latestVersion != null ? latestVersion : "new build",
                     "current", plugin.getPluginMeta().getVersion()));
         }

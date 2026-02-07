@@ -7,6 +7,7 @@ import com.blockforge.moderex.hooks.anticheat.AnticheatChecks;
 import com.blockforge.moderex.staff.StaffSettings;
 import com.blockforge.moderex.staff.StaffSettings.AlertLevel;
 import com.blockforge.moderex.staff.StaffSettings.CheckAlertPreference;
+import com.blockforge.moderex.util.Msg;
 import com.blockforge.moderex.util.TextUtil;
 import net.kyori.adventure.text.serializer.legacy.LegacyComponentSerializer;
 import org.bukkit.Material;
@@ -375,7 +376,7 @@ public class AnticheatRulesGui extends BaseGui {
             setItem(35, createItem(Material.LIME_CONCRETE, "<green>Save & Close",
                     "<gray>Save and return"), () -> {
                 plugin.getStaffSettingsManager().saveSettings(staffSettings);
-                viewer.sendMessage(TextUtil.parse("<green>Settings saved for " + checkName + "!"));
+                Msg.send(viewer, TextUtil.parse("<green>Settings saved for " + checkName + "!"));
                 viewer.playSound(viewer.getLocation(), Sound.ENTITY_EXPERIENCE_ORB_PICKUP, 1f, 1f);
                 plugin.getGuiManager().open(viewer, parent);
             });
@@ -423,8 +424,8 @@ public class AnticheatRulesGui extends BaseGui {
 
         private void promptTimeWindow() {
             close();
-            viewer.sendMessage(TextUtil.parse("<aqua>Enter time window in seconds (5-600):"));
-            viewer.sendMessage(TextUtil.parse("<gray>Type 'cancel' to cancel"));
+            Msg.send(viewer, TextUtil.parse("<aqua>Enter time window in seconds (5-600):"));
+            Msg.send(viewer, TextUtil.parse("<gray>Type 'cancel' to cancel"));
 
             new ConversationFactory(plugin)
                     .withModality(true)

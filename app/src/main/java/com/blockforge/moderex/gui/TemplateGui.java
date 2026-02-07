@@ -3,6 +3,7 @@ package com.blockforge.moderex.gui;
 import com.blockforge.moderex.ModereX;
 import com.blockforge.moderex.punishment.PunishmentTemplate;
 import com.blockforge.moderex.punishment.PunishmentType;
+import com.blockforge.moderex.util.Msg;
 import com.blockforge.moderex.util.TextUtil;
 import org.bukkit.Material;
 import org.bukkit.OfflinePlayer;
@@ -169,15 +170,15 @@ public class TemplateGui extends PaginatedGui<PunishmentTemplate> {
     }
 
     private void showTemplateDetails(PunishmentTemplate template) {
-        viewer.sendMessage(TextUtil.parse(""));
-        viewer.sendMessage(TextUtil.parse("<gray>═══════════════════════════════════"));
-        viewer.sendMessage(TextUtil.parse(template.getTypeColor() + "<bold>" + template.getName()));
-        viewer.sendMessage(TextUtil.parse("<gray>═══════════════════════════════════"));
-        viewer.sendMessage(TextUtil.parse("<gray>Type: <white>" + template.getType().name()));
-        viewer.sendMessage(TextUtil.parse("<gray>Duration: <white>" + (template.getDuration() != null ? template.getDuration() : "None")));
-        viewer.sendMessage(TextUtil.parse("<gray>Reason: <white>" + (template.getReason() != null ? template.getReason() : "None")));
-        viewer.sendMessage(TextUtil.parse("<gray>Priority: <white>" + template.getPriority()));
-        viewer.sendMessage(TextUtil.parse("<gray>═══════════════════════════════════"));
+        Msg.send(viewer, TextUtil.parse(""));
+        Msg.send(viewer, TextUtil.parse("<gray>═══════════════════════════════════"));
+        Msg.send(viewer, TextUtil.parse(template.getTypeColor() + "<bold>" + template.getName()));
+        Msg.send(viewer, TextUtil.parse("<gray>═══════════════════════════════════"));
+        Msg.send(viewer, TextUtil.parse("<gray>Type: <white>" + template.getType().name()));
+        Msg.send(viewer, TextUtil.parse("<gray>Duration: <white>" + (template.getDuration() != null ? template.getDuration() : "None")));
+        Msg.send(viewer, TextUtil.parse("<gray>Reason: <white>" + (template.getReason() != null ? template.getReason() : "None")));
+        Msg.send(viewer, TextUtil.parse("<gray>Priority: <white>" + template.getPriority()));
+        Msg.send(viewer, TextUtil.parse("<gray>═══════════════════════════════════"));
     }
 
     @Override
@@ -313,7 +314,7 @@ public class TemplateGui extends PaginatedGui<PunishmentTemplate> {
                         "",
                         "<red>Click to delete"), () -> {
                     plugin.getTemplateManager().deleteTemplate(template.getId());
-                    viewer.sendMessage(TextUtil.parse("<red>Template deleted!"));
+                    Msg.send(viewer, TextUtil.parse("<red>Template deleted!"));
                     close();
                     onComplete.run();
                 });
@@ -357,15 +358,15 @@ public class TemplateGui extends PaginatedGui<PunishmentTemplate> {
 
             plugin.getTemplateManager().saveTemplate(toSave);
 
-            viewer.sendMessage(TextUtil.parse("<green>Template saved successfully!"));
+            Msg.send(viewer, TextUtil.parse("<green>Template saved successfully!"));
             close();
             onComplete.run();
         }
 
         private void promptTextInput(String prompt, Consumer<String> callback) {
             close();
-            viewer.sendMessage(TextUtil.parse("<aqua>" + prompt));
-            viewer.sendMessage(TextUtil.parse("<gray>Type 'cancel' to cancel"));
+            Msg.send(viewer, TextUtil.parse("<aqua>" + prompt));
+            Msg.send(viewer, TextUtil.parse("<gray>Type 'cancel' to cancel"));
 
             new ConversationFactory(plugin)
                     .withModality(true)

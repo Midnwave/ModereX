@@ -2,6 +2,7 @@ package com.blockforge.moderex.listeners;
 
 import com.blockforge.moderex.ModereX;
 import com.blockforge.moderex.automod.AutomodManager;
+import com.blockforge.moderex.util.Msg;
 import com.blockforge.moderex.util.TextUtil;
 import org.bukkit.Bukkit;
 import org.bukkit.entity.Player;
@@ -119,7 +120,7 @@ public class NicknameListener implements Listener {
         if (result.isBlocked()) {
             plugin.logDebug("[Nickname] Nickname blocked by automod: " + result.getReason());
             // Notify the player that their nickname was blocked
-            player.sendMessage(TextUtil.parse("<red>Your nickname was blocked by automod."));
+            Msg.send(player, TextUtil.parse("<red>Your nickname was blocked by automod."));
             return;
         }
 
@@ -131,14 +132,10 @@ public class NicknameListener implements Listener {
      * Get player's display name, stripping color codes for comparison.
      */
     private String getDisplayName(Player player) {
-        // Get the display name component as plain text
-        String displayName = player.displayName() != null ?
-                net.kyori.adventure.text.serializer.plain.PlainTextComponentSerializer.plainText()
-                        .serialize(player.displayName()) : player.getName();
-
-        // If display name is the same as player name, return null to indicate no nickname
-        if (displayName.equals(player.getName())) {
-            return player.getName(); // Return name for caching purposes
+        // Get the display name as plain text via Msg utility
+        String displayName = Msg.getDisplayName(player);
+        if (displayName == null) {
+            return player.getName();
         }
 
         return displayName;

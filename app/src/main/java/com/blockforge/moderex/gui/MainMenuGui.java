@@ -3,6 +3,7 @@ package com.blockforge.moderex.gui;
 import com.blockforge.moderex.ModereX;
 import com.blockforge.moderex.gui.punishment.PunishPlayerGui;
 import com.blockforge.moderex.gui.ReplayGui;
+import com.blockforge.moderex.util.Msg;
 import com.blockforge.moderex.util.TextUtil;
 import org.bukkit.Bukkit;
 import org.bukkit.Material;
@@ -240,7 +241,7 @@ public class MainMenuGui extends BaseGui {
     }
 
     private void sendMessage(String message) {
-        viewer.sendMessage(TextUtil.parse(message));
+        Msg.send(viewer, TextUtil.parse(message));
     }
 
     public static class OnlinePlayersGui extends PaginatedGui<Player> {
@@ -259,7 +260,7 @@ public class MainMenuGui extends BaseGui {
             ItemStack head = new ItemStack(Material.PLAYER_HEAD);
             SkullMeta meta = (SkullMeta) head.getItemMeta();
             meta.setOwningPlayer(player);
-            meta.displayName(TextUtil.parseLore("<yellow>" + player.getName()));
+            Msg.displayName(meta, TextUtil.parseLore("<yellow>" + player.getName()));
 
             List<String> lore = new ArrayList<>();
             lore.add("<gray>UUID: <white>" + player.getUniqueId().toString().substring(0, 8) + "...");
@@ -276,7 +277,7 @@ public class MainMenuGui extends BaseGui {
             lore.add("");
             lore.add("<yellow>Click to moderate");
 
-            meta.lore(lore.stream().map(TextUtil::parseLore).toList());
+            Msg.lore(meta, lore.stream().map(TextUtil::parseLore).toList());
             head.setItemMeta(meta);
 
             setItem(slot, head, () -> openGui(new PunishPlayerGui(plugin, player)));
@@ -346,9 +347,9 @@ public class MainMenuGui extends BaseGui {
                     for (int i = 0; i < 100; i++) {
                         p.sendMessage("");
                     }
-                    p.sendMessage(TextUtil.parse("<gray>Chat was cleared by <white>" + viewer.getName()));
+                    Msg.send(p, TextUtil.parse("<gray>Chat was cleared by <white>" + viewer.getName()));
                 }
-                viewer.sendMessage(TextUtil.parse("<green>Chat cleared!"));
+                Msg.send(viewer, TextUtil.parse("<green>Chat cleared!"));
             });
 
             // Lock Chat (disable + message)
@@ -359,7 +360,7 @@ public class MainMenuGui extends BaseGui {
             ), () -> {
                 plugin.getConfigManager().getSettings().setChatEnabled(false);
                 for (Player p : plugin.getServer().getOnlinePlayers()) {
-                    p.sendMessage(TextUtil.parse("<red><bold>Chat has been locked by staff."));
+                    Msg.send(p, TextUtil.parse("<red><bold>Chat has been locked by staff."));
                 }
                 broadcastChatStatusToPanel();
                 refresh();

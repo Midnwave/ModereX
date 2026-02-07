@@ -1,6 +1,7 @@
 package com.blockforge.moderex.gui;
 
 import com.blockforge.moderex.ModereX;
+import com.blockforge.moderex.util.Msg;
 import com.blockforge.moderex.util.TextUtil;
 import net.kyori.adventure.text.Component;
 import org.bukkit.Bukkit;
@@ -93,7 +94,7 @@ public abstract class BaseGui {
         ItemMeta meta = item.getItemMeta();
 
         if (name != null) {
-            meta.displayName(TextUtil.parseLore(name)); // Use parseLore to disable italic
+            Msg.displayName(meta, TextUtil.parseLore(name)); // Use parseLore to disable italic
         }
 
         if (lore != null && lore.length > 0) {
@@ -104,7 +105,7 @@ public abstract class BaseGui {
                     loreComponents.add(TextUtil.parseLore(wrappedLine)); // Use parseLore to disable italic
                 }
             }
-            meta.lore(loreComponents);
+            Msg.lore(meta, loreComponents);
         }
 
         item.setItemMeta(meta);
@@ -121,7 +122,7 @@ public abstract class BaseGui {
         ItemMeta meta = item.getItemMeta();
 
         if (name != null) {
-            meta.displayName(TextUtil.parseLore(name)); // Use parseLore to disable italic
+            Msg.displayName(meta, TextUtil.parseLore(name)); // Use parseLore to disable italic
         }
 
         if (lore != null && !lore.isEmpty()) {
@@ -129,7 +130,7 @@ public abstract class BaseGui {
             for (String line : lore) {
                 loreComponents.add(TextUtil.parseLore(line)); // Use parseLore to disable italic
             }
-            meta.lore(loreComponents);
+            Msg.lore(meta, loreComponents);
         }
 
         item.setItemMeta(meta);
@@ -220,7 +221,7 @@ public abstract class BaseGui {
     }
 
     protected void promptInput(String prompt, Consumer<String> onInput) {
-        viewer.sendMessage(TextUtil.parse(prompt));
+        Msg.send(viewer, TextUtil.parse(prompt));
         plugin.getGuiManager().registerInputHandler(viewer, new GuiManager.GuiInputHandler() {
             @Override
             public void onInput(String input) {

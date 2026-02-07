@@ -10,6 +10,7 @@ import com.blockforge.moderex.punishment.PunishmentEvidence;
 import com.blockforge.moderex.punishment.PunishmentType;
 import com.blockforge.moderex.evidence.Evidence;
 import com.blockforge.moderex.util.DurationParser;
+import com.blockforge.moderex.util.Msg;
 import com.blockforge.moderex.util.PermissionUtil;
 import com.blockforge.moderex.util.TextUtil;
 import com.blockforge.moderex.hooks.anticheat.AnticheatChecks;
@@ -1346,33 +1347,31 @@ public class HybridPanelServer implements com.blockforge.moderex.gateway.Gateway
     }
 
     private void sendPanelVersionResponse(OutputStream out) throws IOException {
+        sendJson(out, buildPanelVersionJson());
+    }
+
+    /**
+     * Build panel version JSON from the plugin version string.
+     * Panel version is derived from the plugin version (e.g., "2.0dev-270" → build 270).
+     */
+    private JsonObject buildPanelVersionJson() {
         JsonObject version = new JsonObject();
-        // Read version from panel-version.properties file
-        try (InputStream in = plugin.getResource("panel-version.properties")) {
-            if (in != null) {
-                Properties props = new Properties();
-                props.load(in);
-                version.addProperty("version", props.getProperty("version", "UNKNOWN"));
-                version.addProperty("buildDate", props.getProperty("buildDate", ""));
-                int buildNum = 0;
+        String versionStr = plugin.getDescription().getVersion();
+        version.addProperty("version", versionStr);
+
+        int buildNumber = 0;
+        if (versionStr.contains("-")) {
+            String[] parts = versionStr.split("-");
+            if (parts.length > 1) {
                 try {
-                    buildNum = Integer.parseInt(props.getProperty("buildNumber", "0").trim());
+                    buildNumber = Integer.parseInt(parts[parts.length - 1]);
                 } catch (NumberFormatException ignored) {}
-                version.addProperty("buildNumber", buildNum);
-                version.addProperty("notes", props.getProperty("notes", ""));
-            } else {
-                version.addProperty("version", "UNKNOWN");
-                version.addProperty("buildDate", "");
-                version.addProperty("buildNumber", 0);
-                version.addProperty("notes", "Version file not found");
             }
-        } catch (Exception e) {
-            version.addProperty("version", "ERROR");
-            version.addProperty("buildDate", "");
-            version.addProperty("buildNumber", 0);
-            version.addProperty("notes", "Failed to read version: " + e.getMessage());
         }
-        sendJson(out, version);
+        version.addProperty("buildNumber", buildNumber);
+        version.addProperty("buildDate", "");
+        version.addProperty("notes", "");
+        return version;
     }
 
     /**
@@ -1381,35 +1380,7 @@ public class HybridPanelServer implements com.blockforge.moderex.gateway.Gateway
     private void sendPanelVersionWebSocket(WebSocketConnection conn) {
         JsonObject response = new JsonObject();
         response.addProperty("type", "PANEL_VERSION");
-
-        JsonObject data = new JsonObject();
-        // Read version from panel-version.properties file
-        try (InputStream in = plugin.getResource("panel-version.properties")) {
-            if (in != null) {
-                Properties props = new Properties();
-                props.load(in);
-                data.addProperty("version", props.getProperty("version", "UNKNOWN"));
-                data.addProperty("buildDate", props.getProperty("buildDate", ""));
-                int buildNum = 0;
-                try {
-                    buildNum = Integer.parseInt(props.getProperty("buildNumber", "0").trim());
-                } catch (NumberFormatException ignored) {}
-                data.addProperty("buildNumber", buildNum);
-                data.addProperty("notes", props.getProperty("notes", ""));
-            } else {
-                data.addProperty("version", "UNKNOWN");
-                data.addProperty("buildDate", "");
-                data.addProperty("buildNumber", 0);
-                data.addProperty("notes", "Version file not found");
-            }
-        } catch (Exception e) {
-            data.addProperty("version", "ERROR");
-            data.addProperty("buildDate", "");
-            data.addProperty("buildNumber", 0);
-            data.addProperty("notes", "Failed to read version: " + e.getMessage());
-        }
-
-        response.add("data", data);
+        response.add("data", buildPanelVersionJson());
         conn.send(GSON.toJson(response));
     }
 

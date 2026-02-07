@@ -17,6 +17,7 @@ import com.blockforge.moderex.replay.ReplaySession;
 import com.blockforge.moderex.punishment.PunishmentType;
 import com.blockforge.moderex.replay.TestReplayGenerator;
 import com.blockforge.moderex.util.DurationParser;
+import com.blockforge.moderex.util.Msg;
 import com.blockforge.moderex.util.TextUtil;
 import net.kyori.adventure.inventory.Book;
 import net.kyori.adventure.text.Component;
@@ -342,7 +343,7 @@ public class MxCommand extends BaseCommand {
                 Component clickableUrl = TextUtil.parse("<aqua><bold>[CLICK TO OPEN]</bold></aqua> <white>" + gatewayUrl)
                         .clickEvent(ClickEvent.openUrl(gatewayUrl))
                         .hoverEvent(HoverEvent.showText(TextUtil.parse("<gray>Click to open web panel")));
-                player.sendMessage(clickableUrl);
+                Msg.send(player, clickableUrl);
             } else {
                 sendMessage(sender, "<aqua>" + gatewayUrl);
             }
@@ -746,7 +747,7 @@ public class MxCommand extends BaseCommand {
                 .clickEvent(ClickEvent.openUrl(url))
                 .hoverEvent(HoverEvent.showText(TextUtil.parse("<gray>Click to open web panel\n<yellow>" + url)));
 
-        player.sendMessage(clickableUrl);
+        Msg.send(player, clickableUrl);
 
         sendMessage(sender, "");
         sendMessage(sender, "<gray>Or copy: <white>" + url);
@@ -1011,12 +1012,12 @@ public class MxCommand extends BaseCommand {
                 .hoverEvent(HoverEvent.showText(TextUtil.parse("<gray>Revoke token and log out of all sessions")));
 
         if (hasToken) {
-            player.sendMessage(revokeButton);
+            Msg.send(player, revokeButton);
         } else {
             Component getTokenButton = TextUtil.parse("<green>[Generate Token]")
                     .clickEvent(ClickEvent.runCommand("/mx gettoken"))
                     .hoverEvent(HoverEvent.showText(TextUtil.parse("<gray>Generate a permanent access token")));
-            player.sendMessage(getTokenButton);
+            Msg.send(player, getTokenButton);
         }
 
         sendMessage(sender, "");
@@ -1157,9 +1158,9 @@ public class MxCommand extends BaseCommand {
             case "clear" -> {
                 for (Player player : plugin.getServer().getOnlinePlayers()) {
                     for (int i = 0; i < 100; i++) {
-                        player.sendMessage("");
+                        Msg.send(player, Component.text(""));
                     }
-                    player.sendMessage(plugin.getLanguageManager().get(MessageKey.CHAT_CLEARED,
+                    Msg.send(player, plugin.getLanguageManager().get(MessageKey.CHAT_CLEARED,
                             "player", sender.getName()));
                 }
                 sendMessage(sender, "<green>Chat cleared.");

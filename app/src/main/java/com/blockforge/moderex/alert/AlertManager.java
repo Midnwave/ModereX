@@ -4,6 +4,7 @@ import com.blockforge.moderex.ModereX;
 import com.blockforge.moderex.staff.StaffSettings;
 import com.blockforge.moderex.staff.StaffSettings.AlertLevel;
 import com.blockforge.moderex.staff.StaffSettings.CommandAlertLevel;
+import com.blockforge.moderex.util.Msg;
 import com.blockforge.moderex.util.PermissionUtil;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
@@ -179,7 +180,7 @@ public class AlertManager {
             StaffSettings settings = plugin.getStaffSettingsManager().getSettings(staff.getUniqueId());
             if (settings == null) {
                 // No settings = use defaults, send alert
-                staff.sendMessage(alertComponent);
+                Msg.send(staff, alertComponent);
                 continue;
             }
 
@@ -226,7 +227,7 @@ public class AlertManager {
     private void sendAlertToStaff(Player staff, StaffSettings settings, Component alertComponent,
                                    AlertType type, String playerName, String message) {
         // Send chat message
-        staff.sendMessage(alertComponent);
+        Msg.send(staff, alertComponent);
 
         // Play sound only if sound is enabled
         if (settings.isSoundEnabled()) {

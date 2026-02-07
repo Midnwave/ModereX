@@ -5,6 +5,7 @@ import com.blockforge.moderex.config.lang.MessageKey;
 import com.blockforge.moderex.punishment.Punishment;
 import com.blockforge.moderex.punishment.PunishmentType;
 import com.blockforge.moderex.replay.ReplaySnapshot;
+import com.blockforge.moderex.util.Msg;
 import com.blockforge.moderex.util.TextUtil;
 import org.bukkit.Bukkit;
 import org.bukkit.entity.Player;
@@ -43,7 +44,7 @@ public class CommandListener implements Listener {
                     // Check if this command is blocked for muted players
                     if (isBlockedForMuted(baseCommand)) {
                         event.setCancelled(true);
-                        player.sendMessage(plugin.getLanguageManager().getPrefixed(MessageKey.MUTED_CHAT_ATTEMPT,
+                        Msg.send(player, plugin.getLanguageManager().getPrefixed(MessageKey.MUTED_CHAT_ATTEMPT,
                                 "duration", com.blockforge.moderex.util.DurationParser.formatRemaining(mute.getExpiresAt()),
                                 "reason", mute.getReason()));
                         return;
@@ -55,7 +56,7 @@ public class CommandListener implements Listener {
         // Check command blacklist
         if (isCommandBlacklisted(uuid, baseCommand) || isCommandBlacklisted(uuid, fullCommand)) {
             event.setCancelled(true);
-            player.sendMessage(plugin.getLanguageManager().getPrefixed(MessageKey.CMD_BLACKLIST_BLOCKED));
+            Msg.send(player, plugin.getLanguageManager().getPrefixed(MessageKey.CMD_BLACKLIST_BLOCKED));
             return;
         }
 
@@ -68,7 +69,7 @@ public class CommandListener implements Listener {
                 var result = plugin.getAutomodManager().processCommandMessage(player, baseCommand, message);
                 if (result.isBlocked()) {
                     event.setCancelled(true);
-                    player.sendMessage(plugin.getLanguageManager().getPrefixed(
+                    Msg.send(player, plugin.getLanguageManager().getPrefixed(
                             com.blockforge.moderex.config.lang.MessageKey.AUTOMOD_BLOCKED));
                     return;
                 }
@@ -207,7 +208,7 @@ public class CommandListener implements Listener {
             String wlPrefix = isWatched ? "<yellow>[WL] </yellow>" : "";
             String alertMsg = "<dark_gray>[<gradient:#a855f7:#ec4899>PM</gradient>]</dark_gray> " +
                     wlPrefix + "<gray>" + sender.getName() + "</gray> <dark_gray>→</dark_gray> <gray>" + targetName + "</gray>: <white>" + message + "</white>";
-            staff.sendMessage(TextUtil.parse(alertMsg));
+            Msg.send(staff, TextUtil.parse(alertMsg));
         }
 
         // Also send to web panel if enabled

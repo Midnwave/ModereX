@@ -2,6 +2,7 @@ package com.blockforge.moderex.commands.utility;
 
 import com.blockforge.moderex.ModereX;
 import com.blockforge.moderex.commands.BaseCommand;
+import com.blockforge.moderex.util.Msg;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
 import org.bukkit.command.CommandSender;
@@ -22,17 +23,17 @@ public class StaffModeCommand extends BaseCommand {
     @Override
     protected void execute(CommandSender sender, String[] args) {
         if (!(sender instanceof Player player)) {
-            sender.sendMessage(Component.text("This command can only be used by players.").color(NamedTextColor.RED));
+            Msg.send(sender, Component.text("This command can only be used by players.").color(NamedTextColor.RED));
             return;
         }
 
         if (!player.hasPermission("moderex.command.staffmode")) {
-            player.sendMessage(Component.text("You don't have permission to use this command.").color(NamedTextColor.RED));
+            Msg.send(player, Component.text("You don't have permission to use this command.").color(NamedTextColor.RED));
             return;
         }
 
         if (plugin.getStaffModeManager() == null) {
-            player.sendMessage(Component.text("Staff mode is not available.").color(NamedTextColor.RED));
+            Msg.send(player, Component.text("Staff mode is not available.").color(NamedTextColor.RED));
             return;
         }
 

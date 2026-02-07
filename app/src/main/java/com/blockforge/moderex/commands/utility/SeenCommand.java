@@ -5,6 +5,7 @@ import com.blockforge.moderex.commands.BaseCommand;
 import com.blockforge.moderex.config.lang.MessageKey;
 import com.blockforge.moderex.punishment.Punishment;
 import com.blockforge.moderex.punishment.PunishmentType;
+import com.blockforge.moderex.util.Msg;
 import com.blockforge.moderex.util.TimeUtil;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.event.ClickEvent;
@@ -92,8 +93,8 @@ public class SeenCommand extends BaseCommand {
     private void sendPlayerInfo(CommandSender sender, String playerName, UUID uuid, boolean isOnline,
                                  Player onlinePlayer, PlayerInfo info) {
         // Header
-        sender.sendMessage(Component.empty());
-        sender.sendMessage(Component.text("━━━━━━━━━━━━━ ", NamedTextColor.DARK_GRAY)
+        Msg.send(sender, Component.empty());
+        Msg.send(sender, Component.text("━━━━━━━━━━━━━ ", NamedTextColor.DARK_GRAY)
                 .append(Component.text("Player Info", NamedTextColor.GOLD).decorate(TextDecoration.BOLD))
                 .append(Component.text(" ━━━━━━━━━━━━━", NamedTextColor.DARK_GRAY)));
 
@@ -102,49 +103,49 @@ public class SeenCommand extends BaseCommand {
                 ? Component.text(" [ONLINE]", NamedTextColor.GREEN)
                 : Component.text(" [OFFLINE]", NamedTextColor.GRAY);
 
-        sender.sendMessage(Component.text(" Player: ", NamedTextColor.GRAY)
+        Msg.send(sender, Component.text(" Player: ", NamedTextColor.GRAY)
                 .append(Component.text(playerName, NamedTextColor.YELLOW))
                 .append(statusBadge));
 
         // UUID (clickable to copy)
-        sender.sendMessage(Component.text(" UUID: ", NamedTextColor.GRAY)
+        Msg.send(sender, Component.text(" UUID: ", NamedTextColor.GRAY)
                 .append(Component.text(uuid.toString(), NamedTextColor.WHITE)
                         .clickEvent(ClickEvent.copyToClipboard(uuid.toString()))
                         .hoverEvent(HoverEvent.showText(Component.text("Click to copy UUID", NamedTextColor.YELLOW)))));
 
         if (info != null) {
             // First join
-            sender.sendMessage(Component.text(" First Join: ", NamedTextColor.GRAY)
+            Msg.send(sender, Component.text(" First Join: ", NamedTextColor.GRAY)
                     .append(Component.text(TimeUtil.formatDateTime(info.firstJoin), NamedTextColor.WHITE))
                     .append(Component.text(" (" + TimeUtil.formatRelative(info.firstJoin) + ")", NamedTextColor.DARK_GRAY)));
 
             // Last seen / Currently online
             if (isOnline) {
-                sender.sendMessage(Component.text(" Last Seen: ", NamedTextColor.GRAY)
+                Msg.send(sender, Component.text(" Last Seen: ", NamedTextColor.GRAY)
                         .append(Component.text("Currently online", NamedTextColor.GREEN)));
             } else {
-                sender.sendMessage(Component.text(" Last Seen: ", NamedTextColor.GRAY)
+                Msg.send(sender, Component.text(" Last Seen: ", NamedTextColor.GRAY)
                         .append(Component.text(TimeUtil.formatDateTime(info.lastJoin), NamedTextColor.WHITE))
                         .append(Component.text(" (" + TimeUtil.formatRelative(info.lastJoin) + ")", NamedTextColor.DARK_GRAY)));
             }
 
             // Last server
             if (info.lastServer != null && !info.lastServer.isEmpty()) {
-                sender.sendMessage(Component.text(" Last Server: ", NamedTextColor.GRAY)
+                Msg.send(sender, Component.text(" Last Server: ", NamedTextColor.GRAY)
                         .append(Component.text(info.lastServer, NamedTextColor.WHITE)));
             }
 
             // IP Address (requires permission)
             if (sender.hasPermission("moderex.command.seen.ip") || sender.hasPermission("moderex.admin")) {
                 if (info.ipAddress != null && !info.ipAddress.isEmpty()) {
-                    sender.sendMessage(Component.text(" IP Address: ", NamedTextColor.GRAY)
+                    Msg.send(sender, Component.text(" IP Address: ", NamedTextColor.GRAY)
                             .append(Component.text(info.ipAddress, NamedTextColor.WHITE)
                                     .clickEvent(ClickEvent.copyToClipboard(info.ipAddress))
                                     .hoverEvent(HoverEvent.showText(Component.text("Click to copy IP", NamedTextColor.YELLOW)))));
                 }
             }
         } else {
-            sender.sendMessage(Component.text(" No additional data available", NamedTextColor.GRAY));
+            Msg.send(sender, Component.text(" No additional data available", NamedTextColor.GRAY));
         }
 
         // Punishment summary
@@ -153,13 +154,13 @@ public class SeenCommand extends BaseCommand {
         // Watchlist status
         boolean isWatched = plugin.getWatchlistManager().isWatched(uuid);
         if (isWatched) {
-            sender.sendMessage(Component.text(" Watchlist: ", NamedTextColor.GRAY)
+            Msg.send(sender, Component.text(" Watchlist: ", NamedTextColor.GRAY)
                     .append(Component.text("WATCHED", NamedTextColor.RED).decorate(TextDecoration.BOLD)));
         }
 
         // Quick actions (clickable)
-        sender.sendMessage(Component.empty());
-        sender.sendMessage(Component.text(" Quick Actions: ", NamedTextColor.GRAY)
+        Msg.send(sender, Component.empty());
+        Msg.send(sender, Component.text(" Quick Actions: ", NamedTextColor.GRAY)
                 .append(Component.text("[Check]", NamedTextColor.AQUA)
                         .clickEvent(ClickEvent.runCommand("/check " + playerName))
                         .hoverEvent(HoverEvent.showText(Component.text("View detailed check", NamedTextColor.YELLOW))))
@@ -172,7 +173,7 @@ public class SeenCommand extends BaseCommand {
                         .clickEvent(ClickEvent.runCommand("/mx commandhistory " + playerName))
                         .hoverEvent(HoverEvent.showText(Component.text("View command history", NamedTextColor.YELLOW)))));
 
-        sender.sendMessage(Component.text("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━", NamedTextColor.DARK_GRAY));
+        Msg.send(sender, Component.text("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━", NamedTextColor.DARK_GRAY));
     }
 
     private void sendPunishmentSummary(CommandSender sender, UUID uuid, String playerName) {
@@ -184,17 +185,17 @@ public class SeenCommand extends BaseCommand {
         if (activeBan != null) {
             String duration = activeBan.isPermanent() ? "Permanent" :
                     com.blockforge.moderex.util.DurationParser.formatRemaining(activeBan.getExpiresAt());
-            sender.sendMessage(Component.text(" Status: ", NamedTextColor.GRAY)
+            Msg.send(sender, Component.text(" Status: ", NamedTextColor.GRAY)
                     .append(Component.text("BANNED", NamedTextColor.RED).decorate(TextDecoration.BOLD))
                     .append(Component.text(" (" + duration + ")", NamedTextColor.DARK_GRAY)));
         } else if (activeMute != null) {
             String duration = activeMute.isPermanent() ? "Permanent" :
                     com.blockforge.moderex.util.DurationParser.formatRemaining(activeMute.getExpiresAt());
-            sender.sendMessage(Component.text(" Status: ", NamedTextColor.GRAY)
+            Msg.send(sender, Component.text(" Status: ", NamedTextColor.GRAY)
                     .append(Component.text("MUTED", NamedTextColor.GOLD).decorate(TextDecoration.BOLD))
                     .append(Component.text(" (" + duration + ")", NamedTextColor.DARK_GRAY)));
         } else {
-            sender.sendMessage(Component.text(" Status: ", NamedTextColor.GRAY)
+            Msg.send(sender, Component.text(" Status: ", NamedTextColor.GRAY)
                     .append(Component.text("Clear", NamedTextColor.GREEN)));
         }
 
@@ -217,7 +218,7 @@ public class SeenCommand extends BaseCommand {
                 int finalKicks = kicks;
 
                 plugin.getServer().getScheduler().runTask(plugin, () -> {
-                    sender.sendMessage(Component.text(" History: ", NamedTextColor.GRAY)
+                    Msg.send(sender, Component.text(" History: ", NamedTextColor.GRAY)
                             .append(Component.text(finalBans + " bans", NamedTextColor.RED))
                             .append(Component.text(", ", NamedTextColor.DARK_GRAY))
                             .append(Component.text(finalMutes + " mutes", NamedTextColor.GOLD))

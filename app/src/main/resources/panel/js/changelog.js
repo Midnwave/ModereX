@@ -14,6 +14,44 @@
 
 window.MX_CHANGELOGS = [
   {
+    build: 270,
+    version: "2.0dev-270",
+    date: "2026-02-07",
+    title: "Spigot Compatibility & Evidence Viewer",
+    sections: [
+      {
+        type: "new",
+        title: "New Features",
+        items: [
+          "**Spigot Support** - Plugin now runs on both Paper and Spigot servers with full functionality",
+          "**Evidence Viewer** - Punishment details now always show evidence section with image viewer, video player, and activity log display",
+          "**Empty Evidence State** - Clean \"No evidence attached\" message when punishment has no evidence",
+          "**Evidence Count Badge** - Evidence header shows count badge when items are present"
+        ]
+      },
+      {
+        type: "improved",
+        title: "Improvements",
+        items: [
+          "**Activity Logs** - Color-coded badges by type (Chat, Command, Automod, Anticheat) with left-border accent",
+          "**Image Evidence** - Hover overlay with \"View Full Size\" prompt, graceful load failure handling",
+          "**Video Evidence** - Card layout with play icon, filename, file size, and hover animation",
+          "**Panel Version** - Version now derived from plugin build number instead of separate properties file"
+        ]
+      },
+      {
+        type: "technical",
+        title: "Technical Changes",
+        items: [
+          "**Cross-Platform Msg Utility** - New Msg wrapper class routes Paper-specific API calls through correct platform",
+          "**Adventure API Bundled** - Adventure library now shaded into JAR for Spigot runtime support",
+          "**Split Chat Listeners** - Paper and Spigot each get their own optimized chat event handler",
+          "**BukkitAudiences** - Message delivery on Spigot uses adventure-platform-bukkit for Component serialization"
+        ]
+      }
+    ]
+  },
+  {
     build: 255,
     version: "2.0dev-255",
     date: "2026-02-07",

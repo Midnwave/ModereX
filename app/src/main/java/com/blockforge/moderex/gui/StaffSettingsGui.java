@@ -5,6 +5,7 @@ import com.blockforge.moderex.staff.StaffSettings;
 import com.blockforge.moderex.staff.StaffSettings.AlertLevel;
 import com.blockforge.moderex.staff.StaffSettings.CommandAlertLevel;
 import com.blockforge.moderex.util.PermissionUtil;
+import com.blockforge.moderex.util.Msg;
 import com.blockforge.moderex.util.TextUtil;
 import org.bukkit.Material;
 import org.bukkit.Sound;
@@ -320,7 +321,7 @@ public class StaffSettingsGui extends BaseGui {
                 // Reset settings
                 settings = new StaffSettings(viewer.getUniqueId());
                 plugin.getStaffSettingsManager().saveSettings(settings);
-                viewer.sendMessage(TextUtil.parse("<yellow>Settings reset to defaults!"));
+                Msg.send(viewer, TextUtil.parse("<yellow>Settings reset to defaults!"));
                 viewer.playSound(viewer.getLocation(), Sound.ENTITY_EXPERIENCE_ORB_PICKUP, 1f, 0.5f);
                 refresh();
             }
@@ -332,7 +333,7 @@ public class StaffSettingsGui extends BaseGui {
                 "",
                 "<dark_gray>Settings auto-save on change"), () -> {
             plugin.getStaffSettingsManager().saveSettings(settings);
-            viewer.sendMessage(TextUtil.parse("<green>Settings saved!"));
+            Msg.send(viewer, TextUtil.parse("<green>Settings saved!"));
             viewer.playSound(viewer.getLocation(), Sound.ENTITY_EXPERIENCE_ORB_PICKUP, 1f, 1f);
             close();
         });

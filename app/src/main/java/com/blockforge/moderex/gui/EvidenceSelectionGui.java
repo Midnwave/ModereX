@@ -2,6 +2,7 @@ package com.blockforge.moderex.gui;
 
 import com.blockforge.moderex.ModereX;
 import com.blockforge.moderex.evidence.EvidenceSelectionSession;
+import com.blockforge.moderex.util.Msg;
 import com.blockforge.moderex.log.ActivityLogEntry;
 import org.bukkit.Material;
 import org.bukkit.enchantments.Enchantment;

@@ -3,6 +3,7 @@ package com.blockforge.moderex.commands.utility;
 import com.blockforge.moderex.ModereX;
 import com.blockforge.moderex.commands.BaseCommand;
 import com.blockforge.moderex.rules.Rule;
+import com.blockforge.moderex.util.Msg;
 import com.blockforge.moderex.util.TextUtil;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.event.ClickEvent;
@@ -77,13 +78,13 @@ public class RulesCommand extends BaseCommand {
         int end = Math.min(start + RULES_PER_PAGE, rules.size());
 
         // Header
-        sender.sendMessage(TextUtil.parse(
+        Msg.send(sender, TextUtil.parse(
                 "<dark_gray>╔══════════════════════════════════════════════════════════════╗"
         ));
-        sender.sendMessage(TextUtil.parse(
+        Msg.send(sender, TextUtil.parse(
                 "<dark_gray>║ <gradient:#ff6b6b:#ee5a5a>Server Rules</gradient> <dark_gray>│ <gray>Page " + page + "/" + totalPages
         ));
-        sender.sendMessage(TextUtil.parse(
+        Msg.send(sender, TextUtil.parse(
                 "<dark_gray>╠══════════════════════════════════════════════════════════════╣"
         ));
 
@@ -107,7 +108,7 @@ public class RulesCommand extends BaseCommand {
         }
 
         // Footer with navigation
-        sender.sendMessage(TextUtil.parse(
+        Msg.send(sender, TextUtil.parse(
                 "<dark_gray>╠══════════════════════════════════════════════════════════════╣"
         ));
 
@@ -127,7 +128,7 @@ public class RulesCommand extends BaseCommand {
         }
 
         sender.sendMessage(navComponent);
-        sender.sendMessage(TextUtil.parse(
+        Msg.send(sender, TextUtil.parse(
                 "<dark_gray>╚══════════════════════════════════════════════════════════════╝"
         ));
     }
@@ -143,30 +144,30 @@ public class RulesCommand extends BaseCommand {
             return;
         }
 
-        sender.sendMessage(TextUtil.parse(
+        Msg.send(sender, TextUtil.parse(
                 "<dark_gray>╔══════════════════════════════════════════════════════════════╗"
         ));
-        sender.sendMessage(TextUtil.parse(
+        Msg.send(sender, TextUtil.parse(
                 "<dark_gray>║ <gradient:#ff6b6b:#ee5a5a>Rule #" + rule.getOrder() + "</gradient>"
         ));
-        sender.sendMessage(TextUtil.parse(
+        Msg.send(sender, TextUtil.parse(
                 "<dark_gray>╠══════════════════════════════════════════════════════════════╣"
         ));
-        sender.sendMessage(TextUtil.parse(
+        Msg.send(sender, TextUtil.parse(
                 "<dark_gray>║ <yellow>Title: <white>" + rule.getTitle()
         ));
         if (rule.getCategory() != null) {
-            sender.sendMessage(TextUtil.parse(
+            Msg.send(sender, TextUtil.parse(
                     "<dark_gray>║ <yellow>Category: <" + getCategoryColor(rule.getCategory()) + ">" + rule.getCategory()
             ));
         }
-        sender.sendMessage(TextUtil.parse(
+        Msg.send(sender, TextUtil.parse(
                 "<dark_gray>║ "
         ));
-        sender.sendMessage(TextUtil.parse(
+        Msg.send(sender, TextUtil.parse(
                 "<dark_gray>║ <gray>" + rule.getDescription()
         ));
-        sender.sendMessage(TextUtil.parse(
+        Msg.send(sender, TextUtil.parse(
                 "<dark_gray>╠══════════════════════════════════════════════════════════════╣"
         ));
 
@@ -175,19 +176,19 @@ public class RulesCommand extends BaseCommand {
                 .hoverEvent(HoverEvent.showText(TextUtil.parse("<gray>Return to rules list")));
         sender.sendMessage(backBtn);
 
-        sender.sendMessage(TextUtil.parse(
+        Msg.send(sender, TextUtil.parse(
                 "<dark_gray>╚══════════════════════════════════════════════════════════════╝"
         ));
     }
 
     private void showCategory(CommandSender sender, String category, List<Rule> rules) {
-        sender.sendMessage(TextUtil.parse(
+        Msg.send(sender, TextUtil.parse(
                 "<dark_gray>╔══════════════════════════════════════════════════════════════╗"
         ));
-        sender.sendMessage(TextUtil.parse(
+        Msg.send(sender, TextUtil.parse(
                 "<dark_gray>║ <gradient:#ff6b6b:#ee5a5a>" + capitalize(category) + " Rules</gradient>"
         ));
-        sender.sendMessage(TextUtil.parse(
+        Msg.send(sender, TextUtil.parse(
                 "<dark_gray>╠══════════════════════════════════════════════════════════════╣"
         ));
 
@@ -205,7 +206,7 @@ public class RulesCommand extends BaseCommand {
             sender.sendMessage(ruleComponent);
         }
 
-        sender.sendMessage(TextUtil.parse(
+        Msg.send(sender, TextUtil.parse(
                 "<dark_gray>╠══════════════════════════════════════════════════════════════╣"
         ));
 
@@ -214,7 +215,7 @@ public class RulesCommand extends BaseCommand {
                 .hoverEvent(HoverEvent.showText(TextUtil.parse("<gray>Return to all rules")));
         sender.sendMessage(backBtn);
 
-        sender.sendMessage(TextUtil.parse(
+        Msg.send(sender, TextUtil.parse(
                 "<dark_gray>╚══════════════════════════════════════════════════════════════╝"
         ));
     }

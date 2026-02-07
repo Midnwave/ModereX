@@ -2,6 +2,7 @@ package com.blockforge.moderex.gui;
 
 import com.blockforge.moderex.ModereX;
 import com.blockforge.moderex.gui.punishment.PunishPlayerGui;
+import com.blockforge.moderex.util.Msg;
 import com.blockforge.moderex.util.TextUtil;
 import net.kyori.adventure.text.serializer.legacy.LegacyComponentSerializer;
 import org.bukkit.Bukkit;
@@ -55,10 +56,10 @@ public class WatchlistGui extends PaginatedGui<UUID> {
 
         // Online status
         if (player.isOnline()) {
-            meta.displayName(TextUtil.parseLore("<green>" + name + " <gray>(Online)"));
+            Msg.displayName(meta, TextUtil.parseLore("<green>" + name + " <gray>(Online)"));
             lore.add("<green>● Currently Online");
         } else {
-            meta.displayName(TextUtil.parseLore("<yellow>" + name + " <gray>(Offline)"));
+            Msg.displayName(meta, TextUtil.parseLore("<yellow>" + name + " <gray>(Offline)"));
             long lastPlayed = player.getLastPlayed();
             if (lastPlayed > 0) {
                 lore.add("<red>● Last seen: <white>" + formatTimeAgo(lastPlayed));
@@ -88,7 +89,7 @@ public class WatchlistGui extends PaginatedGui<UUID> {
         lore.add("<red>Right-click: <white>Remove from watchlist");
         lore.add("<aqua>Shift-click: <white>Edit note");
 
-        meta.lore(lore.stream().map(TextUtil::parseLore).toList());
+        Msg.lore(meta, lore.stream().map(TextUtil::parseLore).toList());
         head.setItemMeta(meta);
 
         setItem(slot, head, clickType -> {
@@ -125,8 +126,8 @@ public class WatchlistGui extends PaginatedGui<UUID> {
 
     private void promptAddPlayer() {
         close();
-        viewer.sendMessage(TextUtil.parse("<aqua>Enter the player name to add to watchlist:"));
-        viewer.sendMessage(TextUtil.parse("<gray>Type 'cancel' to cancel"));
+        Msg.send(viewer, TextUtil.parse("<aqua>Enter the player name to add to watchlist:"));
+        Msg.send(viewer, TextUtil.parse("<gray>Type 'cancel' to cancel"));
 
         new ConversationFactory(plugin)
                 .withModality(true)
@@ -206,14 +207,14 @@ public class WatchlistGui extends PaginatedGui<UUID> {
 
     private void removeFromWatchlist(UUID uuid, String name) {
         plugin.getWatchlistManager().removeFromWatchlist(uuid);
-        viewer.sendMessage(TextUtil.parse("<yellow>Removed <white>" + name + "<yellow> from the watchlist."));
+        Msg.send(viewer, TextUtil.parse("<yellow>Removed <white>" + name + "<yellow> from the watchlist."));
         refresh();
     }
 
     private void addNoteToWatchlist(UUID uuid, String name) {
         close();
-        viewer.sendMessage(TextUtil.parse("<aqua>Enter a note for " + name + ":"));
-        viewer.sendMessage(TextUtil.parse("<gray>Type 'cancel' to cancel"));
+        Msg.send(viewer, TextUtil.parse("<aqua>Enter a note for " + name + ":"));
+        Msg.send(viewer, TextUtil.parse("<gray>Type 'cancel' to cancel"));
 
         new ConversationFactory(plugin)
                 .withModality(true)
@@ -291,14 +292,14 @@ public class WatchlistGui extends PaginatedGui<UUID> {
             ItemStack head = new ItemStack(Material.PLAYER_HEAD);
             SkullMeta meta = (SkullMeta) head.getItemMeta();
             meta.setOwningPlayer(Bukkit.getOfflinePlayer(targetUuid));
-            meta.displayName(TextUtil.parseLore("<yellow>" + targetName));
+            Msg.displayName(meta, TextUtil.parseLore("<yellow>" + targetName));
 
             List<String> lore = new ArrayList<>();
             lore.add("<gray>UUID: <white>" + targetUuid.toString());
             lore.add("");
             lore.add("<red>Player is offline");
 
-            meta.lore(lore.stream().map(TextUtil::parseLore).toList());
+            Msg.lore(meta, lore.stream().map(TextUtil::parseLore).toList());
             head.setItemMeta(meta);
             setItem(4, head);
 
@@ -326,7 +327,7 @@ public class WatchlistGui extends PaginatedGui<UUID> {
                         "",
                         "<yellow>Click to remove"), () -> {
                     plugin.getWatchlistManager().removeFromWatchlist(targetUuid);
-                    viewer.sendMessage(TextUtil.parse("<yellow>Removed " + targetName + " from watchlist."));
+                    Msg.send(viewer, TextUtil.parse("<yellow>Removed " + targetName + " from watchlist."));
                     refresh();
                 });
             } else {
@@ -339,7 +340,7 @@ public class WatchlistGui extends PaginatedGui<UUID> {
                             viewer.getUniqueId(), viewer.getName(),
                             "Added via player profile"
                     );
-                    viewer.sendMessage(TextUtil.parse("<green>Added " + targetName + " to watchlist."));
+                    Msg.send(viewer, TextUtil.parse("<green>Added " + targetName + " to watchlist."));
                     refresh();
                 });
             }

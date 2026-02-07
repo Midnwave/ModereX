@@ -5,6 +5,7 @@ import com.blockforge.moderex.config.lang.MessageKey;
 import com.blockforge.moderex.log.ActivityLogEntry;
 import com.blockforge.moderex.webpanel.debug.WebPanelDebugger;
 import com.blockforge.moderex.util.DurationParser;
+import com.blockforge.moderex.util.Msg;
 import com.blockforge.moderex.util.TextUtil;
 import com.blockforge.moderex.util.TimeUtil;
 import net.kyori.adventure.text.Component;
@@ -58,7 +59,7 @@ public class PunishmentManager {
                     Player player = Bukkit.getPlayer(playerUuid);
                     if (player != null) {
                         Component message = buildMuteWarnMessage(punishment, MessageKey.MUTE_MESSAGE, duration);
-                        Bukkit.getScheduler().runTask(plugin, () -> player.sendMessage(message));
+                        Bukkit.getScheduler().runTask(plugin, () -> Msg.send(player, message));
                     }
                     return punishment;
                 });
@@ -72,7 +73,7 @@ public class PunishmentManager {
                     Player player = Bukkit.getPlayer(playerUuid);
                     if (player != null) {
                         Component kickMessage = buildDisconnectMessage(punishment);
-                        Bukkit.getScheduler().runTask(plugin, () -> player.kick(kickMessage));
+                        Bukkit.getScheduler().runTask(plugin, () -> Msg.kick(player, kickMessage));
                     }
                     return punishment;
                 });
@@ -86,7 +87,7 @@ public class PunishmentManager {
                     Player player = Bukkit.getPlayer(playerUuid);
                     if (player != null) {
                         Component kickMessage = buildDisconnectMessage(punishment);
-                        Bukkit.getScheduler().runTask(plugin, () -> player.kick(kickMessage));
+                        Bukkit.getScheduler().runTask(plugin, () -> Msg.kick(player, kickMessage));
                     }
                     return punishment;
                 });
@@ -100,7 +101,7 @@ public class PunishmentManager {
                     Player player = Bukkit.getPlayer(playerUuid);
                     if (player != null) {
                         Component kickMessage = buildKickMessage(punishment);
-                        Bukkit.getScheduler().runTask(plugin, () -> player.kick(kickMessage));
+                        Bukkit.getScheduler().runTask(plugin, () -> Msg.kick(player, kickMessage));
                     }
                     return punishment;
                 });
@@ -114,7 +115,7 @@ public class PunishmentManager {
                     Player player = Bukkit.getPlayer(playerUuid);
                     if (player != null) {
                         Component message = buildMuteWarnMessage(punishment, MessageKey.WARN_MESSAGE, duration);
-                        Bukkit.getScheduler().runTask(plugin, () -> player.sendMessage(message));
+                        Bukkit.getScheduler().runTask(plugin, () -> Msg.send(player, message));
                     }
                     return punishment;
                 });
@@ -767,7 +768,7 @@ public class PunishmentManager {
     private void broadcastToStaff(Component message) {
         for (Player player : Bukkit.getOnlinePlayers()) {
             if (player.hasPermission("moderex.notify.punishments")) {
-                player.sendMessage(message);
+                Msg.send(player, message);
             }
         }
         // Also log to console
@@ -1027,7 +1028,7 @@ public class PunishmentManager {
                         Component message = plugin.getLanguageManager().getPrefixed(MessageKey.MUTE_MESSAGE,
                                 "duration", DurationParser.format(duration),
                                 "reason", reason != null ? reason : "No reason specified");
-                        Bukkit.getScheduler().runTask(plugin, () -> player.sendMessage(message));
+                        Bukkit.getScheduler().runTask(plugin, () -> Msg.send(player, message));
                     }
                     return punishment;
                 });
