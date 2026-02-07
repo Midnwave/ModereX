@@ -3,11 +3,15 @@ package com.blockforge.moderex.util;
 import net.kyori.adventure.platform.bukkit.BukkitAudiences;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.serializer.legacy.LegacyComponentSerializer;
+import org.bukkit.Bukkit;
 import org.bukkit.command.CommandSender;
 import org.bukkit.entity.Player;
+import org.bukkit.inventory.Inventory;
+import org.bukkit.inventory.InventoryHolder;
 import org.bukkit.inventory.meta.ItemMeta;
 import org.bukkit.plugin.Plugin;
 
+import java.lang.reflect.Method;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -101,5 +105,21 @@ public final class Msg {
             return player.getClientBrandName();
         }
         return null;
+    }
+
+    // --- Inventory Creation ---
+
+    public static Inventory createInventory(InventoryHolder owner, int size, Component title) {
+        if (paper) {
+            return Bukkit.createInventory(owner, size, title);
+        } else {
+            // On Spigot, use reflection to call the String-based method
+            try {
+                Method method = Bukkit.class.getMethod("createInventory", InventoryHolder.class, int.class, String.class);
+                return (Inventory) method.invoke(null, owner, size, LEGACY.serialize(title));
+            } catch (Exception e) {
+                throw new RuntimeException("Failed to create inventory on Spigot", e);
+            }
+        }
     }
 }

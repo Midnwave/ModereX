@@ -4,7 +4,6 @@ import com.blockforge.moderex.ModereX;
 import com.blockforge.moderex.util.Msg;
 import com.blockforge.moderex.util.TextUtil;
 import net.kyori.adventure.text.Component;
-import org.bukkit.Bukkit;
 import org.bukkit.Material;
 import org.bukkit.entity.Player;
 import org.bukkit.event.inventory.ClickType;
@@ -13,7 +12,6 @@ import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.ItemMeta;
 
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -36,8 +34,8 @@ public abstract class BaseGui {
     }
 
     public void build() {
-        // Create inventory with title (Spigot-compatible)
-        inventory = Bukkit.createInventory(null, rows * 9, TextUtil.toLegacy(title));
+        // Create inventory with title (cross-platform via Msg utility)
+        inventory = Msg.createInventory(null, rows * 9, TextUtil.parse(title));
         clickHandlers.clear();
         populate();
         plugin.logDebug("[GUI] Built " + getClass().getSimpleName() +

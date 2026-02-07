@@ -3,6 +3,7 @@ package com.blockforge.moderex.watchlist;
 import com.blockforge.moderex.ModereX;
 import com.blockforge.moderex.config.lang.MessageKey;
 import com.blockforge.moderex.punishment.Punishment;
+import com.blockforge.moderex.util.Msg;
 import net.kyori.adventure.text.Component;
 import org.bukkit.Bukkit;
 import org.bukkit.entity.Player;
@@ -214,7 +215,7 @@ public class WatchlistManager {
                 // Check if staff has activity alerts enabled
                 var settings = plugin.getStaffSettingsManager().getSettings(staff);
                 if (settings.isWatchlistActivityAlerts()) {
-                    staff.sendMessage(message);
+                    Msg.send(staff, message);
                 }
             }
         }
@@ -234,7 +235,7 @@ public class WatchlistManager {
                     continue;
                 }
                 if (settings.isWatchlistJoinAlerts()) {
-                    staff.sendMessage(message);
+                    Msg.send(staff, message);
                 }
             }
         }
@@ -254,7 +255,7 @@ public class WatchlistManager {
                     continue;
                 }
                 if (settings.isWatchlistQuitAlerts()) {
-                    staff.sendMessage(message);
+                    Msg.send(staff, message);
                 }
             }
         }
