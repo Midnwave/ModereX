@@ -6,8 +6,23 @@
 (function() {
     'use strict';
 
-    // Gateway WebSocket URL
-    const GATEWAY_WS_URL = 'wss://entirely-starter-five-smile.trycloudflare.com/admin';
+    // Gateway WebSocket URL - auto-detected from current host or localStorage
+    function getAdminGatewayUrl() {
+        const hostname = window.location.hostname.toLowerCase();
+        // If served from the gateway tunnel directly, use current host
+        if (hostname.endsWith('.trycloudflare.com')) {
+            return `wss://${window.location.host}/admin`;
+        }
+        // Check localStorage for configured gateway URL
+        const stored = localStorage.getItem('moderex_gateway_url');
+        if (stored) {
+            const base = stored.replace(/\/+$/, '');
+            return base.startsWith('wss://') ? `${base}/admin` : `wss://${base}/admin`;
+        }
+        // Default fallback
+        return `wss://${hostname}/admin`;
+    }
+    const GATEWAY_WS_URL = getAdminGatewayUrl();
 
     // State
     let ws = null;

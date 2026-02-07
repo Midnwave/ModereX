@@ -18,8 +18,35 @@
     'panel-moderex.pages.dev', // Cloudflare Pages subdomain (current)
     'trycloudflare.com'        // Quick Tunnel domain (temporary testing)
   ];
-  // Gateway WebSocket URL - update this after deploying your gateway with Cloudflare Tunnel
-  const GATEWAY_WS_URL = 'wss://entirely-starter-five-smile.trycloudflare.com/panel';
+
+  /**
+   * Get the gateway WebSocket URL dynamically.
+   * - If served from trycloudflare.com (gateway tunnel), uses current host
+   * - If served from Cloudflare Pages, uses stored gateway URL from localStorage
+   * - Falls back to localhost for local development
+   */
+  function getGatewayWsUrl() {
+    const hostname = window.location.hostname.toLowerCase();
+
+    // If served directly from a trycloudflare.com tunnel, use the current host
+    if (hostname.endsWith('.trycloudflare.com')) {
+      return `wss://${window.location.host}/panel`;
+    }
+
+    // Check localStorage for a configured gateway URL
+    const stored = localStorage.getItem('moderex_gateway_url');
+    if (stored) {
+      // Ensure it ends with /panel
+      const base = stored.replace(/\/+$/, '');
+      return base.startsWith('wss://') ? `${base}/panel` : `wss://${base}/panel`;
+    }
+
+    // Default for Cloudflare Pages or other hosted deployments
+    // Users can set this via: localStorage.setItem('moderex_gateway_url', 'wss://your-tunnel.trycloudflare.com')
+    return `wss://${hostname}/panel`;
+  }
+
+  const GATEWAY_WS_URL = getGatewayWsUrl();
 
   let ws = null;
   let heartbeatTimer = null;

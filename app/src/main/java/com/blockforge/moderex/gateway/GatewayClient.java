@@ -37,6 +37,7 @@ public class GatewayClient {
     private final ModereX plugin;
     private final String gatewayUrl;
     private final boolean debugLogging;
+    private final GatewaySecretManager secretManager;
 
     private WebSocketClient wsClient;
     private ScheduledExecutorService scheduler;
@@ -57,6 +58,8 @@ public class GatewayClient {
         this.plugin = plugin;
         this.gatewayUrl = plugin.getConfigManager().getSettings().getGatewayUrl();
         this.debugLogging = plugin.getConfigManager().getSettings().isGatewayDebugLogging();
+        this.secretManager = new GatewaySecretManager(plugin);
+        this.secretManager.initialize();
     }
 
     /**
@@ -269,8 +272,8 @@ public class GatewayClient {
         msg.addProperty("version", plugin.getDescription().getVersion());
         msg.addProperty("players", plugin.getServer().getOnlinePlayers().size());
 
-        // Include gateway secret for authentication
-        String secret = plugin.getConfigManager().getSettings().getGatewaySecret();
+        // Include gateway secret for authentication (from .gateway-secret file)
+        String secret = secretManager.getSecret();
         if (secret != null && !secret.isEmpty()) {
             msg.addProperty("secret", secret);
         }

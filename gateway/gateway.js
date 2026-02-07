@@ -346,15 +346,33 @@ function validateServerSecret(serverId, secret, connectingIp) {
         return true;
     }
 
-    // Secret mismatch — check if connecting from same IP (config was likely reset)
-    if (connectingIp && existing.registered_ip && connectingIp === existing.registered_ip) {
+    // Secret mismatch — check if connecting from same or local IP (config was likely reset)
+    if (isSameOrLocalIp(connectingIp, existing.registered_ip)) {
         storeSecretHash(serverId, secretHash, connectingIp);
-        console.log(`[Server] ${serverId} secret updated — same IP (${connectingIp}), config likely reset`);
-        addAuditEntry('system', 'secret_reregister', `Server ${serverId} re-registered from same IP (config reset detected)`);
+        console.log(`[Server] ${serverId} secret updated — same/local IP (${connectingIp}), config likely reset`);
+        addAuditEntry('system', 'secret_reregister', `Server ${serverId} re-registered from same/local IP (config reset detected)`);
         return true;
     }
 
     return false; // Secret mismatch from different IP
+}
+
+/**
+ * Check if two IPs are the same or both local (localhost/private network).
+ */
+function isSameOrLocalIp(connectingIp, registeredIp) {
+    if (!connectingIp || !registeredIp) return false;
+    if (connectingIp === registeredIp) return true;
+
+    // Normalize localhost variants
+    const localIps = ['127.0.0.1', '::1', '::ffff:127.0.0.1', '0:0:0:0:0:0:0:1'];
+    if (localIps.includes(connectingIp) && localIps.includes(registeredIp)) return true;
+
+    // Same private subnet (192.168.x.x or 10.x.x.x)
+    if (connectingIp.startsWith('192.168.') && registeredIp.startsWith('192.168.')) return true;
+    if (connectingIp.startsWith('10.') && registeredIp.startsWith('10.')) return true;
+
+    return false;
 }
 
 /**
@@ -663,16 +681,8 @@ wss.on('connection', (ws, req) => {
         }
     }
 
-    // Fix 4: Rate limit ALL connections per IP (including /server)
+    // Rate limit connections per IP (server connections)
     if (isServerConnection) {
-        // Check for server auth ban
-        const ban = failedServerAuthAttempts.get(clientIp);
-        if (ban && ban.count >= SERVER_AUTH_BAN_THRESHOLD && (Date.now() - ban.firstAttempt) < SERVER_AUTH_BAN_DURATION) {
-            console.log(`[RateLimit] ${clientIp} banned from server connections (${ban.count} failed auths)`);
-            ws.close(4029, 'Too many failed authentication attempts');
-            return;
-        }
-
         // Per-IP server connection limit
         const ipConns = ipConnectionCounts.get(clientIp) || new Set();
         for (const existingWs of ipConns) {
@@ -786,27 +796,14 @@ function handleMCServerConnection(ws, clientIp) {
                 if (!secretValid) {
                     console.log(`[Server] ${serverId} rejected: invalid gateway secret from ${clientIp}`);
 
-                    // Track failed auth attempts per IP for rate limiting
-                    const attempts = failedServerAuthAttempts.get(clientIp) || { count: 0, firstAttempt: Date.now() };
-                    attempts.count++;
-                    if (Date.now() - attempts.firstAttempt > SERVER_AUTH_BAN_DURATION) {
-                        // Reset window
-                        attempts.count = 1;
-                        attempts.firstAttempt = Date.now();
-                    }
-                    failedServerAuthAttempts.set(clientIp, attempts);
-
                     ws.send(JSON.stringify({
                         type: 'error',
                         code: 'INVALID_SECRET',
-                        message: 'Gateway authentication failed. Server secret mismatch. If you reset your config, the server will auto-recover if connecting from the same IP.'
+                        message: 'Gateway authentication failed. Server secret mismatch. If you reset your config, the server will auto-recover if connecting from the same or local IP.'
                     }));
                     ws.close(4005, 'Invalid gateway secret');
                     return;
                 }
-
-                // Clear failed auth tracking on success
-                failedServerAuthAttempts.delete(clientIp);
 
                 // Check if server ID already registered
                 if (mcServers.has(serverId)) {
@@ -2573,6 +2570,77 @@ function updatePanelUrls(tunnelHost) {
     }
 }
 
+/**
+ * Auto-deploy panel files to Cloudflare Pages after tunnel URL changes.
+ * Deploys both the staff panel and admin/website projects.
+ */
+async function deployToCloudflarePages(tunnelHost) {
+    // Check if we already deployed this URL
+    if (db) {
+        try {
+            const row = db.prepare('SELECT value FROM gateway_config WHERE key = ?').get('last_deployed_tunnel');
+            if (row && row.value === tunnelHost) {
+                console.log('[Deploy] Tunnel URL unchanged, skipping deployment');
+                return;
+            }
+        } catch (e) { /* table may not exist yet */ }
+    }
+
+    const deployments = [
+        { name: 'panel-moderex', dir: path.join(__dirname, '..', 'moderex-panel') },
+        { name: 'moderex', dir: path.join(__dirname, '..', 'website') },
+    ];
+
+    for (const { name, dir } of deployments) {
+        if (!fs.existsSync(dir)) {
+            console.log(`[Deploy] Skipping ${name}: directory not found (${dir})`);
+            continue;
+        }
+
+        try {
+            console.log(`[Deploy] Deploying ${name} to Cloudflare Pages...`);
+            const result = await new Promise((resolve, reject) => {
+                const proc = spawn('npx', ['wrangler', 'pages', 'deploy', dir, '--project-name=' + name, '--commit-dirty=true'], {
+                    stdio: ['ignore', 'pipe', 'pipe'],
+                    cwd: __dirname,
+                    shell: process.platform === 'win32'
+                });
+
+                let stdout = '';
+                let stderr = '';
+                proc.stdout.on('data', (d) => { stdout += d.toString(); });
+                proc.stderr.on('data', (d) => { stderr += d.toString(); });
+
+                proc.on('close', (code) => {
+                    if (code === 0) resolve(stdout);
+                    else reject(new Error(`wrangler exited with code ${code}: ${stderr}`));
+                });
+
+                proc.on('error', reject);
+
+                // Timeout after 60 seconds
+                setTimeout(() => reject(new Error('Deployment timed out')), 60000);
+            });
+
+            // Extract deployment URL from output
+            const urlMatch = result.match(/https:\/\/[a-f0-9]+\.[a-zA-Z0-9-]+\.pages\.dev/);
+            console.log(`[Deploy] ${name} deployed successfully${urlMatch ? ': ' + urlMatch[0] : ''}`);
+        } catch (err) {
+            console.warn(`[Deploy] Failed to deploy ${name}: ${err.message}`);
+        }
+    }
+
+    // Store last deployed URL
+    if (db) {
+        try {
+            db.prepare('CREATE TABLE IF NOT EXISTS gateway_config (key TEXT PRIMARY KEY, value TEXT)').run();
+            db.prepare('INSERT OR REPLACE INTO gateway_config (key, value) VALUES (?, ?)').run('last_deployed_tunnel', tunnelHost);
+        } catch (e) {
+            console.warn('[Deploy] Failed to store deployment state:', e.message);
+        }
+    }
+}
+
 function startCloudflaredTunnel() {
     return new Promise((resolve) => {
         const port = CONFIG.port;
@@ -2594,6 +2662,10 @@ function startCloudflaredTunnel() {
                 const tunnelHost = match[1];
                 console.log(`[Tunnel] Tunnel established: https://${tunnelHost}`);
                 updatePanelUrls(tunnelHost);
+                // Auto-deploy to Cloudflare Pages (non-blocking)
+                deployToCloudflarePages(tunnelHost).catch(err => {
+                    console.warn('[Deploy] Auto-deploy failed:', err.message);
+                });
                 resolve(tunnelHost);
             }
         }
@@ -2661,6 +2733,12 @@ async function startGateway() {
             const host = process.env.GATEWAY_URL.replace(/^https?:\/\//, '').replace(/\/$/, '');
             console.log(`[Tunnel] Using GATEWAY_URL from env: ${host}`);
             updatePanelUrls(host);
+            // Auto-deploy for env-based URL too
+            if (host.endsWith('.trycloudflare.com')) {
+                deployToCloudflarePages(host).catch(err => {
+                    console.warn('[Deploy] Auto-deploy failed:', err.message);
+                });
+            }
         } else {
             const tunnelHost = await startCloudflaredTunnel();
             if (!tunnelHost) {

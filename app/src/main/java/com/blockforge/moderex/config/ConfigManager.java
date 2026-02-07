@@ -278,22 +278,12 @@ public class ConfigManager {
         settings.setGatewayMaxReconnectAttempts(config.getInt("gateway.max-reconnect-attempts", -1));
         settings.setGatewayDebugLogging(config.getBoolean("gateway.debug-logging", false));
 
-        // Gateway secret - auto-generate if empty
-        String gatewaySecret = config.getString("gateway.secret", "");
-        if (gatewaySecret == null || gatewaySecret.isEmpty()) {
-            // Generate a 64-character cryptographic secret
-            java.security.SecureRandom sr = new java.security.SecureRandom();
-            String chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
-            StringBuilder sb = new StringBuilder(64);
-            for (int i = 0; i < 64; i++) {
-                sb.append(chars.charAt(sr.nextInt(chars.length())));
-            }
-            gatewaySecret = sb.toString();
-            config.set("gateway.secret", gatewaySecret);
+        // Gateway secret is now managed by GatewaySecretManager (stored in .gateway-secret file)
+        // Remove legacy secret from config.yml if present
+        if (config.contains("gateway.secret")) {
+            config.set("gateway.secret", null);
             plugin.saveConfig();
-            plugin.getLogger().info("[Gateway] Generated new gateway authentication secret");
         }
-        settings.setGatewaySecret(gatewaySecret);
 
         // Command blacklist settings
         settings.setCmdBlacklistAllowModerexCommands(config.getBoolean("command-blacklist.allow-moderex-commands", false));
