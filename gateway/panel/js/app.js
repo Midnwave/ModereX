@@ -4501,6 +4501,39 @@
     return `${mins}:${secs.toString().padStart(2, '0')}`;
   }
 
+  // Action type classification for toast styling
+  const ACTION_TYPE_MAP = {
+    CHAT: { icon: 'fa-message', type: 'chat', label: 'Chat' },
+    COMMAND: { icon: 'fa-terminal', type: 'command', label: 'Command' },
+    BREAK_BLOCK: { icon: 'fa-hammer', type: 'block', label: 'Break' },
+    PLACE_BLOCK: { icon: 'fa-cube', type: 'block', label: 'Place' },
+    ATTACK: { icon: 'fa-crosshairs', type: 'combat', label: 'Attack' },
+    DAMAGE: { icon: 'fa-burst', type: 'combat', label: 'Damage' },
+    DEATH: { icon: 'fa-skull', type: 'death', label: 'Death' },
+    BOW_SHOOT: { icon: 'fa-bullseye', type: 'combat', label: 'Bow' },
+    CROSSBOW_SHOOT: { icon: 'fa-bullseye', type: 'combat', label: 'Crossbow' },
+    TRIDENT_THROW: { icon: 'fa-bullseye', type: 'combat', label: 'Trident' },
+    JUMP: { icon: 'fa-arrow-up', type: 'movement', label: 'Jump' },
+    TELEPORT: { icon: 'fa-bolt', type: 'movement', label: 'Teleport' },
+    DROP_ITEM: { icon: 'fa-arrow-down', type: 'item', label: 'Drop' },
+    PICKUP_ITEM: { icon: 'fa-hand', type: 'item', label: 'Pickup' },
+    INTERACT: { icon: 'fa-hand-pointer', type: 'item', label: 'Interact' },
+    CONSUME: { icon: 'fa-utensils', type: 'item', label: 'Consume' },
+    OPEN_CONTAINER: { icon: 'fa-box-open', type: 'item', label: 'Open' },
+    CLOSE_CONTAINER: { icon: 'fa-box', type: 'item', label: 'Close' },
+    CRAFT: { icon: 'fa-hammer', type: 'item', label: 'Craft' },
+    ENCHANT: { icon: 'fa-wand-sparkles', type: 'item', label: 'Enchant' },
+    FISH_CAST: { icon: 'fa-fish', type: 'item', label: 'Cast' },
+    FISH_CATCH: { icon: 'fa-fish', type: 'item', label: 'Catch' },
+    BUCKET_FILL: { icon: 'fa-bucket', type: 'item', label: 'Fill' },
+    BUCKET_EMPTY: { icon: 'fa-bucket', type: 'item', label: 'Empty' },
+    IGNITE: { icon: 'fa-fire', type: 'block', label: 'Ignite' },
+    RESPAWN: { icon: 'fa-rotate', type: 'movement', label: 'Respawn' },
+    DIMENSION_CHANGE: { icon: 'fa-portal-enter', type: 'movement', label: 'Dimension' },
+    VEHICLE_ENTER: { icon: 'fa-horse', type: 'movement', label: 'Mount' },
+    VEHICLE_EXIT: { icon: 'fa-person-walking', type: 'movement', label: 'Dismount' },
+  };
+
   function openReplayDetailsModal(replay, snapshots, blockLogs) {
     const name = replay.name || replay.primaryName || 'Unnamed';
     const duration = (replay.endTime || 0) - (replay.startTime || 0);
@@ -4516,112 +4549,202 @@
       activeReplay3DViewer = null;
     }
 
-    // Create fullscreen overlay
+    // Action feed state
+    const actionFeedState = {
+      shownTimestamps: new Set(),
+      toasts: [],
+      maxToasts: 8,
+      toastDuration: 5000,
+      timers: [],
+      paused: false,
+    };
+
+    // Create fullscreen overlay with new CSS classes
     const overlay = document.createElement('div');
-    overlay.className = 'overlay show';
+    overlay.className = 'replay-viewer-overlay';
     overlay.id = 'replay3DOverlay';
-    overlay.style.cssText = 'z-index:8000;display:flex;align-items:stretch;justify-content:stretch;padding:0;';
     overlay.innerHTML = `
-      <div style="width:100%;height:100%;display:flex;flex-direction:column;background:var(--bg-surface)" onclick="event.stopPropagation()">
-        <!-- Header -->
-        <div style="display:flex;align-items:center;justify-content:space-between;padding:12px 20px;background:var(--bg-card);border-bottom:1px solid var(--border);flex-shrink:0">
-          <div style="display:flex;align-items:center;gap:12px">
-            <i class="fa-solid fa-cube" style="color:var(--primary-light);font-size:18px"></i>
-            <div>
-              <b style="font-size:15px">${escapeHtml(name)}</b>
-              <div style="font-size:12px;color:var(--muted)">${escapeHtml(replay.primaryName || '')} &bull; ${formatReplayTime(duration)} &bull; ${escapeHtml(replay.reason || 'Manual')}</div>
+      <!-- Header -->
+      <div class="replay-viewer-header">
+        <div class="replay-viewer-header-left">
+          <i class="fa-solid fa-cube" style="color:var(--primary-light);font-size:18px"></i>
+          <div>
+            <h3>${escapeHtml(name)}</h3>
+            <div class="replay-meta">
+              <span><i class="fa-solid fa-user" style="margin-right:4px"></i>${escapeHtml(replay.primaryName || '')}</span>
+              <span><i class="fa-solid fa-clock" style="margin-right:4px"></i>${formatReplayTime(duration)}</span>
+              <span><i class="fa-solid fa-tag" style="margin-right:4px"></i>${escapeHtml(replay.reason || 'Manual')}</span>
+              <span id="r3dSnapshotBadge"><i class="fa-solid fa-camera" style="margin-right:4px"></i>${snapshots.length} snapshots</span>
             </div>
           </div>
-          <div style="display:flex;align-items:center;gap:10px">
-            ${has3D && hasChunkData ? '<span class="badge ok" id="r3dTerrainBadge"><i class="fa-solid fa-mountain"></i> Terrain</span>' : ''}
-            ${has3D && !hasChunkData ? '<span class="badge gray"><i class="fa-solid fa-cube"></i> No terrain data</span>' : ''}
-            <span class="badge gray" id="r3dSnapshotBadge">${snapshots.length} snapshots</span>
-            <button class="mini" id="r3dClose" style="font-size:16px"><i class="fa-solid fa-xmark"></i></button>
+        </div>
+        <button class="replay-viewer-close" id="r3dClose" title="Close (Esc)"><i class="fa-solid fa-xmark"></i></button>
+      </div>
+
+      <!-- Viewer Wrapper -->
+      <div class="replay-viewer-wrapper">
+        <div id="r3dContainer" style="width:100%;height:100%"></div>
+
+        <!-- Info HUD -->
+        <div class="replay-info-hud" id="r3dInfoPanel">
+          <div class="hud-row"><span class="hud-label">Pos</span><span class="hud-value" id="r3dPosInfo">-</span></div>
+          <div class="hud-row"><span class="hud-label">Action</span><span class="hud-value" id="r3dActionInfo">-</span></div>
+          <div class="hud-row"><span class="hud-label">State</span><span class="hud-value" id="r3dStateInfo">-</span></div>
+        </div>
+
+        <!-- Action Feed -->
+        <div class="replay-action-feed" id="r3dActionFeed"></div>
+
+        <!-- Loading Overlay -->
+        <div class="replay-loading-overlay" id="r3dLoading">
+          <i class="fa-solid fa-spinner"></i>
+          <div class="loading-text" id="r3dLoadingText">Initializing 3D viewer...</div>
+          <div class="replay-loading-progress" id="r3dProgressBar" style="display:none">
+            <div class="replay-loading-progress-fill" id="r3dProgressFill"></div>
           </div>
         </div>
 
-        <!-- 3D Viewer Area -->
-        <div style="flex:1;position:relative;overflow:hidden;min-height:0">
-          <div id="r3dContainer" style="width:100%;height:100%;background:#1a1a2e"></div>
-
-          <!-- Loading overlay -->
-          <div id="r3dLoading" style="position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;background:rgba(10,16,24,0.9);z-index:10">
-            <div class="spinner" style="width:40px;height:40px;margin-bottom:16px"></div>
-            <div style="color:#fff;font-size:14px" id="r3dLoadingText">Initializing 3D viewer...</div>
+        <!-- Controls Bar (overlaid on bottom of viewer) -->
+        <div class="replay-controls-bar" id="r3dControlsBar">
+          <div class="replay-timeline-row">
+            <input type="range" class="timeline-slider" id="r3dTimeline" min="0" max="1000" value="0">
+            <span class="replay-time" id="r3dTimeDisplay">0:00 / ${formatReplayTime(duration)}</span>
           </div>
-
-          <!-- Camera mode indicator -->
-          <div style="position:absolute;top:12px;left:12px;display:flex;gap:6px;z-index:5" id="r3dCameraModes">
-            <button class="mini" id="r3dCamOrbit" title="Orbit Camera (drag to rotate, scroll to zoom)" style="background:var(--primary);color:#fff"><i class="fa-solid fa-arrows-rotate"></i></button>
-            <button class="mini" id="r3dCamFollow" title="Follow Player"><i class="fa-solid fa-user"></i></button>
-            <button class="mini" id="r3dCamFree" title="Free Camera (WASD + Mouse)"><i class="fa-solid fa-gamepad"></i></button>
+          <div class="replay-controls-row">
+            <div class="replay-camera-pills">
+              <button class="replay-camera-pill active" data-cam="orbit" title="Orbit (drag to rotate, scroll to zoom)">Orbit</button>
+              <button class="replay-camera-pill" data-cam="follow" title="Follow Player">Follow</button>
+              <button class="replay-camera-pill" data-cam="free" title="Free Camera (WASD + Mouse)">Free</button>
+            </div>
+            <div class="replay-controls-center">
+              <button class="replay-btn" id="r3dSkipBack" title="Skip back 5s (Left Arrow)"><i class="fa-solid fa-backward"></i></button>
+              <button class="replay-btn play-btn" id="r3dPlayBtn" title="Play/Pause (Space)"><i class="fa-solid fa-play"></i></button>
+              <button class="replay-btn" id="r3dSkipFwd" title="Skip forward 5s (Right Arrow)"><i class="fa-solid fa-forward"></i></button>
+            </div>
+            <div class="replay-speed-pills">
+              <button class="replay-speed-pill" data-speed="0.25">.25x</button>
+              <button class="replay-speed-pill" data-speed="0.5">.5x</button>
+              <button class="replay-speed-pill active" data-speed="1">1x</button>
+              <button class="replay-speed-pill" data-speed="2">2x</button>
+              <button class="replay-speed-pill" data-speed="4">4x</button>
+            </div>
           </div>
-
-          <!-- Info panel -->
-          <div style="position:absolute;top:12px;right:12px;background:rgba(0,0,0,0.7);padding:10px 14px;border-radius:var(--radius);font-size:12px;color:#ccc;z-index:5;min-width:140px" id="r3dInfoPanel">
-            <div><span style="color:var(--muted)">Position:</span> <span id="r3dPosInfo">-</span></div>
-            <div style="margin-top:4px"><span style="color:var(--muted)">Action:</span> <span id="r3dActionInfo">-</span></div>
-            <div style="margin-top:4px"><span style="color:var(--muted)">State:</span> <span id="r3dStateInfo">-</span></div>
-          </div>
-        </div>
-
-        <!-- Controls Bar -->
-        <div style="display:flex;align-items:center;gap:12px;padding:12px 20px;background:var(--bg-card);border-top:1px solid var(--border);flex-shrink:0">
-          <!-- Skip back -->
-          <button class="mini" id="r3dSkipBack" title="Skip back 5s"><i class="fa-solid fa-backward"></i></button>
-
-          <!-- Play/Pause -->
-          <button class="mini primary" id="r3dPlayBtn" style="width:36px;height:36px;font-size:16px" title="Play/Pause"><i class="fa-solid fa-play"></i></button>
-
-          <!-- Skip forward -->
-          <button class="mini" id="r3dSkipFwd" title="Skip forward 5s"><i class="fa-solid fa-forward"></i></button>
-
-          <!-- Current time -->
-          <span style="font-family:var(--font-mono);font-size:13px;min-width:50px;text-align:right" id="r3dTimeDisplay">0:00</span>
-
-          <!-- Timeline slider -->
-          <input type="range" id="r3dTimeline" min="0" max="1000" value="0" style="flex:1;accent-color:var(--primary)">
-
-          <!-- Total time -->
-          <span style="font-family:var(--font-mono);font-size:13px;min-width:50px;color:var(--muted)" id="r3dTotalTime">${formatReplayTime(duration)}</span>
-
-          <!-- Speed control -->
-          <select id="r3dSpeed" style="background:var(--bg-input);color:var(--text);border:1px solid var(--border);border-radius:var(--radius);padding:4px 8px;font-size:12px">
-            <option value="0.25">0.25x</option>
-            <option value="0.5">0.5x</option>
-            <option value="1" selected>1x</option>
-            <option value="2">2x</option>
-            <option value="4">4x</option>
-          </select>
         </div>
       </div>
     `;
 
     document.body.appendChild(overlay);
 
-    // Wire up close button
+    // === Action Feed Functions ===
+    function addActionToast(snap) {
+      if (actionFeedState.paused) return;
+      const ts = snap.timestamp;
+      if (actionFeedState.shownTimestamps.has(ts + '_' + snap.action)) return;
+      actionFeedState.shownTimestamps.add(ts + '_' + snap.action);
+
+      const feed = document.getElementById('r3dActionFeed');
+      if (!feed) return;
+
+      const action = snap.action || snap.actionType || 'NONE';
+      const info = ACTION_TYPE_MAP[action] || { icon: 'fa-circle', type: 'other', label: action };
+      const data = snap.actionData ? ': ' + snap.actionData : '';
+      const relTime = formatReplayTime(ts - (replay.startTime || 0));
+
+      const el = document.createElement('div');
+      el.className = `replay-action-toast type-${info.type}`;
+      el.innerHTML = `<i class="fa-solid ${info.icon}"></i><span class="toast-text">${escapeHtml(info.label + data)}</span><span class="toast-time">${relTime}</span>`;
+      feed.appendChild(el);
+
+      actionFeedState.toasts.push(el);
+
+      // Remove oldest if over max
+      while (actionFeedState.toasts.length > actionFeedState.maxToasts) {
+        const old = actionFeedState.toasts.shift();
+        old.remove();
+      }
+
+      // Auto-remove after 5s
+      const timer = setTimeout(() => {
+        el.classList.add('fade-out');
+        setTimeout(() => {
+          el.remove();
+          const idx = actionFeedState.toasts.indexOf(el);
+          if (idx !== -1) actionFeedState.toasts.splice(idx, 1);
+        }, 500);
+      }, actionFeedState.toastDuration);
+      actionFeedState.timers.push(timer);
+    }
+
+    function clearActionFeed() {
+      const feed = document.getElementById('r3dActionFeed');
+      if (feed) feed.innerHTML = '';
+      actionFeedState.shownTimestamps.clear();
+      actionFeedState.toasts = [];
+      actionFeedState.timers.forEach(t => clearTimeout(t));
+      actionFeedState.timers = [];
+    }
+
+    // === Close handler ===
     const closeViewer = () => {
       if (activeReplay3DViewer) {
         activeReplay3DViewer.dispose();
         activeReplay3DViewer = null;
       }
       pendingReplaySessionId = null;
-      overlay.classList.add('fade-out');
-      setTimeout(() => overlay.remove(), 220);
+      clearActionFeed();
+      overlay.classList.add('closing');
+      setTimeout(() => overlay.remove(), 250);
+      document.removeEventListener('keydown', keyHandler);
     };
 
     document.getElementById('r3dClose').onclick = closeViewer;
 
-    // Handle Escape key
-    const escHandler = (e) => {
-      if (e.key === 'Escape') {
-        document.removeEventListener('keydown', escHandler);
-        closeViewer();
+    // === Play/Pause toggle helper ===
+    const togglePlay = () => {
+      if (!activeReplay3DViewer) return;
+      const playing = activeReplay3DViewer.togglePlayback();
+      const btn = document.getElementById('r3dPlayBtn');
+      if (btn) btn.innerHTML = playing ? '<i class="fa-solid fa-pause"></i>' : '<i class="fa-solid fa-play"></i>';
+      actionFeedState.paused = !playing;
+    };
+
+    const setSpeed = (speed) => {
+      if (!activeReplay3DViewer) return;
+      activeReplay3DViewer.setSpeed(speed);
+      overlay.querySelectorAll('.replay-speed-pill').forEach(p => {
+        p.classList.toggle('active', parseFloat(p.dataset.speed) === speed);
+      });
+    };
+
+    // === Keyboard shortcuts ===
+    const keyHandler = (e) => {
+      if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+      switch (e.key) {
+        case 'Escape':
+          closeViewer();
+          break;
+        case ' ':
+          e.preventDefault();
+          togglePlay();
+          break;
+        case 'ArrowLeft':
+          e.preventDefault();
+          if (activeReplay3DViewer) activeReplay3DViewer.skip(-5);
+          break;
+        case 'ArrowRight':
+          e.preventDefault();
+          if (activeReplay3DViewer) activeReplay3DViewer.skip(5);
+          break;
+        case '1': setSpeed(0.25); break;
+        case '2': setSpeed(0.5); break;
+        case '3': setSpeed(1); break;
+        case '4': setSpeed(2); break;
+        case '5': setSpeed(4); break;
       }
     };
-    document.addEventListener('keydown', escHandler);
+    document.addEventListener('keydown', keyHandler);
 
-    // Initialize 3D viewer
+    // === Initialize 3D viewer ===
     if (has3D) {
       requestAnimationFrame(() => {
         const container = document.getElementById('r3dContainer');
@@ -4631,7 +4754,7 @@
           const viewer = new window.MX.Replay3DViewer(container);
           activeReplay3DViewer = viewer;
 
-          // Pass BlueMap config from integrations state or replay data
+          // Pass BlueMap config
           const blueMapConfig = {
             available: replay.blueMapAvailable || state.integrations?.blueMapDetected || false,
             webUrl: replay.blueMapWebUrl || state.integrations?.blueMapWebUrl || null,
@@ -4640,7 +4763,7 @@
           };
           viewer.setBlueMapConfig(blueMapConfig);
 
-          // Set replay data
+          // Set replay data (pre-indexes snapshots by player UUID)
           viewer.setReplayData(replay, snapshots, blockLogs || []);
 
           // Show fallback ground if no terrain
@@ -4648,68 +4771,72 @@
             viewer.showFallbackGround();
           }
 
+          // Track last action feed time for range queries
+          let lastActionFeedTime = 0;
+
           // Time update callback
           viewer.onTimeUpdate((currentMs, totalMs) => {
             const display = document.getElementById('r3dTimeDisplay');
             const timeline = document.getElementById('r3dTimeline');
-            if (display) display.textContent = formatReplayTime(currentMs);
+            if (display) display.textContent = `${formatReplayTime(currentMs)} / ${formatReplayTime(totalMs)}`;
             if (timeline && totalMs > 0) {
               timeline.value = Math.round((currentMs / totalMs) * 1000);
             }
 
             // Update info panel
             updateReplay3DInfoPanel(snapshots, replay.startTime + currentMs);
+
+            // Feed action toasts for new actions in range
+            if (viewer.getActionsInRange && currentMs > lastActionFeedTime) {
+              const actions = viewer.getActionsInRange(lastActionFeedTime, currentMs);
+              for (const a of actions) {
+                addActionToast(a);
+              }
+            }
+            lastActionFeedTime = currentMs;
           });
 
           viewer.onPlaybackEnd(() => {
             const btn = document.getElementById('r3dPlayBtn');
             if (btn) btn.innerHTML = '<i class="fa-solid fa-play"></i>';
+            actionFeedState.paused = true;
           });
 
           // Wire up controls
-          document.getElementById('r3dPlayBtn').onclick = () => {
-            const playing = viewer.togglePlayback();
-            document.getElementById('r3dPlayBtn').innerHTML = playing
-              ? '<i class="fa-solid fa-pause"></i>'
-              : '<i class="fa-solid fa-play"></i>';
-          };
-
+          document.getElementById('r3dPlayBtn').onclick = togglePlay;
           document.getElementById('r3dSkipBack').onclick = () => viewer.skip(-5);
           document.getElementById('r3dSkipFwd').onclick = () => viewer.skip(5);
 
           document.getElementById('r3dTimeline').addEventListener('input', (e) => {
             const pct = parseInt(e.target.value) / 1000;
             viewer.seek(pct * viewer.getTotalDuration());
+            clearActionFeed();
+            lastActionFeedTime = pct * viewer.getTotalDuration();
           });
 
-          document.getElementById('r3dSpeed').addEventListener('change', (e) => {
-            viewer.setSpeed(parseFloat(e.target.value));
+          // Camera mode pills
+          overlay.querySelectorAll('.replay-camera-pill').forEach(pill => {
+            pill.onclick = () => {
+              const mode = pill.dataset.cam;
+              viewer.setCameraMode(mode);
+              overlay.querySelectorAll('.replay-camera-pill').forEach(p => p.classList.toggle('active', p === pill));
+            };
           });
 
-          // Camera mode buttons
-          const camButtons = { orbit: 'r3dCamOrbit', follow: 'r3dCamFollow', free: 'r3dCamFree' };
-          const updateCamButtons = (mode) => {
-            Object.entries(camButtons).forEach(([m, id]) => {
-              const btn = document.getElementById(id);
-              if (btn) {
-                btn.style.background = m === mode ? 'var(--primary)' : '';
-                btn.style.color = m === mode ? '#fff' : '';
-              }
-            });
-          };
-
-          document.getElementById('r3dCamOrbit').onclick = () => { viewer.setCameraMode('orbit'); updateCamButtons('orbit'); };
-          document.getElementById('r3dCamFollow').onclick = () => { viewer.setCameraMode('follow'); updateCamButtons('follow'); };
-          document.getElementById('r3dCamFree').onclick = () => { viewer.setCameraMode('free'); updateCamButtons('free'); };
+          // Speed pills
+          overlay.querySelectorAll('.replay-speed-pill').forEach(pill => {
+            pill.onclick = () => {
+              setSpeed(parseFloat(pill.dataset.speed));
+            };
+          });
 
           // Hide loading
           const loadingEl = document.getElementById('r3dLoading');
           if (hasChunkData) {
             const loadText = document.getElementById('r3dLoadingText');
             if (loadText) loadText.textContent = 'Loading terrain data...';
-            // REPLAY_CHUNKS will arrive shortly and hide this
           } else {
-            if (loadingEl) loadingEl.style.display = 'none';
+            if (loadingEl) loadingEl.classList.add('hidden');
           }
 
           console.log('[Replay3D] Viewer initialized');
@@ -4718,21 +4845,21 @@
           const loadingEl = document.getElementById('r3dLoading');
           if (loadingEl) {
             loadingEl.innerHTML = `
-              <i class="fa-solid fa-exclamation-triangle" style="font-size:32px;color:var(--warn);margin-bottom:12px"></i>
-              <div style="color:#fff">Failed to initialize 3D viewer</div>
-              <div style="color:var(--muted);font-size:12px;margin-top:8px">${escapeHtml(e.message)}</div>
+              <i class="fa-solid fa-triangle-exclamation" style="font-size:32px;color:var(--warn);animation:none"></i>
+              <div class="loading-text">Failed to initialize 3D viewer</div>
+              <div style="color:var(--muted);font-size:12px;margin-top:4px">${escapeHtml(e.message)}</div>
             `;
           }
         }
       });
     } else {
-      // No Three.js - show info-only modal
+      // No Three.js
       const loadingEl = document.getElementById('r3dLoading');
       if (loadingEl) {
         loadingEl.innerHTML = `
-          <i class="fa-solid fa-cube" style="font-size:40px;color:var(--muted);margin-bottom:16px"></i>
-          <div style="color:#fff;font-size:15px">3D Viewer Not Available</div>
-          <div style="color:var(--muted);margin-top:8px;max-width:360px;text-align:center">
+          <i class="fa-solid fa-cube" style="font-size:40px;color:var(--muted);animation:none"></i>
+          <div class="loading-text" style="font-size:15px;color:#fff;margin-top:8px">3D Viewer Not Available</div>
+          <div style="color:var(--muted);margin-top:8px;max-width:360px;text-align:center;font-size:13px">
             Three.js library could not be loaded. The 3D replay viewer requires an internet connection for the initial load.
           </div>
           <div style="margin-top:20px;padding:12px 16px;background:rgba(6,182,212,0.1);border-radius:var(--radius);border:1px solid rgba(6,182,212,0.2)">
@@ -4762,7 +4889,7 @@
 
     const action = latest.action || latest.actionType || 'NONE';
     const actionData = latest.actionData || '';
-    actionEl.textContent = action !== 'NONE' ? `${action}${actionData ? ': ' + actionData : ''}` : 'None';
+    actionEl.textContent = action !== 'NONE' ? `${action}${actionData ? ': ' + actionData : ''}` : '-';
 
     let stateTxt = 'Standing';
     if (latest.sneaking) stateTxt = 'Sneaking';
@@ -4782,28 +4909,34 @@
       return;
     }
 
+    const sizeKB = (data.sizeBytes / 1024).toFixed(0);
     const loadText = document.getElementById('r3dLoadingText');
-    if (loadText) loadText.textContent = `Loading terrain (${(data.sizeBytes / 1024).toFixed(0)} KB)...`;
+    const progressBar = document.getElementById('r3dProgressBar');
+    const progressFill = document.getElementById('r3dProgressFill');
+
+    if (loadText) loadText.textContent = `Loading terrain (${sizeKB} KB)...`;
+    if (progressBar) progressBar.style.display = '';
+    if (progressFill) progressFill.style.width = '30%';
 
     activeReplay3DViewer.loadChunkData(data.chunkData).then((count) => {
       console.log(`[Replay3D] Terrain loaded: ${count} chunks`);
 
-      // Remove fallback ground if it was shown
+      if (progressFill) progressFill.style.width = '100%';
+
+      // Remove fallback ground
       activeReplay3DViewer.removeFallbackGround();
 
-      // Update badge
-      const badge = document.getElementById('r3dTerrainBadge');
-      if (badge) badge.innerHTML = `<i class="fa-solid fa-mountain"></i> ${count} chunks`;
-
-      // Hide loading
-      const loadingEl = document.getElementById('r3dLoading');
-      if (loadingEl) loadingEl.style.display = 'none';
+      // Fade out loading overlay
+      setTimeout(() => {
+        const loadingEl = document.getElementById('r3dLoading');
+        if (loadingEl) loadingEl.classList.add('hidden');
+      }, 400);
     }).catch((err) => {
       console.error('[Replay3D] Failed to load terrain:', err);
       activeReplay3DViewer.showFallbackGround();
 
       const loadingEl = document.getElementById('r3dLoading');
-      if (loadingEl) loadingEl.style.display = 'none';
+      if (loadingEl) loadingEl.classList.add('hidden');
 
       toast('warn', 'Terrain Error', 'Failed to load terrain data. Showing flat ground.');
     });

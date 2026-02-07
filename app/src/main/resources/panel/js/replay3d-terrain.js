@@ -249,6 +249,204 @@
     'minecraft:soul_lantern':       { color: 0x48c8d8, emissive: 0x48c8d8 },
     'minecraft:redstone_lamp':      { color: 0x8a5a3a },
     'minecraft:beacon':             { color: 0x78dbd5, emissive: 0x78dbd5 },
+
+    // ===== ALL 16 WOOL COLORS =====
+    'minecraft:orange_wool':        { color: 0xf07613 },
+    'minecraft:magenta_wool':       { color: 0xbd44b3 },
+    'minecraft:light_blue_wool':    { color: 0x3ab3da },
+    'minecraft:yellow_wool':        { color: 0xf8c527 },
+    'minecraft:lime_wool':          { color: 0x70b919 },
+    'minecraft:pink_wool':          { color: 0xed8dac },
+    'minecraft:gray_wool':          { color: 0x474f52 },
+    'minecraft:light_gray_wool':    { color: 0x9c9c94 },
+    'minecraft:cyan_wool':          { color: 0x158991 },
+    'minecraft:purple_wool':        { color: 0x7b2fbe },
+    'minecraft:blue_wool':          { color: 0x353a9e },
+    'minecraft:brown_wool':         { color: 0x724728 },
+    'minecraft:green_wool':         { color: 0x546d1b },
+    'minecraft:red_wool':           { color: 0xa02722 },
+    'minecraft:black_wool':         { color: 0x1d1c21 },
+
+    // ===== ALL 16 CONCRETE COLORS =====
+    'minecraft:orange_concrete':       { color: 0xe06101 },
+    'minecraft:magenta_concrete':      { color: 0xa9309f },
+    'minecraft:light_blue_concrete':   { color: 0x2389c7 },
+    'minecraft:yellow_concrete':       { color: 0xf0af15 },
+    'minecraft:lime_concrete':         { color: 0x5ea818 },
+    'minecraft:pink_concrete':         { color: 0xd6658f },
+    'minecraft:purple_concrete':       { color: 0x641f9c },
+    'minecraft:cyan_concrete':         { color: 0x157788 },
+    'minecraft:blue_concrete':         { color: 0x2c2e8f },
+    'minecraft:brown_concrete':        { color: 0x603b1f },
+    'minecraft:green_concrete':        { color: 0x495b24 },
+    'minecraft:red_concrete':          { color: 0x8e2121 },
+    'minecraft:light_gray_concrete':   { color: 0x7d7d73 },
+
+    // ===== ALL 16 CONCRETE POWDER =====
+    'minecraft:white_concrete_powder':      { color: 0xe1e1dd },
+    'minecraft:orange_concrete_powder':     { color: 0xe38422 },
+    'minecraft:magenta_concrete_powder':    { color: 0xc052b7 },
+    'minecraft:light_blue_concrete_powder': { color: 0x6eaed1 },
+    'minecraft:yellow_concrete_powder':     { color: 0xe8c736 },
+    'minecraft:lime_concrete_powder':       { color: 0x7dbb26 },
+    'minecraft:pink_concrete_powder':       { color: 0xe39ab0 },
+    'minecraft:gray_concrete_powder':       { color: 0x4d4f4d },
+    'minecraft:light_gray_concrete_powder': { color: 0x9a9a94 },
+    'minecraft:cyan_concrete_powder':       { color: 0x24939d },
+    'minecraft:purple_concrete_powder':     { color: 0x7b2fac },
+    'minecraft:blue_concrete_powder':       { color: 0x4648ac },
+    'minecraft:brown_concrete_powder':      { color: 0x7e5535 },
+    'minecraft:green_concrete_powder':      { color: 0x61772d },
+    'minecraft:red_concrete_powder':        { color: 0xa83632 },
+    'minecraft:black_concrete_powder':      { color: 0x19171b },
+
+    // ===== TERRACOTTA COLORS (missing ones) =====
+    'minecraft:magenta_terracotta':      { color: 0x95586c },
+    'minecraft:light_blue_terracotta':   { color: 0x706c8a },
+    'minecraft:lime_terracotta':         { color: 0x677534 },
+    'minecraft:pink_terracotta':         { color: 0xa14e4e },
+    'minecraft:gray_terracotta':         { color: 0x3a2a24 },
+    'minecraft:purple_terracotta':       { color: 0x764556 },
+    'minecraft:blue_terracotta':         { color: 0x4a3b5b },
+    'minecraft:green_terracotta':        { color: 0x4c532a },
+    'minecraft:black_terracotta':        { color: 0x251610 },
+    'minecraft:cyan_terracotta':         { color: 0x565b5b },
+    'minecraft:light_gray_terracotta':   { color: 0x876b62 },
+
+    // ===== ALL 16 GLAZED TERRACOTTA =====
+    'minecraft:white_glazed_terracotta':      { color: 0xd6ddd4 },
+    'minecraft:orange_glazed_terracotta':     { color: 0x9d5023 },
+    'minecraft:magenta_glazed_terracotta':    { color: 0xd24ea1 },
+    'minecraft:light_blue_glazed_terracotta': { color: 0x4faac0 },
+    'minecraft:yellow_glazed_terracotta':     { color: 0xeac058 },
+    'minecraft:lime_glazed_terracotta':       { color: 0x96c93a },
+    'minecraft:pink_glazed_terracotta':       { color: 0xeb9ab3 },
+    'minecraft:gray_glazed_terracotta':       { color: 0x535a5e },
+    'minecraft:light_gray_glazed_terracotta': { color: 0x5d8a8e },
+    'minecraft:cyan_glazed_terracotta':       { color: 0x34767e },
+    'minecraft:purple_glazed_terracotta':     { color: 0x6a2f82 },
+    'minecraft:blue_glazed_terracotta':       { color: 0x2e388d },
+    'minecraft:brown_glazed_terracotta':      { color: 0x7b4a30 },
+    'minecraft:green_glazed_terracotta':      { color: 0x748432 },
+    'minecraft:red_glazed_terracotta':        { color: 0xb53b32 },
+    'minecraft:black_glazed_terracotta':      { color: 0x43191e },
+
+    // ===== STAINED GLASS (missing colors) =====
+    'minecraft:magenta_stained_glass':     { color: 0xb24cd8, opacity: 0.4 },
+    'minecraft:pink_stained_glass':        { color: 0xf27fa5, opacity: 0.4 },
+    'minecraft:gray_stained_glass':        { color: 0x4c4c4c, opacity: 0.4 },
+    'minecraft:light_gray_stained_glass':  { color: 0x999999, opacity: 0.4 },
+    'minecraft:cyan_stained_glass':        { color: 0x4c7f99, opacity: 0.4 },
+    'minecraft:purple_stained_glass':      { color: 0x7f3fb2, opacity: 0.4 },
+    'minecraft:blue_stained_glass':        { color: 0x334cb2, opacity: 0.4 },
+    'minecraft:brown_stained_glass':       { color: 0x664c33, opacity: 0.4 },
+    'minecraft:green_stained_glass':       { color: 0x667f33, opacity: 0.4 },
+    'minecraft:black_stained_glass':       { color: 0x191919, opacity: 0.4 },
+
+    // ===== FLOWERS & PLANTS =====
+    'minecraft:dandelion':            { color: 0xf5e042 },
+    'minecraft:poppy':                { color: 0xed302c },
+    'minecraft:blue_orchid':          { color: 0x2abffd },
+    'minecraft:allium':               { color: 0xb878ed },
+    'minecraft:azure_bluet':          { color: 0xf7f7e4 },
+    'minecraft:red_tulip':            { color: 0xeb4e32 },
+    'minecraft:orange_tulip':         { color: 0xeb7b32 },
+    'minecraft:white_tulip':          { color: 0xd6e8e8 },
+    'minecraft:pink_tulip':           { color: 0xeb9ec6 },
+    'minecraft:oxeye_daisy':          { color: 0xd6e4c0 },
+    'minecraft:cornflower':           { color: 0x466aeb },
+    'minecraft:lily_of_the_valley':   { color: 0xf0f0f0 },
+    'minecraft:wither_rose':          { color: 0x2a2a2a },
+    'minecraft:torchflower':          { color: 0xe5a028 },
+    'minecraft:short_grass':          { color: 0x5ba839, opacity: 0.8 },
+    'minecraft:tall_grass':           { color: 0x5ba839, opacity: 0.8 },
+    'minecraft:fern':                 { color: 0x4a8a2e, opacity: 0.8 },
+    'minecraft:large_fern':           { color: 0x4a8a2e, opacity: 0.8 },
+    'minecraft:dead_bush':            { color: 0x946428 },
+    'minecraft:seagrass':             { color: 0x3a8a5a, opacity: 0.7 },
+    'minecraft:kelp':                 { color: 0x3a7a4a, opacity: 0.7 },
+    'minecraft:sweet_berry_bush':     { color: 0x3a6a2a },
+    'minecraft:bamboo':               { color: 0x5a8a2a },
+    'minecraft:sugar_cane':           { color: 0x6aaa4a, opacity: 0.8 },
+    'minecraft:cactus':               { color: 0x0a7a0a },
+
+    // ===== CORAL BLOCKS =====
+    'minecraft:tube_coral_block':        { color: 0x3152a6 },
+    'minecraft:brain_coral_block':       { color: 0xcc529b },
+    'minecraft:bubble_coral_block':      { color: 0xa50aa1 },
+    'minecraft:fire_coral_block':        { color: 0xa32c2e },
+    'minecraft:horn_coral_block':        { color: 0xd9c63b },
+    'minecraft:dead_tube_coral_block':   { color: 0x7c7c7c },
+    'minecraft:dead_brain_coral_block':  { color: 0x7c7070 },
+    'minecraft:dead_bubble_coral_block': { color: 0x7c6a6a },
+    'minecraft:dead_fire_coral_block':   { color: 0x7c6060 },
+    'minecraft:dead_horn_coral_block':   { color: 0x7c7a60 },
+
+    // ===== COPPER VARIANTS =====
+    'minecraft:exposed_copper':       { color: 0xa27d5e },
+    'minecraft:weathered_copper':     { color: 0x6d916a },
+    'minecraft:oxidized_copper':      { color: 0x52a384 },
+    'minecraft:waxed_copper_block':   { color: 0xc06840 },
+    'minecraft:cut_copper':           { color: 0xbf6536 },
+    'minecraft:exposed_cut_copper':   { color: 0x9a7a5a },
+    'minecraft:weathered_cut_copper': { color: 0x6a8a6a },
+    'minecraft:oxidized_cut_copper':  { color: 0x4a9a7a },
+
+    // ===== DEEPSLATE VARIANTS =====
+    'minecraft:chiseled_deepslate':   { color: 0x363636 },
+    'minecraft:polished_deepslate':   { color: 0x484848 },
+    'minecraft:deepslate_bricks':     { color: 0x464646 },
+    'minecraft:deepslate_tiles':      { color: 0x363636 },
+    'minecraft:reinforced_deepslate': { color: 0x555555 },
+
+    // ===== QUARTZ VARIANTS =====
+    'minecraft:quartz_block':         { color: 0xeae5de },
+    'minecraft:quartz_pillar':        { color: 0xeae5de },
+    'minecraft:quartz_bricks':        { color: 0xe8e3da },
+
+    // ===== MISC BUILDING BLOCKS =====
+    'minecraft:polished_blackstone':        { color: 0x353038 },
+    'minecraft:polished_blackstone_bricks': { color: 0x2f2c32 },
+    'minecraft:mangrove_roots':       { color: 0x4a3a28 },
+    'minecraft:muddy_mangrove_roots': { color: 0x4a3a28 },
+    'minecraft:packed_mud':           { color: 0x8e7a5e },
+    'minecraft:mud_bricks':           { color: 0x89785e },
+    'minecraft:bamboo_planks':        { color: 0xc6b54a },
+    'minecraft:bamboo_mosaic':        { color: 0xc0b048 },
+    'minecraft:cherry_planks':        { color: 0xe0a8a8 },
+    'minecraft:cherry_leaves':        { color: 0xf0b0c0, opacity: 0.85 },
+
+    // ===== STRIPPED LOGS =====
+    'minecraft:stripped_oak_log':       { color: 0xb08c4f },
+    'minecraft:stripped_spruce_log':    { color: 0x6b5838 },
+    'minecraft:stripped_birch_log':     { color: 0xc8b77a },
+    'minecraft:stripped_jungle_log':    { color: 0xa47a48 },
+    'minecraft:stripped_acacia_log':    { color: 0xb06a3a },
+    'minecraft:stripped_dark_oak_log':  { color: 0x604a2a },
+    'minecraft:stripped_mangrove_log':  { color: 0x6a3520 },
+    'minecraft:stripped_cherry_log':    { color: 0xd9a4a4 },
+    'minecraft:stripped_bamboo_block':  { color: 0xc6b54a },
+    'minecraft:stripped_crimson_stem':  { color: 0x893e5a },
+    'minecraft:stripped_warped_stem':   { color: 0x3a8e7e },
+
+    // ===== NETHER BLOCKS =====
+    'minecraft:nether_wart_block':    { color: 0x730000 },
+    'minecraft:warped_wart_block':    { color: 0x167a7a },
+    'minecraft:shroomlight':          { color: 0xf09848, emissive: 0xf09848 },
+    'minecraft:crimson_nylium':       { color: 0xa02020, topColor: 0xa02020 },
+    'minecraft:warped_nylium':        { color: 0x2a7a6a, topColor: 0x2a7a6a },
+    'minecraft:lodestone':            { color: 0x939393 },
+    'minecraft:respawn_anchor':       { color: 0x3a0a4a },
+    'minecraft:ancient_debris':       { color: 0x634e3c },
+    'minecraft:netherite_block':      { color: 0x3c3c3c },
+    'minecraft:raw_iron_block':       { color: 0xbfa98c },
+    'minecraft:raw_gold_block':       { color: 0xe8a92e },
+    'minecraft:raw_copper_block':     { color: 0xbf6846 },
+    'minecraft:amethyst_block':       { color: 0x8c5fbf },
+    'minecraft:budding_amethyst':     { color: 0x9468c8 },
+    'minecraft:tuff':                 { color: 0x6a6862 },
+    'minecraft:calcite':              { color: 0xd8d5ca },
+    'minecraft:dripstone_block':      { color: 0x866a5a },
   };
 
   // Block shapes for non-full-block rendering
@@ -406,6 +604,78 @@
     'minecraft:sculk': { all: 'sculk' },
     'minecraft:mud_bricks': { all: 'mud_bricks' },
     'minecraft:bamboo_planks': { all: 'bamboo_planks' },
+    // Wool colors
+    'minecraft:white_wool': { all: 'white_wool' },
+    'minecraft:orange_wool': { all: 'orange_wool' },
+    'minecraft:magenta_wool': { all: 'magenta_wool' },
+    'minecraft:light_blue_wool': { all: 'light_blue_wool' },
+    'minecraft:yellow_wool': { all: 'yellow_wool' },
+    'minecraft:lime_wool': { all: 'lime_wool' },
+    'minecraft:pink_wool': { all: 'pink_wool' },
+    'minecraft:gray_wool': { all: 'gray_wool' },
+    'minecraft:light_gray_wool': { all: 'light_gray_wool' },
+    'minecraft:cyan_wool': { all: 'cyan_wool' },
+    'minecraft:purple_wool': { all: 'purple_wool' },
+    'minecraft:blue_wool': { all: 'blue_wool' },
+    'minecraft:brown_wool': { all: 'brown_wool' },
+    'minecraft:green_wool': { all: 'green_wool' },
+    'minecraft:red_wool': { all: 'red_wool' },
+    'minecraft:black_wool': { all: 'black_wool' },
+    // Concrete colors
+    'minecraft:white_concrete': { all: 'white_concrete' },
+    'minecraft:orange_concrete': { all: 'orange_concrete' },
+    'minecraft:magenta_concrete': { all: 'magenta_concrete' },
+    'minecraft:light_blue_concrete': { all: 'light_blue_concrete' },
+    'minecraft:yellow_concrete': { all: 'yellow_concrete' },
+    'minecraft:lime_concrete': { all: 'lime_concrete' },
+    'minecraft:pink_concrete': { all: 'pink_concrete' },
+    'minecraft:gray_concrete': { all: 'gray_concrete' },
+    'minecraft:light_gray_concrete': { all: 'light_gray_concrete' },
+    'minecraft:cyan_concrete': { all: 'cyan_concrete' },
+    'minecraft:purple_concrete': { all: 'purple_concrete' },
+    'minecraft:blue_concrete': { all: 'blue_concrete' },
+    'minecraft:brown_concrete': { all: 'brown_concrete' },
+    'minecraft:green_concrete': { all: 'green_concrete' },
+    'minecraft:red_concrete': { all: 'red_concrete' },
+    'minecraft:black_concrete': { all: 'black_concrete' },
+    // Terracotta colors
+    'minecraft:terracotta': { all: 'terracotta' },
+    'minecraft:white_terracotta': { all: 'white_terracotta' },
+    'minecraft:orange_terracotta': { all: 'orange_terracotta' },
+    'minecraft:magenta_terracotta': { all: 'magenta_terracotta' },
+    'minecraft:light_blue_terracotta': { all: 'light_blue_terracotta' },
+    'minecraft:yellow_terracotta': { all: 'yellow_terracotta' },
+    'minecraft:lime_terracotta': { all: 'lime_terracotta' },
+    'minecraft:pink_terracotta': { all: 'pink_terracotta' },
+    'minecraft:gray_terracotta': { all: 'gray_terracotta' },
+    'minecraft:light_gray_terracotta': { all: 'light_gray_terracotta' },
+    'minecraft:cyan_terracotta': { all: 'cyan_terracotta' },
+    'minecraft:purple_terracotta': { all: 'purple_terracotta' },
+    'minecraft:blue_terracotta': { all: 'blue_terracotta' },
+    'minecraft:brown_terracotta': { all: 'brown_terracotta' },
+    'minecraft:green_terracotta': { all: 'green_terracotta' },
+    'minecraft:red_terracotta': { all: 'red_terracotta' },
+    'minecraft:black_terracotta': { all: 'black_terracotta' },
+    // Deepslate variants
+    'minecraft:polished_deepslate': { all: 'polished_deepslate' },
+    'minecraft:deepslate_bricks': { all: 'deepslate_bricks' },
+    'minecraft:deepslate_tiles': { all: 'deepslate_tiles' },
+    'minecraft:chiseled_deepslate': { all: 'chiseled_deepslate' },
+    // Additional common blocks
+    'minecraft:tuff': { all: 'tuff' },
+    'minecraft:calcite': { all: 'calcite' },
+    'minecraft:amethyst_block': { all: 'amethyst_block' },
+    'minecraft:dripstone_block': { all: 'dripstone_block' },
+    'minecraft:nether_wart_block': { all: 'nether_wart_block' },
+    'minecraft:warped_wart_block': { all: 'warped_wart_block' },
+    'minecraft:shroomlight': { all: 'shroomlight' },
+    'minecraft:ancient_debris': { top: 'ancient_debris_top', side: 'ancient_debris_side' },
+    'minecraft:netherite_block': { all: 'netherite_block' },
+    'minecraft:raw_iron_block': { all: 'raw_iron_block' },
+    'minecraft:raw_gold_block': { all: 'raw_gold_block' },
+    'minecraft:raw_copper_block': { all: 'raw_copper_block' },
+    'minecraft:quartz_bricks': { all: 'quartz_bricks' },
+    'minecraft:cherry_planks': { all: 'cherry_planks' },
   };
 
   /**
@@ -601,11 +871,37 @@
         info = { color: 0x999999 };
       } else if (name.includes('_ore')) {
         info = { color: 0x7a7a7a };
+      } else if (name.includes('_wall')) {
+        info = { color: 0x7a7a7a };
+      } else if (name.includes('_stairs')) {
+        info = { color: 0x7a7a7a };
+      } else if (name.includes('_slab')) {
+        info = { color: 0x7a7a7a };
+      } else if (name.includes('_fence_gate')) {
+        info = { color: 0xb8945f };
+      } else if (name.includes('_glazed_terracotta')) {
+        info = { color: 0x985e43 };
+      } else if (name.includes('_terracotta')) {
+        info = { color: 0x985e43 };
+      } else if (name.includes('_concrete')) {
+        info = { color: 0x808080 };
+      } else if (name.includes('_wool')) {
+        info = { color: 0xe9e9e9 };
+      } else if (name.includes('_glass') || name.includes('_glass_pane')) {
+        info = { color: 0xc0d8f0, opacity: 0.4 };
+      } else if (name.includes('_candle') || name === 'minecraft:candle') {
+        info = { color: 0xd8c080 };
+      } else if (name.includes('_button') || name.includes('_pressure_plate') || name.includes('_sign') || name.includes('_hanging_sign')) {
+        info = { color: 0xb8945f };
+      } else if (name.includes('_coral') && !name.includes('block')) {
+        info = { color: 0xcc529b, opacity: 0.8 };
+      } else if (name.includes('_shulker_box')) {
+        info = { color: 0x9a5bba };
       }
     }
 
-    // Default: unknown block = magenta (easy to spot)
-    if (!info) info = { color: 0xff00ff };
+    // Default: unknown block = neutral gray
+    if (!info) info = { color: 0x808080 };
 
     // Determine shape from block state properties
     let shape = 'full';

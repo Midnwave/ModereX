@@ -140,6 +140,7 @@ public class MxCommand extends BaseCommand {
             sendMessage(sender, "<red>Usage: /mx debug <subcommand>");
             sendMessage(sender, "<gray>/mx debug authsession <player> [caseId] <white>- Generate portal session for player");
             sendMessage(sender, "<gray>/mx debug serverid <white>- Show this server's unique ID");
+            sendMessage(sender, "<gray>/mx debug integrations <white>- Show all detected plugin hooks");
             return;
         }
 
@@ -149,9 +150,10 @@ public class MxCommand extends BaseCommand {
         switch (action) {
             case "authsession" -> handleDebugAuthSession(sender, actionArgs);
             case "serverid" -> handleDebugServerId(sender);
+            case "integrations" -> handleDebugIntegrations(sender);
             default -> {
                 sendMessage(sender, "<red>Unknown debug action: " + action);
-                sendMessage(sender, "<gray>Available: authsession, serverid");
+                sendMessage(sender, "<gray>Available: authsession, serverid, integrations");
             }
         }
     }
@@ -254,6 +256,58 @@ public class MxCommand extends BaseCommand {
         }
         sendMessage(sender, "<gradient:#3b82f6:#8b5cf6>━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━</gradient>");
         sendMessage(sender, "");
+    }
+
+    private void handleDebugIntegrations(CommandSender sender) {
+        var hooks = plugin.getHookManager();
+        if (hooks == null) {
+            sendMessage(sender, "<red>HookManager not initialized.");
+            return;
+        }
+
+        sendMessage(sender, "");
+        sendMessage(sender, "<gradient:#3b82f6:#8b5cf6>━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━</gradient>");
+        sendMessage(sender, "<white>      <bold>Plugin Integrations</bold>");
+        sendMessage(sender, "");
+
+        printHookStatus(sender, "LuckPerms", hooks.hasLuckPerms(), hooks.getLuckPermsVersion());
+        printHookStatus(sender, "PlaceholderAPI", hooks.hasPlaceholderAPI(), null);
+        printHookStatus(sender, "CoreProtect", hooks.hasCoreProtect(), null);
+        printHookStatus(sender, "Geyser", hooks.hasGeyser(), hooks.getGeyserVersion());
+        printHookStatus(sender, "Floodgate", hooks.hasFloodgate(), hooks.getFloodgateVersion());
+        printHookStatus(sender, "Citizens", hooks.hasCitizens(), hooks.getCitizensVersion());
+        printHookStatus(sender, "Spark", hooks.isSparkAvailable(), hooks.getSparkVersion());
+        printHookStatus(sender, "Simple Voice Chat", hooks.isVoiceChatAvailable(), hooks.getVoiceChatVersion());
+
+        sendMessage(sender, "");
+        printHookStatus(sender, "BlueMap", hooks.isBlueMapAvailable(), hooks.getBlueMapVersion());
+        if (hooks.isBlueMapAvailable()) {
+            var blueMap = hooks.getBlueMapHook();
+            sendMessage(sender, "<gray>  Web URL: <white>" + blueMap.getWebUrl());
+            sendMessage(sender, "<gray>  Web Port: <white>" + blueMap.getWebPort());
+            sendMessage(sender, "<gray>  Map IDs: <white>" + String.join(", ", blueMap.getMapIds()));
+        }
+
+        sendMessage(sender, "");
+        String detectedAC = hooks.getDetectedAnticheat();
+        sendMessage(sender, "<gray>Anticheat: " + (detectedAC != null
+            ? "<green>" + detectedAC + " <gray>(detected)"
+            : "<yellow>None detected"));
+
+        var acManager = hooks.getAnticheatManager();
+        if (acManager != null && !acManager.getEnabledAnticheats().isEmpty()) {
+            sendMessage(sender, "<gray>  Active listeners: <white>" + String.join(", ", acManager.getEnabledAnticheats()));
+        }
+
+        sendMessage(sender, "");
+        sendMessage(sender, "<gradient:#3b82f6:#8b5cf6>━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━</gradient>");
+        sendMessage(sender, "");
+    }
+
+    private void printHookStatus(CommandSender sender, String name, boolean detected, String version) {
+        String status = detected ? "<green>Detected" : "<red>Not Found";
+        String versionStr = (detected && version != null && !version.isEmpty() && !version.equals("N/A")) ? " <gray>v" + version : "";
+        sendMessage(sender, "<gray>" + name + ": " + status + versionStr);
     }
 
     private void handlePanel(CommandSender sender) {
@@ -1770,7 +1824,7 @@ public class MxCommand extends BaseCommand {
                 }
                 case "debug" -> {
                     if (sender.hasPermission("moderex.admin")) {
-                        return filterCompletions(Arrays.asList("authsession", "serverid"), args[1]);
+                        return filterCompletions(Arrays.asList("authsession", "serverid", "integrations"), args[1]);
                     }
                 }
             }

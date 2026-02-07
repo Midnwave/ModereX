@@ -14,6 +14,56 @@
 
 window.MX_CHANGELOGS = [
   {
+    build: 255,
+    version: "2.0dev-255",
+    date: "2026-02-07",
+    title: "3D Replay Viewer Overhaul",
+    sections: [
+      {
+        type: "new",
+        title: "New Features",
+        items: [
+          "**Action Feed** - Player actions (chat, block break/place, combat, items, etc.) now appear as toasts overlaid on the 3D viewer during playback",
+          "**Glass Controls Bar** - Redesigned playback controls with gradient overlay, camera mode pills, and speed pills",
+          "**Loading Progress Bar** - Terrain loading now shows animated progress bar instead of just a spinner",
+          "**Info HUD** - Compact glass-effect heads-up display showing player position, action, and movement state",
+          "**Keyboard Shortcuts** - Space (play/pause), Left/Right arrows (skip 5s), 1-5 keys (speed presets), Escape (close)",
+          "**mx debug integrations** - New subcommand showing all detected plugin hooks with versions and status"
+        ]
+      },
+      {
+        type: "improved",
+        title: "Improvements",
+        items: [
+          "**Smooth Player Movement** - Players now interpolate smoothly between capture snapshots using linear interpolation with binary search",
+          "**Angle-Aware Rotation** - Player yaw interpolation uses shortest-path wrapping to prevent 360° spins",
+          "**Velocity-Based Animation** - Walk animation speed driven by actual movement velocity instead of fixed oscillation",
+          "**Block Color Registry** - Added 150+ missing block colors (all wool, concrete, terracotta, glazed terracotta, coral, copper, deepslate variants)",
+          "**Heuristic Fallbacks** - Unknown blocks matched by suffix patterns (walls, stairs, slabs, fences, glass, etc.) instead of showing magenta",
+          "**Default Block Color** - Unknown blocks now render as neutral gray instead of bright magenta",
+          "**Camera Follow Mode** - Follow camera now smoothly lerps to player position instead of snapping"
+        ]
+      },
+      {
+        type: "fixed",
+        title: "Bug Fixes",
+        items: [
+          "**Magenta Blocks** - Fixed hundreds of common Minecraft blocks rendering as bright magenta due to missing color entries",
+          "**Choppy Movement** - Fixed player models snapping between 100ms capture intervals instead of interpolating smoothly"
+        ]
+      },
+      {
+        type: "technical",
+        title: "Technical Changes",
+        items: [
+          "**Pre-Indexed Snapshots** - Snapshots now indexed by player UUID at load time for O(log n) binary search per frame",
+          "**Action Events API** - New getActionsInRange() method for querying player actions within time windows",
+          "**Texture Map Expansion** - Added CDN texture mappings for wool, concrete, terracotta, deepslate, nether blocks, and more"
+        ]
+      }
+    ]
+  },
+  {
     build: 254,
     version: "2.0dev-254",
     date: "2026-02-06",

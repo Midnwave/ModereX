@@ -59,6 +59,10 @@
       this.playing = false;
       this.playbackSpeed = 1;
 
+      // Pre-indexed player data
+      this._playerSnapshots = new Map(); // uuid -> sorted snapshot array
+      this._actionEvents = []; // snapshots where action !== 'NONE'
+
       // Callbacks
       this._onTimeUpdate = null;
       this._onPlaybackEnd = null;
@@ -200,6 +204,30 @@
       this.totalDuration = (replay.endTime || 0) - this.startTime;
       this.currentTime = 0;
       this.playing = false;
+
+      // Pre-index snapshots by player UUID for efficient binary search
+      this._playerSnapshots = new Map();
+      this._actionEvents = [];
+
+      for (const snap of this.snapshots) {
+        const uuid = snap.playerUuid;
+        if (!this._playerSnapshots.has(uuid)) {
+          this._playerSnapshots.set(uuid, []);
+        }
+        this._playerSnapshots.get(uuid).push(snap);
+
+        if (snap.action && snap.action !== 'NONE') {
+          this._actionEvents.push(snap);
+        }
+      }
+
+      // Sort each player's snapshots by timestamp
+      for (const [, snaps] of this._playerSnapshots) {
+        snaps.sort((a, b) => a.timestamp - b.timestamp);
+      }
+
+      // Sort action events by timestamp
+      this._actionEvents.sort((a, b) => a.timestamp - b.timestamp);
 
       // Set block logs on applicator
       if (this.blockApplicator && this.blockLogs.length > 0) {
@@ -625,59 +653,149 @@
       }
     }
 
+    /**
+     * Binary search: find index of last snapshot with timestamp <= target.
+     * Returns -1 if no snapshot is at or before target time.
+     */
+    _binarySearch(snaps, targetTime) {
+      let lo = 0, hi = snaps.length - 1;
+      while (lo <= hi) {
+        const mid = (lo + hi) >>> 1;
+        if (snaps[mid].timestamp <= targetTime) lo = mid + 1;
+        else hi = mid - 1;
+      }
+      return hi;
+    }
+
+    _lerp(a, b, t) {
+      return a + (b - a) * t;
+    }
+
+    _lerpAngle(a, b, t) {
+      let diff = b - a;
+      while (diff > Math.PI) diff -= Math.PI * 2;
+      while (diff < -Math.PI) diff += Math.PI * 2;
+      return a + diff * t;
+    }
+
+    /**
+     * Get action events within a time window (relative ms from replay start).
+     */
+    getActionsInRange(startMs, endMs) {
+      const absStart = this.startTime + startMs;
+      const absEnd = this.startTime + endMs;
+      const results = [];
+      for (const snap of this._actionEvents) {
+        if (snap.timestamp > absEnd) break;
+        if (snap.timestamp >= absStart) {
+          results.push(snap);
+        }
+      }
+      return results;
+    }
+
     _updatePlayersAtTime(timeMs) {
       const absoluteTime = this.startTime + timeMs;
-      const currentPositions = new Map();
+      const activeUuids = new Set();
 
-      for (const snap of this.snapshots) {
-        if (snap.timestamp <= absoluteTime) {
-          currentPositions.set(snap.playerUuid, snap);
-        }
-      }
+      for (const [uuid, snaps] of this._playerSnapshots) {
+        const idx = this._binarySearch(snaps, absoluteTime);
+        if (idx < 0) continue; // No snapshot at or before this time
 
-      // Hide all, then show matching
-      for (const [uuid, group] of this.players) {
-        group.visible = currentPositions.has(uuid);
-      }
+        const snap1 = snaps[idx];
+        const snap2 = (idx + 1 < snaps.length) ? snaps[idx + 1] : null;
 
-      for (const [uuid, snap] of currentPositions) {
-        const group = this._getOrCreatePlayer(uuid, snap.playerName);
+        // Hide player if >2s past their last snapshot with no next one
+        if (!snap2 && (absoluteTime - snap1.timestamp) > 2000) continue;
+
+        activeUuids.add(uuid);
+        const group = this._getOrCreatePlayer(uuid, snap1.playerName);
         group.visible = true;
-        group.position.set(snap.x, snap.y, snap.z);
-        group.rotation.y = -snap.yaw * (Math.PI / 180) + Math.PI;
 
-        // Head pitch
-        const head = group.getObjectByName('head');
-        if (head) head.rotation.x = snap.pitch * (Math.PI / 180);
+        if (snap2 && snap2.timestamp > snap1.timestamp) {
+          // Interpolate between snap1 and snap2
+          const t = Math.min(1, (absoluteTime - snap1.timestamp) / (snap2.timestamp - snap1.timestamp));
 
-        // Walk animation
-        const time = Date.now() * 0.003;
-        const walking = snap.sprinting || (!snap.sneaking && snap.onGround);
-        const speed = snap.sprinting ? 2 : 1;
-        const swing = walking ? Math.sin(time * speed) * 0.5 : 0;
+          // Position lerp
+          const x = this._lerp(snap1.x, snap2.x, t);
+          const y = this._lerp(snap1.y, snap2.y, t);
+          const z = this._lerp(snap1.z, snap2.z, t);
+          group.position.set(x, y, z);
 
-        const rArm = group.getObjectByName('rightArm');
-        const lArm = group.getObjectByName('leftArm');
-        const rLeg = group.getObjectByName('rightLeg');
-        const lLeg = group.getObjectByName('leftLeg');
-        if (rArm) rArm.rotation.x = swing;
-        if (lArm) lArm.rotation.x = -swing;
-        if (rLeg) rLeg.rotation.x = -swing;
-        if (lLeg) lLeg.rotation.x = swing;
+          // Yaw interpolation (shortest path around 360)
+          const yawRad1 = -snap1.yaw * (Math.PI / 180) + Math.PI;
+          const yawRad2 = -snap2.yaw * (Math.PI / 180) + Math.PI;
+          group.rotation.y = this._lerpAngle(yawRad1, yawRad2, t);
 
-        // Sneaking
-        if (snap.sneaking) {
-          group.scale.y = 0.85;
+          // Head pitch interpolation
+          const head = group.getObjectByName('head');
+          if (head) {
+            const pitchRad1 = snap1.pitch * (Math.PI / 180);
+            const pitchRad2 = snap2.pitch * (Math.PI / 180);
+            head.rotation.x = this._lerp(pitchRad1, pitchRad2, t);
+          }
+
+          // Velocity-based walk animation
+          const dx = snap2.x - snap1.x;
+          const dz = snap2.z - snap1.z;
+          const dt = (snap2.timestamp - snap1.timestamp) / 1000;
+          const speed = Math.sqrt(dx * dx + dz * dz) / Math.max(dt, 0.01);
+
+          const isMoving = speed > 0.5;
+          const animTime = absoluteTime * 0.006;
+          const swingFreq = Math.min(speed * 0.8, 4);
+          const swing = isMoving ? Math.sin(animTime * swingFreq) * Math.min(speed * 0.15, 0.7) : 0;
+
+          const rArm = group.getObjectByName('rightArm');
+          const lArm = group.getObjectByName('leftArm');
+          const rLeg = group.getObjectByName('rightLeg');
+          const lLeg = group.getObjectByName('leftLeg');
+          if (rArm) rArm.rotation.x = swing;
+          if (lArm) lArm.rotation.x = -swing;
+          if (rLeg) rLeg.rotation.x = -swing;
+          if (lLeg) lLeg.rotation.x = swing;
+
+          // Sneaking state (use nearer snapshot)
+          group.scale.y = (t < 0.5 ? snap1.sneaking : snap2.sneaking) ? 0.85 : 1;
+
         } else {
-          group.scale.y = 1;
+          // No interpolation target - hold at snap1
+          group.position.set(snap1.x, snap1.y, snap1.z);
+          group.rotation.y = -snap1.yaw * (Math.PI / 180) + Math.PI;
+
+          const head = group.getObjectByName('head');
+          if (head) head.rotation.x = snap1.pitch * (Math.PI / 180);
+
+          // Static pose (no walking)
+          const rArm = group.getObjectByName('rightArm');
+          const lArm = group.getObjectByName('leftArm');
+          const rLeg = group.getObjectByName('rightLeg');
+          const lLeg = group.getObjectByName('leftLeg');
+          if (rArm) rArm.rotation.x = 0;
+          if (lArm) lArm.rotation.x = 0;
+          if (rLeg) rLeg.rotation.x = 0;
+          if (lLeg) lLeg.rotation.x = 0;
+
+          group.scale.y = snap1.sneaking ? 0.85 : 1;
         }
       }
 
-      // Follow mode
-      if (this.cameraMode === 'follow' && currentPositions.size > 0) {
-        const primary = currentPositions.values().next().value;
-        this.orbitTarget.set(primary.x, primary.y + 1, primary.z);
-        this._updateOrbitCamera();
+      // Hide inactive players
+      for (const [uuid, group] of this.players) {
+        if (!activeUuids.has(uuid)) {
+          group.visible = false;
+        }
+      }
+
+      // Follow mode - smooth camera tracking
+      if (this.cameraMode === 'follow' && activeUuids.size > 0) {
+        const primaryUuid = activeUuids.values().next().value;
+        const group = this.players.get(primaryUuid);
+        if (group) {
+          const target = new THREE.Vector3(group.position.x, group.position.y + 1, group.position.z);
+          this.orbitTarget.lerp(target, 0.1);
+          this._updateOrbitCamera();
+        }
       }
     }
 
