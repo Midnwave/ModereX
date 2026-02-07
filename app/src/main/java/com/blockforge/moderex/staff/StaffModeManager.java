@@ -1,6 +1,7 @@
 package com.blockforge.moderex.staff;
 
 import com.blockforge.moderex.ModereX;
+import com.blockforge.moderex.util.Msg;
 import com.blockforge.moderex.webpanel.debug.WebPanelDebugger;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
@@ -41,7 +42,7 @@ public class StaffModeManager {
      */
     public void enableStaffMode(Player player) {
         if (isInStaffMode(player)) {
-            player.sendMessage(Component.text("You are already in staff mode.").color(NamedTextColor.RED));
+            Msg.send(player, Component.text("You are already in staff mode.").color(NamedTextColor.RED));
             return;
         }
 
@@ -58,7 +59,7 @@ public class StaffModeManager {
             plugin.getVanishManager().vanish(player);
         }
 
-        player.sendMessage(Component.text("Staff mode enabled.").color(NamedTextColor.GREEN));
+        Msg.send(player, Component.text("Staff mode enabled.").color(NamedTextColor.GREEN));
         plugin.logDebug("[StaffMode] " + player.getName() + " enabled staff mode");
 
         // Web panel debug
@@ -76,7 +77,7 @@ public class StaffModeManager {
     public void disableStaffMode(Player player) {
         StaffModeData data = staffModePlayers.remove(player.getUniqueId());
         if (data == null) {
-            player.sendMessage(Component.text("You are not in staff mode.").color(NamedTextColor.RED));
+            Msg.send(player, Component.text("You are not in staff mode.").color(NamedTextColor.RED));
             return;
         }
 
@@ -86,7 +87,7 @@ public class StaffModeManager {
             plugin.getVanishManager().unvanish(player);
         }
 
-        player.sendMessage(Component.text("Staff mode disabled.").color(NamedTextColor.GREEN));
+        Msg.send(player, Component.text("Staff mode disabled.").color(NamedTextColor.GREEN));
         plugin.logDebug("[StaffMode] " + player.getName() + " disabled staff mode");
 
         // Web panel debug
@@ -144,8 +145,8 @@ public class StaffModeManager {
         ItemStack item = new ItemStack(Material.GLASS);
         ItemMeta meta = item.getItemMeta();
         if (meta != null) {
-            meta.displayName(Component.text("Vanish").color(NamedTextColor.AQUA));
-            meta.lore(Arrays.asList(
+            Msg.displayName(meta, Component.text("Vanish").color(NamedTextColor.AQUA));
+            Msg.lore(meta, Arrays.asList(
                     Component.text("Click to toggle vanish").color(NamedTextColor.GRAY)
             ));
             item.setItemMeta(meta);
@@ -160,8 +161,8 @@ public class StaffModeManager {
         ItemStack item = new ItemStack(Material.BOOK);
         ItemMeta meta = item.getItemMeta();
         if (meta != null) {
-            meta.displayName(Component.text("Inspect Player").color(NamedTextColor.YELLOW));
-            meta.lore(Arrays.asList(
+            Msg.displayName(meta, Component.text("Inspect Player").color(NamedTextColor.YELLOW));
+            Msg.lore(meta, Arrays.asList(
                     Component.text("Right-click a player").color(NamedTextColor.GRAY),
                     Component.text("to open management GUI").color(NamedTextColor.GRAY)
             ));
@@ -177,8 +178,8 @@ public class StaffModeManager {
         ItemStack item = new ItemStack(Material.PACKED_ICE);
         ItemMeta meta = item.getItemMeta();
         if (meta != null) {
-            meta.displayName(Component.text("Freeze Player").color(NamedTextColor.BLUE));
-            meta.lore(Arrays.asList(
+            Msg.displayName(meta, Component.text("Freeze Player").color(NamedTextColor.BLUE));
+            Msg.lore(meta, Arrays.asList(
                     Component.text("Right-click a player").color(NamedTextColor.GRAY),
                     Component.text("to freeze/unfreeze them").color(NamedTextColor.GRAY)
             ));
@@ -194,8 +195,8 @@ public class StaffModeManager {
         ItemStack item = new ItemStack(Material.REDSTONE);
         ItemMeta meta = item.getItemMeta();
         if (meta != null) {
-            meta.displayName(Component.text("Anticheat Manager").color(NamedTextColor.RED));
-            meta.lore(Arrays.asList(
+            Msg.displayName(meta, Component.text("Anticheat Manager").color(NamedTextColor.RED));
+            Msg.lore(meta, Arrays.asList(
                     Component.text("Click to toggle").color(NamedTextColor.GRAY),
                     Component.text("anticheat alerts").color(NamedTextColor.GRAY)
             ));
@@ -211,8 +212,8 @@ public class StaffModeManager {
         ItemStack item = new ItemStack(Material.ENDER_PEARL);
         ItemMeta meta = item.getItemMeta();
         if (meta != null) {
-            meta.displayName(Component.text("Random Teleport").color(NamedTextColor.LIGHT_PURPLE));
-            meta.lore(Arrays.asList(
+            Msg.displayName(meta, Component.text("Random Teleport").color(NamedTextColor.LIGHT_PURPLE));
+            Msg.lore(meta, Arrays.asList(
                     Component.text("Click to teleport").color(NamedTextColor.GRAY),
                     Component.text("to a random player").color(NamedTextColor.GRAY)
             ));
@@ -228,8 +229,8 @@ public class StaffModeManager {
         ItemStack item = new ItemStack(Material.RED_BED);
         ItemMeta meta = item.getItemMeta();
         if (meta != null) {
-            meta.displayName(Component.text("Exit Staff Mode").color(NamedTextColor.RED));
-            meta.lore(Arrays.asList(
+            Msg.displayName(meta, Component.text("Exit Staff Mode").color(NamedTextColor.RED));
+            Msg.lore(meta, Arrays.asList(
                     Component.text("Click to disable").color(NamedTextColor.GRAY),
                     Component.text("staff mode").color(NamedTextColor.GRAY)
             ));
@@ -272,7 +273,7 @@ public class StaffModeManager {
      */
     private void handleInspectClick(Player player, Player target) {
         if (target == null) {
-            player.sendMessage(Component.text("Right-click a player to inspect them.").color(NamedTextColor.RED));
+            Msg.send(player, Component.text("Right-click a player to inspect them.").color(NamedTextColor.RED));
             return;
         }
 
@@ -284,7 +285,7 @@ public class StaffModeManager {
      */
     private void handleFreezeClick(Player player, Player target) {
         if (target == null) {
-            player.sendMessage(Component.text("Right-click a player to freeze them.").color(NamedTextColor.RED));
+            Msg.send(player, Component.text("Right-click a player to freeze them.").color(NamedTextColor.RED));
             return;
         }
 
@@ -293,14 +294,14 @@ public class StaffModeManager {
             target.removeMetadata("moderex_frozen", plugin);
             target.setWalkSpeed(0.2f);
             target.setFlySpeed(0.1f);
-            target.sendMessage(Component.text("You have been unfrozen.").color(NamedTextColor.GREEN));
-            player.sendMessage(Component.text("Unfroze " + target.getName()).color(NamedTextColor.GREEN));
+            Msg.send(target, Component.text("You have been unfrozen.").color(NamedTextColor.GREEN));
+            Msg.send(player, Component.text("Unfroze " + target.getName()).color(NamedTextColor.GREEN));
         } else {
             target.setMetadata("moderex_frozen", new org.bukkit.metadata.FixedMetadataValue(plugin, true));
             target.setWalkSpeed(0);
             target.setFlySpeed(0);
-            target.sendMessage(Component.text("You have been frozen by a staff member.").color(NamedTextColor.RED));
-            player.sendMessage(Component.text("Froze " + target.getName()).color(NamedTextColor.GREEN));
+            Msg.send(target, Component.text("You have been frozen by a staff member.").color(NamedTextColor.RED));
+            Msg.send(player, Component.text("Froze " + target.getName()).color(NamedTextColor.GREEN));
         }
     }
 
@@ -311,12 +312,12 @@ public class StaffModeManager {
         if (plugin.getAnticheatManager() != null) {
             boolean enabled = plugin.getAnticheatManager().toggleAlerts(player);
             if (enabled) {
-                player.sendMessage(Component.text("Anticheat alerts enabled.").color(NamedTextColor.GREEN));
+                Msg.send(player, Component.text("Anticheat alerts enabled.").color(NamedTextColor.GREEN));
             } else {
-                player.sendMessage(Component.text("Anticheat alerts disabled.").color(NamedTextColor.RED));
+                Msg.send(player, Component.text("Anticheat alerts disabled.").color(NamedTextColor.RED));
             }
         } else {
-            player.sendMessage(Component.text("No anticheat plugin detected.").color(NamedTextColor.RED));
+            Msg.send(player, Component.text("No anticheat plugin detected.").color(NamedTextColor.RED));
         }
     }
 
@@ -328,13 +329,13 @@ public class StaffModeManager {
         onlinePlayers.remove(player);
 
         if (onlinePlayers.isEmpty()) {
-            player.sendMessage(Component.text("No players online to teleport to.").color(NamedTextColor.RED));
+            Msg.send(player, Component.text("No players online to teleport to.").color(NamedTextColor.RED));
             return;
         }
 
         Player randomPlayer = onlinePlayers.get(new Random().nextInt(onlinePlayers.size()));
         player.teleport(randomPlayer);
-        player.sendMessage(Component.text("Teleported to " + randomPlayer.getName()).color(NamedTextColor.GREEN));
+        Msg.send(player, Component.text("Teleported to " + randomPlayer.getName()).color(NamedTextColor.GREEN));
     }
 
     /**

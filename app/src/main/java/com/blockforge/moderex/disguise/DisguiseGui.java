@@ -1,6 +1,7 @@
 package com.blockforge.moderex.disguise;
 
 import com.blockforge.moderex.ModereX;
+import com.blockforge.moderex.util.Msg;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
 import net.kyori.adventure.text.format.TextDecoration;
@@ -61,10 +62,10 @@ public class DisguiseGui {
         ItemStack removeItem = new ItemStack(Material.BARRIER);
         ItemMeta removeMeta = removeItem.getItemMeta();
         if (removeMeta != null) {
-            removeMeta.displayName(Component.text("Remove Disguise")
+            Msg.displayName(removeMeta, Component.text("Remove Disguise")
                     .color(NamedTextColor.RED)
                     .decoration(TextDecoration.ITALIC, false));
-            removeMeta.lore(List.of(
+            Msg.lore(removeMeta, List.of(
                     Component.text("Click to remove your current disguise")
                             .color(NamedTextColor.GRAY)
                             .decoration(TextDecoration.ITALIC, false)
@@ -87,7 +88,7 @@ public class DisguiseGui {
         SkullMeta meta = (SkullMeta) item.getItemMeta();
 
         if (meta != null) {
-            meta.displayName(Component.text(rank.getDisplayName())
+            Msg.displayName(meta, Component.text(rank.getDisplayName())
                     .color(NamedTextColor.GOLD)
                     .decoration(TextDecoration.ITALIC, false)
                     .decoration(TextDecoration.BOLD, true));
@@ -109,7 +110,7 @@ public class DisguiseGui {
                     .color(NamedTextColor.GREEN)
                     .decoration(TextDecoration.ITALIC, false));
 
-            meta.lore(lore);
+            Msg.lore(meta, lore);
 
             // Set player head texture if available
             if (rank.getSkullTexture() != null) {

@@ -1,6 +1,7 @@
 package com.blockforge.moderex.staff;
 
 import com.blockforge.moderex.ModereX;
+import com.blockforge.moderex.util.Msg;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
 import org.bukkit.Bukkit;
@@ -72,8 +73,8 @@ public class StaffInspectGui {
         SkullMeta meta = (SkullMeta) item.getItemMeta();
         if (meta != null) {
             meta.setOwningPlayer(target);
-            meta.displayName(Component.text(target.getName()).color(NamedTextColor.YELLOW));
-            meta.lore(Arrays.asList(
+            Msg.displayName(meta, Component.text(target.getName()).color(NamedTextColor.YELLOW));
+            Msg.lore(meta, Arrays.asList(
                     Component.text("UUID: " + target.getUniqueId()).color(NamedTextColor.GRAY),
                     Component.text("Health: " + String.format("%.1f", target.getHealth()) + "/" + String.format("%.1f", target.getMaxHealth())).color(NamedTextColor.RED),
                     Component.text("Gamemode: " + target.getGameMode()).color(NamedTextColor.AQUA),
@@ -91,12 +92,12 @@ public class StaffInspectGui {
         ItemStack item = new ItemStack(Material.PAPER);
         ItemMeta meta = item.getItemMeta();
         if (meta != null) {
-            meta.displayName(Component.text("Player Info").color(NamedTextColor.YELLOW));
+            Msg.displayName(meta, Component.text("Player Info").color(NamedTextColor.YELLOW));
             List<Component> lore = new ArrayList<>();
             lore.add(Component.text("IP: " + target.getAddress().getAddress().getHostAddress()).color(NamedTextColor.GRAY));
             lore.add(Component.text("Ping: " + target.getPing() + "ms").color(NamedTextColor.GRAY));
             lore.add(Component.text("Client: " + target.getClientBrandName()).color(NamedTextColor.GRAY));
-            meta.lore(lore);
+            Msg.lore(meta, lore);
             item.setItemMeta(meta);
         }
         return item;
@@ -109,8 +110,8 @@ public class StaffInspectGui {
         ItemStack item = new ItemStack(Material.CHEST);
         ItemMeta meta = item.getItemMeta();
         if (meta != null) {
-            meta.displayName(Component.text("View Inventory").color(NamedTextColor.AQUA));
-            meta.lore(Arrays.asList(
+            Msg.displayName(meta, Component.text("View Inventory").color(NamedTextColor.AQUA));
+            Msg.lore(meta, Arrays.asList(
                     Component.text("Click to view").color(NamedTextColor.GRAY),
                     Component.text("player's inventory").color(NamedTextColor.GRAY)
             ));
@@ -126,8 +127,8 @@ public class StaffInspectGui {
         ItemStack item = new ItemStack(Material.ENDER_CHEST);
         ItemMeta meta = item.getItemMeta();
         if (meta != null) {
-            meta.displayName(Component.text("View Ender Chest").color(NamedTextColor.LIGHT_PURPLE));
-            meta.lore(Arrays.asList(
+            Msg.displayName(meta, Component.text("View Ender Chest").color(NamedTextColor.LIGHT_PURPLE));
+            Msg.lore(meta, Arrays.asList(
                     Component.text("Click to view").color(NamedTextColor.GRAY),
                     Component.text("player's ender chest").color(NamedTextColor.GRAY)
             ));
@@ -143,8 +144,8 @@ public class StaffInspectGui {
         ItemStack item = new ItemStack(Material.GOLDEN_APPLE);
         ItemMeta meta = item.getItemMeta();
         if (meta != null) {
-            meta.displayName(Component.text("Health Manager").color(NamedTextColor.RED));
-            meta.lore(Arrays.asList(
+            Msg.displayName(meta, Component.text("Health Manager").color(NamedTextColor.RED));
+            Msg.lore(meta, Arrays.asList(
                     Component.text("Left: Kill player").color(NamedTextColor.GRAY),
                     Component.text("Right: Heal player").color(NamedTextColor.GRAY)
             ));
@@ -160,8 +161,8 @@ public class StaffInspectGui {
         ItemStack item = new ItemStack(Material.IRON_SWORD);
         ItemMeta meta = item.getItemMeta();
         if (meta != null) {
-            meta.displayName(Component.text("Punish Player").color(NamedTextColor.RED));
-            meta.lore(Arrays.asList(
+            Msg.displayName(meta, Component.text("Punish Player").color(NamedTextColor.RED));
+            Msg.lore(meta, Arrays.asList(
                     Component.text("Click to open").color(NamedTextColor.GRAY),
                     Component.text("punishment GUI").color(NamedTextColor.GRAY)
             ));
@@ -177,8 +178,8 @@ public class StaffInspectGui {
         ItemStack item = new ItemStack(Material.BOOK);
         ItemMeta meta = item.getItemMeta();
         if (meta != null) {
-            meta.displayName(Component.text("Punishment History").color(NamedTextColor.YELLOW));
-            meta.lore(Arrays.asList(
+            Msg.displayName(meta, Component.text("Punishment History").color(NamedTextColor.YELLOW));
+            Msg.lore(meta, Arrays.asList(
                     Component.text("Click to view").color(NamedTextColor.GRAY),
                     Component.text("player's history").color(NamedTextColor.GRAY)
             ));
@@ -195,8 +196,8 @@ public class StaffInspectGui {
         ItemStack item = new ItemStack(frozen ? Material.PACKED_ICE : Material.ICE);
         ItemMeta meta = item.getItemMeta();
         if (meta != null) {
-            meta.displayName(Component.text(frozen ? "Unfreeze Player" : "Freeze Player").color(NamedTextColor.BLUE));
-            meta.lore(Arrays.asList(
+            Msg.displayName(meta, Component.text(frozen ? "Unfreeze Player" : "Freeze Player").color(NamedTextColor.BLUE));
+            Msg.lore(meta, Arrays.asList(
                     Component.text("Click to " + (frozen ? "unfreeze" : "freeze")).color(NamedTextColor.GRAY),
                     Component.text("this player").color(NamedTextColor.GRAY)
             ));
@@ -212,8 +213,8 @@ public class StaffInspectGui {
         ItemStack item = new ItemStack(Material.ENDER_PEARL);
         ItemMeta meta = item.getItemMeta();
         if (meta != null) {
-            meta.displayName(Component.text("Teleport").color(NamedTextColor.LIGHT_PURPLE));
-            meta.lore(Arrays.asList(
+            Msg.displayName(meta, Component.text("Teleport").color(NamedTextColor.LIGHT_PURPLE));
+            Msg.lore(meta, Arrays.asList(
                     Component.text("Left: Teleport to player").color(NamedTextColor.GRAY),
                     Component.text("Right: Teleport player to you").color(NamedTextColor.GRAY)
             ));
@@ -229,8 +230,8 @@ public class StaffInspectGui {
         ItemStack item = new ItemStack(Material.WRITABLE_BOOK);
         ItemMeta meta = item.getItemMeta();
         if (meta != null) {
-            meta.displayName(Component.text("Staff Notes").color(NamedTextColor.GOLD));
-            meta.lore(Arrays.asList(
+            Msg.displayName(meta, Component.text("Staff Notes").color(NamedTextColor.GOLD));
+            Msg.lore(meta, Arrays.asList(
                     Component.text("Click to view/add").color(NamedTextColor.GRAY),
                     Component.text("staff notes").color(NamedTextColor.GRAY)
             ));
@@ -246,8 +247,8 @@ public class StaffInspectGui {
         ItemStack item = new ItemStack(Material.SPYGLASS);
         ItemMeta meta = item.getItemMeta();
         if (meta != null) {
-            meta.displayName(Component.text("Watchlist").color(NamedTextColor.YELLOW));
-            meta.lore(Arrays.asList(
+            Msg.displayName(meta, Component.text("Watchlist").color(NamedTextColor.YELLOW));
+            Msg.lore(meta, Arrays.asList(
                     Component.text("Click to add/remove").color(NamedTextColor.GRAY),
                     Component.text("from watchlist").color(NamedTextColor.GRAY)
             ));
@@ -263,8 +264,8 @@ public class StaffInspectGui {
         ItemStack item = new ItemStack(Material.REDSTONE);
         ItemMeta meta = item.getItemMeta();
         if (meta != null) {
-            meta.displayName(Component.text("Anticheat Info").color(NamedTextColor.RED));
-            meta.lore(Arrays.asList(
+            Msg.displayName(meta, Component.text("Anticheat Info").color(NamedTextColor.RED));
+            Msg.lore(meta, Arrays.asList(
                     Component.text("Click to view").color(NamedTextColor.GRAY),
                     Component.text("anticheat violations").color(NamedTextColor.GRAY)
             ));
@@ -280,8 +281,8 @@ public class StaffInspectGui {
         ItemStack item = new ItemStack(Material.COMPARATOR);
         ItemMeta meta = item.getItemMeta();
         if (meta != null) {
-            meta.displayName(Component.text("Advanced").color(NamedTextColor.DARK_PURPLE));
-            meta.lore(Arrays.asList(
+            Msg.displayName(meta, Component.text("Advanced").color(NamedTextColor.DARK_PURPLE));
+            Msg.lore(meta, Arrays.asList(
                     Component.text("Click for more").color(NamedTextColor.GRAY),
                     Component.text("options").color(NamedTextColor.GRAY)
             ));
@@ -297,7 +298,7 @@ public class StaffInspectGui {
         ItemStack item = new ItemStack(Material.BARRIER);
         ItemMeta meta = item.getItemMeta();
         if (meta != null) {
-            meta.displayName(Component.text("Close").color(NamedTextColor.RED));
+            Msg.displayName(meta, Component.text("Close").color(NamedTextColor.RED));
             item.setItemMeta(meta);
         }
         return item;
@@ -316,7 +317,7 @@ public class StaffInspectGui {
                 target.setHealth(target.getMaxHealth());
                 target.setFoodLevel(20);
                 target.setSaturation(20);
-                staff.sendMessage(Component.text("Healed " + target.getName()).color(NamedTextColor.GREEN));
+                Msg.send(staff, Component.text("Healed " + target.getName()).color(NamedTextColor.GREEN));
             }
             case 19 -> Bukkit.dispatchCommand(staff, "punish " + target.getName());
             case 21 -> Bukkit.dispatchCommand(staff, "history " + target.getName());

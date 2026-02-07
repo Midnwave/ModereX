@@ -4,6 +4,7 @@ import com.blockforge.moderex.ModereX;
 import com.blockforge.moderex.gui.BaseGui;
 import com.blockforge.moderex.punishment.Punishment;
 import com.blockforge.moderex.punishment.PunishmentType;
+import com.blockforge.moderex.util.Msg;
 import com.blockforge.moderex.util.TextUtil;
 import org.bukkit.Material;
 import org.bukkit.OfflinePlayer;
@@ -55,7 +56,7 @@ public class PunishPlayerGui extends BaseGui {
         ItemStack head = new ItemStack(Material.PLAYER_HEAD);
         SkullMeta meta = (SkullMeta) head.getItemMeta();
         meta.setOwningPlayer(target);
-        meta.displayName(TextUtil.parseLore("<yellow>" + targetName));
+        Msg.displayName(meta, TextUtil.parseLore("<yellow>" + targetName));
 
         List<String> lore = new ArrayList<>();
         lore.add("<gray>UUID: <white>" + targetUuid);
@@ -82,7 +83,7 @@ public class PunishPlayerGui extends BaseGui {
             lore.add("<gray>Offline");
         }
 
-        meta.lore(lore.stream().map(TextUtil::parseLore).toList());
+        Msg.lore(meta, lore.stream().map(TextUtil::parseLore).toList());
         head.setItemMeta(meta);
         return head;
     }

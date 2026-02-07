@@ -6,6 +6,7 @@ import com.blockforge.moderex.config.lang.MessageKey;
 import com.blockforge.moderex.gui.BaseGui;
 import com.blockforge.moderex.punishment.Punishment;
 import com.blockforge.moderex.util.DurationParser;
+import com.blockforge.moderex.util.Msg;
 import com.blockforge.moderex.util.TextUtil;
 import com.blockforge.moderex.util.TimeUtil;
 import net.kyori.adventure.text.Component;
@@ -226,8 +227,8 @@ public class ViewPunishmentCommand extends BaseCommand {
             ItemStack head = new ItemStack(Material.PLAYER_HEAD);
             SkullMeta headMeta = (SkullMeta) head.getItemMeta();
             headMeta.setOwningPlayer(Bukkit.getOfflinePlayer(punishment.getPlayerUuid()));
-            headMeta.displayName(TextUtil.parse("<white>" + punishment.getPlayerName()));
-            headMeta.lore(Arrays.asList(
+            Msg.displayName(headMeta, TextUtil.parse("<white>" + punishment.getPlayerName()));
+            Msg.lore(headMeta, Arrays.asList(
                 TextUtil.parse("<gray>UUID: <white>" + punishment.getPlayerUuid().toString().substring(0, 13) + "..."),
                 TextUtil.parse(""),
                 TextUtil.parse("<yellow>Click to view history")
@@ -279,8 +280,8 @@ public class ViewPunishmentCommand extends BaseCommand {
             if (punishment.getStaffUuid() != null) {
                 staffMeta.setOwningPlayer(Bukkit.getOfflinePlayer(punishment.getStaffUuid()));
             }
-            staffMeta.displayName(TextUtil.parse("<gold>Moderator: <white>" + punishment.getStaffName()));
-            staffMeta.lore(Arrays.asList(
+            Msg.displayName(staffMeta, TextUtil.parse("<gold>Moderator: <white>" + punishment.getStaffName()));
+            Msg.lore(staffMeta, Arrays.asList(
                 TextUtil.parse(""),
                 TextUtil.parse("<yellow>Click to view staff history")
             ));

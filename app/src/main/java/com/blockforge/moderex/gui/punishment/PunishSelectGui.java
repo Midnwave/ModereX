@@ -2,6 +2,7 @@ package com.blockforge.moderex.gui.punishment;
 
 import com.blockforge.moderex.ModereX;
 import com.blockforge.moderex.gui.BaseGui;
+import com.blockforge.moderex.util.Msg;
 import com.blockforge.moderex.util.TextUtil;
 import org.bukkit.Bukkit;
 import org.bukkit.Material;
@@ -96,7 +97,7 @@ public class PunishSelectGui extends BaseGui {
         ItemStack head = new ItemStack(Material.PLAYER_HEAD);
         SkullMeta meta = (SkullMeta) head.getItemMeta();
         meta.setOwningPlayer(player);
-        meta.displayName(TextUtil.parseLore("<yellow>" + player.getName()));
+        Msg.displayName(meta, TextUtil.parseLore("<yellow>" + player.getName()));
 
         List<String> lore = new ArrayList<>();
         lore.add("<gray>UUID: <white>" + player.getUniqueId().toString().substring(0, 8) + "...");
@@ -120,7 +121,7 @@ public class PunishSelectGui extends BaseGui {
         lore.add("");
         lore.add("<yellow>Click <gray>to punish");
 
-        meta.lore(lore.stream().map(TextUtil::parseLore).toList());
+        Msg.lore(meta, lore.stream().map(TextUtil::parseLore).toList());
         head.setItemMeta(meta);
         return head;
     }

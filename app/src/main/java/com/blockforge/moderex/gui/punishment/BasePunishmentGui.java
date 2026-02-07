@@ -5,6 +5,7 @@ import com.blockforge.moderex.gui.BaseGui;
 import com.blockforge.moderex.gui.TemplateGui;
 import com.blockforge.moderex.punishment.PunishmentTemplate;
 import com.blockforge.moderex.punishment.PunishmentType;
+import com.blockforge.moderex.util.Msg;
 import com.blockforge.moderex.util.TextUtil;
 import org.bukkit.Material;
 import org.bukkit.OfflinePlayer;
@@ -247,7 +248,7 @@ public abstract class BasePunishmentGui extends BaseGui {
         ItemStack head = new ItemStack(Material.PLAYER_HEAD);
         SkullMeta meta = (SkullMeta) head.getItemMeta();
         meta.setOwningPlayer(target);
-        meta.displayName(TextUtil.parseLore(getInfoTitle()));
+        Msg.displayName(meta, TextUtil.parseLore(getInfoTitle()));
 
         List<net.kyori.adventure.text.Component> loreComponents = new ArrayList<>();
         for (String line : lore) {
@@ -255,7 +256,7 @@ public abstract class BasePunishmentGui extends BaseGui {
                 loreComponents.add(TextUtil.parseLore(wrapped));
             }
         }
-        meta.lore(loreComponents);
+        Msg.lore(meta, loreComponents);
         head.setItemMeta(meta);
 
         setItem(INFO_SLOT, head);
