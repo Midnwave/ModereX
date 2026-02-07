@@ -309,7 +309,45 @@
       return this.totalDuration;
     }
 
-    // ===== PLAYER MODELS =====
+    // ===== PLAYER MODELS (Minecraft Skin Rendering) =====
+
+    // Skin UV regions: [x, y, width, height] in pixel coords on 64x64 skin
+    // Face order matches Three.js BoxGeometry: +x(right), -x(left), +y(top), -y(bottom), +z(front), -z(back)
+    static SKIN_UV = {
+      head:     { right:[0,8,8,8],   left:[16,8,8,8],  top:[8,0,8,8],   bottom:[16,0,8,8],  front:[8,8,8,8],   back:[24,8,8,8] },
+      body:     { right:[16,20,4,12], left:[28,20,4,12], top:[20,16,8,4], bottom:[28,16,8,4], front:[20,20,8,12], back:[32,20,8,12] },
+      rightArm: { right:[40,20,4,12], left:[48,20,4,12], top:[44,16,4,4], bottom:[48,16,4,4], front:[44,20,4,12], back:[52,20,4,12] },
+      leftArm:  { right:[32,52,4,12], left:[40,52,4,12], top:[36,48,4,4], bottom:[40,48,4,4], front:[36,52,4,12], back:[44,52,4,12] },
+      rightLeg: { right:[0,20,4,12],  left:[8,20,4,12],  top:[4,16,4,4],  bottom:[8,16,4,4],  front:[4,20,4,12],  back:[12,20,4,12] },
+      leftLeg:  { right:[16,52,4,12], left:[24,52,4,12], top:[20,48,4,4], bottom:[24,48,4,4], front:[20,52,4,12], back:[28,52,4,12] },
+      // Overlay layers (hat, jacket, sleeves, pants)
+      headOverlay:     { right:[32,8,8,8],   left:[48,8,8,8],  top:[40,0,8,8],   bottom:[48,0,8,8],  front:[40,8,8,8],   back:[56,8,8,8] },
+      bodyOverlay:     { right:[16,36,4,12], left:[28,36,4,12], top:[20,32,8,4], bottom:[28,32,8,4], front:[20,36,8,12], back:[32,36,8,12] },
+      rightArmOverlay: { right:[40,36,4,12], left:[48,36,4,12], top:[44,32,4,4], bottom:[48,32,4,4], front:[44,36,4,12], back:[52,36,4,12] },
+      leftArmOverlay:  { right:[48,52,4,12], left:[56,52,4,12], top:[52,48,4,4], bottom:[56,48,4,4], front:[52,52,4,12], back:[60,52,4,12] },
+      rightLegOverlay: { right:[0,36,4,12],  left:[8,36,4,12],  top:[4,32,4,4],  bottom:[8,32,4,4],  front:[4,36,4,12],  back:[12,36,4,12] },
+      leftLegOverlay:  { right:[0,52,4,12],  left:[8,52,4,12],  top:[4,48,4,4],  bottom:[8,48,4,4],  front:[4,52,4,12],  back:[12,52,4,12] },
+    };
+
+    _applySkinUVs(geometry, partName, skinWidth, skinHeight) {
+      const regions = Replay3DViewer.SKIN_UV[partName];
+      if (!regions) return;
+      const uvAttr = geometry.getAttribute('uv');
+      const tw = skinWidth || 64;
+      const th = skinHeight || 64;
+      const faceOrder = ['right', 'left', 'top', 'bottom', 'front', 'back'];
+      for (let f = 0; f < 6; f++) {
+        const [x, y, w, h] = regions[faceOrder[f]];
+        const u0 = x / tw, u1 = (x + w) / tw;
+        const v0 = 1 - (y + h) / th, v1 = 1 - y / th;
+        const base = f * 4;
+        uvAttr.setXY(base + 0, u0, v1);
+        uvAttr.setXY(base + 1, u1, v1);
+        uvAttr.setXY(base + 2, u0, v0);
+        uvAttr.setXY(base + 3, u1, v0);
+      }
+      uvAttr.needsUpdate = true;
+    }
 
     _getOrCreatePlayer(uuid, name) {
       if (this.players.has(uuid)) return this.players.get(uuid);
@@ -318,65 +356,68 @@
       group.userData = { uuid, name };
 
       const color = this.playerColors[this.colorIndex++ % this.playerColors.length];
-      const mat = new THREE.MeshStandardMaterial({ color, roughness: 0.8, metalness: 0.1 });
+      const placeholderMat = new THREE.MeshStandardMaterial({ color, roughness: 0.8, metalness: 0.1 });
       const s = PLAYER_SCALE / 32;
 
       // Head (8x8x8)
-      const head = new THREE.Mesh(new THREE.BoxGeometry(8*s, 8*s, 8*s), mat.clone());
+      const head = new THREE.Mesh(new THREE.BoxGeometry(8*s, 8*s, 8*s), placeholderMat.clone());
       head.position.y = 28 * s;
       head.castShadow = true;
       head.name = 'head';
       group.add(head);
 
       // Body (8x12x4)
-      const body = new THREE.Mesh(new THREE.BoxGeometry(8*s, 12*s, 4*s), mat.clone());
+      const body = new THREE.Mesh(new THREE.BoxGeometry(8*s, 12*s, 4*s), placeholderMat.clone());
       body.position.y = 18 * s;
       body.castShadow = true;
       body.name = 'body';
       group.add(body);
 
       // Right Arm (4x12x4)
-      const rArm = new THREE.Mesh(new THREE.BoxGeometry(4*s, 12*s, 4*s), mat.clone());
+      const rArm = new THREE.Mesh(new THREE.BoxGeometry(4*s, 12*s, 4*s), placeholderMat.clone());
       rArm.position.set(-6*s, 18*s, 0);
       rArm.castShadow = true;
       rArm.name = 'rightArm';
       group.add(rArm);
 
-      // Left Arm
-      const lArm = new THREE.Mesh(new THREE.BoxGeometry(4*s, 12*s, 4*s), mat.clone());
+      // Left Arm (4x12x4)
+      const lArm = new THREE.Mesh(new THREE.BoxGeometry(4*s, 12*s, 4*s), placeholderMat.clone());
       lArm.position.set(6*s, 18*s, 0);
       lArm.castShadow = true;
       lArm.name = 'leftArm';
       group.add(lArm);
 
       // Right Leg (4x12x4)
-      const rLeg = new THREE.Mesh(new THREE.BoxGeometry(4*s, 12*s, 4*s), mat.clone());
+      const rLeg = new THREE.Mesh(new THREE.BoxGeometry(4*s, 12*s, 4*s), placeholderMat.clone());
       rLeg.position.set(-2*s, 6*s, 0);
       rLeg.castShadow = true;
       rLeg.name = 'rightLeg';
       group.add(rLeg);
 
-      // Left Leg
-      const lLeg = new THREE.Mesh(new THREE.BoxGeometry(4*s, 12*s, 4*s), mat.clone());
+      // Left Leg (4x12x4)
+      const lLeg = new THREE.Mesh(new THREE.BoxGeometry(4*s, 12*s, 4*s), placeholderMat.clone());
       lLeg.position.set(2*s, 6*s, 0);
       lLeg.castShadow = true;
       lLeg.name = 'leftLeg';
       group.add(lLeg);
 
-      // Name tag sprite
+      // Name tag sprite (white text, Minecraft style)
       const canvas = document.createElement('canvas');
       const ctx = canvas.getContext('2d');
       canvas.width = 256;
       canvas.height = 64;
-      ctx.fillStyle = 'rgba(0,0,0,0.7)';
-      ctx.roundRect(0, 0, 256, 64, 8);
-      ctx.fill();
-      ctx.font = 'bold 28px "Plus Jakarta Sans", sans-serif';
+      ctx.fillStyle = 'rgba(0,0,0,0.55)';
+      ctx.fillRect(4, 4, 248, 56);
+      ctx.font = 'bold 30px "Minecraft", "Courier New", monospace';
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
-      ctx.fillStyle = '#' + color.toString(16).padStart(6, '0');
+      // White text with dark shadow like Minecraft
+      ctx.fillStyle = '#3f3f3f';
+      ctx.fillText(name || 'Player', 130, 34);
+      ctx.fillStyle = '#ffffff';
       ctx.fillText(name || 'Player', 128, 32);
       const tex = new THREE.CanvasTexture(canvas);
+      tex.magFilter = THREE.NearestFilter;
       const sprite = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, transparent: true }));
       sprite.scale.set(2.5, 0.625, 1);
       sprite.position.y = PLAYER_SCALE + 0.6;
@@ -385,7 +426,89 @@
 
       this.players.set(uuid, group);
       this.scene.add(group);
+
+      // Load real Minecraft skin asynchronously
+      this._loadPlayerSkin(uuid, group);
+
       return group;
+    }
+
+    _loadPlayerSkin(uuid, group) {
+      // Crafatar API: free, CORS-enabled, returns Minecraft skin PNGs
+      const skinUrl = `https://crafatar.com/skins/${uuid}?default=MHF_Steve`;
+
+      const img = new Image();
+      img.crossOrigin = 'anonymous';
+      img.onload = () => {
+        const texture = new THREE.Texture(img);
+        texture.magFilter = THREE.NearestFilter;
+        texture.minFilter = THREE.NearestFilter;
+        texture.needsUpdate = true;
+
+        const skinMat = new THREE.MeshStandardMaterial({
+          map: texture, roughness: 0.8, metalness: 0.1
+        });
+
+        const isLegacy = img.height === 32; // 64x32 = old skin format
+        const tw = 64, th = isLegacy ? 32 : 64;
+
+        const parts = [
+          { name: 'head',     uv: 'head' },
+          { name: 'body',     uv: 'body' },
+          { name: 'rightArm', uv: 'rightArm' },
+          { name: 'leftArm',  uv: isLegacy ? 'rightArm' : 'leftArm' },
+          { name: 'rightLeg', uv: 'rightLeg' },
+          { name: 'leftLeg',  uv: isLegacy ? 'rightLeg' : 'leftLeg' },
+        ];
+
+        for (const { name, uv } of parts) {
+          const mesh = group.getObjectByName(name);
+          if (!mesh) continue;
+          this._applySkinUVs(mesh.geometry, uv, tw, th);
+          mesh.material.dispose();
+          mesh.material = skinMat.clone();
+        }
+
+        // Add overlay layers (hat, jacket, sleeves, pants) if 64x64 skin
+        if (!isLegacy) {
+          this._addOverlayLayers(group, skinMat, tw, th);
+        }
+      };
+      img.onerror = () => {
+        console.warn(`[Replay3D] Could not load skin for ${uuid}, keeping fallback color`);
+      };
+      img.src = skinUrl;
+    }
+
+    _addOverlayLayers(group, baseMat, tw, th) {
+      const s = PLAYER_SCALE / 32;
+      const overlayMat = baseMat.clone();
+      overlayMat.transparent = true;
+      overlayMat.alphaTest = 0.01;
+      overlayMat.side = THREE.DoubleSide;
+
+      const overlayScale = 1.1; // Slightly larger than base layer
+      const overlays = [
+        { name: 'headOverlay',     parent: 'head',     size: [8,8,8],   pos: null },
+        { name: 'bodyOverlay',     parent: 'body',     size: [8,12,4],  pos: null },
+        { name: 'rightArmOverlay', parent: 'rightArm', size: [4,12,4],  pos: null },
+        { name: 'leftArmOverlay',  parent: 'leftArm',  size: [4,12,4],  pos: null },
+        { name: 'rightLegOverlay', parent: 'rightLeg', size: [4,12,4],  pos: null },
+        { name: 'leftLegOverlay',  parent: 'leftLeg',  size: [4,12,4],  pos: null },
+      ];
+
+      for (const ol of overlays) {
+        const parentMesh = group.getObjectByName(ol.parent);
+        if (!parentMesh) continue;
+        const [w, h, d] = ol.size;
+        const geom = new THREE.BoxGeometry(w*s*overlayScale, h*s*overlayScale, d*s*overlayScale);
+        this._applySkinUVs(geom, ol.name, tw, th);
+        const mesh = new THREE.Mesh(geom, overlayMat.clone());
+        mesh.name = ol.name;
+        mesh.castShadow = false;
+        // Add as child of parent mesh so it rotates with it (head pitch, arm/leg swing)
+        parentMesh.add(mesh);
+      }
     }
 
     _updatePlayersAtTime(timeMs) {
