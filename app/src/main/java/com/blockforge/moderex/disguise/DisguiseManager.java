@@ -6,6 +6,7 @@ package com.blockforge.moderex.disguise;
 
 import com.blockforge.moderex.ModereX;
 import com.blockforge.moderex.disguise.packet.PacketDisguiseInjector;
+import com.blockforge.moderex.util.Msg;
 import com.blockforge.moderex.webpanel.debug.WebPanelDebugger;
 import net.kyori.adventure.text.Component;
 import org.bukkit.Bukkit;
@@ -64,9 +65,9 @@ public class DisguiseManager {
         refreshPlayerForAll(player, profile);
 
         // Send confirmation message
-        player.sendMessage(Component.text("§aYou are now disguised as §f" + profile.getDisplayName()));
+        Msg.send(player, Component.text("§aYou are now disguised as §f" + profile.getDisplayName()));
         if (profile.getSkinName() != null) {
-            player.sendMessage(Component.text("§7Skin: §f" + profile.getSkinName()));
+            Msg.send(player, Component.text("§7Skin: §f" + profile.getSkinName()));
         }
 
         plugin.logDebug("[Disguise] " + player.getName() + " disguised as " + profile.getDisplayName());
@@ -103,7 +104,7 @@ public class DisguiseManager {
         refreshPlayerForAll(player);
 
         // Send confirmation message
-        player.sendMessage(Component.text("§aDisguise removed. You are now §f" + player.getName()));
+        Msg.send(player, Component.text("§aDisguise removed. You are now §f" + player.getName()));
 
         plugin.logDebug("[Disguise] " + player.getName() + " undisguised");
 

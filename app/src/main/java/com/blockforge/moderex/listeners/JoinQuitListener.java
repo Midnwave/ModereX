@@ -101,7 +101,7 @@ public class JoinQuitListener implements Listener {
         // Always suppress vanilla join message if configured
         if (settings.isJoinLeaveSuppressVanilla() ||
             (settings.isVanishHideRealJoinLeave() && isVanished)) {
-            event.joinMessage(Component.empty());
+            Msg.setJoinMessage(event, Component.empty());
         }
 
         // Send custom ModereX join message based on visibility (but not for vanished players)
@@ -155,13 +155,13 @@ public class JoinQuitListener implements Listener {
             // Only send to staff
             for (Player staff : Bukkit.getOnlinePlayers()) {
                 if (staff.hasPermission("moderex.notify.joinleave")) {
-                    staff.sendMessage(message);
+                    Msg.send(staff, message);
                 }
             }
         } else {
             // Send to all players (ALL)
             for (Player online : Bukkit.getOnlinePlayers()) {
-                online.sendMessage(message);
+                Msg.send(online, message);
             }
         }
     }
@@ -178,7 +178,7 @@ public class JoinQuitListener implements Listener {
         // Always suppress vanilla quit message if configured
         if (settings.isJoinLeaveSuppressVanilla() ||
             (settings.isVanishHideRealJoinLeave() && isVanished)) {
-            event.quitMessage(Component.empty());
+            Msg.setQuitMessage(event, Component.empty());
         }
 
         // Send custom ModereX leave message based on visibility (but not for vanished players)
@@ -226,13 +226,13 @@ public class JoinQuitListener implements Listener {
             // Only send to staff
             for (Player staff : Bukkit.getOnlinePlayers()) {
                 if (staff.hasPermission("moderex.notify.joinleave")) {
-                    staff.sendMessage(message);
+                    Msg.send(staff, message);
                 }
             }
         } else {
             // Send to all players (ALL)
             for (Player online : Bukkit.getOnlinePlayers()) {
-                online.sendMessage(message);
+                Msg.send(online, message);
             }
         }
     }

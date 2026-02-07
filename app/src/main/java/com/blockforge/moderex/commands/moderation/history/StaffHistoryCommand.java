@@ -6,6 +6,7 @@ import com.blockforge.moderex.config.lang.MessageKey;
 import com.blockforge.moderex.punishment.Punishment;
 import com.blockforge.moderex.punishment.PunishmentType;
 import com.blockforge.moderex.util.DurationParser;
+import com.blockforge.moderex.util.Msg;
 import com.blockforge.moderex.util.TargetResolver;
 import com.blockforge.moderex.util.TextUtil;
 import com.blockforge.moderex.util.TimeUtil;
@@ -117,7 +118,7 @@ public class StaffHistoryCommand extends BaseCommand {
 
             plugin.getServer().getScheduler().runTask(plugin, () -> {
                 // Header matching modlog style
-                sender.sendMessage(Component.text("━━━━━━━━━━━━━ ", NamedTextColor.DARK_GRAY)
+                Msg.send(sender, Component.text("━━━━━━━━━━━━━ ", NamedTextColor.DARK_GRAY)
                         .append(Component.text("Staff Actions by " + displayName, NamedTextColor.GOLD).decorate(TextDecoration.BOLD))
                         .append(Component.text(" ━━━━━━━━━━━━━", NamedTextColor.DARK_GRAY)));
 

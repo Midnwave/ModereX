@@ -3,6 +3,7 @@ package com.blockforge.moderex.evidence;
 import com.blockforge.moderex.ModereX;
 import com.blockforge.moderex.log.ActivityLogEntry;
 import com.blockforge.moderex.log.ActivityLogEntry.ActivityType;
+import com.blockforge.moderex.util.Msg;
 import com.blockforge.moderex.util.TargetResolver;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.TextComponent;
@@ -242,7 +243,7 @@ public class EvidenceSelectionManager {
             if (!toggled.isEmpty()) {
                 displaySelectionUpdate(player, session, toggled);
             } else {
-                player.sendMessage(Component.text("Invalid number(s). Use numbers 1-" + session.getAvailableEntries().size(), NamedTextColor.RED));
+                Msg.send(player, Component.text("Invalid number(s). Use numbers 1-" + session.getAvailableEntries().size(), NamedTextColor.RED));
             }
             return true;
         }
@@ -265,7 +266,7 @@ public class EvidenceSelectionManager {
                 if (session.toggleByNumber(num)) {
                     displayEvidenceUI(player, session);
                 } else {
-                    player.sendMessage(Component.text("Cannot select more (max " + EvidenceSelectionSession.MAX_SELECTIONS + ")", NamedTextColor.RED));
+                    Msg.send(player, Component.text("Cannot select more (max " + EvidenceSelectionSession.MAX_SELECTIONS + ")", NamedTextColor.RED));
                 }
             } catch (NumberFormatException ignored) {
             }
@@ -283,7 +284,7 @@ public class EvidenceSelectionManager {
         try {
             int num = Integer.parseInt(input.substring(1).trim());
             if (num < 1 || num > session.getAvailableEntries().size()) {
-                player.sendMessage(Component.text("Invalid number. Use 1-" + session.getAvailableEntries().size(), NamedTextColor.RED));
+                Msg.send(player, Component.text("Invalid number. Use 1-" + session.getAvailableEntries().size(), NamedTextColor.RED));
                 return;
             }
 
@@ -292,7 +293,7 @@ public class EvidenceSelectionManager {
             if (isAdd) {
                 success = session.selectEntry(entry.getId());
                 if (!success) {
-                    player.sendMessage(Component.text("Cannot select more (max " + EvidenceSelectionSession.MAX_SELECTIONS + ")", NamedTextColor.RED));
+                    Msg.send(player, Component.text("Cannot select more (max " + EvidenceSelectionSession.MAX_SELECTIONS + ")", NamedTextColor.RED));
                     return;
                 }
             } else {
@@ -303,13 +304,13 @@ public class EvidenceSelectionManager {
                 displaySelectionUpdate(player, session, List.of(num));
             }
         } catch (NumberFormatException e) {
-            player.sendMessage(Component.text("Invalid format. Use +N to add or -N to remove", NamedTextColor.RED));
+            Msg.send(player, Component.text("Invalid format. Use +N to add or -N to remove", NamedTextColor.RED));
         }
     }
 
     private void confirmSession(Player player, EvidenceSelectionSession session) {
         if (!session.hasSelections()) {
-            player.sendMessage(Component.text("No evidence selected. Type ", NamedTextColor.YELLOW)
+            Msg.send(player, Component.text("No evidence selected. Type ", NamedTextColor.YELLOW)
                     .append(Component.text("skip", NamedTextColor.GOLD))
                     .append(Component.text(" to proceed without evidence, or select entries first.", NamedTextColor.YELLOW)));
             return;
@@ -318,8 +319,8 @@ public class EvidenceSelectionManager {
         activeSessions.remove(player.getUniqueId());
         session.confirm();
 
-        player.sendMessage(Component.text(""));
-        player.sendMessage(Component.text("✓ ", NamedTextColor.GREEN)
+        Msg.send(player, Component.text(""));
+        Msg.send(player, Component.text("✓ ", NamedTextColor.GREEN)
                 .append(Component.text("Evidence attached! Executing punishment...", NamedTextColor.GREEN)));
     }
 
@@ -327,8 +328,8 @@ public class EvidenceSelectionManager {
         activeSessions.remove(player.getUniqueId());
         session.cancel();
 
-        player.sendMessage(Component.text(""));
-        player.sendMessage(Component.text("✗ ", NamedTextColor.RED)
+        Msg.send(player, Component.text(""));
+        Msg.send(player, Component.text("✗ ", NamedTextColor.RED)
                 .append(Component.text("Evidence selection cancelled. Punishment aborted.", NamedTextColor.GRAY)));
     }
 
@@ -336,8 +337,8 @@ public class EvidenceSelectionManager {
         activeSessions.remove(player.getUniqueId());
         session.skip();
 
-        player.sendMessage(Component.text(""));
-        player.sendMessage(Component.text("→ ", NamedTextColor.YELLOW)
+        Msg.send(player, Component.text(""));
+        Msg.send(player, Component.text("→ ", NamedTextColor.YELLOW)
                 .append(Component.text("Skipped evidence. Executing punishment...", NamedTextColor.GRAY)));
     }
 
@@ -345,32 +346,32 @@ public class EvidenceSelectionManager {
         for (Long id : new ArrayList<>(session.getSelectedEntryIds())) {
             session.deselectEntry(id);
         }
-        player.sendMessage(Component.text("Cleared all selections.", NamedTextColor.GRAY));
+        Msg.send(player, Component.text("Cleared all selections.", NamedTextColor.GRAY));
         displayEvidenceUI(player, session);
     }
 
     private void showHelp(Player player) {
-        player.sendMessage(Component.text(""));
-        player.sendMessage(Component.text("═══ Evidence Selection Help ═══", NamedTextColor.GOLD));
-        player.sendMessage(Component.text("• Type numbers to toggle: ", NamedTextColor.GRAY)
+        Msg.send(player, Component.text(""));
+        Msg.send(player, Component.text("═══ Evidence Selection Help ═══", NamedTextColor.GOLD));
+        Msg.send(player, Component.text("• Type numbers to toggle: ", NamedTextColor.GRAY)
                 .append(Component.text("1,3,5", NamedTextColor.WHITE)));
-        player.sendMessage(Component.text("• Add entry: ", NamedTextColor.GRAY)
+        Msg.send(player, Component.text("• Add entry: ", NamedTextColor.GRAY)
                 .append(Component.text("+2", NamedTextColor.GREEN)));
-        player.sendMessage(Component.text("• Remove entry: ", NamedTextColor.GRAY)
+        Msg.send(player, Component.text("• Remove entry: ", NamedTextColor.GRAY)
                 .append(Component.text("-2", NamedTextColor.RED)));
-        player.sendMessage(Component.text("• ", NamedTextColor.GRAY)
+        Msg.send(player, Component.text("• ", NamedTextColor.GRAY)
                 .append(Component.text("confirm", NamedTextColor.GREEN))
                 .append(Component.text(" - Attach evidence and punish", NamedTextColor.GRAY)));
-        player.sendMessage(Component.text("• ", NamedTextColor.GRAY)
+        Msg.send(player, Component.text("• ", NamedTextColor.GRAY)
                 .append(Component.text("skip", NamedTextColor.YELLOW))
                 .append(Component.text(" - Punish without evidence", NamedTextColor.GRAY)));
-        player.sendMessage(Component.text("• ", NamedTextColor.GRAY)
+        Msg.send(player, Component.text("• ", NamedTextColor.GRAY)
                 .append(Component.text("cancel", NamedTextColor.RED))
                 .append(Component.text(" - Abort punishment", NamedTextColor.GRAY)));
-        player.sendMessage(Component.text("• ", NamedTextColor.GRAY)
+        Msg.send(player, Component.text("• ", NamedTextColor.GRAY)
                 .append(Component.text("list", NamedTextColor.AQUA))
                 .append(Component.text(" - Show entries again", NamedTextColor.GRAY)));
-        player.sendMessage(Component.text("════════════════════════════════", NamedTextColor.GOLD));
+        Msg.send(player, Component.text("════════════════════════════════", NamedTextColor.GOLD));
     }
 
     /**
@@ -381,23 +382,23 @@ public class EvidenceSelectionManager {
         String targetName = session.getTarget().getDisplayName();
         SimpleDateFormat sdf = new SimpleDateFormat("HH:mm:ss");
 
-        player.sendMessage(Component.text(""));
-        player.sendMessage(Component.text("═══════════════════════════════════════", NamedTextColor.GOLD));
-        player.sendMessage(Component.text("  Attach Evidence to Punishment", NamedTextColor.GOLD, TextDecoration.BOLD));
-        player.sendMessage(Component.text("  Target: ", NamedTextColor.GRAY)
+        Msg.send(player, Component.text(""));
+        Msg.send(player, Component.text("═══════════════════════════════════════", NamedTextColor.GOLD));
+        Msg.send(player, Component.text("  Attach Evidence to Punishment", NamedTextColor.GOLD, TextDecoration.BOLD));
+        Msg.send(player, Component.text("  Target: ", NamedTextColor.GRAY)
                 .append(Component.text(targetName, NamedTextColor.WHITE))
                 .append(Component.text(" | Type: ", NamedTextColor.GRAY))
                 .append(Component.text(session.getPunishmentType(), NamedTextColor.RED)));
-        player.sendMessage(Component.text("═══════════════════════════════════════", NamedTextColor.GOLD));
-        player.sendMessage(Component.text(""));
+        Msg.send(player, Component.text("═══════════════════════════════════════", NamedTextColor.GOLD));
+        Msg.send(player, Component.text(""));
 
         // Show max selection count
         int remaining = EvidenceSelectionSession.MAX_SELECTIONS - session.getSelectionCount();
-        player.sendMessage(Component.text("  Selected: ", NamedTextColor.GRAY)
+        Msg.send(player, Component.text("  Selected: ", NamedTextColor.GRAY)
                 .append(Component.text(session.getSelectionCount() + "/" + EvidenceSelectionSession.MAX_SELECTIONS,
                         session.getSelectionCount() > 0 ? NamedTextColor.GREEN : NamedTextColor.WHITE))
                 .append(Component.text(" (max " + EvidenceSelectionSession.MAX_SELECTIONS + ")", NamedTextColor.DARK_GRAY)));
-        player.sendMessage(Component.text(""));
+        Msg.send(player, Component.text(""));
 
         // Display entries
         for (int i = 0; i < entries.size(); i++) {
@@ -452,10 +453,10 @@ public class EvidenceSelectionManager {
                             .append(Component.text("\n\nClick to " + (selected ? "deselect" : "select"), NamedTextColor.GRAY))
             )).clickEvent(ClickEvent.runCommand("/mx:evidence toggle:" + displayNum));
 
-            player.sendMessage(fullLine);
+            Msg.send(player, fullLine);
         }
 
-        player.sendMessage(Component.text(""));
+        Msg.send(player, Component.text(""));
 
         // Action buttons
         TextComponent.Builder actions = Component.text();
@@ -480,14 +481,14 @@ public class EvidenceSelectionManager {
                 .clickEvent(ClickEvent.runCommand("/mx:evidence cancel"))
                 .hoverEvent(HoverEvent.showText(Component.text("Abort punishment"))));
 
-        player.sendMessage(actions.build());
+        Msg.send(player, actions.build());
 
-        player.sendMessage(Component.text(""));
-        player.sendMessage(Component.text("  Type numbers (1,3,5) or click to select. Type ", NamedTextColor.DARK_GRAY)
+        Msg.send(player, Component.text(""));
+        Msg.send(player, Component.text("  Type numbers (1,3,5) or click to select. Type ", NamedTextColor.DARK_GRAY)
                 .append(Component.text("help", NamedTextColor.GRAY)
                         .clickEvent(ClickEvent.runCommand("/mx:evidence help")))
                 .append(Component.text(" for more options.", NamedTextColor.DARK_GRAY)));
-        player.sendMessage(Component.text("═══════════════════════════════════════", NamedTextColor.GOLD));
+        Msg.send(player, Component.text("═══════════════════════════════════════", NamedTextColor.GOLD));
     }
 
     private void displaySelectionUpdate(Player player, EvidenceSelectionSession session, List<Integer> toggledNumbers) {
@@ -499,14 +500,14 @@ public class EvidenceSelectionManager {
             toggled.append(isNowSelected ? "+" : "-").append(num);
         }
 
-        player.sendMessage(Component.text("Toggled: ", NamedTextColor.GRAY)
+        Msg.send(player, Component.text("Toggled: ", NamedTextColor.GRAY)
                 .append(Component.text(toggled.toString(), NamedTextColor.YELLOW))
                 .append(Component.text(" | Selected: " + session.getSelectionCount() + "/" + EvidenceSelectionSession.MAX_SELECTIONS, NamedTextColor.DARK_GRAY)));
     }
 
     private void sendNoEntriesMessage(Player player, TargetResolver target) {
-        player.sendMessage(Component.text(""));
-        player.sendMessage(Component.text("ℹ ", NamedTextColor.GRAY)
+        Msg.send(player, Component.text(""));
+        Msg.send(player, Component.text("ℹ ", NamedTextColor.GRAY)
                 .append(Component.text("No recent activity found for ", NamedTextColor.GRAY))
                 .append(Component.text(target.getDisplayName(), NamedTextColor.WHITE))
                 .append(Component.text(". Proceeding without evidence.", NamedTextColor.GRAY)));
@@ -530,7 +531,7 @@ public class EvidenceSelectionManager {
                 session.cancel();
                 Player player = plugin.getServer().getPlayer(entry.getKey());
                 if (player != null && player.isOnline()) {
-                    player.sendMessage(Component.text("Evidence selection timed out. Punishment cancelled.", NamedTextColor.RED));
+                    Msg.send(player, Component.text("Evidence selection timed out. Punishment cancelled.", NamedTextColor.RED));
                 }
                 return true;
             }

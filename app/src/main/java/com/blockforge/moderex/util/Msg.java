@@ -6,6 +6,8 @@ import net.kyori.adventure.text.serializer.legacy.LegacyComponentSerializer;
 import org.bukkit.Bukkit;
 import org.bukkit.command.CommandSender;
 import org.bukkit.entity.Player;
+import org.bukkit.event.player.PlayerJoinEvent;
+import org.bukkit.event.player.PlayerQuitEvent;
 import org.bukkit.inventory.Inventory;
 import org.bukkit.inventory.InventoryHolder;
 import org.bukkit.inventory.meta.ItemMeta;
@@ -120,6 +122,24 @@ public final class Msg {
             } catch (Exception e) {
                 throw new RuntimeException("Failed to create inventory on Spigot", e);
             }
+        }
+    }
+
+    // --- Join/Quit Messages ---
+
+    public static void setJoinMessage(PlayerJoinEvent event, Component message) {
+        if (paper) {
+            event.joinMessage(message);
+        } else {
+            event.setJoinMessage(message == null ? null : LEGACY.serialize(message));
+        }
+    }
+
+    public static void setQuitMessage(PlayerQuitEvent event, Component message) {
+        if (paper) {
+            event.quitMessage(message);
+        } else {
+            event.setQuitMessage(message == null ? null : LEGACY.serialize(message));
         }
     }
 }
