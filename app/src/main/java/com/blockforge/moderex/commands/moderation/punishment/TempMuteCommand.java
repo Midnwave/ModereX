@@ -7,6 +7,7 @@ import com.blockforge.moderex.config.lang.MessageKey;
 import com.blockforge.moderex.util.DurationParser;
 import com.blockforge.moderex.util.FlagParser;
 import com.blockforge.moderex.util.Msg;
+import com.blockforge.moderex.util.PermissionUtil;
 import com.blockforge.moderex.util.TargetResolver;
 import org.bukkit.command.CommandSender;
 import org.bukkit.command.ConsoleCommandSender;
@@ -56,6 +57,11 @@ public class TempMuteCommand extends PunishmentCommandBase {
             return;
         }
 
+        // Staff weight check - higher weight staff cannot be punished by lower weight staff
+        if (!checkTargetWeight(sender, target)) {
+            return;
+        }
+
         if (!DurationParser.isValidDuration(regularArgs.get(1))) {
             sendMessage(sender, "<red>Invalid duration format. Example: 1h, 1d, 7d");
             return;
@@ -99,7 +105,7 @@ public class TempMuteCommand extends PunishmentCommandBase {
 
     @Override
     protected boolean hasIpPermission(CommandSender sender) {
-        return sender.hasPermission("moderex.ipmute");
+        return PermissionUtil.hasPermission(sender, "moderex.ipmute");
     }
 
     private void executeMute(PunishmentContext context) {
@@ -152,7 +158,7 @@ public class TempMuteCommand extends PunishmentCommandBase {
                     "reason", reason);
 
             for (org.bukkit.entity.Player player : org.bukkit.Bukkit.getOnlinePlayers()) {
-                if (player.hasPermission("moderex.notify.punishments")) {
+                if (PermissionUtil.hasPermission(player, "moderex.notify.punishments")) {
                     Msg.send(player, message);
                 }
             }

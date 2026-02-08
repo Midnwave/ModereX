@@ -7,6 +7,7 @@ import com.blockforge.moderex.gui.BaseGui;
 import com.blockforge.moderex.punishment.Punishment;
 import com.blockforge.moderex.util.DurationParser;
 import com.blockforge.moderex.util.Msg;
+import com.blockforge.moderex.util.PermissionUtil;
 import com.blockforge.moderex.util.TextUtil;
 import com.blockforge.moderex.util.TimeUtil;
 import net.kyori.adventure.text.Component;
@@ -138,18 +139,16 @@ public class ViewPunishmentCommand extends BaseCommand {
         }
 
         if (p.getIpAddress() != null && !p.getIpAddress().isEmpty() &&
-            sender.hasPermission("moderex.check.ip")) {
+            PermissionUtil.hasPermission(sender, "moderex.check.ip")) {
             Msg.send(sender, TextUtil.parse("<dark_gray>│ <gray>IP Address: <white>" + p.getIpAddress()));
         }
 
-        if (p.getServer() != null && !p.getServer().isEmpty()) {
-            Msg.send(sender, TextUtil.parse("<dark_gray>│ <gray>Server: <white>" + p.getServer()));
-        }
-
-        if (p.isRemoved()) {
+        if (p.isRemoved() && p.getRemovedByName() != null) {
             Msg.send(sender, TextUtil.parse("<dark_gray>├──────────────────┤"));
             Msg.send(sender, TextUtil.parse("<dark_gray>│ <red>Revoked by: <white>" + p.getRemovedByName()));
-            Msg.send(sender, TextUtil.parse("<dark_gray>│ <red>Revoked at: <white>" + TimeUtil.formatDateTime(p.getRemovedAt())));
+            if (p.getRemovedAt() > 0) {
+                Msg.send(sender, TextUtil.parse("<dark_gray>│ <red>Revoked at: <white>" + TimeUtil.formatDateTime(p.getRemovedAt())));
+            }
             if (p.getRemovedReason() != null && !p.getRemovedReason().isEmpty()) {
                 Msg.send(sender, TextUtil.parse("<dark_gray>│ <red>Reason: <white>" + p.getRemovedReason()));
             }
@@ -158,7 +157,7 @@ public class ViewPunishmentCommand extends BaseCommand {
         Msg.send(sender, TextUtil.parse("<dark_gray>└──────────────────┘"));
 
         // Add clickable action buttons for players
-        if (sender instanceof Player && sender.hasPermission("moderex.history")) {
+        if (sender instanceof Player && PermissionUtil.hasPermission(sender, "moderex.history")) {
             Component buttons = TextUtil.parse("<dark_gray>  ")
                 .append(TextUtil.parse("<gray>[<aqua>Player History<gray>]")
                     .clickEvent(ClickEvent.runCommand("/history " + p.getPlayerName()))
@@ -182,9 +181,9 @@ public class ViewPunishmentCommand extends BaseCommand {
 
     private boolean canRevoke(CommandSender sender, Punishment p) {
         return switch (p.getType()) {
-            case BAN, IPBAN -> sender.hasPermission("moderex.unban");
-            case MUTE, IPMUTE -> sender.hasPermission("moderex.unmute");
-            case WARN -> sender.hasPermission("moderex.unwarn");
+            case BAN, IPBAN -> PermissionUtil.hasPermission(sender, "moderex.unban");
+            case MUTE, IPMUTE -> PermissionUtil.hasPermission(sender, "moderex.unmute");
+            case WARN -> PermissionUtil.hasPermission(sender, "moderex.unwarn");
             case KICK -> false;
         };
     }

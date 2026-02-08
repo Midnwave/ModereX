@@ -9,13 +9,23 @@ import org.bukkit.OfflinePlayer;
 import org.bukkit.command.CommandSender;
 import org.bukkit.entity.Player;
 
+import org.bukkit.command.CommandMap;
+
+import java.lang.reflect.Field;
 import java.sql.SQLException;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 
 public class CmdBlacklistCommand extends BaseCommand {
+
+    // Cached command list for tab completion (TTL: 30 seconds)
+    private static List<String> cachedCommands = null;
+    private static long cacheTimestamp = 0;
+    private static final long CACHE_TTL = 30_000; // 30 seconds
 
     // ModereX commands that should be protected when config option is false
     private static final Set<String> MODEREX_COMMANDS = Set.of(
@@ -26,7 +36,7 @@ public class CmdBlacklistCommand extends BaseCommand {
         "iphistory", "ipreport", "geoip", "lastuuid", "namehistory",
         "automodhistory", "amhistory", "automodlog", "nickhistory",
         "nicknamehistory", "nicklog", "lockdown", "prunehistory",
-        "staffrollback", "clearwarnings", "punish", "modlog", "staffchat",
+        "staffrollback", "punish", "modlog", "staffchat",
         "sc", "staffhelp", "watchlist", "wl", "vanish", "v", "cmdblacklist",
         "cmdunblacklist", "cmdhistory", "log", "seen", "disguise", "disguisename",
         "disguiseskin", "rules", "replay", "mban", "munban", "mmute", "munmute",
@@ -123,21 +133,54 @@ public class CmdBlacklistCommand extends BaseCommand {
             return filterCompletions(getOnlinePlayerNames(sender), args[0]);
         }
         if (args.length == 2) {
-            // Suggest common commands that might be blacklisted
-            List<String> suggestions = Arrays.asList(
-                    "home", "tpa", "tpaccept", "tpahere", "spawn", "warp",
-                    "sethome", "delhome", "tp", "back", "pay", "sell", "buy",
-                    "msg", "tell", "whisper", "r", "reply", "mail",
-                    "ah", "auction", "shop", "market", "trade",
-                    "clan", "guild", "party", "team", "faction",
-                    "kit", "kits", "crate", "vote", "daily",
-                    "fly", "god", "heal", "feed", "gamemode"
-            );
-            return filterCompletions(suggestions, args[1]);
+            // Load registered commands with caching
+            List<String> commands = getRegisteredCommands();
+            if (commands == null || commands.isEmpty()) {
+                // Fallback to loading message if cache isn't ready
+                return List.of("Loading...");
+            }
+            return filterCompletions(commands, args[1]);
         }
         if (args.length == 3) {
             return filterCompletions(Arrays.asList("1h", "1d", "7d", "30d", "permanent"), args[2]);
         }
         return super.tabComplete(sender, args);
+    }
+
+    /**
+     * Get all registered commands from Bukkit's command map, with caching.
+     * Returns command names in "plugin:command" format.
+     */
+    private List<String> getRegisteredCommands() {
+        long now = System.currentTimeMillis();
+        if (cachedCommands != null && (now - cacheTimestamp) < CACHE_TTL) {
+            return cachedCommands;
+        }
+
+        try {
+            Field commandMapField = Bukkit.getServer().getClass().getDeclaredField("commandMap");
+            commandMapField.setAccessible(true);
+            CommandMap commandMap = (CommandMap) commandMapField.get(Bukkit.getServer());
+
+            Field knownCommandsField = commandMap.getClass().getDeclaredField("knownCommands");
+            knownCommandsField.setAccessible(true);
+            @SuppressWarnings("unchecked")
+            Map<String, ?> knownCommands = (Map<String, ?>) knownCommandsField.get(commandMap);
+
+            List<String> commands = new ArrayList<>();
+            for (String name : knownCommands.keySet()) {
+                if (!name.contains(":")) {
+                    commands.add(name);
+                }
+            }
+            commands.sort(String::compareToIgnoreCase);
+
+            cachedCommands = commands;
+            cacheTimestamp = now;
+            return commands;
+        } catch (Exception e) {
+            // Fallback: return null so caller shows loading
+            return cachedCommands;
+        }
     }
 }

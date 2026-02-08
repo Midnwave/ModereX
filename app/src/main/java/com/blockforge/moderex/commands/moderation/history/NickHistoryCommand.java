@@ -40,11 +40,14 @@ public class NickHistoryCommand extends BaseCommand {
         String playerName = args[0];
         int page = 1;
 
-        // Check for GUI flag
+        // Check for GUI/chat flags
         boolean useGui = false;
+        boolean useChat = false;
         for (int i = 1; i < args.length; i++) {
             if (args[i].equalsIgnoreCase("-gui") || args[i].equalsIgnoreCase("--gui")) {
                 useGui = true;
+            } else if (args[i].equalsIgnoreCase("--chat")) {
+                useChat = true;
             } else {
                 try {
                     page = Integer.parseInt(args[i]);
@@ -58,6 +61,14 @@ public class NickHistoryCommand extends BaseCommand {
         if (target == null) {
             sendMessage(sender, MessageKey.GENERAL_PLAYER_NOT_FOUND, "player", playerName);
             return;
+        }
+
+        // Auto-detect Bedrock/Geyser players: default to GUI unless --chat is specified
+        if (!useGui && !useChat && sender instanceof Player player) {
+            if (plugin.getHookManager() != null && plugin.getHookManager().getGeyserHook() != null
+                    && plugin.getHookManager().getGeyserHook().isBedrockPlayer(player)) {
+                useGui = true;
+            }
         }
 
         // Open GUI if requested and sender is a player
@@ -192,6 +203,7 @@ public class NickHistoryCommand extends BaseCommand {
         if (args.length == 2) {
             List<String> suggestions = new ArrayList<>();
             suggestions.add("-gui");
+            suggestions.add("--chat");
             suggestions.addAll(List.of("1", "2", "3"));
             return filterCompletions(suggestions, args[1]);
         }

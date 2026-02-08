@@ -7,6 +7,7 @@ import com.blockforge.moderex.punishment.Punishment;
 import com.blockforge.moderex.punishment.PunishmentType;
 import com.blockforge.moderex.util.DurationParser;
 import com.blockforge.moderex.util.Msg;
+import com.blockforge.moderex.util.PermissionUtil;
 import com.blockforge.moderex.util.TargetResolver;
 import com.blockforge.moderex.util.TextUtil;
 import net.kyori.adventure.text.Component;
@@ -145,7 +146,7 @@ public class CheckCommand extends BaseCommand {
         });
 
         // IP Address (compact, with permission)
-        if (sender.hasPermission("moderex.check.ip") || sender.hasPermission("moderex.admin")) {
+        if (PermissionUtil.hasPermission(sender, "moderex.check.ip") || PermissionUtil.hasPermission(sender, "moderex.admin")) {
             if (onlinePlayer != null && onlinePlayer.getAddress() != null) {
                 String ip = onlinePlayer.getAddress().getAddress().getHostAddress();
                 if (sender instanceof Player) {
@@ -192,7 +193,7 @@ public class CheckCommand extends BaseCommand {
                     .hoverEvent(HoverEvent.showText(TextUtil.parse("<gray>View command history"))))
                 .append(TextUtil.parse(" "))
                 .append(TextUtil.parse("<light_purple>[Activity]")
-                    .clickEvent(ClickEvent.runCommand("/activity " + playerName))
+                    .clickEvent(ClickEvent.runCommand("/log " + playerName))
                     .hoverEvent(HoverEvent.showText(TextUtil.parse("<gray>View activity log"))))
                 .append(TextUtil.parse(" "))
                 .append(TextUtil.parse("<green>[Punish]")

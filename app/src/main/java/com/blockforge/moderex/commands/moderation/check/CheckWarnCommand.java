@@ -6,7 +6,9 @@ import com.blockforge.moderex.config.lang.MessageKey;
 import com.blockforge.moderex.util.TargetResolver;
 import org.bukkit.command.CommandSender;
 
+import java.util.Comparator;
 import java.util.List;
+import java.util.ArrayList;
 
 /**
  * Checks whether a player has active warnings and display warning information.
@@ -56,7 +58,15 @@ public class CheckWarnCommand extends BaseCommand {
                             "player", target.getDisplayName(),
                             "count", String.valueOf(warnings.size()));
 
-                    for (com.blockforge.moderex.punishment.Punishment warning : warnings) {
+                    // Sort: active first, then expired/revoked; newest first within each group
+                    List<com.blockforge.moderex.punishment.Punishment> sorted = new ArrayList<>(warnings);
+                    sorted.sort(Comparator
+                            .<com.blockforge.moderex.punishment.Punishment, Boolean>comparing(
+                                    p -> !(p.isActive() && !p.isExpired()))
+                            .thenComparing(Comparator.comparingLong(
+                                    com.blockforge.moderex.punishment.Punishment::getCreatedAt).reversed()));
+
+                    for (com.blockforge.moderex.punishment.Punishment warning : sorted) {
                         displayWarningDetails(sender, warning);
                     }
                 }
@@ -75,7 +85,8 @@ public class CheckWarnCommand extends BaseCommand {
                 "date", date,
                 "reason", punishment.getReason(),
                 "staff", punishment.getStaffName(),
-                "expiry", expiry);
+                "expiry", expiry,
+                "case_id", punishment.getCaseId());
     }
 
     @Override

@@ -3,6 +3,7 @@ package com.blockforge.moderex.automod;
 import com.blockforge.moderex.ModereX;
 import com.blockforge.moderex.config.lang.MessageKey;
 import com.blockforge.moderex.util.Msg;
+import com.blockforge.moderex.util.PermissionUtil;
 import org.bukkit.Location;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
@@ -76,7 +77,7 @@ public class AfkManager implements Listener {
 
         for (Player player : plugin.getServer().getOnlinePlayers()) {
             // Skip players with bypass permission
-            if (player.hasPermission("moderex.bypass.afk")) {
+            if (PermissionUtil.hasPermission(player, "moderex.bypass.afk")) {
                 continue;
             }
 
@@ -111,7 +112,7 @@ public class AfkManager implements Listener {
 
                     // Notify staff
                     for (Player staff : plugin.getServer().getOnlinePlayers()) {
-                        if (staff.hasPermission("moderex.notify.afk")) {
+                        if (PermissionUtil.hasPermission(staff, "moderex.notify.afk")) {
                             Msg.send(staff, plugin.getLanguageManager().get(MessageKey.AFK_KICK_BROADCAST,
                                     "player", player.getName()));
                         }

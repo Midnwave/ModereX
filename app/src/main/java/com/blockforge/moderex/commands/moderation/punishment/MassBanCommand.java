@@ -5,6 +5,7 @@ import com.blockforge.moderex.commands.BaseCommand;
 import com.blockforge.moderex.util.DurationParser;
 import com.blockforge.moderex.util.Msg;
 import com.blockforge.moderex.util.TargetResolver;
+import com.blockforge.moderex.util.PermissionUtil;
 import com.blockforge.moderex.util.TextUtil;
 import org.bukkit.Bukkit;
 import org.bukkit.command.CommandSender;
@@ -57,7 +58,7 @@ public class MassBanCommand extends BaseCommand {
         // Parse duration
         long duration;
         if (args[1].equalsIgnoreCase("permanent") || args[1].equalsIgnoreCase("perm")) {
-            if (!sender.hasPermission("moderex.ban")) {
+            if (!PermissionUtil.hasPermission(sender, "moderex.ban")) {
                 sendMessage(sender, "<red>You don't have permission to issue permanent bans.");
                 return;
             }
@@ -79,16 +80,23 @@ public class MassBanCommand extends BaseCommand {
         UUID executorUuid = sender instanceof Player ? ((Player) sender).getUniqueId() : null;
         String executorName = sender.getName();
         String batchId = "MASS-" + System.currentTimeMillis();
-        String finalReason = finalReasonText + " [" + batchId + "]";
+        String finalReason = finalReasonText;
         long finalDuration = duration;
         AtomicInteger successCount = new AtomicInteger(0);
         AtomicInteger failCount = new AtomicInteger(0);
+        AtomicInteger skippedCount = new AtomicInteger(0);
 
         sendMessage(sender, "<yellow>Processing mass ban for " + targets.size() + " players...");
 
         List<CompletableFuture<Void>> futures = new ArrayList<>();
 
         for (TargetResolver target : targets) {
+            // Staff weight check - skip targets with higher weight
+            if (!checkWeight(sender, target.getUuid())) {
+                skippedCount.incrementAndGet();
+                continue;
+            }
+
             CompletableFuture<Void> future = plugin.getPunishmentManager().ban(
                     target.getUuid(),
                     target.getDisplayName(),
@@ -114,11 +122,12 @@ public class MassBanCommand extends BaseCommand {
             Bukkit.getScheduler().runTask(plugin, () -> {
                 sendMessage(sender, "<green>Mass ban complete!");
                 sendMessage(sender, "<gray>Successfully banned: <green>" + successCount.get() +
-                        "<gray>, Failed: <red>" + failCount.get());
+                        "<gray>, Failed: <red>" + failCount.get() +
+                        (skippedCount.get() > 0 ? "<gray>, Skipped (higher rank): <yellow>" + skippedCount.get() : ""));
                 sendMessage(sender, "<gray>Batch ID: <yellow>" + batchId);
 
                 for (Player staff : Bukkit.getOnlinePlayers()) {
-                    if (staff.hasPermission("moderex.alerts.punishments")) {
+                    if (PermissionUtil.hasPermission(staff, "moderex.alerts.punishments")) {
                         Msg.send(staff, TextUtil.parse("<gray>" + executorName +
                                 " mass banned " + targets.size() + " players. Reason: " + finalReasonText));
                     }

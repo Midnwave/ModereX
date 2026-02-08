@@ -8,6 +8,7 @@ import com.blockforge.moderex.punishment.Punishment;
 import com.blockforge.moderex.punishment.PunishmentType;
 import com.blockforge.moderex.util.DurationParser;
 import com.blockforge.moderex.util.Msg;
+import com.blockforge.moderex.util.PermissionUtil;
 import com.blockforge.moderex.util.TargetResolver;
 import com.blockforge.moderex.util.TextUtil;
 import com.blockforge.moderex.util.TimeUtil;
@@ -42,9 +43,9 @@ public class HistoryCommand extends BaseCommand {
     @Override
     protected void execute(CommandSender sender, String[] args) {
         if (args.length == 0) {
-            sendMessage(sender, "<red>Usage: /history <user> [type] [page] [--gui]");
+            sendMessage(sender, "<red>Usage: /history <user> [type] [page] [--gui|--chat]");
             sendMessage(sender, "<gray>Types: all, bans, mutes, warnings, kicks, ipbans, ipmutes");
-            sendMessage(sender, "<gray>Flags: <white>--gui <gray>- Show in GUI instead of chat");
+            sendMessage(sender, "<gray>Flags: <white>--gui <gray>- Show in GUI, <white>--chat <gray>- Force chat output");
             return;
         }
 
@@ -53,10 +54,13 @@ public class HistoryCommand extends BaseCommand {
         String type = "all";
         int page = 1;
         boolean useGui = false;
+        boolean useChat = false;
 
         for (String arg : args) {
             if (arg.equalsIgnoreCase("--gui") || arg.equalsIgnoreCase("-g")) {
                 useGui = true;
+            } else if (arg.equalsIgnoreCase("--chat")) {
+                useChat = true;
             } else if (targetName == null) {
                 targetName = arg;
             } else if (isValidType(arg.toLowerCase())) {
@@ -81,6 +85,14 @@ public class HistoryCommand extends BaseCommand {
         if (!target.isValid() || !target.isPlayer()) {
             sendMessage(sender, MessageKey.PLAYER_NOT_FOUND, "player", targetName);
             return;
+        }
+
+        // Auto-detect Bedrock/Geyser players: default to GUI unless --chat is specified
+        if (!useGui && !useChat && sender instanceof Player player) {
+            if (plugin.getHookManager() != null && plugin.getHookManager().getGeyserHook() != null
+                    && plugin.getHookManager().getGeyserHook().isBedrockPlayer(player)) {
+                useGui = true;
+            }
         }
 
         // GUI mode requires player
@@ -270,32 +282,32 @@ public class HistoryCommand extends BaseCommand {
         List<PunishmentType> permitted = new ArrayList<>();
 
         // Check for wildcard permission first
-        if (sender.hasPermission("moderex.history.*")) {
+        if (PermissionUtil.hasPermission(sender, "moderex.history.*")) {
             return Arrays.asList(PunishmentType.values());
         }
 
         // Check individual permissions
-        if (sender.hasPermission("moderex.history.bans") || sender.hasPermission("moderex.checkban")) {
+        if (PermissionUtil.hasPermission(sender, "moderex.history.bans") || PermissionUtil.hasPermission(sender, "moderex.checkban")) {
             permitted.add(PunishmentType.BAN);
         }
-        if (sender.hasPermission("moderex.history.mutes") || sender.hasPermission("moderex.checkmute")) {
+        if (PermissionUtil.hasPermission(sender, "moderex.history.mutes") || PermissionUtil.hasPermission(sender, "moderex.checkmute")) {
             permitted.add(PunishmentType.MUTE);
         }
-        if (sender.hasPermission("moderex.history.warns") || sender.hasPermission("moderex.checkwarn")) {
+        if (PermissionUtil.hasPermission(sender, "moderex.history.warns") || PermissionUtil.hasPermission(sender, "moderex.checkwarn")) {
             permitted.add(PunishmentType.WARN);
         }
-        if (sender.hasPermission("moderex.history.kicks")) {
+        if (PermissionUtil.hasPermission(sender, "moderex.history.kicks")) {
             permitted.add(PunishmentType.KICK);
         }
-        if (sender.hasPermission("moderex.history.ipbans")) {
+        if (PermissionUtil.hasPermission(sender, "moderex.history.ipbans")) {
             permitted.add(PunishmentType.IPBAN);
         }
-        if (sender.hasPermission("moderex.history.ipmutes")) {
+        if (PermissionUtil.hasPermission(sender, "moderex.history.ipmutes")) {
             permitted.add(PunishmentType.IPMUTE);
         }
 
         // Legacy: if they have base moderex.history permission, give them all
-        if (permitted.isEmpty() && sender.hasPermission("moderex.history")) {
+        if (permitted.isEmpty() && PermissionUtil.hasPermission(sender, "moderex.history")) {
             return Arrays.asList(PunishmentType.values());
         }
 
@@ -335,6 +347,7 @@ public class HistoryCommand extends BaseCommand {
                 completions.add("ipmutes");
             }
             completions.add("--gui");
+            completions.add("--chat");
             return filterCompletions(completions, args[1]);
         }
         if (args.length == 3) {
@@ -343,10 +356,11 @@ public class HistoryCommand extends BaseCommand {
             completions.add("2");
             completions.add("3");
             completions.add("--gui");
+            completions.add("--chat");
             return filterCompletions(completions, args[2]);
         }
         if (args.length == 4) {
-            return filterCompletions(List.of("--gui"), args[3]);
+            return filterCompletions(List.of("--gui", "--chat"), args[3]);
         }
         return super.tabComplete(sender, args);
     }

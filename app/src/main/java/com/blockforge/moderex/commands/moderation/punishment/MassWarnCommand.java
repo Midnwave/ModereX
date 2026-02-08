@@ -6,6 +6,7 @@ import com.blockforge.moderex.config.lang.MessageKey;
 import com.blockforge.moderex.util.DurationParser;
 import com.blockforge.moderex.util.Msg;
 import com.blockforge.moderex.util.TargetResolver;
+import com.blockforge.moderex.util.PermissionUtil;
 import com.blockforge.moderex.util.TextUtil;
 import org.bukkit.Bukkit;
 import org.bukkit.OfflinePlayer;
@@ -95,16 +96,23 @@ public class MassWarnCommand extends BaseCommand {
         String batchId = "MASS-" + System.currentTimeMillis();
 
         // Execute mass warn
-        String finalReason = finalReasonText + " [" + batchId + "]";
+        String finalReason = finalReasonText;
         long finalDuration = duration;
         AtomicInteger successCount = new AtomicInteger(0);
         AtomicInteger failCount = new AtomicInteger(0);
+        AtomicInteger skippedCount = new AtomicInteger(0);
 
         sendMessage(sender, "<yellow>Processing mass warning for " + targets.size() + " players...");
 
         List<CompletableFuture<Void>> futures = new ArrayList<>();
 
         for (TargetResolver target : targets) {
+            // Staff weight check - skip targets with higher weight
+            if (!checkWeight(sender, target.getUuid())) {
+                skippedCount.incrementAndGet();
+                continue;
+            }
+
             CompletableFuture<Void> future = plugin.getPunishmentManager().warn(
                     target.getUuid(),
                     target.getDisplayName(),
@@ -132,7 +140,8 @@ public class MassWarnCommand extends BaseCommand {
             Bukkit.getScheduler().runTask(plugin, () -> {
                 sendMessage(sender, "<green>Mass warning complete!");
                 sendMessage(sender, "<gray>Successfully warned: <green>" + successCount.get() +
-                        "<gray>, Failed: <red>" + failCount.get());
+                        "<gray>, Failed: <red>" + failCount.get() +
+                        (skippedCount.get() > 0 ? "<gray>, Skipped (higher rank): <yellow>" + skippedCount.get() : ""));
                 sendMessage(sender, "<gray>Batch ID: <yellow>" + batchId);
 
                 // Broadcast to staff
@@ -141,7 +150,7 @@ public class MassWarnCommand extends BaseCommand {
                         .collect(Collectors.joining(", "));
 
                 for (Player staff : Bukkit.getOnlinePlayers()) {
-                    if (staff.hasPermission("moderex.alerts.punishments")) {
+                    if (PermissionUtil.hasPermission(staff, "moderex.alerts.punishments")) {
                         Msg.send(staff, TextUtil.parse("<gray>" + executorName +
                                 " mass warned " + targets.size() + " players. Reason: " + finalReasonText));
                     }

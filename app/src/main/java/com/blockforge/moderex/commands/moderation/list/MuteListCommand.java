@@ -62,10 +62,13 @@ public class MuteListCommand extends BaseCommand {
                     for (Punishment mute : mutes) {
                         String duration = mute.isPermanent() ? "<dark_red>Permanent" :
                             "<white>" + DurationParser.formatRemaining(mute.getExpiresAt());
+                        String reason = mute.getReason() != null ? mute.getReason() : "None";
+                        if (reason.length() > 30) reason = reason.substring(0, 27) + "...";
 
                         if (sender instanceof Player) {
-                            Component entry = TextUtil.parse("<dark_gray>│ <gold>" + mute.getPlayerName() +
-                                    " <dark_gray>- " + duration)
+                            Component entry = TextUtil.parse("<dark_gray>│ <gray>[<yellow>#" + mute.getCaseId() +
+                                    "<gray>] <gold>" + mute.getPlayerName() +
+                                    " <dark_gray>- <white>" + reason + " <dark_gray>(<white>" + duration + "<dark_gray>)")
                                 .clickEvent(ClickEvent.runCommand("/viewpunishment " + mute.getCaseId()))
                                 .hoverEvent(HoverEvent.showText(TextUtil.parse(
                                     "<gray>Case: <white>" + mute.getCaseId() + "\n" +
@@ -74,8 +77,9 @@ public class MuteListCommand extends BaseCommand {
                                     "\n<yellow>Click to view details")));
                             Msg.send(sender, entry);
                         } else {
-                            Msg.send(sender, TextUtil.parse("<dark_gray>│ <gold>" + mute.getPlayerName() +
-                                    " <dark_gray>- " + duration + " <dark_gray>by <gray>" + mute.getStaffName()));
+                            Msg.send(sender, TextUtil.parse("<dark_gray>│ <gray>[<yellow>#" + mute.getCaseId() +
+                                    "<gray>] <gold>" + mute.getPlayerName() +
+                                    " <dark_gray>- <white>" + reason + " <dark_gray>(<white>" + duration + "<dark_gray>)"));
                         }
                     }
                 }

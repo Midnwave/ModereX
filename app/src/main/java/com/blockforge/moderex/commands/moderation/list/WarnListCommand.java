@@ -60,11 +60,14 @@ public class WarnListCommand extends BaseCommand {
                     Msg.send(sender, TextUtil.parse("<dark_gray>│ <gray>No active warnings."));
                 } else {
                     for (Punishment warning : warnings) {
+                        String reason = warning.getReason() != null ? warning.getReason() : "None";
+                        if (reason.length() > 30) reason = reason.substring(0, 27) + "...";
                         String date = TimeUtil.formatDate(warning.getCreatedAt());
 
                         if (sender instanceof Player) {
-                            Component entry = TextUtil.parse("<dark_gray>│ <aqua>" + warning.getPlayerName() +
-                                    " <dark_gray>- <gray>" + date)
+                            Component entry = TextUtil.parse("<dark_gray>│ <gray>[<yellow>#" + warning.getCaseId() +
+                                    "<gray>] <aqua>" + warning.getPlayerName() +
+                                    " <dark_gray>- <white>" + reason + " <dark_gray>(<white>" + date + "<dark_gray>)")
                                 .clickEvent(ClickEvent.runCommand("/viewpunishment " + warning.getCaseId()))
                                 .hoverEvent(HoverEvent.showText(TextUtil.parse(
                                     "<gray>Case: <white>" + warning.getCaseId() + "\n" +
@@ -74,8 +77,9 @@ public class WarnListCommand extends BaseCommand {
                                     "\n<yellow>Click to view details")));
                             Msg.send(sender, entry);
                         } else {
-                            Msg.send(sender, TextUtil.parse("<dark_gray>│ <aqua>" + warning.getPlayerName() +
-                                    " <dark_gray>- <gray>" + date + " <dark_gray>by <gray>" + warning.getStaffName()));
+                            Msg.send(sender, TextUtil.parse("<dark_gray>│ <gray>[<yellow>#" + warning.getCaseId() +
+                                    "<gray>] <aqua>" + warning.getPlayerName() +
+                                    " <dark_gray>- <white>" + reason + " <dark_gray>(<white>" + date + "<dark_gray>)"));
                         }
                     }
                 }

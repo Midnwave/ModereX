@@ -3,6 +3,7 @@ package com.blockforge.moderex.commands.utility;
 import com.blockforge.moderex.ModereX;
 import com.blockforge.moderex.commands.BaseCommand;
 import com.blockforge.moderex.config.lang.MessageKey;
+import com.blockforge.moderex.util.PermissionUtil;
 import org.bukkit.Bukkit;
 import org.bukkit.command.CommandSender;
 import org.bukkit.entity.Player;
@@ -40,7 +41,7 @@ public class InvseeCommand extends BaseCommand {
         }
 
         // Check if target is exempt (has higher permission)
-        if (target.hasPermission("moderex.exempt.invsee") && !staff.hasPermission("moderex.exempt.bypass")) {
+        if (PermissionUtil.hasPermission(target, "moderex.exempt.invsee") && !PermissionUtil.hasPermission(staff, "moderex.exempt.bypass")) {
             sendMessage(sender, "<red>You cannot view this player's inventory.");
             return;
         }

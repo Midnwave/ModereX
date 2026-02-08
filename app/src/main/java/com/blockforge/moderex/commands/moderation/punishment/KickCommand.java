@@ -6,6 +6,7 @@ import com.blockforge.moderex.commands.moderation.base.PunishmentContext;
 import com.blockforge.moderex.config.lang.MessageKey;
 import com.blockforge.moderex.util.FlagParser;
 import com.blockforge.moderex.util.Msg;
+import com.blockforge.moderex.util.PermissionUtil;
 import com.blockforge.moderex.util.TargetResolver;
 import com.blockforge.moderex.log.ActivityLogEntry;
 import org.bukkit.Bukkit;
@@ -49,6 +50,11 @@ public class KickCommand extends PunishmentCommandBase {
 
         if (target == null) {
             sendMessage(sender, MessageKey.PLAYER_NOT_FOUND, "player", regularArgs.get(0));
+            return;
+        }
+
+        // Staff weight check - higher weight staff cannot be punished by lower weight staff
+        if (!checkWeight(sender, target)) {
             return;
         }
 
@@ -150,7 +156,7 @@ public class KickCommand extends PunishmentCommandBase {
                     "reason", reason);
 
             for (org.bukkit.entity.Player player : org.bukkit.Bukkit.getOnlinePlayers()) {
-                if (player.hasPermission("moderex.notify.punishments")) {
+                if (PermissionUtil.hasPermission(player, "moderex.notify.punishments")) {
                     Msg.send(player, message);
                 }
             }

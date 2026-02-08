@@ -96,7 +96,6 @@ public class CommandManager {
         registerPaperCommand(commandMap, "prunehistory", new PruneHistoryCommand(plugin), "Prune old punishments", List.of());
         registerPaperCommand(commandMap, "staffrollback", new StaffRollbackCommand(plugin), "Rollback staff actions", List.of());
 
-        registerPaperCommand(commandMap, "clearwarnings", new ClearWarningsCommand(plugin), "Clear player warnings", List.of());
         registerPaperCommand(commandMap, "kickall", new KickAllCommand(plugin), "Kick all players", List.of());
         registerPaperCommand(commandMap, "punish", new PunishCommand(plugin), "Open punishment GUI", List.of());
         registerPaperCommand(commandMap, "modlog", new ModLogCommand(plugin), "View moderation log", List.of());
@@ -154,6 +153,14 @@ public class CommandManager {
             command.setExecutor(executor);
             command.setTabCompleter(executor);
 
+            // Set permission on the command so Bukkit hides it from tab complete
+            // for players who don't have the required permission
+            if (executor.getPermission() != null) {
+                command.setPermission(executor.getPermission());
+                // Don't let Bukkit send its own "no permission" message - we handle it in BaseCommand
+                command.setPermissionMessage("");
+            }
+
             commandMap.register(plugin.getName().toLowerCase(), command);
         } catch (Exception e) {
             plugin.getLogger().severe("Failed to register command: " + name);
@@ -203,7 +210,6 @@ public class CommandManager {
         registerSpigotCommand("prunehistory", new PruneHistoryCommand(plugin));
         registerSpigotCommand("staffrollback", new StaffRollbackCommand(plugin));
 
-        registerSpigotCommand("clearwarnings", new ClearWarningsCommand(plugin));
         registerSpigotCommand("kickall", new KickAllCommand(plugin));
         registerSpigotCommand("punish", new PunishCommand(plugin));
         registerSpigotCommand("modlog", new ModLogCommand(plugin));
@@ -260,6 +266,12 @@ public class CommandManager {
         if (command != null) {
             command.setExecutor(executor);
             command.setTabCompleter(executor);
+
+            // Set permission on the command so Bukkit hides it from tab complete
+            if (executor.getPermission() != null) {
+                command.setPermission(executor.getPermission());
+                command.setPermissionMessage("");
+            }
         } else {
             plugin.getLogger().warning("Could not register command: " + name);
         }

@@ -4,6 +4,7 @@ import com.blockforge.moderex.ModereX;
 import com.blockforge.moderex.commands.BaseCommand;
 import com.blockforge.moderex.config.lang.MessageKey;
 import com.blockforge.moderex.util.Msg;
+import com.blockforge.moderex.util.PermissionUtil;
 import com.blockforge.moderex.util.TextUtil;
 import net.kyori.adventure.text.Component;
 import org.bukkit.Bukkit;
@@ -47,7 +48,7 @@ public class VanishCommand extends BaseCommand {
                 return;
             }
 
-            if (!sender.hasPermission("moderex.command.vanish.others")) {
+            if (!PermissionUtil.hasPermission(sender, "moderex.command.vanish.others")) {
                 Msg.send(sender, plugin.getLanguageManager().get(MessageKey.NO_PERMISSION));
                 return;
             }
@@ -74,7 +75,7 @@ public class VanishCommand extends BaseCommand {
                 return;
             }
 
-            if (!sender.hasPermission("moderex.command.vanish.others")) {
+            if (!PermissionUtil.hasPermission(sender, "moderex.command.vanish.others")) {
                 Msg.send(sender, plugin.getLanguageManager().get(MessageKey.NO_PERMISSION));
                 return;
             }
@@ -101,7 +102,7 @@ public class VanishCommand extends BaseCommand {
                 return;
             }
 
-            if (!sender.hasPermission("moderex.command.vanish.others")) {
+            if (!PermissionUtil.hasPermission(sender, "moderex.command.vanish.others")) {
                 Msg.send(sender, plugin.getLanguageManager().get(MessageKey.NO_PERMISSION));
                 return;
             }
@@ -123,7 +124,7 @@ public class VanishCommand extends BaseCommand {
         }
 
         if (args.length == 1) {
-            if (!sender.hasPermission("moderex.command.vanish.others")) {
+            if (!PermissionUtil.hasPermission(sender, "moderex.command.vanish.others")) {
                 Msg.send(sender, plugin.getLanguageManager().get(MessageKey.NO_PERMISSION));
                 return;
             }
@@ -207,7 +208,7 @@ public class VanishCommand extends BaseCommand {
         if (args.length == 1) {
             List<String> completions = new ArrayList<>(Arrays.asList("toggle", "enable", "disable", "player", "list"));
 
-            if (sender.hasPermission("moderex.command.vanish.others")) {
+            if (PermissionUtil.hasPermission(sender, "moderex.command.vanish.others")) {
                 completions.addAll(getOnlinePlayerNames(sender));
             }
 
@@ -219,7 +220,7 @@ public class VanishCommand extends BaseCommand {
             if (subcommand.equals("toggle") || subcommand.equals("enable") ||
                 subcommand.equals("disable") || subcommand.equals("player") ||
                 subcommand.equals("on") || subcommand.equals("off")) {
-                if (sender.hasPermission("moderex.command.vanish.others")) {
+                if (PermissionUtil.hasPermission(sender, "moderex.command.vanish.others")) {
                     return filterCompletions(getOnlinePlayerNames(sender), args[1]);
                 }
             }

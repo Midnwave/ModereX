@@ -4,6 +4,7 @@ import com.blockforge.moderex.ModereX;
 import com.blockforge.moderex.commands.BaseCommand;
 import com.blockforge.moderex.config.lang.MessageKey;
 import com.blockforge.moderex.util.Msg;
+import com.blockforge.moderex.util.PermissionUtil;
 import org.bukkit.Bukkit;
 import org.bukkit.command.CommandSender;
 import org.bukkit.entity.Player;
@@ -30,7 +31,7 @@ public class EchestCommand extends BaseCommand {
             target = staff;
         } else {
             // View another player's ender chest
-            if (!staff.hasPermission("moderex.command.echest.others")) {
+            if (!PermissionUtil.hasPermission(staff, "moderex.command.echest.others")) {
                 Msg.send(sender, plugin.getLanguageManager().get(MessageKey.NO_PERMISSION));
                 return;
             }
@@ -42,7 +43,7 @@ public class EchestCommand extends BaseCommand {
             }
 
             // Check if target is exempt (has higher permission)
-            if (target.hasPermission("moderex.exempt.echest") && !staff.hasPermission("moderex.exempt.bypass")) {
+            if (PermissionUtil.hasPermission(target, "moderex.exempt.echest") && !PermissionUtil.hasPermission(staff, "moderex.exempt.bypass")) {
                 sendMessage(sender, "<red>You cannot view this player's ender chest.");
                 return;
             }
@@ -61,7 +62,7 @@ public class EchestCommand extends BaseCommand {
 
     @Override
     protected List<String> tabComplete(CommandSender sender, String[] args) {
-        if (args.length == 1 && sender.hasPermission("moderex.command.echest.others")) {
+        if (args.length == 1 && PermissionUtil.hasPermission(sender, "moderex.command.echest.others")) {
             return filterCompletions(getOnlinePlayerNames(sender), args[0]);
         }
         return List.of();

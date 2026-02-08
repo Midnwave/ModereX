@@ -18,6 +18,7 @@ import com.blockforge.moderex.punishment.PunishmentType;
 import com.blockforge.moderex.replay.TestReplayGenerator;
 import com.blockforge.moderex.util.DurationParser;
 import com.blockforge.moderex.util.Msg;
+import com.blockforge.moderex.util.PermissionUtil;
 import com.blockforge.moderex.util.TextUtil;
 import net.kyori.adventure.inventory.Book;
 import net.kyori.adventure.text.Component;
@@ -44,7 +45,7 @@ public class MxCommand extends BaseCommand {
     protected void execute(CommandSender sender, String[] args) {
         if (args.length == 0) {
             if (sender instanceof Player player) {
-                if (player.hasPermission("moderex.command.punish") || player.hasPermission("moderex.command.admin")) {
+                if (PermissionUtil.hasPermission(player, "moderex.command.punish") || PermissionUtil.hasPermission(player, "moderex.command.admin")) {
                     plugin.getGuiManager().open(player, new MainMenuGui(plugin));
                     return;
                 }
@@ -81,7 +82,6 @@ public class MxCommand extends BaseCommand {
             case "unmute" -> handleUnmute(sender, subArgs);
             case "kick" -> handleKick(sender, subArgs);
             case "warn" -> handleWarn(sender, subArgs);
-            case "clearwarnings" -> handleClearWarnings(sender, subArgs);
             case "ipban" -> handleIpBan(sender, subArgs);
             case "punish" -> handlePunish(sender, subArgs);
             case "modlog", "history" -> handleModLog(sender, subArgs);
@@ -99,7 +99,7 @@ public class MxCommand extends BaseCommand {
     }
 
     private void handleReload(CommandSender sender) {
-        if (!sender.hasPermission("moderex.command.admin")) {
+        if (!PermissionUtil.hasPermission(sender, "moderex.command.admin")) {
             sendMessage(sender, MessageKey.NO_PERMISSION);
             return;
         }
@@ -170,7 +170,7 @@ public class MxCommand extends BaseCommand {
     }
 
     private void handleUpdate(CommandSender sender) {
-        if (!sender.hasPermission("moderex.command.admin")) {
+        if (!PermissionUtil.hasPermission(sender, "moderex.command.admin")) {
             sendMessage(sender, MessageKey.NO_PERMISSION);
             return;
         }
@@ -194,7 +194,7 @@ public class MxCommand extends BaseCommand {
     }
 
     private void handleDebug(CommandSender sender, String[] args) {
-        if (!sender.hasPermission("moderex.admin")) {
+        if (!PermissionUtil.hasPermission(sender, "moderex.admin")) {
             sendMessage(sender, MessageKey.NO_PERMISSION);
             return;
         }
@@ -204,6 +204,8 @@ public class MxCommand extends BaseCommand {
             sendMessage(sender, "<gray>/mx debug authsession <player> [caseId] <white>- Generate portal session for player");
             sendMessage(sender, "<gray>/mx debug serverid <white>- Show this server's unique ID");
             sendMessage(sender, "<gray>/mx debug integrations <white>- Show all detected plugin hooks");
+            sendMessage(sender, "<gray>/mx debug permissions <player> <white>- Show all permissions for a player");
+            sendMessage(sender, "<gray>/mx debug simulate <player> <white>- Simulate permission access for a player");
             return;
         }
 
@@ -214,9 +216,11 @@ public class MxCommand extends BaseCommand {
             case "authsession" -> handleDebugAuthSession(sender, actionArgs);
             case "serverid" -> handleDebugServerId(sender);
             case "integrations" -> handleDebugIntegrations(sender);
+            case "permissions", "perms" -> handleDebugPermissions(sender, actionArgs);
+            case "simulate", "sim" -> handleDebugSimulate(sender, actionArgs);
             default -> {
                 sendMessage(sender, "<red>Unknown debug action: " + action);
-                sendMessage(sender, "<gray>Available: authsession, serverid, integrations");
+                sendMessage(sender, "<gray>Available: authsession, serverid, integrations, permissions, simulate");
             }
         }
     }
@@ -373,8 +377,92 @@ public class MxCommand extends BaseCommand {
         sendMessage(sender, "<gray>" + name + ": " + status + versionStr);
     }
 
+    // ===== DEBUG PERMISSIONS REPORT =====
+    private void handleDebugPermissions(CommandSender sender, String[] args) {
+        if (args.length == 0) { sendMessage(sender, "<red>Usage: /mx debug permissions <player>"); return; }
+        Player target = Bukkit.getPlayer(args[0]);
+        if (target == null) { sendMessage(sender, MessageKey.PLAYER_NOT_FOUND, "player", args[0]); return; }
+        sendMessage(sender, "");
+        sendMessage(sender, "<gradient:#f59e0b:#ef4444>━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━</gradient>");
+        sendMessage(sender, "<white>  <bold>Permission Report: " + target.getName() + "</bold>");
+        sendMessage(sender, "<gray>  OP: " + (target.isOp() ? "<green>Yes" : "<red>No") + "  <gray>Weight: <yellow>" + PermissionUtil.getWeight(target));
+        sendMessage(sender, "");
+        sendMessage(sender, "<gold><bold>Punishment Commands</bold>");
+        String[][] punishPerms = {{"moderex.ban","Ban"},{"moderex.tempban","Temp Ban"},{"moderex.mute","Mute"},{"moderex.tempmute","Temp Mute"},{"moderex.warn","Warn"},{"moderex.kick","Kick"},{"moderex.ipban","IP Ban"},{"moderex.ipmute","IP Mute"},{"moderex.unban","Unban"},{"moderex.unmute","Unmute"},{"moderex.unwarn","Unwarn"}};
+        for (String[] p : punishPerms) dbgPerm(sender, target, p[0], p[1]);
+        sendMessage(sender, ""); sendMessage(sender, "<gold><bold>Mass Punishments</bold>");
+        String[][] massPerms = {{"moderex.massban","Mass Ban"},{"moderex.masskick","Mass Kick"},{"moderex.massmute","Mass Mute"},{"moderex.masswarn","Mass Warn"},{"moderex.massunban","Mass Unban"},{"moderex.massunmute","Mass Unmute"},{"moderex.massunwarn","Mass Unwarn"}};
+        for (String[] p : massPerms) dbgPerm(sender, target, p[0], p[1]);
+        sendMessage(sender, ""); sendMessage(sender, "<gold><bold>Info Visibility</bold>");
+        String[][] infoPerms = {{"moderex.check","Check command"},{"moderex.check.ip","See IP in /check"},{"moderex.command.seen","Seen command"},{"moderex.command.seen.ip","See IP in /seen"},{"moderex.info.uuid","See UUID in GUI"},{"moderex.info.ip","See IP in GUI"}};
+        for (String[] p : infoPerms) dbgPerm(sender, target, p[0], p[1]);
+        sendMessage(sender, ""); sendMessage(sender, "<gold><bold>History & Logs</bold>");
+        String[][] histPerms = {{"moderex.history","History (all)"},{"moderex.history.bans","History: Bans"},{"moderex.history.mutes","History: Mutes"},{"moderex.history.warns","History: Warns"},{"moderex.history.kicks","History: Kicks"},{"moderex.command.viewpunishment","View Punishment"},{"moderex.log","Activity Log"}};
+        for (String[] p : histPerms) dbgPerm(sender, target, p[0], p[1]);
+        sendMessage(sender, ""); sendMessage(sender, "<gold><bold>Staff Tools</bold>");
+        String[][] staffPerms = {{"moderex.command.vanish","Vanish"},{"moderex.command.vanish.others","Vanish Others"},{"moderex.staff.inspect","Staff Inspect"},{"moderex.staff.inspect.modify","Modify Inventory"},{"moderex.staffmode","Staff Mode"},{"moderex.command.fly","Fly"},{"moderex.command.echest","Ender Chest"},{"moderex.command.invsee","Invsee"},{"moderex.staffchat","Staff Chat"}};
+        for (String[] p : staffPerms) dbgPerm(sender, target, p[0], p[1]);
+        sendMessage(sender, ""); sendMessage(sender, "<gold><bold>Web Panel & Admin</bold>");
+        String[][] adminPerms = {{"moderex.webpanel","Web Panel Access"},{"moderex.command.admin","Admin Commands"},{"moderex.admin","Full Admin"},{"moderex.staff","Staff"},{"moderex.command.punish","Punish GUI"},{"moderex.admin.debug","Debug Access"}};
+        for (String[] p : adminPerms) dbgPerm(sender, target, p[0], p[1]);
+        sendMessage(sender, ""); sendMessage(sender, "<gold><bold>Bypass Permissions</bold>");
+        String[][] bypassPerms = {{"moderex.bypass.automod","Bypass Automod"},{"moderex.bypass.slowmode","Bypass Slowmode"},{"moderex.bypass.clearchat","Bypass Clear Chat"},{"moderex.bypass.lockdown","Bypass Lockdown"}};
+        for (String[] p : bypassPerms) dbgPerm(sender, target, p[0], p[1]);
+        sendMessage(sender, ""); sendMessage(sender, "<gold><bold>Notifications</bold>");
+        String[][] notifyPerms = {{"moderex.alerts","Staff Alerts"},{"moderex.alerts.ban","Ban Alerts"},{"moderex.alerts.kick","Kick Alerts"},{"moderex.alerts.mute","Mute Alerts"},{"moderex.alerts.warn","Warn Alerts"},{"moderex.notify.join","Join Notify"},{"moderex.notify.watchlist","Watchlist Notify"}};
+        for (String[] p : notifyPerms) dbgPerm(sender, target, p[0], p[1]);
+        sendMessage(sender, ""); sendMessage(sender, "<gradient:#f59e0b:#ef4444>━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━</gradient>"); sendMessage(sender, "");
+    }
+
+    // ===== DEBUG SIMULATE =====
+    private void handleDebugSimulate(CommandSender sender, String[] args) {
+        if (args.length == 0) { sendMessage(sender, "<red>Usage: /mx debug simulate <player>"); return; }
+        Player target = Bukkit.getPlayer(args[0]);
+        if (target == null) { sendMessage(sender, MessageKey.PLAYER_NOT_FOUND, "player", args[0]); return; }
+        sendMessage(sender, "");
+        sendMessage(sender, "<gradient:#8b5cf6:#3b82f6>━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━</gradient>");
+        sendMessage(sender, "<white>  <bold>Permission Simulation: " + target.getName() + "</bold>");
+        sendMessage(sender, "<gray>  Simulating what this player can access");
+        sendMessage(sender, "");
+        sendMessage(sender, "<gold><bold>Commands</bold>");
+        String[][] cmds = {{"moderex.ban","/ban"},{"moderex.tempban","/tempban"},{"moderex.mute","/mute"},{"moderex.tempmute","/tempmute"},{"moderex.warn","/warn"},{"moderex.kick","/kick"},{"moderex.ipban","/ipban"},{"moderex.ipmute","/ipmute"},{"moderex.unban","/unban"},{"moderex.unmute","/unmute"},{"moderex.unwarn","/unwarn"},{"moderex.check","/check"},{"moderex.command.seen","/seen"},{"moderex.history","/history"},{"moderex.command.viewpunishment","/viewpunishment"},{"moderex.command.vanish","/vanish"},{"moderex.command.fly","/fly"},{"moderex.command.echest","/echest"},{"moderex.command.invsee","/invsee"},{"moderex.staffchat","/staffchat"},{"moderex.log","/log"},{"moderex.command.admin","/mx (admin)"},{"moderex.command.punish","/punish GUI"}};
+        for (String[] c : cmds) dbgSim(sender, target, c[0], c[1], null);
+        sendMessage(sender, ""); sendMessage(sender, "<gold><bold>Info Visibility</bold>");
+        dbgVis(sender, target, "moderex.check.ip", "IP Address"); dbgVis(sender, target, "moderex.info.uuid", "UUID in GUI"); dbgVis(sender, target, "moderex.info.ip", "IP in GUI");
+        sendMessage(sender, ""); sendMessage(sender, "<gold><bold>GUI Actions</bold>");
+        dbgSim(sender, target, "moderex.ban", "Ban via GUI", null); dbgSim(sender, target, "moderex.mute", "Mute via GUI", null);
+        dbgSim(sender, target, "moderex.warn", "Warn via GUI", null); dbgSim(sender, target, "moderex.kick", "Kick via GUI", null);
+        dbgSim(sender, target, "moderex.staff.inspect", "Inspect Player", null); dbgSim(sender, target, "moderex.staff.inspect.modify", "Modify Inventory", "moderex.staff.inspect");
+        sendMessage(sender, ""); sendMessage(sender, "<gold><bold>Web Panel</bold>");
+        dbgSim(sender, target, "moderex.webpanel", "Web Panel Login", null); dbgSim(sender, target, "moderex.status.view", "Server Status Page", null);
+        dbgSim(sender, target, "moderex.status.restart", "Restart Server", "moderex.status.view"); dbgSim(sender, target, "moderex.status.reload", "Reload Plugin", "moderex.status.view");
+        dbgSim(sender, target, "moderex.status.broadcast", "Broadcast", "moderex.status.view");
+        sendMessage(sender, ""); sendMessage(sender, "<gold><bold>Notifications</bold>");
+        dbgSim(sender, target, "moderex.alerts", "Staff Alerts (all)", null); dbgSim(sender, target, "moderex.alerts.ban", "Ban Alerts", null);
+        dbgSim(sender, target, "moderex.alerts.kick", "Kick Alerts", null); dbgSim(sender, target, "moderex.alerts.mute", "Mute Alerts", null);
+        dbgSim(sender, target, "moderex.alerts.warn", "Warn Alerts", null); dbgSim(sender, target, "moderex.notify.join", "Join Notifications", null);
+        dbgSim(sender, target, "moderex.notify.watchlist", "Watchlist Alerts", null);
+        sendMessage(sender, ""); sendMessage(sender, "<gradient:#8b5cf6:#3b82f6>━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━</gradient>"); sendMessage(sender, "");
+    }
+
+    private void dbgPerm(CommandSender sender, Player target, String perm, String label) {
+        boolean has = PermissionUtil.hasPermission(target, perm);
+        sendMessage(sender, "  " + (has ? "<green>✓" : "<red>✗") + " <gray>" + label + " <dark_gray>(" + perm + ")");
+    }
+    private void dbgSim(CommandSender sender, Player target, String perm, String label, String dep) {
+        boolean has = PermissionUtil.hasPermission(target, perm);
+        boolean depMet = dep == null || PermissionUtil.hasPermission(target, dep);
+        if (has && depMet) sendMessage(sender, "  <green>ALLOWED <gray>" + label);
+        else if (has) sendMessage(sender, "  <yellow>BLOCKED <gray>" + label + " <dark_gray>(needs " + dep + ")");
+        else sendMessage(sender, "  <red>DENIED  <gray>" + label + " <dark_gray>(needs " + perm + ")");
+    }
+    private void dbgVis(CommandSender sender, Player target, String perm, String label) {
+        boolean has = PermissionUtil.hasPermission(target, perm);
+        sendMessage(sender, "  " + (has ? "<green>VISIBLE" : "<red>HIDDEN ") + " <gray>" + label + " <dark_gray>(" + perm + ")");
+    }
+
     private void handlePanel(CommandSender sender) {
-        if (!sender.hasPermission("moderex.staff")) {
+        if (!PermissionUtil.hasPermission(sender, "moderex.staff")) {
             sendMessage(sender, MessageKey.NO_PERMISSION);
             return;
         }
@@ -435,7 +523,7 @@ public class MxCommand extends BaseCommand {
     }
 
     private void handleGateway(CommandSender sender, String[] args) {
-        if (!sender.hasPermission("moderex.command.admin")) {
+        if (!PermissionUtil.hasPermission(sender, "moderex.command.admin")) {
             sendMessage(sender, MessageKey.NO_PERMISSION);
             return;
         }
@@ -573,7 +661,7 @@ public class MxCommand extends BaseCommand {
             return;
         }
 
-        if (!sender.hasPermission("moderex.command.admin")) {
+        if (!PermissionUtil.hasPermission(sender, "moderex.command.admin")) {
             sendMessage(sender, MessageKey.NO_PERMISSION);
             return;
         }
@@ -612,7 +700,7 @@ public class MxCommand extends BaseCommand {
             return;
         }
 
-        if (!sender.hasPermission("moderex.command.admin")) {
+        if (!PermissionUtil.hasPermission(sender, "moderex.command.admin")) {
             sendMessage(sender, MessageKey.NO_PERMISSION);
             return;
         }
@@ -776,7 +864,7 @@ public class MxCommand extends BaseCommand {
             return;
         }
 
-        if (!sender.hasPermission("moderex.staff")) {
+        if (!PermissionUtil.hasPermission(sender, "moderex.staff")) {
             sendMessage(sender, MessageKey.NO_PERMISSION);
             return;
         }
@@ -826,7 +914,7 @@ public class MxCommand extends BaseCommand {
             return;
         }
 
-        if (!sender.hasPermission("moderex.staff")) {
+        if (!PermissionUtil.hasPermission(sender, "moderex.staff")) {
             sendMessage(sender, MessageKey.NO_PERMISSION);
             return;
         }
@@ -1019,7 +1107,7 @@ public class MxCommand extends BaseCommand {
             return;
         }
 
-        if (!sender.hasPermission("moderex.webpanel")) {
+        if (!PermissionUtil.hasPermission(sender, "moderex.webpanel")) {
             sendMessage(sender, MessageKey.NO_PERMISSION);
             return;
         }
@@ -1049,7 +1137,7 @@ public class MxCommand extends BaseCommand {
             return;
         }
 
-        if (!sender.hasPermission("moderex.webpanel")) {
+        if (!PermissionUtil.hasPermission(sender, "moderex.webpanel")) {
             sendMessage(sender, MessageKey.NO_PERMISSION);
             return;
         }
@@ -1088,7 +1176,7 @@ public class MxCommand extends BaseCommand {
     }
 
     private void handleAutomod(CommandSender sender) {
-        if (!sender.hasPermission("moderex.command.admin")) {
+        if (!PermissionUtil.hasPermission(sender, "moderex.command.admin")) {
             sendMessage(sender, MessageKey.NO_PERMISSION);
             return;
         }
@@ -1102,7 +1190,7 @@ public class MxCommand extends BaseCommand {
     }
 
     private void handleAnticheat(CommandSender sender) {
-        if (!sender.hasPermission("moderex.notify.anticheat")) {
+        if (!PermissionUtil.hasPermission(sender, "moderex.notify.anticheat")) {
             sendMessage(sender, MessageKey.NO_PERMISSION);
             return;
         }
@@ -1116,7 +1204,7 @@ public class MxCommand extends BaseCommand {
     }
 
     private void handleSendAlert(CommandSender sender, String[] args) {
-        if (!sender.hasPermission("moderex.command.admin")) {
+        if (!PermissionUtil.hasPermission(sender, "moderex.command.admin")) {
             sendMessage(sender, MessageKey.NO_PERMISSION);
             return;
         }
@@ -1185,7 +1273,7 @@ public class MxCommand extends BaseCommand {
     }
 
     private void handleChat(CommandSender sender, String[] args) {
-        if (!sender.hasPermission("moderex.command.admin")) {
+        if (!PermissionUtil.hasPermission(sender, "moderex.command.admin")) {
             sendMessage(sender, MessageKey.NO_PERMISSION);
             return;
         }
@@ -1232,6 +1320,11 @@ public class MxCommand extends BaseCommand {
     }
 
     private void handleSettings(CommandSender sender) {
+        if (!sender.hasPermission("moderex.staff")) {
+            sendMessage(sender, MessageKey.NO_PERMISSION);
+            return;
+        }
+
         if (!(sender instanceof Player player)) {
             sendMessage(sender, MessageKey.PLAYER_ONLY);
             return;
@@ -1246,7 +1339,7 @@ public class MxCommand extends BaseCommand {
             return;
         }
 
-        if (!sender.hasPermission("moderex.staff")) {
+        if (!PermissionUtil.hasPermission(sender, "moderex.staff")) {
             sendMessage(sender, MessageKey.NO_PERMISSION);
             return;
         }
@@ -1255,7 +1348,7 @@ public class MxCommand extends BaseCommand {
     }
 
     private void handleAnalytics(CommandSender sender) {
-        if (!sender.hasPermission("moderex.command.admin")) {
+        if (!PermissionUtil.hasPermission(sender, "moderex.command.admin")) {
             sendMessage(sender, MessageKey.NO_PERMISSION);
             return;
         }
@@ -1269,7 +1362,7 @@ public class MxCommand extends BaseCommand {
     }
 
     private void handleMuteSettings(CommandSender sender) {
-        if (!sender.hasPermission("moderex.command.admin")) {
+        if (!PermissionUtil.hasPermission(sender, "moderex.command.admin")) {
             sendMessage(sender, MessageKey.NO_PERMISSION);
             return;
         }
@@ -1283,7 +1376,7 @@ public class MxCommand extends BaseCommand {
     }
 
     private void handleWarningSettings(CommandSender sender) {
-        if (!sender.hasPermission("moderex.command.admin")) {
+        if (!PermissionUtil.hasPermission(sender, "moderex.command.admin")) {
             sendMessage(sender, MessageKey.NO_PERMISSION);
             return;
         }
@@ -1297,7 +1390,7 @@ public class MxCommand extends BaseCommand {
     }
 
     private void handleBan(CommandSender sender, String[] args) {
-        if (!sender.hasPermission("moderex.command.ban")) {
+        if (!PermissionUtil.hasPermission(sender, "moderex.command.ban")) {
             sendMessage(sender, MessageKey.NO_PERMISSION);
             return;
         }
@@ -1351,7 +1444,7 @@ public class MxCommand extends BaseCommand {
     }
 
     private void handleUnban(CommandSender sender, String[] args) {
-        if (!sender.hasPermission("moderex.command.unban")) {
+        if (!PermissionUtil.hasPermission(sender, "moderex.command.unban")) {
             sendMessage(sender, MessageKey.NO_PERMISSION);
             return;
         }
@@ -1386,7 +1479,7 @@ public class MxCommand extends BaseCommand {
     }
 
     private void handleMute(CommandSender sender, String[] args) {
-        if (!sender.hasPermission("moderex.command.mute")) {
+        if (!PermissionUtil.hasPermission(sender, "moderex.command.mute")) {
             sendMessage(sender, MessageKey.NO_PERMISSION);
             return;
         }
@@ -1440,7 +1533,7 @@ public class MxCommand extends BaseCommand {
     }
 
     private void handleUnmute(CommandSender sender, String[] args) {
-        if (!sender.hasPermission("moderex.command.unmute")) {
+        if (!PermissionUtil.hasPermission(sender, "moderex.command.unmute")) {
             sendMessage(sender, MessageKey.NO_PERMISSION);
             return;
         }
@@ -1475,7 +1568,7 @@ public class MxCommand extends BaseCommand {
     }
 
     private void handleKick(CommandSender sender, String[] args) {
-        if (!sender.hasPermission("moderex.command.kick")) {
+        if (!PermissionUtil.hasPermission(sender, "moderex.command.kick")) {
             sendMessage(sender, MessageKey.NO_PERMISSION);
             return;
         }
@@ -1507,7 +1600,7 @@ public class MxCommand extends BaseCommand {
     }
 
     private void handleWarn(CommandSender sender, String[] args) {
-        if (!sender.hasPermission("moderex.command.warn")) {
+        if (!PermissionUtil.hasPermission(sender, "moderex.command.warn")) {
             sendMessage(sender, MessageKey.NO_PERMISSION);
             return;
         }
@@ -1554,54 +1647,8 @@ public class MxCommand extends BaseCommand {
                 });
     }
 
-    private void handleClearWarnings(CommandSender sender, String[] args) {
-        if (!sender.hasPermission("moderex.command.clearwarnings")) {
-            sendMessage(sender, MessageKey.NO_PERMISSION);
-            return;
-        }
-
-        if (args.length == 0) {
-            sendMessage(sender, "<red>Usage: /mx clearwarnings <player>");
-            return;
-        }
-
-        String targetName = args[0];
-        OfflinePlayer target = Bukkit.getOfflinePlayer(targetName);
-        UUID targetUuid = target.getUniqueId();
-        String displayName = target.getName() != null ? target.getName() : targetName;
-
-        UUID staffUuid = sender instanceof Player p ? p.getUniqueId() : null;
-        String staffName = sender.getName();
-        plugin.getServer().getScheduler().runTaskAsynchronously(plugin, () -> {
-            try {
-                int cleared = plugin.getDatabaseManager().update("""
-                        UPDATE moderex_warnings SET active = FALSE,
-                        removed_by_uuid = ?, removed_by_name = ?, removed_at = ?
-                        WHERE player_uuid = ? AND active = TRUE
-                        """,
-                        staffUuid != null ? staffUuid.toString() : null,
-                        staffName,
-                        System.currentTimeMillis(),
-                        targetUuid.toString()
-                );
-
-                plugin.getServer().getScheduler().runTask(plugin, () -> {
-                    if (cleared > 0) {
-                        sendMessage(sender, MessageKey.WARN_CLEARED, "player", displayName);
-                    } else {
-                        sendMessage(sender, "<yellow>No active warnings found for " + displayName);
-                    }
-                });
-            } catch (java.sql.SQLException e) {
-                plugin.logError("Failed to clear warnings", e);
-                plugin.getServer().getScheduler().runTask(plugin, () ->
-                        sendMessage(sender, "<red>Failed to clear warnings."));
-            }
-        });
-    }
-
     private void handleIpBan(CommandSender sender, String[] args) {
-        if (!sender.hasPermission("moderex.command.ipban")) {
+        if (!PermissionUtil.hasPermission(sender, "moderex.command.ipban")) {
             sendMessage(sender, MessageKey.NO_PERMISSION);
             return;
         }
@@ -1656,7 +1703,7 @@ public class MxCommand extends BaseCommand {
     }
 
     private void handlePunish(CommandSender sender, String[] args) {
-        if (!sender.hasPermission("moderex.command.punish")) {
+        if (!PermissionUtil.hasPermission(sender, "moderex.command.punish")) {
             sendMessage(sender, MessageKey.NO_PERMISSION);
             return;
         }
@@ -1680,7 +1727,7 @@ public class MxCommand extends BaseCommand {
     }
 
     private void handleModLog(CommandSender sender, String[] args) {
-        if (!sender.hasPermission("moderex.command.modlog")) {
+        if (!PermissionUtil.hasPermission(sender, "moderex.command.modlog")) {
             sendMessage(sender, MessageKey.NO_PERMISSION);
             return;
         }
@@ -1711,7 +1758,7 @@ public class MxCommand extends BaseCommand {
     }
 
     private void handleStaffChat(CommandSender sender, String[] args) {
-        if (!sender.hasPermission("moderex.command.staffchat")) {
+        if (!PermissionUtil.hasPermission(sender, "moderex.command.staffchat")) {
             sendMessage(sender, MessageKey.NO_PERMISSION);
             return;
         }
@@ -1739,7 +1786,7 @@ public class MxCommand extends BaseCommand {
     }
 
     private void handleVanish(CommandSender sender) {
-        if (!sender.hasPermission("moderex.command.vanish")) {
+        if (!PermissionUtil.hasPermission(sender, "moderex.command.vanish")) {
             sendMessage(sender, MessageKey.NO_PERMISSION);
             return;
         }
@@ -1759,7 +1806,7 @@ public class MxCommand extends BaseCommand {
     }
 
     private void sendHelp(CommandSender sender) {
-        if (!sender.hasPermission("moderex.staff")) {
+        if (!PermissionUtil.hasPermission(sender, "moderex.staff")) {
             sendMessage(sender, MessageKey.NO_PERMISSION);
             return;
         }
@@ -1776,7 +1823,6 @@ public class MxCommand extends BaseCommand {
         sendMessage(sender, "<yellow>/mx unmute <player> [reason] <gray>- Unmute a player");
         sendMessage(sender, "<yellow>/mx kick <player> [reason] <gray>- Kick a player");
         sendMessage(sender, "<yellow>/mx warn <player> [duration] [reason] <gray>- Warn a player");
-        sendMessage(sender, "<yellow>/mx clearwarnings <player> <gray>- Clear warnings");
         sendMessage(sender, "<yellow>/mx ipban <player> [duration] [reason] <gray>- IP ban a player");
         sendMessage(sender, "<yellow>/mx punish [player] <gray>- Open punishment GUI");
         sendMessage(sender, "<yellow>/mx modlog [player] <gray>- View moderation log");
@@ -1809,39 +1855,38 @@ public class MxCommand extends BaseCommand {
     protected List<String> tabComplete(CommandSender sender, String[] args) {
         if (args.length == 1) {
             List<String> completions = new java.util.ArrayList<>();
-            if (sender.hasPermission("moderex.command.ban")) completions.add("ban");
-            if (sender.hasPermission("moderex.command.unban")) completions.add("unban");
-            if (sender.hasPermission("moderex.command.mute")) completions.add("mute");
-            if (sender.hasPermission("moderex.command.unmute")) completions.add("unmute");
-            if (sender.hasPermission("moderex.command.kick")) completions.add("kick");
-            if (sender.hasPermission("moderex.command.warn")) completions.add("warn");
-            if (sender.hasPermission("moderex.command.clearwarnings")) completions.add("clearwarnings");
-            if (sender.hasPermission("moderex.command.ipban")) completions.add("ipban");
-            if (sender.hasPermission("moderex.command.punish")) completions.add("punish");
-            if (sender.hasPermission("moderex.command.modlog")) {
+            if (PermissionUtil.hasPermission(sender, "moderex.command.ban")) completions.add("ban");
+            if (PermissionUtil.hasPermission(sender, "moderex.command.unban")) completions.add("unban");
+            if (PermissionUtil.hasPermission(sender, "moderex.command.mute")) completions.add("mute");
+            if (PermissionUtil.hasPermission(sender, "moderex.command.unmute")) completions.add("unmute");
+            if (PermissionUtil.hasPermission(sender, "moderex.command.kick")) completions.add("kick");
+            if (PermissionUtil.hasPermission(sender, "moderex.command.warn")) completions.add("warn");
+            if (PermissionUtil.hasPermission(sender, "moderex.command.ipban")) completions.add("ipban");
+            if (PermissionUtil.hasPermission(sender, "moderex.command.punish")) completions.add("punish");
+            if (PermissionUtil.hasPermission(sender, "moderex.command.modlog")) {
                 completions.add("modlog");
                 completions.add("history");
             }
-            if (sender.hasPermission("moderex.command.staffchat")) {
+            if (PermissionUtil.hasPermission(sender, "moderex.command.staffchat")) {
                 completions.add("staffchat");
                 completions.add("sc");
             }
-            if (sender.hasPermission("moderex.command.vanish")) {
+            if (PermissionUtil.hasPermission(sender, "moderex.command.vanish")) {
                 completions.add("vanish");
                 completions.add("v");
             }
-            if (sender.hasPermission("moderex.staff")) {
+            if (PermissionUtil.hasPermission(sender, "moderex.staff")) {
                 completions.add("templates");
+                completions.add("settings");
             }
-            if (sender.hasPermission("moderex.notify.anticheat")) {
+            if (PermissionUtil.hasPermission(sender, "moderex.notify.anticheat")) {
                 completions.add("anticheat");
                 completions.add("ac");
             }
-            if (sender.hasPermission("moderex.command.admin")) {
+            if (PermissionUtil.hasPermission(sender, "moderex.command.admin")) {
                 completions.add("reload");
                 completions.add("automod");
                 completions.add("chat");
-                completions.add("settings");
                 completions.add("analytics");
                 completions.add("mutesettings");
                 completions.add("warningsettings");
@@ -1849,16 +1894,16 @@ public class MxCommand extends BaseCommand {
                 completions.add("replays");
                 completions.add("sendalert");
             }
-            if (sender.hasPermission("moderex.admin")) {
+            if (PermissionUtil.hasPermission(sender, "moderex.admin")) {
                 completions.add("debug");
             }
-            if (sender.hasPermission("moderex.staff")) {
+            if (PermissionUtil.hasPermission(sender, "moderex.staff")) {
                 completions.add("panel");
             }
-            if (sender.hasPermission("moderex.command.admin")) {
+            if (PermissionUtil.hasPermission(sender, "moderex.command.admin")) {
                 completions.add("gateway");
             }
-            if (sender.hasPermission("moderex.webpanel")) {
+            if (PermissionUtil.hasPermission(sender, "moderex.webpanel")) {
                 completions.add("connect");
                 completions.add("gettoken");
                 completions.add("revoketoken");
@@ -1872,7 +1917,7 @@ public class MxCommand extends BaseCommand {
         if (args.length == 2) {
             String sub = args[0].toLowerCase();
             switch (sub) {
-                case "ban", "unban", "mute", "unmute", "kick", "warn", "clearwarnings", "ipban", "punish", "modlog", "history" -> {
+                case "ban", "unban", "mute", "unmute", "kick", "warn", "ipban", "punish", "modlog", "history" -> {
                     return filterCompletions(getOnlinePlayerNames(sender), args[1]);
                 }
                 case "chat" -> {
@@ -1888,8 +1933,8 @@ public class MxCommand extends BaseCommand {
                     return filterCompletions(getOnlinePlayerNames(sender), args[1]);
                 }
                 case "debug" -> {
-                    if (sender.hasPermission("moderex.admin")) {
-                        return filterCompletions(Arrays.asList("authsession", "serverid", "integrations"), args[1]);
+                    if (PermissionUtil.hasPermission(sender, "moderex.admin")) {
+                        return filterCompletions(Arrays.asList("authsession", "serverid", "integrations", "permissions", "simulate"), args[1]);
                     }
                 }
             }
@@ -1898,7 +1943,9 @@ public class MxCommand extends BaseCommand {
             String sub = args[0].toLowerCase();
             if (sub.equals("debug")) {
                 String action = args[1].toLowerCase();
-                if (action.equals("authsession") && sender.hasPermission("moderex.admin")) {
+                if ((action.equals("authsession") || action.equals("permissions") || action.equals("perms")
+                        || action.equals("simulate") || action.equals("sim"))
+                        && PermissionUtil.hasPermission(sender, "moderex.admin")) {
                     return filterCompletions(getOnlinePlayerNames(sender), args[2]);
                 }
             }

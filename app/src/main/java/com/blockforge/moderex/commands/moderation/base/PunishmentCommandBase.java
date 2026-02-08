@@ -4,7 +4,11 @@ import com.blockforge.moderex.ModereX;
 import com.blockforge.moderex.commands.BaseCommand;
 import com.blockforge.moderex.config.lang.MessageKey;
 import com.blockforge.moderex.util.FlagParser;
+import com.blockforge.moderex.util.PermissionUtil;
+import com.blockforge.moderex.util.TargetResolver;
+import org.bukkit.Bukkit;
 import org.bukkit.command.CommandSender;
+import org.bukkit.entity.Player;
 
 /**
  * Base class for punishment commands providing common flag permission checking.
@@ -36,11 +40,11 @@ public abstract class PunishmentCommandBase extends BaseCommand {
      */
     protected boolean checkFlagPermissions(CommandSender sender, FlagParser flags,
                                            boolean checkIp, boolean checkModify, boolean checkDelete) {
-        if (checkDelete && flags.isDelete() && !sender.hasPermission("moderex.punish.delete")) {
+        if (checkDelete && flags.isDelete() && !PermissionUtil.hasPermission(sender, "moderex.punish.delete")) {
             sendMessage(sender, MessageKey.NO_PERMISSION);
             return false;
         }
-        if (flags.isGlobal() && !sender.hasPermission("moderex.flag.global")) {
+        if (flags.isGlobal() && !PermissionUtil.hasPermission(sender, "moderex.flag.global")) {
             sendMessage(sender, MessageKey.NO_PERMISSION);
             return false;
         }
@@ -48,31 +52,31 @@ public abstract class PunishmentCommandBase extends BaseCommand {
             sendMessage(sender, MessageKey.NO_PERMISSION);
             return false;
         }
-        if (checkModify && flags.isModify() && !sender.hasPermission("moderex.punish.modify")) {
+        if (checkModify && flags.isModify() && !PermissionUtil.hasPermission(sender, "moderex.punish.modify")) {
             sendMessage(sender, MessageKey.NO_PERMISSION);
             return false;
         }
-        if (flags.isPublic() && !sender.hasPermission("moderex.flag.public")) {
+        if (flags.isPublic() && !PermissionUtil.hasPermission(sender, "moderex.flag.public")) {
             sendMessage(sender, MessageKey.NO_PERMISSION);
             return false;
         }
-        if (flags.isSilent() && !sender.hasPermission("moderex.flag.silent")) {
+        if (flags.isSilent() && !PermissionUtil.hasPermission(sender, "moderex.flag.silent")) {
             sendMessage(sender, MessageKey.NO_PERMISSION);
             return false;
         }
-        if (flags.isExtraSilent() && !sender.hasPermission("moderex.flag.extrasilent")) {
+        if (flags.isExtraSilent() && !PermissionUtil.hasPermission(sender, "moderex.flag.extrasilent")) {
             sendMessage(sender, MessageKey.NO_PERMISSION);
             return false;
         }
-        if (flags.isHidden() && !sender.hasPermission("moderex.flag.hidden")) {
+        if (flags.isHidden() && !PermissionUtil.hasPermission(sender, "moderex.flag.hidden")) {
             sendMessage(sender, MessageKey.NO_PERMISSION);
             return false;
         }
-        if (flags.isSkip() && !sender.hasPermission("moderex.flag.skip")) {
+        if (flags.isSkip() && !PermissionUtil.hasPermission(sender, "moderex.flag.skip")) {
             sendMessage(sender, MessageKey.NO_PERMISSION);
             return false;
         }
-        if (flags.getServerOrigin() != null && !sender.hasPermission("moderex.flag.global")) {
+        if (flags.getServerOrigin() != null && !PermissionUtil.hasPermission(sender, "moderex.flag.global")) {
             sendMessage(sender, MessageKey.NO_PERMISSION);
             return false;
         }
@@ -85,6 +89,19 @@ public abstract class PunishmentCommandBase extends BaseCommand {
      * Override in subclasses to specify different permissions (ipban, ipmute, ipwarn).
      */
     protected boolean hasIpPermission(CommandSender sender) {
-        return sender.hasPermission("moderex.ipban");
+        return PermissionUtil.hasPermission(sender, "moderex.ipban");
+    }
+
+    /**
+     * Check staff weight against a resolved target.
+     * Returns false (and sends error message) if sender has lower weight than target.
+     */
+    protected boolean checkTargetWeight(CommandSender sender, TargetResolver target) {
+        if (target == null || target.getUuid() == null) return true;
+        Player onlineTarget = Bukkit.getPlayer(target.getUuid());
+        if (onlineTarget != null) {
+            return checkWeight(sender, onlineTarget);
+        }
+        return true; // Offline players - allow by default
     }
 }

@@ -7,6 +7,7 @@ import com.blockforge.moderex.config.lang.MessageKey;
 import com.blockforge.moderex.util.DurationParser;
 import com.blockforge.moderex.util.FlagParser;
 import com.blockforge.moderex.util.Msg;
+import com.blockforge.moderex.util.PermissionUtil;
 import com.blockforge.moderex.util.TargetResolver;
 import com.blockforge.moderex.log.ActivityLogEntry;
 import org.bukkit.command.CommandSender;
@@ -27,7 +28,7 @@ public class MuteCommand extends PunishmentCommandBase {
 
     @Override
     protected boolean hasIpPermission(CommandSender sender) {
-        return sender.hasPermission("moderex.ipmute");
+        return PermissionUtil.hasPermission(sender, "moderex.ipmute");
     }
 
     @Override
@@ -60,6 +61,11 @@ public class MuteCommand extends PunishmentCommandBase {
 
         if (target.getUuid() == null) {
             sendMessage(sender, MessageKey.PLAYER_NOT_FOUND, "player", target.getDisplayName());
+            return;
+        }
+
+        // Staff weight check - higher weight staff cannot be punished by lower weight staff
+        if (!checkTargetWeight(sender, target)) {
             return;
         }
 
@@ -338,7 +344,7 @@ public class MuteCommand extends PunishmentCommandBase {
                     "reason", reason);
 
             for (org.bukkit.entity.Player player : org.bukkit.Bukkit.getOnlinePlayers()) {
-                if (player.hasPermission("moderex.notify.punishments")) {
+                if (PermissionUtil.hasPermission(player, "moderex.notify.punishments")) {
                     Msg.send(player, message);
                 }
             }

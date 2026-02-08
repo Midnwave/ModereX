@@ -41,9 +41,9 @@ public class StaffHistoryCommand extends BaseCommand {
     @Override
     protected void execute(CommandSender sender, String[] args) {
         if (args.length == 0) {
-            sendMessage(sender, "<red>Usage: /staffhistory <staff> [type] [page] [--gui]");
+            sendMessage(sender, "<red>Usage: /staffhistory <staff> [type] [page] [--gui|--chat]");
             sendMessage(sender, "<gray>Types: all, bans, mutes, warnings, kicks, ipbans, ipmutes");
-            sendMessage(sender, "<gray>Flags: <white>--gui <gray>- Show in GUI instead of chat");
+            sendMessage(sender, "<gray>Flags: <white>--gui <gray>- Show in GUI, <white>--chat <gray>- Force chat output");
             return;
         }
 
@@ -52,10 +52,13 @@ public class StaffHistoryCommand extends BaseCommand {
         String type = "all";
         int page = 1;
         boolean useGui = false;
+        boolean useChat = false;
 
         for (String arg : args) {
             if (arg.equalsIgnoreCase("--gui") || arg.equalsIgnoreCase("-g")) {
                 useGui = true;
+            } else if (arg.equalsIgnoreCase("--chat")) {
+                useChat = true;
             } else if (targetName == null) {
                 targetName = arg;
             } else if (isValidType(arg.toLowerCase())) {
@@ -80,6 +83,14 @@ public class StaffHistoryCommand extends BaseCommand {
         if (!target.isValid() || !target.isPlayer()) {
             sendMessage(sender, MessageKey.PLAYER_NOT_FOUND, "player", targetName);
             return;
+        }
+
+        // Auto-detect Bedrock/Geyser players: default to GUI unless --chat is specified
+        if (!useGui && !useChat && sender instanceof Player) {
+            if (plugin.getHookManager() != null && plugin.getHookManager().getGeyserHook() != null
+                    && plugin.getHookManager().getGeyserHook().isBedrockPlayer((Player) sender)) {
+                useGui = true;
+            }
         }
 
         // GUI mode requires player - redirect to modlog with -staff flag
@@ -255,7 +266,7 @@ public class StaffHistoryCommand extends BaseCommand {
             return filterCompletions(getOnlinePlayerNames(sender), args[0]);
         }
         if (args.length == 2) {
-            List<String> completions = new ArrayList<>(Arrays.asList("all", "bans", "mutes", "warnings", "kicks", "ipbans", "ipmutes", "--gui"));
+            List<String> completions = new ArrayList<>(Arrays.asList("all", "bans", "mutes", "warnings", "kicks", "ipbans", "ipmutes", "--gui", "--chat"));
             return filterCompletions(completions, args[1]);
         }
         if (args.length == 3) {
@@ -264,10 +275,11 @@ public class StaffHistoryCommand extends BaseCommand {
             completions.add("2");
             completions.add("3");
             completions.add("--gui");
+            completions.add("--chat");
             return filterCompletions(completions, args[2]);
         }
         if (args.length == 4) {
-            return filterCompletions(List.of("--gui"), args[3]);
+            return filterCompletions(List.of("--gui", "--chat"), args[3]);
         }
         return super.tabComplete(sender, args);
     }

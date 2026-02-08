@@ -6,6 +6,7 @@ import com.blockforge.moderex.config.lang.MessageKey;
 import com.blockforge.moderex.punishment.Punishment;
 import com.blockforge.moderex.punishment.PunishmentType;
 import com.blockforge.moderex.util.Msg;
+import com.blockforge.moderex.util.PermissionUtil;
 import com.blockforge.moderex.util.TimeUtil;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.event.ClickEvent;
@@ -136,7 +137,7 @@ public class SeenCommand extends BaseCommand {
             }
 
             // IP Address (requires permission)
-            if (sender.hasPermission("moderex.command.seen.ip") || sender.hasPermission("moderex.admin")) {
+            if (PermissionUtil.hasPermission(sender, "moderex.command.seen.ip") || PermissionUtil.hasPermission(sender, "moderex.admin")) {
                 if (info.ipAddress != null && !info.ipAddress.isEmpty()) {
                     Msg.send(sender, Component.text(" IP Address: ", NamedTextColor.GRAY)
                             .append(Component.text(info.ipAddress, NamedTextColor.WHITE)

@@ -3,6 +3,7 @@ package com.blockforge.moderex.commands;
 import com.blockforge.moderex.ModereX;
 import com.blockforge.moderex.config.lang.MessageKey;
 import com.blockforge.moderex.util.Msg;
+import com.blockforge.moderex.util.PermissionUtil;
 import com.blockforge.moderex.util.TextUtil;
 import net.kyori.adventure.text.Component;
 import org.bukkit.Bukkit;
@@ -29,6 +30,14 @@ public abstract class BaseCommand implements CommandExecutor, TabCompleter {
         this.playerOnly = playerOnly;
     }
 
+    /**
+     * Get the permission required for this command.
+     * Used by CommandManager to set permission on PluginCommand for tab complete hiding.
+     */
+    public String getPermission() {
+        return permission;
+    }
+
     @Override
     public boolean onCommand(CommandSender sender, Command command, String label, String[] args) {
         if (playerOnly && !(sender instanceof Player)) {
@@ -36,8 +45,12 @@ public abstract class BaseCommand implements CommandExecutor, TabCompleter {
             return true;
         }
 
-        if (permission != null && !sender.hasPermission(permission)) {
+        if (permission != null && !PermissionUtil.hasPermission(sender, permission)) {
             Msg.send(sender, plugin.getLanguageManager().get(MessageKey.NO_PERMISSION));
+            // Debug mode: show required permission
+            if (plugin.getConfigManager().getSettings().isDebugMode() && sender instanceof Player) {
+                Msg.send(sender, TextUtil.parse("<dark_gray>[<gray>Debug<dark_gray>] <gray>Required permission: <yellow>" + permission));
+            }
             return true;
         }
 
@@ -55,7 +68,7 @@ public abstract class BaseCommand implements CommandExecutor, TabCompleter {
 
     @Override
     public List<String> onTabComplete(CommandSender sender, Command command, String alias, String[] args) {
-        if (permission != null && !sender.hasPermission(permission)) {
+        if (permission != null && !PermissionUtil.hasPermission(sender, permission)) {
             return Collections.emptyList();
         }
 
@@ -101,6 +114,39 @@ public abstract class BaseCommand implements CommandExecutor, TabCompleter {
         return completions.stream()
                 .filter(s -> s.toLowerCase().startsWith(lowerPrefix))
                 .collect(Collectors.toList());
+    }
+
+    /**
+     * Check if the sender has sufficient staff weight to act on the target.
+     * Sends an error message if blocked.
+     * @return true if the sender can act on the target
+     */
+    protected boolean checkWeight(CommandSender sender, Player target) {
+        if (target == null) return true;
+        if (!PermissionUtil.canActOn(sender, target)) {
+            int senderWeight = PermissionUtil.getWeight(sender);
+            int targetWeight = PermissionUtil.getWeight(target);
+            sendMessage(sender, "<red>You cannot perform this action on " + target.getName() + ".");
+            sendMessage(sender, "<gray>Their staff rank is higher than yours.");
+            if (plugin.getConfigManager().getSettings().isDebugMode() && sender instanceof Player) {
+                Msg.send(sender, TextUtil.parse("<dark_gray>[<gray>Debug<dark_gray>] <gray>Your weight: <yellow>" + senderWeight +
+                        " <gray>| Target weight: <yellow>" + targetWeight));
+            }
+            return false;
+        }
+        return true;
+    }
+
+    /**
+     * Check if the sender has sufficient staff weight to act on a target by UUID.
+     */
+    protected boolean checkWeight(CommandSender sender, java.util.UUID targetUuid) {
+        Player target = Bukkit.getPlayer(targetUuid);
+        if (target != null) {
+            return checkWeight(sender, target);
+        }
+        // Offline player - allow by default (can't check weight without LuckPerms)
+        return true;
     }
 
     protected Player getPlayer(CommandSender sender) {

@@ -3,6 +3,7 @@ package com.blockforge.moderex.automod;
 import com.blockforge.moderex.ModereX;
 import com.blockforge.moderex.config.lang.MessageKey;
 import com.blockforge.moderex.hooks.anticheat.AnticheatChecks;
+import com.blockforge.moderex.util.PermissionUtil;
 import com.blockforge.moderex.punishment.PunishmentType;
 import com.blockforge.moderex.replay.ReplaySession;
 import com.blockforge.moderex.replay.ReplaySnapshot;
@@ -276,7 +277,7 @@ public class AutomodManager {
      * Process a chat message through all enabled automod rules.
      */
     public FilterResult processMessage(Player player, String message) {
-        if (player.hasPermission("moderex.bypass.automod")) {
+        if (PermissionUtil.hasPermission(player, "moderex.bypass.automod")) {
             return FilterResult.allow();
         }
 
@@ -303,7 +304,7 @@ public class AutomodManager {
      * Process a command message (e.g., /msg, /tell) through automod.
      */
     public FilterResult processCommandMessage(Player player, String command, String message) {
-        if (player.hasPermission("moderex.bypass.automod")) {
+        if (PermissionUtil.hasPermission(player, "moderex.bypass.automod")) {
             return FilterResult.allow();
         }
 
@@ -328,7 +329,7 @@ public class AutomodManager {
      * Process a nickname through applicable automod rules.
      */
     public FilterResult processNickname(Player player, String nickname) {
-        if (player.hasPermission("moderex.bypass.automod.nickname")) {
+        if (PermissionUtil.hasPermission(player, "moderex.bypass.automod.nickname")) {
             return FilterResult.allow();
         }
 
@@ -638,7 +639,7 @@ public class AutomodManager {
         );
 
         for (Player staff : plugin.getServer().getOnlinePlayers()) {
-            if (staff.hasPermission("moderex.notify.automod")) {
+            if (PermissionUtil.hasPermission(staff, "moderex.notify.automod")) {
                 staff.sendMessage(alert);
             }
         }

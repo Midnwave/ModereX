@@ -4,6 +4,7 @@ import com.blockforge.moderex.ModereX;
 import com.blockforge.moderex.commands.BaseCommand;
 import com.blockforge.moderex.util.Msg;
 import com.blockforge.moderex.util.TargetResolver;
+import com.blockforge.moderex.util.PermissionUtil;
 import com.blockforge.moderex.util.TextUtil;
 import org.bukkit.Bukkit;
 import org.bukkit.command.CommandSender;
@@ -73,14 +74,21 @@ public class MassKickCommand extends BaseCommand {
         UUID executorUuid = sender instanceof Player ? ((Player) sender).getUniqueId() : null;
         String executorName = sender.getName();
         String batchId = "MASS-" + System.currentTimeMillis();
-        String finalReason = finalReasonText + " [" + batchId + "]";
+        String finalReason = finalReasonText;
         AtomicInteger successCount = new AtomicInteger(0);
+        AtomicInteger skippedCount = new AtomicInteger(0);
 
         sendMessage(sender, "<yellow>Processing mass kick for " + onlineTargets.size() + " players...");
 
         List<CompletableFuture<Void>> futures = new ArrayList<>();
 
         for (Player target : onlineTargets) {
+            // Staff weight check - skip targets with higher weight
+            if (!checkWeight(sender, target)) {
+                skippedCount.incrementAndGet();
+                continue;
+            }
+
             CompletableFuture<Void> future = plugin.getPunishmentManager().kick(
                     target.getUniqueId(),
                     target.getName(),
@@ -100,11 +108,12 @@ public class MassKickCommand extends BaseCommand {
         CompletableFuture.allOf(futures.toArray(new CompletableFuture[0])).thenRun(() -> {
             Bukkit.getScheduler().runTask(plugin, () -> {
                 sendMessage(sender, "<green>Mass kick complete!");
-                sendMessage(sender, "<gray>Successfully kicked: <green>" + successCount.get() + " players");
+                sendMessage(sender, "<gray>Successfully kicked: <green>" + successCount.get() + " players" +
+                        (skippedCount.get() > 0 ? "<gray>, Skipped (higher rank): <yellow>" + skippedCount.get() : ""));
                 sendMessage(sender, "<gray>Batch ID: <yellow>" + batchId);
 
                 for (Player staff : Bukkit.getOnlinePlayers()) {
-                    if (staff.hasPermission("moderex.alerts.punishments")) {
+                    if (PermissionUtil.hasPermission(staff, "moderex.alerts.punishments")) {
                         Msg.send(staff, TextUtil.parse("<gray>" + executorName +
                                 " mass kicked " + successCount.get() + " players. Reason: " + finalReasonText));
                     }

@@ -7,6 +7,7 @@ import com.blockforge.moderex.config.lang.MessageKey;
 import com.blockforge.moderex.util.DurationParser;
 import com.blockforge.moderex.util.FlagParser;
 import com.blockforge.moderex.util.Msg;
+import com.blockforge.moderex.util.PermissionUtil;
 import com.blockforge.moderex.util.TargetResolver;
 import org.bukkit.Bukkit;
 import org.bukkit.command.CommandSender;
@@ -54,6 +55,11 @@ public class IPBanCommand extends PunishmentCommandBase {
 
         if (target == null) {
             sendMessage(sender, "<red>Player must be online for IP ban. Use /ban for offline players.");
+            return;
+        }
+
+        // Staff weight check - higher weight staff cannot be punished by lower weight staff
+        if (!checkWeight(sender, target)) {
             return;
         }
 
@@ -144,7 +150,7 @@ public class IPBanCommand extends PunishmentCommandBase {
                     "reason", reason);
 
             for (org.bukkit.entity.Player player : org.bukkit.Bukkit.getOnlinePlayers()) {
-                if (player.hasPermission("moderex.notify.punishments")) {
+                if (PermissionUtil.hasPermission(player, "moderex.notify.punishments")) {
                     Msg.send(player, message);
                 }
             }

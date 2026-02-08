@@ -4,6 +4,7 @@ import com.blockforge.moderex.ModereX;
 import com.blockforge.moderex.commands.BaseCommand;
 import com.blockforge.moderex.config.lang.MessageKey;
 import com.blockforge.moderex.util.Msg;
+import com.blockforge.moderex.util.PermissionUtil;
 import com.blockforge.moderex.util.TargetResolver;
 import com.zaxxer.hikari.HikariPoolMXBean;
 import org.bukkit.command.CommandSender;
@@ -74,7 +75,7 @@ public class ModereXCommand extends BaseCommand {
     }
 
     private void handleAllow(CommandSender sender, String[] args) {
-        if (!sender.hasPermission("moderex.allow")) {
+        if (!PermissionUtil.hasPermission(sender, "moderex.allow")) {
             sendMessage(sender, MessageKey.NO_PERMISSION);
             return;
         }
@@ -121,7 +122,7 @@ public class ModereXCommand extends BaseCommand {
     }
 
     private void handleUnlink(CommandSender sender, String[] args) {
-        if (!sender.hasPermission("moderex.unlink")) {
+        if (!PermissionUtil.hasPermission(sender, "moderex.unlink")) {
             sendMessage(sender, MessageKey.NO_PERMISSION);
             return;
         }
@@ -143,7 +144,7 @@ public class ModereXCommand extends BaseCommand {
     }
 
     private void handleReload(CommandSender sender, String[] args) {
-        if (!sender.hasPermission("moderex.reload")) {
+        if (!PermissionUtil.hasPermission(sender, "moderex.reload")) {
             sendMessage(sender, MessageKey.NO_PERMISSION);
             return;
         }
@@ -161,7 +162,7 @@ public class ModereXCommand extends BaseCommand {
     }
 
     private void handleInfo(CommandSender sender, String[] args) {
-        if (!sender.hasPermission("moderex.info")) {
+        if (!PermissionUtil.hasPermission(sender, "moderex.info")) {
             sendMessage(sender, MessageKey.NO_PERMISSION);
             return;
         }
@@ -194,7 +195,7 @@ public class ModereXCommand extends BaseCommand {
     }
 
     private void handleServers(CommandSender sender, String[] args) {
-        if (!sender.hasPermission("moderex.servers")) {
+        if (!PermissionUtil.hasPermission(sender, "moderex.servers")) {
             sendMessage(sender, MessageKey.NO_PERMISSION);
             return;
         }
@@ -206,7 +207,7 @@ public class ModereXCommand extends BaseCommand {
     }
 
     private void handleReveal(CommandSender sender, String[] args) {
-        if (!sender.hasPermission("moderex.reveal")) {
+        if (!PermissionUtil.hasPermission(sender, "moderex.reveal")) {
             sendMessage(sender, MessageKey.NO_PERMISSION);
             return;
         }
@@ -237,7 +238,7 @@ public class ModereXCommand extends BaseCommand {
     }
 
     private void handleBroadcast(CommandSender sender, String[] args) {
-        if (!sender.hasPermission("moderex.broadcast")) {
+        if (!PermissionUtil.hasPermission(sender, "moderex.broadcast")) {
             sendMessage(sender, MessageKey.NO_PERMISSION);
             return;
         }
@@ -252,7 +253,7 @@ public class ModereXCommand extends BaseCommand {
 
         net.kyori.adventure.text.Component parsedMessage = net.kyori.adventure.text.minimessage.MiniMessage.miniMessage().deserialize(message);
         for (org.bukkit.entity.Player player : plugin.getServer().getOnlinePlayers()) {
-            if (player.hasPermission("moderex.notify.broadcast")) {
+            if (PermissionUtil.hasPermission(player, "moderex.notify.broadcast")) {
                 Msg.send(player, parsedMessage);
             }
         }
@@ -263,7 +264,7 @@ public class ModereXCommand extends BaseCommand {
     }
 
     private void handleTimezone(CommandSender sender, String[] args) {
-        if (!sender.hasPermission("moderex.timezone")) {
+        if (!PermissionUtil.hasPermission(sender, "moderex.timezone")) {
             sendMessage(sender, MessageKey.NO_PERMISSION);
             return;
         }
@@ -323,7 +324,7 @@ public class ModereXCommand extends BaseCommand {
     }
 
     private void handleResetTemplates(CommandSender sender, String[] args) {
-        if (!sender.hasPermission("moderex.reset-templates")) {
+        if (!PermissionUtil.hasPermission(sender, "moderex.reset-templates")) {
             sendMessage(sender, MessageKey.NO_PERMISSION);
             return;
         }

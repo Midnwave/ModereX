@@ -62,10 +62,13 @@ public class BanListCommand extends BaseCommand {
                     for (Punishment ban : bans) {
                         String duration = ban.isPermanent() ? "<dark_red>Permanent" :
                             "<white>" + DurationParser.formatRemaining(ban.getExpiresAt());
+                        String reason = ban.getReason() != null ? ban.getReason() : "None";
+                        if (reason.length() > 30) reason = reason.substring(0, 27) + "...";
 
                         if (sender instanceof Player) {
-                            Component entry = TextUtil.parse("<dark_gray>│ <red>" + ban.getPlayerName() +
-                                    " <dark_gray>- " + duration)
+                            Component entry = TextUtil.parse("<dark_gray>│ <gray>[<yellow>#" + ban.getCaseId() +
+                                    "<gray>] <red>" + ban.getPlayerName() +
+                                    " <dark_gray>- <white>" + reason + " <dark_gray>(<white>" + duration + "<dark_gray>)")
                                 .clickEvent(ClickEvent.runCommand("/viewpunishment " + ban.getCaseId()))
                                 .hoverEvent(HoverEvent.showText(TextUtil.parse(
                                     "<gray>Case: <white>" + ban.getCaseId() + "\n" +
@@ -74,8 +77,9 @@ public class BanListCommand extends BaseCommand {
                                     "\n<yellow>Click to view details")));
                             Msg.send(sender, entry);
                         } else {
-                            Msg.send(sender, TextUtil.parse("<dark_gray>│ <red>" + ban.getPlayerName() +
-                                    " <dark_gray>- " + duration + " <dark_gray>by <gray>" + ban.getStaffName()));
+                            Msg.send(sender, TextUtil.parse("<dark_gray>│ <gray>[<yellow>#" + ban.getCaseId() +
+                                    "<gray>] <red>" + ban.getPlayerName() +
+                                    " <dark_gray>- <white>" + reason + " <dark_gray>(<white>" + duration + "<dark_gray>)"));
                         }
                     }
                 }
