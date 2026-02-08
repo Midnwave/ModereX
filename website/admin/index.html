@@ -47,6 +47,10 @@
                 <i class="fas fa-crown"></i>
                 <span>Premium</span>
             </a>
+            <a href="#licenses" class="nav-item" data-page="licenses">
+                <i class="fas fa-key"></i>
+                <span>Dev Licenses</span>
+            </a>
             <a href="#features" class="nav-item" data-page="features">
                 <i class="fas fa-toggle-on"></i>
                 <span>Feature Flags</span>
@@ -241,6 +245,7 @@
                                 <th>Players</th>
                                 <th>Status</th>
                                 <th>Connected</th>
+                                <th>Actions</th>
                             </tr>
                         </thead>
                         <tbody id="serversTableBody">
@@ -492,6 +497,62 @@
             </section>
 
             <!-- Audit Log Page -->
+            <!-- Dev Licenses Page -->
+            <section class="page hidden" id="page-licenses">
+                <div class="page-actions">
+                    <button class="btn btn-primary" onclick="showCreateLicenseModal()">
+                        <i class="fas fa-plus"></i> Generate License
+                    </button>
+                    <button class="btn btn-outline" onclick="refreshLicenses()">
+                        <i class="fas fa-sync"></i> Refresh
+                    </button>
+                </div>
+
+                <!-- Active Licenses -->
+                <div class="card">
+                    <div class="card-header">
+                        <h3><i class="fas fa-key"></i> Active Dev Licenses</h3>
+                    </div>
+                    <div class="licenses-table" id="licensesTable">
+                        <div class="table-loading">
+                            <i class="fas fa-spinner fa-spin"></i> Loading licenses...
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Build Licensed JAR -->
+                <div class="card" style="margin-top: 24px;">
+                    <div class="card-header">
+                        <h3><i class="fas fa-hammer"></i> Build Licensed JAR</h3>
+                    </div>
+                    <div class="card-body">
+                        <div class="form-row">
+                            <div class="form-group" style="flex: 2;">
+                                <label>License Token</label>
+                                <select id="buildLicenseToken" class="form-select">
+                                    <option value="">Select a license token...</option>
+                                </select>
+                            </div>
+                            <div class="form-group" style="flex: 1;">
+                                <label>Tester Name</label>
+                                <input type="text" id="buildTesterName" placeholder="e.g., John Doe">
+                            </div>
+                            <div class="form-group" style="flex: 0 0 auto; align-self: flex-end;">
+                                <button class="btn btn-primary" onclick="buildLicensedJar()" id="buildJarBtn">
+                                    <i class="fas fa-hammer"></i> Build JAR
+                                </button>
+                            </div>
+                        </div>
+                        <div class="build-status hidden" id="buildStatus">
+                            <div class="alert alert-info">
+                                <i class="fas fa-info-circle"></i>
+                                <span id="buildStatusText">Build in progress...</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
             <section class="page hidden" id="page-audit">
                 <div class="page-actions">
                     <div class="search-box">
@@ -645,6 +706,42 @@
                 <button class="btn btn-outline" onclick="hideLicenseKeyModal()">Cancel</button>
                 <button class="btn btn-primary" onclick="generateLicenseKey()">
                     <i class="fas fa-plus"></i> Generate Key
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Create License Modal -->
+    <div class="modal-overlay hidden" id="createLicenseModal">
+        <div class="modal">
+            <div class="modal-header">
+                <h2><i class="fas fa-key"></i> Generate Dev License</h2>
+                <button class="modal-close" onclick="hideCreateLicenseModal()">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="form-group">
+                    <label>Tester Name</label>
+                    <input type="text" id="licenseTesterName" placeholder="e.g., John Doe" required>
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>Max Servers</label>
+                        <input type="number" id="licenseMaxServers" value="1" min="1" max="10">
+                    </div>
+                    <div class="form-group">
+                        <label>Expires At (Optional)</label>
+                        <input type="datetime-local" id="licenseExpiresAt">
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label>Note (Optional)</label>
+                    <textarea id="licenseNote" placeholder="Internal notes about this license..." rows="3"></textarea>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-outline" onclick="hideCreateLicenseModal()">Cancel</button>
+                <button class="btn btn-primary" onclick="createLicense()">
+                    <i class="fas fa-plus"></i> Generate License
                 </button>
             </div>
         </div>

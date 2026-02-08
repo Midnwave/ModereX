@@ -304,6 +304,76 @@
                 requestPremiumData();
                 break;
 
+            case 'licenses_list':
+                renderLicenses(data.licenses || []);
+                break;
+
+            case 'license_created':
+                toast('success', 'License Created', `License token generated successfully`);
+                refreshLicenses();
+                break;
+
+            case 'license_revoked':
+                toast('success', 'License Revoked', 'License has been revoked successfully');
+                refreshLicenses();
+                break;
+
+            case 'jar_build_started':
+                document.getElementById('buildStatusText').textContent = 'Building JAR... This may take a few minutes.';
+                break;
+
+            case 'jar_build_complete':
+                const buildStatus = document.getElementById('buildStatus');
+                const buildStatusText = document.getElementById('buildStatusText');
+                const buildBtn = document.getElementById('buildJarBtn');
+
+                buildStatus.querySelector('.alert').className = 'alert alert-success';
+                buildStatusText.textContent = `Build complete! JAR: ${data.filename}`;
+                buildBtn.disabled = false;
+                buildBtn.innerHTML = '<i class="fas fa-hammer"></i> Build JAR';
+                toast('success', 'Build Complete', `Licensed JAR created: ${data.filename}`);
+                break;
+
+            case 'jar_build_error':
+                const buildStatusErr = document.getElementById('buildStatus');
+                const buildStatusTextErr = document.getElementById('buildStatusText');
+                const buildBtnErr = document.getElementById('buildJarBtn');
+
+                buildStatusErr.querySelector('.alert').className = 'alert alert-error';
+                buildStatusTextErr.textContent = `Build failed: ${data.error}`;
+                buildBtnErr.disabled = false;
+                buildBtnErr.innerHTML = '<i class="fas fa-hammer"></i> Build JAR';
+                toast('error', 'Build Failed', data.error);
+                break;
+
+            case 'server_suspended':
+                toast('success', 'Server Suspended', `Server ${data.serverId} has been suspended`);
+                send('get_servers'); // Refresh server list
+                send('get_suspended_servers'); // Refresh suspension list
+                break;
+
+            case 'server_unsuspended':
+                toast('success', 'Server Unsuspended', `Server ${data.serverId} has been unsuspended`);
+                send('get_servers'); // Refresh server list
+                send('get_suspended_servers'); // Refresh suspension list
+                break;
+
+            case 'suspended_servers':
+                // Store suspended servers in a map for quick lookup
+                window.suspendedServers = {};
+                if (data.suspended && Array.isArray(data.suspended)) {
+                    data.suspended.forEach(s => {
+                        window.suspendedServers[s.server_id.toLowerCase()] = {
+                            reason: s.reason,
+                            suspendedAt: s.suspended_at,
+                            suspendedBy: s.suspended_by
+                        };
+                    });
+                }
+                // Re-render servers to show updated suspension status
+                send('get_servers');
+                break;
+
             case 'error':
                 console.error('[Admin] Gateway error:', data.message || data.error);
                 toast('error', 'Error', data.message || data.error || 'Unknown error');
@@ -322,6 +392,7 @@
         send('get_dashboard_data');
         send('get_servers_list');
         send('get_announcements_list');
+        send('get_suspended_servers');
     }
 
     function requestAnnouncementsList() {
@@ -410,7 +481,7 @@
         if (!servers || servers.length === 0) {
             tbody.innerHTML = `
                 <tr>
-                    <td colspan="6" class="table-loading">
+                    <td colspan="7" class="table-loading">
                         <i class="fas fa-server"></i> No servers connected
                     </td>
                 </tr>
@@ -418,20 +489,28 @@
             return;
         }
 
-        tbody.innerHTML = servers.map(server => `
-            <tr>
-                <td><code>${escapeHtml(server.id.substring(0, 12))}</code></td>
-                <td>${escapeHtml(server.name)}</td>
-                <td><span class="version-badge">${escapeHtml(server.version)}</span></td>
-                <td>${server.players}</td>
-                <td>
-                    <span class="status-badge ${server.premium ? 'premium' : 'free'}">
-                        ${server.premium ? 'Premium' : 'Free'}
-                    </span>
-                </td>
-                <td>${formatTime(server.connectedAt)}</td>
-            </tr>
-        `).join('');
+        tbody.innerHTML = servers.map(server => {
+            const isSuspended = window.suspendedServers && window.suspendedServers[server.id.toLowerCase()];
+            return `
+                <tr>
+                    <td><code>${escapeHtml(server.id.substring(0, 12))}</code></td>
+                    <td>${escapeHtml(server.name)}</td>
+                    <td><span class="version-badge">${escapeHtml(server.version)}</span></td>
+                    <td>${server.players}</td>
+                    <td>
+                        ${isSuspended ? '<span class="status-badge suspended">Suspended</span>' :
+                          `<span class="status-badge ${server.premium ? 'premium' : 'free'}">${server.premium ? 'Premium' : 'Free'}</span>`}
+                    </td>
+                    <td>${formatTime(server.connectedAt)}</td>
+                    <td>
+                        ${isSuspended ?
+                            `<button class="btn btn-success btn-sm" onclick="unsuspendServer('${server.id}')">Unsuspend</button>` :
+                            `<button class="btn btn-danger btn-sm" onclick="suspendServer('${server.id}', '${escapeHtml(server.name)}')">Suspend</button>`
+                        }
+                    </td>
+                </tr>
+            `;
+        }).join('');
     }
 
     function updateAnnouncementsList(data) {
@@ -702,6 +781,9 @@
             case 'premium':
                 requestPremiumData();
                 break;
+            case 'licenses':
+                refreshLicenses();
+                break;
             case 'audit':
                 requestAuditLog();
                 break;
@@ -795,6 +877,190 @@
     window.hideLicenseKeyModal = function() {
         document.getElementById('licenseKeyModal').classList.add('hidden');
     };
+
+    window.showCreateLicenseModal = function() {
+        document.getElementById('createLicenseModal').classList.remove('hidden');
+    };
+
+    window.hideCreateLicenseModal = function() {
+        document.getElementById('createLicenseModal').classList.add('hidden');
+        // Clear form
+        document.getElementById('licenseTesterName').value = '';
+        document.getElementById('licenseMaxServers').value = '1';
+        document.getElementById('licenseExpiresAt').value = '';
+        document.getElementById('licenseNote').value = '';
+    };
+
+    // ========================================
+    // License Management Functions
+    // ========================================
+
+    window.refreshLicenses = function() {
+        send('get_licenses');
+    };
+
+    window.createLicense = function() {
+        const testerName = document.getElementById('licenseTesterName').value.trim();
+        const maxServers = parseInt(document.getElementById('licenseMaxServers').value);
+        const expiresAt = document.getElementById('licenseExpiresAt').value;
+        const note = document.getElementById('licenseNote').value.trim();
+
+        if (!testerName) {
+            toast('error', 'Validation Error', 'Tester name is required');
+            return;
+        }
+
+        const data = {
+            testerName,
+            maxServers,
+            expiresAt: expiresAt ? new Date(expiresAt).getTime() : null,
+            note,
+            createdBy: adminEmail
+        };
+
+        send('create_license', data);
+        hideCreateLicenseModal();
+    };
+
+    window.revokeLicense = function(token) {
+        if (!confirm('Are you sure you want to revoke this license? This action cannot be undone.')) {
+            return;
+        }
+
+        send('revoke_license', { token });
+    };
+
+    window.buildLicensedJar = function() {
+        const token = document.getElementById('buildLicenseToken').value;
+        const testerName = document.getElementById('buildTesterName').value.trim();
+
+        if (!token) {
+            toast('error', 'Validation Error', 'Please select a license token');
+            return;
+        }
+
+        // Show building status
+        const buildStatus = document.getElementById('buildStatus');
+        const buildStatusText = document.getElementById('buildStatusText');
+        const buildBtn = document.getElementById('buildJarBtn');
+
+        buildStatus.classList.remove('hidden');
+        buildStatusText.textContent = 'Starting build...';
+        buildBtn.disabled = true;
+        buildBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Building...';
+
+        send('build_licensed_jar', { token, testerName: testerName || 'Unknown' });
+    };
+
+    // ========================================
+    // Server Suspension Functions
+    // ========================================
+
+    window.suspendServer = function(serverId, serverName) {
+        const reason = prompt(`Suspend server "${serverName}"?\n\nReason (optional):`);
+        if (reason === null) return; // User cancelled
+
+        send('suspend_server', {
+            serverId,
+            reason: reason.trim() || 'No reason provided',
+            suspendedBy: adminEmail
+        });
+    };
+
+    window.unsuspendServer = function(serverId) {
+        if (!confirm('Are you sure you want to unsuspend this server?')) {
+            return;
+        }
+
+        send('unsuspend_server', { serverId });
+    };
+
+    function renderLicenses(licenses) {
+        const table = document.getElementById('licensesTable');
+        const buildSelect = document.getElementById('buildLicenseToken');
+
+        if (!licenses || licenses.length === 0) {
+            table.innerHTML = '<div class="table-loading">No licenses found</div>';
+            buildSelect.innerHTML = '<option value="">No active licenses available</option>';
+            return;
+        }
+
+        // Populate licenses table
+        let tableHTML = `
+            <table>
+                <thead>
+                    <tr>
+                        <th>Token</th>
+                        <th>Tester</th>
+                        <th>Status</th>
+                        <th>Created</th>
+                        <th>Expires</th>
+                        <th>Last Seen</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+        `;
+
+        licenses.forEach(license => {
+            const shortToken = license.token.substring(0, 8) + '...' + license.token.substring(license.token.length - 4);
+            const created = new Date(license.createdAt).toLocaleDateString();
+            const expires = license.expiresAt ? new Date(license.expiresAt).toLocaleDateString() : 'Never';
+            const lastSeen = license.lastHeartbeat ? formatTimeAgo(Date.now() - license.lastHeartbeat) : 'Never';
+
+            let status = 'active';
+            let statusText = 'Active';
+            if (!license.active) {
+                status = 'revoked';
+                statusText = 'Revoked';
+            } else if (license.expiresAt && Date.now() > license.expiresAt) {
+                status = 'expired';
+                statusText = 'Expired';
+            }
+
+            tableHTML += `
+                <tr>
+                    <td><span class="license-token">${shortToken}</span></td>
+                    <td>${escapeHtml(license.note || 'N/A')}</td>
+                    <td><span class="license-status ${status}">${statusText}</span></td>
+                    <td>${created}</td>
+                    <td>${expires}</td>
+                    <td>${lastSeen}</td>
+                    <td class="license-actions">
+                        ${license.active ? `<button class="btn btn-sm btn-outline-danger" onclick="revokeLicense('${license.token}')"><i class="fas fa-ban"></i> Revoke</button>` : ''}
+                    </td>
+                </tr>
+            `;
+        });
+
+        tableHTML += '</tbody></table>';
+        table.innerHTML = tableHTML;
+
+        // Populate build dropdown
+        const activeLicenses = licenses.filter(l => l.active && (!l.expiresAt || Date.now() < l.expiresAt));
+        if (activeLicenses.length === 0) {
+            buildSelect.innerHTML = '<option value="">No active licenses available</option>';
+        } else {
+            buildSelect.innerHTML = '<option value="">Select a license token...</option>';
+            activeLicenses.forEach(license => {
+                const shortToken = license.token.substring(0, 8) + '...' + license.token.substring(license.token.length - 4);
+                const label = `${shortToken} - ${license.note || 'No note'}`;
+                buildSelect.innerHTML += `<option value="${license.token}">${escapeHtml(label)}</option>`;
+            });
+        }
+    }
+
+    function formatTimeAgo(ms) {
+        const seconds = Math.floor(ms / 1000);
+        const minutes = Math.floor(seconds / 60);
+        const hours = Math.floor(minutes / 60);
+        const days = Math.floor(hours / 24);
+
+        if (days > 0) return `${days}d ago`;
+        if (hours > 0) return `${hours}h ago`;
+        if (minutes > 0) return `${minutes}m ago`;
+        return `${seconds}s ago`;
+    }
 
     // ========================================
     // Actions
