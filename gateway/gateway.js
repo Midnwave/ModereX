@@ -47,6 +47,10 @@ const inMemoryAnnouncements = new Map();
 // In-memory fallback for server secrets
 const inMemoryServerSecrets = new Map();
 
+// CPU usage tracking
+let lastCpuUsage = process.cpuUsage();
+let lastCpuCheck = Date.now();
+
 // In-memory fallback for global tokens
 const inMemoryGlobalTokens = new Map();
 
@@ -204,6 +208,44 @@ function createTables() {
             color_scheme TEXT DEFAULT 'blue',
             device_fingerprints TEXT,
             updated_at INTEGER NOT NULL
+        )
+    `);
+
+    // Dev license builds table
+    db.exec(`
+        CREATE TABLE IF NOT EXISTS license_builds (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            token TEXT NOT NULL UNIQUE,
+            tester_name TEXT,
+            build_version TEXT,
+            build_timestamp INTEGER NOT NULL,
+            jar_filename TEXT,
+            created_by TEXT NOT NULL,
+            created_at INTEGER NOT NULL,
+            active INTEGER DEFAULT 1
+        )
+    `);
+
+    // Suspended servers table
+    db.exec(`
+        CREATE TABLE IF NOT EXISTS suspended_servers (
+            server_id TEXT PRIMARY KEY,
+            suspended_at INTEGER NOT NULL,
+            suspended_by TEXT NOT NULL,
+            reason TEXT
+        )
+    `);
+
+    // Gateway metrics history for charts
+    db.exec(`
+        CREATE TABLE IF NOT EXISTS gateway_metrics_history (
+            timestamp INTEGER PRIMARY KEY,
+            servers INTEGER NOT NULL,
+            browsers INTEGER NOT NULL,
+            admins INTEGER NOT NULL,
+            messages_per_sec REAL,
+            cpu_usage REAL,
+            memory_usage REAL
         )
     `);
 }
@@ -794,6 +836,19 @@ function handleMCServerConnection(ws, clientIp) {
                         message: 'Gateway authentication failed. Server secret mismatch. If you reset your config, the server will auto-recover if connecting from the same or local IP.'
                     }));
                     ws.close(4005, 'Invalid gateway secret');
+                    return;
+                }
+
+                // Check if server is suspended
+                if (isServerSuspended(serverId)) {
+                    console.log(`[Server] ${serverId} rejected: server is suspended`);
+
+                    ws.send(JSON.stringify({
+                        type: 'error',
+                        code: 'SERVER_SUSPENDED',
+                        message: 'This server has been suspended by an administrator. Contact support for more information.'
+                    }));
+                    ws.close(4006, 'Server suspended');
                     return;
                 }
 
@@ -1995,6 +2050,34 @@ function handleAdminMessage(adminId, email, message) {
             break;
         }
 
+        case 'get_licenses':
+            sendLicensesList(admin.ws);
+            break;
+
+        case 'create_license':
+            createDevLicense(admin.ws, email, data);
+            break;
+
+        case 'revoke_license':
+            revokeDevLicense(admin.ws, email, data);
+            break;
+
+        case 'build_licensed_jar':
+            buildLicensedJar(admin.ws, email, data);
+            break;
+
+        case 'suspend_server':
+            suspendServer(admin.ws, email, data);
+            break;
+
+        case 'unsuspend_server':
+            unsuspendServer(admin.ws, email, data);
+            break;
+
+        case 'get_suspended_servers':
+            sendSuspendedServers(admin.ws);
+            break;
+
         default:
             admin.ws.send(JSON.stringify({
                 type: 'error',
@@ -2334,6 +2417,9 @@ function sendGatewayHealth(ws) {
         if (elapsed > 0) totalMsgRate += rate.count / elapsed;
     });
 
+    // Calculate CPU usage percentage
+    const cpuPercent = calculateCpuUsage();
+
     const health = {
         status: 'ok',
         healthy: true,
@@ -2342,7 +2428,7 @@ function sendGatewayHealth(ws) {
         browsers: browserClients.size,
         admins: adminClients.size,
         memoryUsage: memPercent,
-        cpuUsage: 0,
+        cpuUsage: cpuPercent,
         messagesPerSecond: Math.round(totalMsgRate),
         recentErrors: [],
         timestamp: Date.now()
@@ -2352,6 +2438,31 @@ function sendGatewayHealth(ws) {
         type: 'gateway_health',
         data: health
     }));
+}
+
+/**
+ * Calculate CPU usage percentage.
+ */
+function calculateCpuUsage() {
+    const currentUsage = process.cpuUsage();
+    const currentTime = Date.now();
+    const elapsedTime = currentTime - lastCpuCheck;
+
+    if (elapsedTime === 0) return 0;
+
+    // Calculate microseconds of CPU time used
+    const userDiff = currentUsage.user - lastCpuUsage.user;
+    const systemDiff = currentUsage.system - lastCpuUsage.system;
+    const totalCpuTime = userDiff + systemDiff;
+
+    // Convert to percentage (elapsed time is in ms, CPU time is in microseconds)
+    const cpuPercent = Math.round((totalCpuTime / (elapsedTime * 1000)) * 100);
+
+    // Update for next calculation
+    lastCpuUsage = currentUsage;
+    lastCpuCheck = currentTime;
+
+    return Math.min(cpuPercent, 100); // Cap at 100%
 }
 
 function sendServerList(ws) {
@@ -2477,16 +2588,36 @@ function sendDashboardData(ws) {
         versionDistribution[ver] = (versionDistribution[ver] || 0) + 1;
     });
 
-    // Build connection history from last 24h (simplified - shows current snapshot)
-    const connectionHistory = [];
-    const now = Date.now();
-    for (let i = 23; i >= 0; i--) {
-        const hour = new Date(now - i * 3600000);
-        connectionHistory.push({
-            time: hour.toISOString(),
-            servers: mcServers.size,
-            browsers: browserClients.size
-        });
+    // Build connection history from last 24h from database
+    let connectionHistory = [];
+    if (db) {
+        try {
+            const stmt = db.prepare(
+                'SELECT timestamp, servers, browsers FROM gateway_metrics_history WHERE timestamp > ? ORDER BY timestamp ASC'
+            );
+            const dayAgo = Date.now() - (24 * 3600000);
+            const rows = stmt.all(dayAgo);
+            connectionHistory = rows.map(row => ({
+                time: new Date(row.timestamp).toISOString(),
+                servers: row.servers,
+                browsers: row.browsers
+            }));
+        } catch (e) {
+            console.error('[Dashboard] Failed to fetch connection history:', e.message);
+        }
+    }
+
+    // Fallback: If no history available, show current state
+    if (connectionHistory.length === 0) {
+        const now = Date.now();
+        for (let i = 23; i >= 0; i--) {
+            const hour = new Date(now - i * 3600000);
+            connectionHistory.push({
+                time: hour.toISOString(),
+                servers: mcServers.size,
+                browsers: browserClients.size
+            });
+        }
     }
 
     ws.send(JSON.stringify({
@@ -2588,6 +2719,51 @@ function cleanupDeadServers() {
 
 // Run cleanup every 30 seconds
 setInterval(cleanupDeadServers, CONFIG.heartbeatInterval);
+
+/**
+ * Store current metrics snapshot in database.
+ */
+function storeMetricsSnapshot() {
+    if (!db) return;
+
+    const now = Date.now();
+    let totalPlayers = 0;
+    mcServers.forEach(data => { totalPlayers += data.info?.players || 0; });
+
+    // Calculate messages per second
+    let totalMsgRate = 0;
+    messageRates.forEach(rate => {
+        const elapsed = (Date.now() - rate.windowStart) / 1000;
+        if (elapsed > 0) totalMsgRate += rate.count / elapsed;
+    });
+
+    const cpuPercent = calculateCpuUsage();
+    const mem = process.memoryUsage();
+    const memPercent = Math.round((mem.rss / require('os').totalmem()) * 100);
+
+    try {
+        const stmt = db.prepare(`
+            INSERT INTO gateway_metrics_history
+            (timestamp, servers, browsers, admins, messages_per_sec, cpu_usage, memory_usage)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+        `);
+        stmt.run(now, mcServers.size, browserClients.size, adminClients.size,
+                 Math.round(totalMsgRate), cpuPercent, memPercent);
+
+        // Delete metrics older than 7 days to prevent bloat
+        const weekAgo = now - (7 * 24 * 3600000);
+        db.prepare('DELETE FROM gateway_metrics_history WHERE timestamp < ?').run(weekAgo);
+
+        console.log(`[Metrics] Snapshot stored: ${mcServers.size} servers, ${browserClients.size} browsers, ${cpuPercent}% CPU`);
+    } catch (e) {
+        console.error('[Metrics] Failed to store snapshot:', e.message);
+    }
+}
+
+// Store metrics snapshot every hour
+setInterval(storeMetricsSnapshot, 3600000); // 1 hour
+// Store initial snapshot after 1 minute
+setTimeout(storeMetricsSnapshot, 60000);
 
 // ============================================================================
 // Cloudflare Tunnel Auto-Launch & Panel URL Updater
@@ -2767,6 +2943,259 @@ function startCloudflaredTunnel() {
             }
         }, 30000);
     });
+}
+
+// ============================================================================
+// Dev License Management
+// ============================================================================
+
+function sendLicensesList(ws) {
+    if (!db) {
+        ws.send(JSON.stringify({
+            type: 'licenses_list',
+            licenses: []
+        }));
+        return;
+    }
+
+    try {
+        const licenses = db.prepare('SELECT * FROM license_builds ORDER BY created_at DESC').all();
+        ws.send(JSON.stringify({
+            type: 'licenses_list',
+            licenses: licenses
+        }));
+    } catch (e) {
+        console.error('[Licenses] Failed to fetch licenses:', e);
+        ws.send(JSON.stringify({
+            type: 'licenses_list',
+            licenses: []
+        }));
+    }
+}
+
+function createDevLicense(ws, email, data) {
+    const { testerName, maxServers = 1, expiresAt, note, createdBy } = data;
+
+    if (!testerName) {
+        ws.send(JSON.stringify({
+            type: 'error',
+            message: 'Tester name is required'
+        }));
+        return;
+    }
+
+    // Generate UUID v4 token
+    const token = crypto.randomUUID();
+    const now = Date.now();
+
+    if (db) {
+        try {
+            db.prepare(`
+                INSERT INTO license_builds (token, tester_name, build_version, build_timestamp, jar_filename, created_by, created_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?)
+            `).run(token, testerName, 'pending', now, null, createdBy || email, now);
+        } catch (e) {
+            console.error('[Licenses] Database error:', e);
+        }
+    }
+
+    ws.send(JSON.stringify({
+        type: 'license_created',
+        token,
+        testerName
+    }));
+
+    logAudit(email, `Generated dev license for ${testerName}`);
+}
+
+function revokeDevLicense(ws, email, data) {
+    const { token } = data;
+
+    if (!token) {
+        ws.send(JSON.stringify({
+            type: 'error',
+            message: 'Token is required'
+        }));
+        return;
+    }
+
+    if (db) {
+        try {
+            db.prepare('UPDATE license_builds SET active = 0 WHERE token = ?').run(token);
+        } catch (e) {
+            console.error('[Licenses] Database error:', e);
+        }
+    }
+
+    ws.send(JSON.stringify({
+        type: 'license_revoked',
+        token
+    }));
+
+    logAudit(email, `Revoked dev license ${token.substring(0, 8)}...`);
+}
+
+function buildLicensedJar(ws, email, data) {
+    const { token, testerName } = data;
+
+    if (!token) {
+        ws.send(JSON.stringify({
+            type: 'jar_build_error',
+            error: 'Token is required'
+        }));
+        return;
+    }
+
+    ws.send(JSON.stringify({
+        type: 'jar_build_started',
+        token
+    }));
+
+    // Execute build script
+    const { spawn } = require('child_process');
+    const scriptPath = path.join(__dirname, 'scripts', 'build-licensed.js');
+
+    const buildProcess = spawn('node', [scriptPath, token, testerName || 'Unknown'], {
+        cwd: __dirname
+    });
+
+    let output = '';
+    buildProcess.stdout.on('data', (data) => {
+        output += data.toString();
+        console.log(`[Build] ${data.toString().trim()}`);
+    });
+
+    buildProcess.stderr.on('data', (data) => {
+        console.error(`[Build Error] ${data.toString().trim()}`);
+    });
+
+    buildProcess.on('close', (code) => {
+        if (code === 0) {
+            const shortToken = token.substring(0, 8);
+            const filename = `ModereX-licensed-${shortToken}.jar`;
+
+            ws.send(JSON.stringify({
+                type: 'jar_build_complete',
+                token,
+                filename,
+                path: `gateway/licensed-builds/${filename}`
+            }));
+
+            logAudit(email, `Built licensed JAR for ${testerName || 'Unknown'} (${shortToken}...)`);
+        } else {
+            ws.send(JSON.stringify({
+                type: 'jar_build_error',
+                error: `Build failed with exit code ${code}`
+            }));
+        }
+    });
+}
+
+// ============================================================================
+// Server Suspension
+// ============================================================================
+
+function suspendServer(ws, email, data) {
+    const { serverId, reason } = data;
+
+    if (!serverId) {
+        ws.send(JSON.stringify({
+            type: 'error',
+            message: 'Server ID is required'
+        }));
+        return;
+    }
+
+    if (db) {
+        try {
+            db.prepare(`
+                INSERT OR REPLACE INTO suspended_servers (server_id, suspended_at, suspended_by, reason)
+                VALUES (?, ?, ?, ?)
+            `).run(serverId.toLowerCase(), Date.now(), email, reason || 'No reason provided');
+        } catch (e) {
+            console.error('[Suspension] Database error:', e);
+        }
+    }
+
+    // Kick existing server connection
+    const server = mcServers.get(serverId.toLowerCase());
+    if (server) {
+        server.ws.send(JSON.stringify({
+            type: 'SUSPENDED',
+            reason: reason || 'Server suspended by administrator'
+        }));
+        server.ws.close(1008, 'Server suspended');
+        mcServers.delete(serverId.toLowerCase());
+    }
+
+    ws.send(JSON.stringify({
+        type: 'server_suspended',
+        serverId
+    }));
+
+    logAudit(email, `Suspended server ${serverId}`);
+}
+
+function unsuspendServer(ws, email, data) {
+    const { serverId } = data;
+
+    if (!serverId) {
+        ws.send(JSON.stringify({
+            type: 'error',
+            message: 'Server ID is required'
+        }));
+        return;
+    }
+
+    if (db) {
+        try {
+            db.prepare('DELETE FROM suspended_servers WHERE server_id = ?').run(serverId.toLowerCase());
+        } catch (e) {
+            console.error('[Suspension] Database error:', e);
+        }
+    }
+
+    ws.send(JSON.stringify({
+        type: 'server_unsuspended',
+        serverId
+    }));
+
+    logAudit(email, `Unsuspended server ${serverId}`);
+}
+
+function sendSuspendedServers(ws) {
+    if (!db) {
+        ws.send(JSON.stringify({
+            type: 'suspended_servers',
+            servers: []
+        }));
+        return;
+    }
+
+    try {
+        const suspended = db.prepare('SELECT * FROM suspended_servers ORDER BY suspended_at DESC').all();
+        ws.send(JSON.stringify({
+            type: 'suspended_servers',
+            servers: suspended
+        }));
+    } catch (e) {
+        console.error('[Suspension] Failed to fetch suspended servers:', e);
+        ws.send(JSON.stringify({
+            type: 'suspended_servers',
+            servers: []
+        }));
+    }
+}
+
+function isServerSuspended(serverId) {
+    if (!db) return false;
+
+    try {
+        const result = db.prepare('SELECT 1 FROM suspended_servers WHERE server_id = ?').get(serverId.toLowerCase());
+        return !!result;
+    } catch (e) {
+        return false;
+    }
 }
 
 // Start gateway (async to support sql.js initialization)
