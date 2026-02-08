@@ -6,6 +6,7 @@ import com.blockforge.moderex.hooks.anticheat.AnticheatChecks;
 import com.blockforge.moderex.punishment.Punishment;
 import com.blockforge.moderex.punishment.PunishmentType;
 import com.blockforge.moderex.util.DurationParser;
+import com.blockforge.moderex.util.Msg;
 import com.blockforge.moderex.util.TextUtil;
 import com.google.gson.Gson;
 import com.google.gson.JsonArray;
@@ -1362,7 +1363,7 @@ public class WebPanelServer extends WebSocketServer {
         plugin.getServer().getScheduler().runTask(plugin, () -> {
             Player player = Bukkit.getPlayer(playerName);
             if (player != null) {
-                player.kick(TextUtil.parse("<red>" + reason));
+                Msg.kick(player, TextUtil.parse("<red>" + reason));
                 sendSuccess(conn, "Player kicked: " + playerName);
             } else {
                 sendError(conn, "NOT_ONLINE", "Player is not online");
