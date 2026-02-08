@@ -8806,6 +8806,74 @@ textarea.input {
   color: white;
 }
 
+/* Sound controls */
+.replay-sound-controls {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-left: 8px;
+  padding-left: 8px;
+  border-left: 1px solid rgba(255,255,255,0.1);
+}
+
+.replay-sound-btn {
+  width: 32px;
+  height: 32px;
+  font-size: 13px;
+  flex-shrink: 0;
+}
+
+.replay-sound-btn.muted {
+  color: rgba(255,255,255,0.35);
+}
+
+.replay-sound-btn.muted:hover {
+  color: rgba(255,255,255,0.6);
+}
+
+.replay-volume-slider {
+  width: 60px;
+  -webkit-appearance: none;
+  appearance: none;
+  height: 3px;
+  background: rgba(255,255,255,0.15);
+  border-radius: 2px;
+  cursor: pointer;
+  outline: none;
+  opacity: 0.7;
+  transition: opacity var(--transition-fast), width var(--transition-fast);
+}
+
+.replay-sound-controls:hover .replay-volume-slider {
+  opacity: 1;
+  width: 70px;
+}
+
+.replay-volume-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 10px;
+  height: 10px;
+  background: rgba(255,255,255,0.85);
+  border-radius: 50%;
+  cursor: pointer;
+  transition: transform 0.1s ease;
+}
+
+.replay-volume-slider::-webkit-slider-thumb:hover {
+  transform: scale(1.3);
+  background: white;
+}
+
+.replay-volume-slider::-moz-range-thumb {
+  width: 10px;
+  height: 10px;
+  background: rgba(255,255,255,0.85);
+  border-radius: 50%;
+  cursor: pointer;
+  border: none;
+}
+
 /* Action feed - overlaid on viewer */
 .replay-action-feed {
   position: absolute;
@@ -8993,6 +9061,15 @@ textarea.input {
 
   .replay-camera-pills {
     display: none;
+  }
+
+  .replay-sound-controls {
+    margin-left: 4px;
+    padding-left: 4px;
+  }
+
+  .replay-volume-slider {
+    width: 40px;
   }
 }
 

@@ -14,7 +14,564 @@
     return;
   }
 
+  // ===== REPLAY SOUND MANAGER =====
+  // Synthesized sound effects for the 3D replay viewer using Web Audio API.
+  // All sounds are generated procedurally - no external audio files needed.
+
+  class ReplaySoundManager {
+    constructor() {
+      this._ctx = null;
+      this._masterGain = null;
+      this._volume = 0.35;
+      this._muted = false;
+      this._enabled = true;
+      this._playbackSpeed = 1;
+
+      // Footstep state
+      this._lastFootstepTime = 0;
+      this._footstepInterval = 380; // ms between footsteps at normal walk speed
+
+      // Ambient state
+      this._ambientOsc = null;
+      this._ambientGain = null;
+      this._ambientRunning = false;
+
+      // Throttle: prevent sound spam
+      this._lastSoundTimes = {};
+      this._minInterval = 60; // ms minimum between same sound type
+
+      // Load settings from localStorage
+      this._loadSettings();
+    }
+
+    // --- Initialization ---
+
+    /**
+     * Initialize the AudioContext. Must be called after a user gesture.
+     */
+    init() {
+      if (this._ctx) return;
+      try {
+        this._ctx = new (window.AudioContext || window.webkitAudioContext)();
+        this._masterGain = this._ctx.createGain();
+        this._masterGain.gain.setValueAtTime(this._muted ? 0 : this._volume, this._ctx.currentTime);
+        this._masterGain.connect(this._ctx.destination);
+      } catch (e) {
+        console.warn('[ReplaySounds] Web Audio API not available:', e.message);
+      }
+    }
+
+    /**
+     * Resume AudioContext if suspended (browser autoplay policy).
+     */
+    _resume() {
+      if (this._ctx && this._ctx.state === 'suspended') {
+        this._ctx.resume();
+      }
+    }
+
+    // --- Settings persistence ---
+
+    _loadSettings() {
+      try {
+        const saved = localStorage.getItem('mx_replay_sound_settings');
+        if (saved) {
+          const parsed = JSON.parse(saved);
+          if (typeof parsed.volume === 'number') this._volume = parsed.volume;
+          if (typeof parsed.muted === 'boolean') this._muted = parsed.muted;
+        }
+      } catch (e) { /* ignore */ }
+    }
+
+    _saveSettings() {
+      try {
+        localStorage.setItem('mx_replay_sound_settings', JSON.stringify({
+          volume: this._volume,
+          muted: this._muted
+        }));
+      } catch (e) { /* ignore */ }
+    }
+
+    // --- Controls ---
+
+    setVolume(vol) {
+      this._volume = Math.max(0, Math.min(1, vol));
+      if (this._masterGain && !this._muted) {
+        this._masterGain.gain.setTargetAtTime(this._volume, this._ctx.currentTime, 0.02);
+      }
+      if (this._ambientGain && !this._muted) {
+        this._ambientGain.gain.setTargetAtTime(this._volume * 0.02, this._ctx.currentTime, 0.05);
+      }
+      this._saveSettings();
+    }
+
+    getVolume() {
+      return this._volume;
+    }
+
+    setMuted(muted) {
+      this._muted = muted;
+      if (this._masterGain) {
+        this._masterGain.gain.setTargetAtTime(muted ? 0 : this._volume, this._ctx.currentTime, 0.02);
+      }
+      if (this._ambientGain) {
+        this._ambientGain.gain.setTargetAtTime(muted ? 0 : this._volume * 0.02, this._ctx.currentTime, 0.05);
+      }
+      this._saveSettings();
+    }
+
+    isMuted() {
+      return this._muted;
+    }
+
+    toggleMute() {
+      this.setMuted(!this._muted);
+      return this._muted;
+    }
+
+    setPlaybackSpeed(speed) {
+      this._playbackSpeed = speed;
+    }
+
+    // --- Throttle helper ---
+
+    _canPlay(type) {
+      if (!this._ctx || !this._enabled || this._muted) return false;
+      const now = performance.now();
+      const last = this._lastSoundTimes[type] || 0;
+      if (now - last < this._minInterval) return false;
+      this._lastSoundTimes[type] = now;
+      return true;
+    }
+
+    // --- Sound generators ---
+
+    /**
+     * Block break: crunchy noise burst with pitch variation.
+     */
+    playBlockBreak() {
+      if (!this._canPlay('block_break')) return;
+      this._resume();
+      const ctx = this._ctx;
+      const t = ctx.currentTime;
+      const dur = 0.1 / Math.max(this._playbackSpeed, 0.5);
+
+      // Noise via short square wave with rapid frequency sweep
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = 'square';
+      osc.frequency.setValueAtTime(180 + Math.random() * 120, t);
+      osc.frequency.exponentialRampToValueAtTime(40, t + dur);
+      gain.gain.setValueAtTime(0.12, t);
+      gain.gain.exponentialRampToValueAtTime(0.001, t + dur);
+      osc.connect(gain).connect(this._masterGain);
+      osc.start(t);
+      osc.stop(t + dur);
+
+      // Add a bit of higher noise crunch
+      const osc2 = ctx.createOscillator();
+      const gain2 = ctx.createGain();
+      osc2.type = 'sawtooth';
+      osc2.frequency.setValueAtTime(400 + Math.random() * 200, t);
+      osc2.frequency.exponentialRampToValueAtTime(80, t + dur * 0.8);
+      gain2.gain.setValueAtTime(0.04, t);
+      gain2.gain.exponentialRampToValueAtTime(0.001, t + dur * 0.8);
+      osc2.connect(gain2).connect(this._masterGain);
+      osc2.start(t);
+      osc2.stop(t + dur);
+    }
+
+    /**
+     * Block place: short thud/click.
+     */
+    playBlockPlace() {
+      if (!this._canPlay('block_place')) return;
+      this._resume();
+      const ctx = this._ctx;
+      const t = ctx.currentTime;
+      const dur = 0.07 / Math.max(this._playbackSpeed, 0.5);
+
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = 'triangle';
+      osc.frequency.setValueAtTime(300 + Math.random() * 60, t);
+      osc.frequency.exponentialRampToValueAtTime(150, t + dur);
+      gain.gain.setValueAtTime(0.1, t);
+      gain.gain.exponentialRampToValueAtTime(0.001, t + dur);
+      osc.connect(gain).connect(this._masterGain);
+      osc.start(t);
+      osc.stop(t + dur);
+    }
+
+    /**
+     * Footstep: soft thump. Call periodically based on player movement speed.
+     * Returns true if a footstep was played (for external tracking).
+     */
+    playFootstep(currentTimeMs) {
+      const interval = this._footstepInterval / Math.max(this._playbackSpeed, 0.25);
+      if (currentTimeMs - this._lastFootstepTime < interval) return false;
+      if (!this._canPlay('footstep')) return false;
+      this._resume();
+      this._lastFootstepTime = currentTimeMs;
+
+      const ctx = this._ctx;
+      const t = ctx.currentTime;
+      const dur = 0.06;
+
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = 'sine';
+      // Alternate pitch slightly for left/right foot
+      const foot = (Math.floor(currentTimeMs / interval) % 2 === 0);
+      osc.frequency.setValueAtTime(foot ? 90 : 100, t);
+      osc.frequency.exponentialRampToValueAtTime(50, t + dur);
+      gain.gain.setValueAtTime(0.06, t);
+      gain.gain.exponentialRampToValueAtTime(0.001, t + dur);
+      osc.connect(gain).connect(this._masterGain);
+      osc.start(t);
+      osc.stop(t + dur);
+      return true;
+    }
+
+    /**
+     * Hit/Attack: quick impact with a punch.
+     */
+    playAttack() {
+      if (!this._canPlay('attack')) return;
+      this._resume();
+      const ctx = this._ctx;
+      const t = ctx.currentTime;
+      const dur = 0.12 / Math.max(this._playbackSpeed, 0.5);
+
+      // Main punch thud
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(200, t);
+      osc.frequency.exponentialRampToValueAtTime(60, t + dur);
+      gain.gain.setValueAtTime(0.15, t);
+      gain.gain.exponentialRampToValueAtTime(0.001, t + dur);
+      osc.connect(gain).connect(this._masterGain);
+      osc.start(t);
+      osc.stop(t + dur);
+
+      // Snap/crack overlay
+      const osc2 = ctx.createOscillator();
+      const gain2 = ctx.createGain();
+      osc2.type = 'square';
+      osc2.frequency.setValueAtTime(600 + Math.random() * 200, t);
+      osc2.frequency.exponentialRampToValueAtTime(100, t + dur * 0.6);
+      gain2.gain.setValueAtTime(0.05, t);
+      gain2.gain.exponentialRampToValueAtTime(0.001, t + dur * 0.6);
+      osc2.connect(gain2).connect(this._masterGain);
+      osc2.start(t);
+      osc2.stop(t + dur);
+    }
+
+    /**
+     * Damage received: lower-pitched hit with wobble.
+     */
+    playDamage() {
+      if (!this._canPlay('damage')) return;
+      this._resume();
+      const ctx = this._ctx;
+      const t = ctx.currentTime;
+      const dur = 0.15;
+
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = 'sawtooth';
+      osc.frequency.setValueAtTime(160, t);
+      osc.frequency.exponentialRampToValueAtTime(50, t + dur);
+      gain.gain.setValueAtTime(0.08, t);
+      gain.gain.exponentialRampToValueAtTime(0.001, t + dur);
+      osc.connect(gain).connect(this._masterGain);
+      osc.start(t);
+      osc.stop(t + dur);
+    }
+
+    /**
+     * Bow shoot: quick rising whistle.
+     */
+    playBowShoot() {
+      if (!this._canPlay('bow')) return;
+      this._resume();
+      const ctx = this._ctx;
+      const t = ctx.currentTime;
+      const dur = 0.15;
+
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(300, t);
+      osc.frequency.exponentialRampToValueAtTime(800, t + dur * 0.4);
+      osc.frequency.exponentialRampToValueAtTime(600, t + dur);
+      gain.gain.setValueAtTime(0.08, t);
+      gain.gain.linearRampToValueAtTime(0.06, t + dur * 0.4);
+      gain.gain.exponentialRampToValueAtTime(0.001, t + dur);
+      osc.connect(gain).connect(this._masterGain);
+      osc.start(t);
+      osc.stop(t + dur);
+    }
+
+    /**
+     * Death: descending tone sequence.
+     */
+    playDeath() {
+      if (!this._canPlay('death')) return;
+      this._resume();
+      const ctx = this._ctx;
+      const t = ctx.currentTime;
+
+      const notes = [350, 280, 200];
+      notes.forEach((freq, i) => {
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.type = 'triangle';
+        const start = t + i * 0.12;
+        osc.frequency.setValueAtTime(freq, start);
+        osc.frequency.exponentialRampToValueAtTime(freq * 0.6, start + 0.15);
+        gain.gain.setValueAtTime(0.1, start);
+        gain.gain.exponentialRampToValueAtTime(0.001, start + 0.2);
+        osc.connect(gain).connect(this._masterGain);
+        osc.start(start);
+        osc.stop(start + 0.2);
+      });
+    }
+
+    /**
+     * Item pickup: quick rising blip.
+     */
+    playItemPickup() {
+      if (!this._canPlay('pickup')) return;
+      this._resume();
+      const ctx = this._ctx;
+      const t = ctx.currentTime;
+
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(600, t);
+      osc.frequency.exponentialRampToValueAtTime(900, t + 0.06);
+      gain.gain.setValueAtTime(0.06, t);
+      gain.gain.exponentialRampToValueAtTime(0.001, t + 0.08);
+      osc.connect(gain).connect(this._masterGain);
+      osc.start(t);
+      osc.stop(t + 0.08);
+    }
+
+    /**
+     * Start ambient background wind/hum. Very subtle.
+     */
+    startAmbient() {
+      if (!this._ctx || this._ambientRunning) return;
+      this._resume();
+      const ctx = this._ctx;
+
+      // Very low, subtle wind-like noise using detuned oscillators
+      this._ambientGain = ctx.createGain();
+      this._ambientGain.gain.setValueAtTime(0, ctx.currentTime);
+      this._ambientGain.gain.linearRampToValueAtTime(
+        this._muted ? 0 : this._volume * 0.02,
+        ctx.currentTime + 2
+      );
+      this._ambientGain.connect(ctx.destination); // Bypass master for independent control
+
+      const osc1 = ctx.createOscillator();
+      osc1.type = 'sine';
+      osc1.frequency.setValueAtTime(55, ctx.currentTime);
+      osc1.connect(this._ambientGain);
+      osc1.start();
+
+      const osc2 = ctx.createOscillator();
+      osc2.type = 'sine';
+      osc2.frequency.setValueAtTime(58, ctx.currentTime); // Slight detune for beating
+      osc2.connect(this._ambientGain);
+      osc2.start();
+
+      // Slow LFO modulation for natural wind feel
+      const lfo = ctx.createOscillator();
+      const lfoGain = ctx.createGain();
+      lfo.type = 'sine';
+      lfo.frequency.setValueAtTime(0.15, ctx.currentTime);
+      lfoGain.gain.setValueAtTime(this._volume * 0.008, ctx.currentTime);
+      lfo.connect(lfoGain);
+      lfoGain.connect(this._ambientGain.gain);
+      lfo.start();
+
+      this._ambientOsc = [osc1, osc2, lfo];
+      this._ambientRunning = true;
+    }
+
+    /**
+     * Stop ambient sound.
+     */
+    stopAmbient() {
+      if (!this._ambientRunning) return;
+      if (this._ambientGain) {
+        try {
+          this._ambientGain.gain.setTargetAtTime(0, this._ctx.currentTime, 0.3);
+        } catch (e) { /* ignore */ }
+      }
+      // Stop oscillators after fade
+      setTimeout(() => {
+        if (this._ambientOsc) {
+          this._ambientOsc.forEach(o => { try { o.stop(); } catch (e) {} });
+          this._ambientOsc = null;
+        }
+        if (this._ambientGain) {
+          try { this._ambientGain.disconnect(); } catch (e) {}
+          this._ambientGain = null;
+        }
+      }, 600);
+      this._ambientRunning = false;
+    }
+
+    // --- Event dispatcher ---
+
+    /**
+     * Process an action event from the replay and play the corresponding sound.
+     * @param {string} action - The ActionType string (e.g. 'ATTACK', 'BREAK_BLOCK')
+     */
+    playActionSound(action) {
+      switch (action) {
+        case 'ATTACK':
+        case 'DAMAGE_DEALT':
+        case 'SWING_ARM':
+        case 'SPEAR_JAB':
+        case 'SPEAR_CHARGE':
+          this.playAttack();
+          break;
+        case 'DAMAGE_RECEIVED':
+          this.playDamage();
+          break;
+        case 'BREAK_BLOCK':
+          this.playBlockBreak();
+          break;
+        case 'PLACE_BLOCK':
+          this.playBlockPlace();
+          break;
+        case 'BOW_SHOOT':
+        case 'CROSSBOW_SHOOT':
+          this.playBowShoot();
+          break;
+        case 'DEATH':
+          this.playDeath();
+          break;
+        case 'ITEM_PICKUP':
+          this.playItemPickup();
+          break;
+        case 'DROP_ITEM':
+          this.playItemPickup(); // Reuse blip
+          break;
+        // Silently ignore non-sound actions
+        default:
+          break;
+      }
+    }
+
+    // --- Cleanup ---
+
+    dispose() {
+      this.stopAmbient();
+      if (this._ctx) {
+        try { this._ctx.close(); } catch (e) {}
+        this._ctx = null;
+      }
+      this._masterGain = null;
+    }
+  }
+
+
   const PLAYER_SCALE = 1.8;
+
+  // ===== SKIN TEXTURE CACHE =====
+  // Global cache to avoid re-fetching skins across viewer instances.
+  // Stores THREE.Texture objects keyed by UUID.
+  const _skinCache = new Map(); // uuid -> { texture, isLegacy }
+  const _skinLoadingPromises = new Map(); // uuid -> Promise (deduplicates in-flight requests)
+
+  // Skin proxy endpoints in priority order (first working one wins)
+  const SKIN_PROXIES = [
+    uuid => `https://crafatar.com/skins/${uuid}?default=MHF_Steve`,
+    uuid => `https://mc-heads.net/skin/${uuid}`,
+    uuid => `https://visage.surgeplay.com/skin/64/${uuid}`,
+  ];
+
+  /**
+   * Load a skin texture for a given UUID. Returns a Promise that resolves
+   * to { texture: THREE.Texture, isLegacy: boolean } or null on failure.
+   * Results are cached globally.
+   */
+  function loadSkinTexture(uuid) {
+    // Return cached result immediately
+    if (_skinCache.has(uuid)) {
+      return Promise.resolve(_skinCache.get(uuid));
+    }
+
+    // Deduplicate in-flight requests for the same UUID
+    if (_skinLoadingPromises.has(uuid)) {
+      return _skinLoadingPromises.get(uuid);
+    }
+
+    const promise = _tryLoadSkin(uuid, 0).then(result => {
+      _skinLoadingPromises.delete(uuid);
+      if (result) {
+        _skinCache.set(uuid, result);
+      }
+      return result;
+    }).catch(err => {
+      _skinLoadingPromises.delete(uuid);
+      console.warn(`[Replay3D] All skin proxies failed for ${uuid}:`, err.message);
+      return null;
+    });
+
+    _skinLoadingPromises.set(uuid, promise);
+    return promise;
+  }
+
+  /**
+   * Try loading skin from proxy at given index, falling back to next on failure.
+   */
+  function _tryLoadSkin(uuid, proxyIndex) {
+    if (proxyIndex >= SKIN_PROXIES.length) {
+      return Promise.resolve(null);
+    }
+
+    const url = SKIN_PROXIES[proxyIndex](uuid);
+
+    return new Promise((resolve, reject) => {
+      const img = new Image();
+      img.crossOrigin = 'anonymous';
+
+      // 8-second timeout per proxy attempt
+      const timeout = setTimeout(() => {
+        img.src = '';
+        resolve(_tryLoadSkin(uuid, proxyIndex + 1));
+      }, 8000);
+
+      img.onload = () => {
+        clearTimeout(timeout);
+        const texture = new THREE.Texture(img);
+        texture.magFilter = THREE.NearestFilter;
+        texture.minFilter = THREE.NearestFilter;
+        texture.generateMipmaps = false;
+        texture.needsUpdate = true;
+
+        const isLegacy = img.height === 32; // 64x32 = old skin format
+        resolve({ texture, isLegacy });
+      };
+
+      img.onerror = () => {
+        clearTimeout(timeout);
+        // Try next proxy
+        resolve(_tryLoadSkin(uuid, proxyIndex + 1));
+      };
+
+      img.src = url;
+    });
+  }
+
 
   class Replay3DViewer {
     constructor(container) {
@@ -70,6 +627,18 @@
       // Animation
       this.animationId = null;
 
+      // Performance: dirty flag to skip redundant renders when paused/idle
+      this._needsRender = true;
+      this._lastCameraMatrix = new THREE.Matrix4();
+
+      // Frustum for culling
+      this._frustum = new THREE.Frustum();
+      this._frustumMatrix = new THREE.Matrix4();
+
+      // Sound manager
+      this.soundManager = new ReplaySoundManager();
+      this._lastSoundActionTime = 0;
+
       this._init();
     }
 
@@ -86,7 +655,7 @@
       this.camera.position.set(0, 80, 40);
 
       // Renderer
-      this.renderer = new THREE.WebGLRenderer({ antialias: true });
+      this.renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
       this.renderer.setSize(w, h);
       this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
       this.renderer.shadowMap.enabled = true;
@@ -168,6 +737,7 @@
         this.orbitAngleY += dx * 0.01;
         this.orbitAngleX = Math.max(0.05, Math.min(Math.PI / 2 - 0.05, this.orbitAngleX + dy * 0.01));
         this._updateOrbitCamera();
+        this._needsRender = true;
         this.lastMouseX = e.clientX;
         this.lastMouseY = e.clientY;
       });
@@ -180,6 +750,7 @@
         e.preventDefault();
         this.orbitDistance = Math.max(5, Math.min(200, this.orbitDistance + e.deltaY * 0.1));
         this._updateOrbitCamera();
+        this._needsRender = true;
       });
 
       canvas.addEventListener('contextmenu', (e) => e.preventDefault());
@@ -243,6 +814,7 @@
 
       // Show initial player positions
       this._updatePlayersAtTime(0);
+      this._needsRender = true;
     }
 
     async loadChunkData(base64Data) {
@@ -262,6 +834,7 @@
 
         this.chunkManager.loadColumns(columns);
         this.terrainLoaded = true;
+        this._needsRender = true;
 
         // If no snapshots, center on terrain
         if (this.snapshots.length === 0) {
@@ -381,6 +954,7 @@
 
       if (loadedCount > 0) {
         console.log(`[Replay3D] Loaded ${loadedCount} BlueMap tiles`);
+        this._needsRender = true;
       }
     }
 
@@ -401,6 +975,7 @@
       } else if (mode === 'free' && this.freeCamera) {
         this.freeCamera.enable();
       }
+      this._needsRender = true;
     }
 
     getCameraMode() {
@@ -411,6 +986,7 @@
 
     play() {
       this.playing = true;
+      this._needsRender = true;
     }
 
     pause() {
@@ -433,6 +1009,9 @@
       if (this.blockApplicator) {
         this.blockApplicator.seekTo(this.startTime + this.currentTime);
       }
+      // Reset sound action tracking to avoid replaying old events
+      this._lastSoundActionTime = this.currentTime;
+      this._needsRender = true;
     }
 
     skip(seconds) {
@@ -441,6 +1020,9 @@
 
     setSpeed(speed) {
       this.playbackSpeed = speed;
+      if (this.soundManager) {
+        this.soundManager.setPlaybackSpeed(speed);
+      }
     }
 
     getCurrentTime() {
@@ -491,57 +1073,82 @@
       uvAttr.needsUpdate = true;
     }
 
+    /**
+     * Build a Minecraft player model with correct pivot points for limb animation.
+     * Arms and legs are wrapped in pivot groups so rotation happens at the shoulder/hip
+     * rather than at the center of the limb geometry.
+     */
     _getOrCreatePlayer(uuid, name) {
       if (this.players.has(uuid)) return this.players.get(uuid);
 
       const group = new THREE.Group();
-      group.userData = { uuid, name };
+      group.userData = { uuid, name, skinLoaded: false };
 
       const color = this.playerColors[this.colorIndex++ % this.playerColors.length];
       const placeholderMat = new THREE.MeshStandardMaterial({ color, roughness: 0.8, metalness: 0.1 });
       const s = PLAYER_SCALE / 32;
 
-      // Head (8x8x8)
+      // Head (8x8x8) - pivot at neck (bottom of head)
+      const headPivot = new THREE.Group();
+      headPivot.position.y = 24 * s; // Neck position
+      headPivot.name = 'headPivot';
       const head = new THREE.Mesh(new THREE.BoxGeometry(8*s, 8*s, 8*s), placeholderMat.clone());
-      head.position.y = 28 * s;
+      head.position.y = 4 * s; // Offset so pivot is at bottom of head
       head.castShadow = true;
       head.name = 'head';
-      group.add(head);
+      headPivot.add(head);
+      group.add(headPivot);
 
-      // Body (8x12x4)
+      // Body (8x12x4) - no pivot needed, static
       const body = new THREE.Mesh(new THREE.BoxGeometry(8*s, 12*s, 4*s), placeholderMat.clone());
       body.position.y = 18 * s;
       body.castShadow = true;
       body.name = 'body';
       group.add(body);
 
-      // Right Arm (4x12x4)
+      // Right Arm (4x12x4) - pivot at shoulder (top of arm)
+      const rArmPivot = new THREE.Group();
+      rArmPivot.position.set(-6*s, 24*s, 0); // Shoulder position
+      rArmPivot.name = 'rightArmPivot';
       const rArm = new THREE.Mesh(new THREE.BoxGeometry(4*s, 12*s, 4*s), placeholderMat.clone());
-      rArm.position.set(-6*s, 18*s, 0);
+      rArm.position.y = -6 * s; // Offset so pivot is at top
       rArm.castShadow = true;
       rArm.name = 'rightArm';
-      group.add(rArm);
+      rArmPivot.add(rArm);
+      group.add(rArmPivot);
 
-      // Left Arm (4x12x4)
+      // Left Arm (4x12x4) - pivot at shoulder
+      const lArmPivot = new THREE.Group();
+      lArmPivot.position.set(6*s, 24*s, 0);
+      lArmPivot.name = 'leftArmPivot';
       const lArm = new THREE.Mesh(new THREE.BoxGeometry(4*s, 12*s, 4*s), placeholderMat.clone());
-      lArm.position.set(6*s, 18*s, 0);
+      lArm.position.y = -6 * s;
       lArm.castShadow = true;
       lArm.name = 'leftArm';
-      group.add(lArm);
+      lArmPivot.add(lArm);
+      group.add(lArmPivot);
 
-      // Right Leg (4x12x4)
+      // Right Leg (4x12x4) - pivot at hip (top of leg)
+      const rLegPivot = new THREE.Group();
+      rLegPivot.position.set(-2*s, 12*s, 0); // Hip position
+      rLegPivot.name = 'rightLegPivot';
       const rLeg = new THREE.Mesh(new THREE.BoxGeometry(4*s, 12*s, 4*s), placeholderMat.clone());
-      rLeg.position.set(-2*s, 6*s, 0);
+      rLeg.position.y = -6 * s; // Offset so pivot is at top
       rLeg.castShadow = true;
       rLeg.name = 'rightLeg';
-      group.add(rLeg);
+      rLegPivot.add(rLeg);
+      group.add(rLegPivot);
 
-      // Left Leg (4x12x4)
+      // Left Leg (4x12x4) - pivot at hip
+      const lLegPivot = new THREE.Group();
+      lLegPivot.position.set(2*s, 12*s, 0);
+      lLegPivot.name = 'leftLegPivot';
       const lLeg = new THREE.Mesh(new THREE.BoxGeometry(4*s, 12*s, 4*s), placeholderMat.clone());
-      lLeg.position.set(2*s, 6*s, 0);
+      lLeg.position.y = -6 * s;
       lLeg.castShadow = true;
       lLeg.name = 'leftLeg';
-      group.add(lLeg);
+      lLegPivot.add(lLeg);
+      group.add(lLegPivot);
 
       // Name tag sprite (white text, Minecraft style)
       const canvas = document.createElement('canvas');
@@ -569,30 +1176,33 @@
       this.players.set(uuid, group);
       this.scene.add(group);
 
-      // Load real Minecraft skin asynchronously
+      // Load real Minecraft skin asynchronously (uses cache + fallback proxies)
       this._loadPlayerSkin(uuid, group);
 
       return group;
     }
 
+    /**
+     * Load a Minecraft skin for a player model. Uses the global cached loader
+     * with multiple proxy fallbacks.
+     */
     _loadPlayerSkin(uuid, group) {
-      // Crafatar API: free, CORS-enabled, returns Minecraft skin PNGs
-      const skinUrl = `https://crafatar.com/skins/${uuid}?default=MHF_Steve`;
+      loadSkinTexture(uuid).then(result => {
+        if (!result) {
+          console.warn(`[Replay3D] Could not load skin for ${uuid}, keeping fallback color`);
+          return;
+        }
 
-      const img = new Image();
-      img.crossOrigin = 'anonymous';
-      img.onload = () => {
-        const texture = new THREE.Texture(img);
-        texture.magFilter = THREE.NearestFilter;
-        texture.minFilter = THREE.NearestFilter;
-        texture.needsUpdate = true;
-
-        const skinMat = new THREE.MeshStandardMaterial({
-          map: texture, roughness: 0.8, metalness: 0.1
-        });
-
-        const isLegacy = img.height === 32; // 64x32 = old skin format
+        const { texture, isLegacy } = result;
         const tw = 64, th = isLegacy ? 32 : 64;
+
+        // Clone the texture for this player so we can dispose independently
+        const skinMat = new THREE.MeshStandardMaterial({
+          map: texture.clone(),
+          roughness: 0.8,
+          metalness: 0.1,
+        });
+        skinMat.map.needsUpdate = true;
 
         const parts = [
           { name: 'head',     uv: 'head' },
@@ -607,19 +1217,19 @@
           const mesh = group.getObjectByName(name);
           if (!mesh) continue;
           this._applySkinUVs(mesh.geometry, uv, tw, th);
-          mesh.material.dispose();
+          if (mesh.material) mesh.material.dispose();
           mesh.material = skinMat.clone();
+          mesh.material.map.needsUpdate = true;
         }
 
         // Add overlay layers (hat, jacket, sleeves, pants) if 64x64 skin
         if (!isLegacy) {
           this._addOverlayLayers(group, skinMat, tw, th);
         }
-      };
-      img.onerror = () => {
-        console.warn(`[Replay3D] Could not load skin for ${uuid}, keeping fallback color`);
-      };
-      img.src = skinUrl;
+
+        group.userData.skinLoaded = true;
+        this._needsRender = true;
+      });
     }
 
     _addOverlayLayers(group, baseMat, tw, th) {
@@ -631,12 +1241,12 @@
 
       const overlayScale = 1.1; // Slightly larger than base layer
       const overlays = [
-        { name: 'headOverlay',     parent: 'head',     size: [8,8,8],   pos: null },
-        { name: 'bodyOverlay',     parent: 'body',     size: [8,12,4],  pos: null },
-        { name: 'rightArmOverlay', parent: 'rightArm', size: [4,12,4],  pos: null },
-        { name: 'leftArmOverlay',  parent: 'leftArm',  size: [4,12,4],  pos: null },
-        { name: 'rightLegOverlay', parent: 'rightLeg', size: [4,12,4],  pos: null },
-        { name: 'leftLegOverlay',  parent: 'leftLeg',  size: [4,12,4],  pos: null },
+        { name: 'headOverlay',     parent: 'head',     size: [8,8,8] },
+        { name: 'bodyOverlay',     parent: 'body',     size: [8,12,4] },
+        { name: 'rightArmOverlay', parent: 'rightArm', size: [4,12,4] },
+        { name: 'leftArmOverlay',  parent: 'leftArm',  size: [4,12,4] },
+        { name: 'rightLegOverlay', parent: 'rightLeg', size: [4,12,4] },
+        { name: 'leftLegOverlay',  parent: 'leftLeg',  size: [4,12,4] },
       ];
 
       for (const ol of overlays) {
@@ -697,6 +1307,7 @@
     _updatePlayersAtTime(timeMs) {
       const absoluteTime = this.startTime + timeMs;
       const activeUuids = new Set();
+      let movingCount = 0;
 
       for (const [uuid, snaps] of this._playerSnapshots) {
         const idx = this._binarySearch(snaps, absoluteTime);
@@ -711,6 +1322,13 @@
         activeUuids.add(uuid);
         const group = this._getOrCreatePlayer(uuid, snap1.playerName);
         group.visible = true;
+
+        // Get pivot groups for limb animation
+        const headPivot = group.getObjectByName('headPivot');
+        const rArmPivot = group.getObjectByName('rightArmPivot');
+        const lArmPivot = group.getObjectByName('leftArmPivot');
+        const rLegPivot = group.getObjectByName('rightLegPivot');
+        const lLegPivot = group.getObjectByName('leftLegPivot');
 
         if (snap2 && snap2.timestamp > snap1.timestamp) {
           // Interpolate between snap1 and snap2
@@ -727,12 +1345,11 @@
           const yawRad2 = -snap2.yaw * (Math.PI / 180) + Math.PI;
           group.rotation.y = this._lerpAngle(yawRad1, yawRad2, t);
 
-          // Head pitch interpolation
-          const head = group.getObjectByName('head');
-          if (head) {
+          // Head pitch interpolation (on pivot group)
+          if (headPivot) {
             const pitchRad1 = snap1.pitch * (Math.PI / 180);
             const pitchRad2 = snap2.pitch * (Math.PI / 180);
-            head.rotation.x = this._lerp(pitchRad1, pitchRad2, t);
+            headPivot.rotation.x = this._lerp(pitchRad1, pitchRad2, t);
           }
 
           // Velocity-based walk animation
@@ -742,18 +1359,16 @@
           const speed = Math.sqrt(dx * dx + dz * dz) / Math.max(dt, 0.01);
 
           const isMoving = speed > 0.5;
+          if (isMoving) movingCount++;
           const animTime = absoluteTime * 0.006;
           const swingFreq = Math.min(speed * 0.8, 4);
           const swing = isMoving ? Math.sin(animTime * swingFreq) * Math.min(speed * 0.15, 0.7) : 0;
 
-          const rArm = group.getObjectByName('rightArm');
-          const lArm = group.getObjectByName('leftArm');
-          const rLeg = group.getObjectByName('rightLeg');
-          const lLeg = group.getObjectByName('leftLeg');
-          if (rArm) rArm.rotation.x = swing;
-          if (lArm) lArm.rotation.x = -swing;
-          if (rLeg) rLeg.rotation.x = -swing;
-          if (lLeg) lLeg.rotation.x = swing;
+          // Animate pivot groups (rotation at shoulder/hip)
+          if (rArmPivot) rArmPivot.rotation.x = swing;
+          if (lArmPivot) lArmPivot.rotation.x = -swing;
+          if (rLegPivot) rLegPivot.rotation.x = -swing;
+          if (lLegPivot) lLegPivot.rotation.x = swing;
 
           // Sneaking state (use nearer snapshot)
           group.scale.y = (t < 0.5 ? snap1.sneaking : snap2.sneaking) ? 0.85 : 1;
@@ -763,18 +1378,13 @@
           group.position.set(snap1.x, snap1.y, snap1.z);
           group.rotation.y = -snap1.yaw * (Math.PI / 180) + Math.PI;
 
-          const head = group.getObjectByName('head');
-          if (head) head.rotation.x = snap1.pitch * (Math.PI / 180);
+          if (headPivot) headPivot.rotation.x = snap1.pitch * (Math.PI / 180);
 
           // Static pose (no walking)
-          const rArm = group.getObjectByName('rightArm');
-          const lArm = group.getObjectByName('leftArm');
-          const rLeg = group.getObjectByName('rightLeg');
-          const lLeg = group.getObjectByName('leftLeg');
-          if (rArm) rArm.rotation.x = 0;
-          if (lArm) lArm.rotation.x = 0;
-          if (rLeg) rLeg.rotation.x = 0;
-          if (lLeg) lLeg.rotation.x = 0;
+          if (rArmPivot) rArmPivot.rotation.x = 0;
+          if (lArmPivot) lArmPivot.rotation.x = 0;
+          if (rLegPivot) rLegPivot.rotation.x = 0;
+          if (lLegPivot) lLegPivot.rotation.x = 0;
 
           group.scale.y = snap1.sneaking ? 0.85 : 1;
         }
@@ -797,6 +1407,9 @@
           this._updateOrbitCamera();
         }
       }
+
+      // Track moving player count for footstep sounds
+      this._movingPlayerCount = movingCount;
     }
 
     // ===== FALLBACK GROUND =====
@@ -821,6 +1434,7 @@
       grid.name = 'fallbackGrid';
       this._fallbackGrid = grid;
       this.scene.add(grid);
+      this._needsRender = true;
     }
 
     removeFallbackGround() {
@@ -836,6 +1450,7 @@
         this._fallbackGrid.material.dispose();
         this._fallbackGrid = null;
       }
+      this._needsRender = true;
     }
 
     // ===== RENDER LOOP =====
@@ -866,14 +1481,75 @@
         if (this._onTimeUpdate) {
           this._onTimeUpdate(this.currentTime, this.totalDuration);
         }
+
+        // Sound: process action events since last sound check
+        if (this.soundManager && this.currentTime > this._lastSoundActionTime) {
+          const actions = this.getActionsInRange(this._lastSoundActionTime, this.currentTime);
+          for (const a of actions) {
+            const act = a.action || a.actionType;
+            if (act && act !== 'NONE') {
+              this.soundManager.playActionSound(act);
+            }
+          }
+          this._lastSoundActionTime = this.currentTime;
+        }
+
+        // Sound: footsteps for moving players
+        if (this.soundManager && this._movingPlayerCount > 0) {
+          this.soundManager.playFootstep(this.currentTime);
+        }
+
+        this._needsRender = true;
       }
 
       // Free camera
       if (this.cameraMode === 'free' && this.freeCamera) {
         this.freeCamera.update(delta);
+        this._needsRender = true; // Free camera always needs render when active
       }
 
-      this.renderer.render(this.scene, this.camera);
+      // Only render if something changed (dirty flag optimization)
+      // Always render during dragging since camera is moving
+      if (this._needsRender || this.isDragging) {
+        // Update frustum for terrain culling
+        this._frustumMatrix.multiplyMatrices(
+          this.camera.projectionMatrix,
+          this.camera.matrixWorldInverse
+        );
+        this._frustum.setFromProjectionMatrix(this._frustumMatrix);
+
+        // Cull terrain chunks that are outside the frustum
+        if (this.chunkManager) {
+          this._cullTerrainChunks();
+        }
+
+        this.renderer.render(this.scene, this.camera);
+        this._needsRender = false;
+      }
+    }
+
+    /**
+     * Frustum-cull terrain chunk groups to avoid rendering off-screen geometry.
+     * Each chunk group gets a bounding sphere check against the camera frustum.
+     */
+    _cullTerrainChunks() {
+      if (!this.chunkManager?.columns) return;
+
+      const _box = new THREE.Box3();
+      const _sphere = new THREE.Sphere();
+
+      for (const [, col] of this.chunkManager.columns) {
+        if (!col.group) continue;
+
+        // Compute a rough bounding box for the chunk column (16x256x16)
+        const wx = col.data.chunkX * 16;
+        const wz = col.data.chunkZ * 16;
+        _box.min.set(wx, -64, wz);
+        _box.max.set(wx + 16, 320, wz + 16);
+        _box.getBoundingSphere(_sphere);
+
+        col.group.visible = this._frustum.intersectsSphere(_sphere);
+      }
     }
 
     // ===== CALLBACKS =====
@@ -890,6 +1566,7 @@
         this.camera.aspect = w / h;
         this.camera.updateProjectionMatrix();
         this.renderer.setSize(w, h);
+        this._needsRender = true;
       }
     }
 
@@ -898,6 +1575,14 @@
       if (this._resizeObserver) this._resizeObserver.disconnect();
       if (this.freeCamera) this.freeCamera.dispose();
       if (this.chunkManager) this.chunkManager.dispose();
+
+      // Dispose sound manager
+      if (this.soundManager) {
+        this.soundManager.dispose();
+        this.soundManager = null;
+      }
+
+      // Dispose BlueMap tiles
       if (this.blueMapTiles) {
         this.scene.remove(this.blueMapTiles);
         this.blueMapTiles.traverse(child => {
@@ -905,8 +1590,13 @@
           if (child.material?.map) child.material.map.dispose();
           if (child.material) child.material.dispose();
         });
+        this.blueMapTiles = null;
       }
 
+      // Dispose fallback ground
+      this.removeFallbackGround();
+
+      // Dispose all player models and their textures
       this.players.forEach(group => {
         group.traverse(child => {
           if (child.geometry) child.geometry.dispose();
@@ -915,21 +1605,30 @@
             child.material.dispose();
           }
         });
+        this.scene.remove(group);
       });
       this.players.clear();
 
+      // Dispose renderer
       if (this.renderer) {
         this.renderer.dispose();
+        this.renderer.forceContextLoss();
         if (this.renderer.domElement?.parentNode) {
           this.renderer.domElement.parentNode.removeChild(this.renderer.domElement);
         }
+        this.renderer = null;
       }
+
+      // Clear scene references
+      this.scene = null;
+      this.camera = null;
     }
   }
 
   // Expose
   window.MX = window.MX || {};
   window.MX.Replay3DViewer = Replay3DViewer;
+  window.MX.ReplaySoundManager = ReplaySoundManager;
 
   console.log('[Replay3D] Module loaded');
 })();

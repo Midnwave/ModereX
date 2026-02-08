@@ -251,6 +251,7 @@
       drawerIps: $('#drawerIps'),
       drawerRecent: $('#drawerRecent'),
       drawerAutomod: $('#drawerAutomod'),
+      drawerSessions: $('#drawerSessions'),
       drawerViolations: $('#drawerViolations'),
       drawerPardons: $('#drawerPardons'),
       drawerActionBar: $('#drawerActionBar'),
@@ -556,7 +557,7 @@
           <td onclick="openDrawer('${pun.playerId}','${pun.id}')"><div class="pwrap"><div class="phead"><img src="${avatarUrl(pl || { name: name })}" alt="" onerror="this.onerror=null;this.src='${avatarFallback}'"></div><div><b style="font-size:13px">${escapeHtml(pl?.name || 'Unknown')}</b></div></div></td>
           <td><span class="badge gray" style="font-family:var(--font-mono);font-size:11px">${escapeHtml(pun.id)}</span></td>
           <td>${typeBadge}</td>
-          <td class="reason-cell">${window.expandableReason ? expandableReason(pun.reason, 15) : escapeHtml(truncate(pun.reason || 'No reason', 15))}</td>
+          <td class="reason-cell">${window.expandableReason ? expandableReason(pun.reason) : escapeHtml(truncate(pun.reason || 'No reason', 40))}</td>
           <td>${escapeHtml(fmtLong(pun.createdAt))}</td>
           <td><span class="badge ${durClass}" title="Time remaining">${escapeHtml(durDisplay)}</span></td>
           <td>${escapeHtml(pun.staff || 'Console')}</td>
@@ -637,7 +638,7 @@
         <td><b>${escapeHtml(t.name)}</b>${categoryBadge}</td>
         <td>${escapeHtml(t.type)}</td>
         <td>${escapeHtml(durationDisplay)}</td>
-        <td class="reason-cell">${window.expandableReason ? expandableReason(t.reason, 15) : escapeHtml(truncate(t.reason || 'No reason', 15))}</td>
+        <td class="reason-cell">${window.expandableReason ? expandableReason(t.reason) : escapeHtml(truncate(t.reason || 'No reason', 40))}</td>
         <td style="text-align:right">
           ${favBtn}
           ${editBtn}
@@ -1308,6 +1309,8 @@
 
   function renderIntegrations() {
     if (!dom.discordWebhook) return;
+    const discordLinkEl = document.getElementById('discordLink');
+    if (discordLinkEl) discordLinkEl.value = state.settings.discordLink || '';
     dom.discordWebhook.value = state.settings.discordWebhook || '';
     if (dom.webhookToggles) {
       const items = [

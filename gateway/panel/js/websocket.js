@@ -12,6 +12,23 @@
   const WS_PING_TIMEOUT = 45000; // Allow 45s for very high-ping/unstable connections
   const WS_MAX_RECONNECT_ATTEMPTS = 100; // Maximum auto-reconnect attempts before giving up
 
+  // Connection state machine: prevents race conditions during connect/disconnect
+  // Valid transitions: DISCONNECTED -> CONNECTING -> CONNECTED -> DISCONNECTING -> DISCONNECTED
+  const ConnectionState = {
+    DISCONNECTED: 'disconnected',
+    CONNECTING: 'connecting',
+    CONNECTED: 'connected',
+    DISCONNECTING: 'disconnecting'
+  };
+
+  let connectionState = ConnectionState.DISCONNECTED;
+  let isPageUnloading = false;
+
+  // Track page unload to suppress reconnection
+  window.addEventListener('beforeunload', () => {
+    isPageUnloading = true;
+  });
+
   // Gateway configuration - domains that indicate we're using gateway mode
   const GATEWAY_DOMAINS = [
     'panel.moderex.net',       // Custom domain (production)
@@ -124,11 +141,15 @@
    * Used when visiting panel.moderex.net without a server ID
    */
   function connectGlobalPanel() {
-    if (ws && (ws.readyState === WebSocket.OPEN || ws.readyState === WebSocket.CONNECTING)) {
-      console.log('[WS] Already connected or connecting');
+    if (connectionState === ConnectionState.CONNECTING || connectionState === ConnectionState.CONNECTED) {
+      console.log('[WS] Already connected or connecting (state:', connectionState, ')');
       return;
     }
 
+    // Close any stale WebSocket before creating a new one
+    cleanupWebSocket();
+
+    connectionState = ConnectionState.CONNECTING;
     gatewayMode = true;
     globalMode = true;
     currentServerId = null;
@@ -140,6 +161,7 @@
       setupWebSocketHandlers();
     } catch (e) {
       console.error('[WS] Failed to create WebSocket:', e);
+      connectionState = ConnectionState.DISCONNECTED;
       scheduleGatewayReconnect();
     }
   }
@@ -189,10 +211,15 @@
    * @param {number} port - Server port - ignored in gateway mode
    */
   function connect(host, port) {
-    if (ws && (ws.readyState === WebSocket.OPEN || ws.readyState === WebSocket.CONNECTING)) {
-      console.log('[WS] Already connected or connecting');
+    if (connectionState === ConnectionState.CONNECTING || connectionState === ConnectionState.CONNECTED) {
+      console.log('[WS] Already connected or connecting (state:', connectionState, ')');
       return;
     }
+
+    // Close any stale WebSocket before creating a new one
+    cleanupWebSocket();
+
+    connectionState = ConnectionState.CONNECTING;
 
     // Detect gateway mode
     gatewayMode = isGatewayDomain();
@@ -203,6 +230,7 @@
       const serverId = getServerIdFromPath();
       if (!serverId) {
         console.error('[WS] No server ID found in URL path');
+        connectionState = ConnectionState.DISCONNECTED;
         emit('error', { message: 'No server ID found in URL. Expected format: /serverid/' });
         return;
       }
@@ -222,6 +250,7 @@
       setupWebSocketHandlers();
     } catch (e) {
       console.error('[WS] Failed to create WebSocket:', e);
+      connectionState = ConnectionState.DISCONNECTED;
       if (gatewayMode) {
         scheduleGatewayReconnect();
       } else {
@@ -232,17 +261,40 @@
   }
 
   /**
-   * Disconnect from the WebSocket server
+   * Disconnect from the WebSocket server (intentional disconnect)
    */
   function disconnect() {
+    connectionState = ConnectionState.DISCONNECTING;
     clearTimeout(reconnectTimer);
+    reconnectTimer = null;
     stopHeartbeat();
-    if (ws) {
-      ws.close(1000, 'Client disconnect');
-      ws = null;
-    }
+    stopPingMeasurement();
+    cleanupWebSocket();
     isConnected = false;
     sessionData = null;
+    connectionState = ConnectionState.DISCONNECTED;
+  }
+
+  /**
+   * Safely close and null out the WebSocket, removing event handlers
+   * to prevent ghost callbacks from old connections.
+   */
+  function cleanupWebSocket() {
+    if (ws) {
+      // Remove event handlers to prevent callbacks from old socket
+      ws.onopen = null;
+      ws.onclose = null;
+      ws.onerror = null;
+      ws.onmessage = null;
+      try {
+        if (ws.readyState === WebSocket.OPEN || ws.readyState === WebSocket.CONNECTING) {
+          ws.close(1000, 'Client cleanup');
+        }
+      } catch (e) {
+        // Ignore close errors on already-closed sockets
+      }
+      ws = null;
+    }
   }
 
   // Request types that should show loading bar (data-fetching requests)
@@ -630,10 +682,16 @@
   }
 
   /**
-   * Schedule a reconnection attempt with exponential backoff
+   * Schedule a reconnection attempt with exponential backoff + jitter
    */
   function scheduleReconnect(host, port) {
     clearTimeout(reconnectTimer);
+    reconnectTimer = null;
+
+    // Don't reconnect if page is unloading or intentionally disconnecting
+    if (isPageUnloading || connectionState === ConnectionState.DISCONNECTING) {
+      return;
+    }
 
     // Auto-reconnect is always silent (no sounds/toasts)
     silentReconnect = true;
@@ -645,8 +703,10 @@
       return;
     }
 
-    // Exponential backoff: 2s, 4s, 8s, 16s, max 30s
-    const delay = Math.min(WS_RECONNECT_DELAY_MIN * Math.pow(2, reconnectAttempts), WS_RECONNECT_DELAY_MAX);
+    // Exponential backoff with jitter: base * 2^attempts + random jitter (0-1s)
+    const baseDelay = Math.min(WS_RECONNECT_DELAY_MIN * Math.pow(2, reconnectAttempts), WS_RECONNECT_DELAY_MAX);
+    const jitter = Math.floor(Math.random() * 1000);
+    const delay = baseDelay + jitter;
     reconnectAttempts++;
     console.log(`[WS] Reconnecting in ${delay}ms (attempt ${reconnectAttempts})...`);
 
@@ -654,16 +714,24 @@
     emit('reconnect_attempt', { attempt: reconnectAttempts, delay: delay });
 
     reconnectTimer = setTimeout(() => {
+      reconnectTimer = null;
+      if (isPageUnloading) return;
       console.log('[WS] Attempting reconnect...');
       connect(host, port);
     }, delay);
   }
 
   /**
-   * Schedule a gateway reconnection attempt with exponential backoff
+   * Schedule a gateway reconnection attempt with exponential backoff + jitter
    */
   function scheduleGatewayReconnect() {
     clearTimeout(reconnectTimer);
+    reconnectTimer = null;
+
+    // Don't reconnect if page is unloading or intentionally disconnecting
+    if (isPageUnloading || connectionState === ConnectionState.DISCONNECTING) {
+      return;
+    }
 
     // Auto-reconnect is always silent (no sounds/toasts)
     silentReconnect = true;
@@ -675,8 +743,10 @@
       return;
     }
 
-    // Exponential backoff: 2s, 4s, 8s, 16s, max 30s
-    const delay = Math.min(WS_RECONNECT_DELAY_MIN * Math.pow(2, reconnectAttempts), WS_RECONNECT_DELAY_MAX);
+    // Exponential backoff with jitter
+    const baseDelay = Math.min(WS_RECONNECT_DELAY_MIN * Math.pow(2, reconnectAttempts), WS_RECONNECT_DELAY_MAX);
+    const jitter = Math.floor(Math.random() * 1000);
+    const delay = baseDelay + jitter;
     reconnectAttempts++;
     console.log(`[WS] Gateway reconnecting in ${delay}ms (attempt ${reconnectAttempts})...`);
 
@@ -684,6 +754,8 @@
     emit('reconnect_attempt', { attempt: reconnectAttempts, delay: delay });
 
     reconnectTimer = setTimeout(() => {
+      reconnectTimer = null;
+      if (isPageUnloading) return;
       console.log('[WS] Attempting gateway reconnect...');
       connectGateway(currentServerId);
     }, delay);
@@ -695,8 +767,14 @@
    */
   function scheduleServerOfflineRetry() {
     clearTimeout(reconnectTimer);
+    reconnectTimer = null;
+
+    if (isPageUnloading) return;
+
     silentReconnect = true;
     reconnectTimer = setTimeout(() => {
+      reconnectTimer = null;
+      if (isPageUnloading) return;
       console.log('[WS] Retrying gateway connection (server offline)...');
       connectGateway(currentServerId);
     }, 5000);
@@ -707,11 +785,15 @@
    * @param {string} serverId - Server ID prefix
    */
   function connectGateway(serverId) {
-    if (ws && (ws.readyState === WebSocket.OPEN || ws.readyState === WebSocket.CONNECTING)) {
-      console.log('[WS] Already connected or connecting');
+    if (connectionState === ConnectionState.CONNECTING || connectionState === ConnectionState.CONNECTED) {
+      console.log('[WS] Already connected or connecting (state:', connectionState, ')');
       return;
     }
 
+    // Close any stale WebSocket before creating a new one
+    cleanupWebSocket();
+
+    connectionState = ConnectionState.CONNECTING;
     gatewayMode = true;
     currentServerId = serverId;
     const url = `${GATEWAY_WS_URL}/${serverId}`;
@@ -722,6 +804,7 @@
       setupWebSocketHandlers();
     } catch (e) {
       console.error('[WS] Failed to create WebSocket:', e);
+      connectionState = ConnectionState.DISCONNECTED;
       scheduleGatewayReconnect();
     }
   }
@@ -732,36 +815,66 @@
   function setupWebSocketHandlers() {
     if (!ws) return;
 
+    // Capture reference to detect stale callbacks from old connections
+    const thisSocket = ws;
+
     ws.onopen = () => {
+      // Guard against callbacks from a stale/replaced socket
+      if (thisSocket !== ws) {
+        console.warn('[WS] Ignoring onopen from stale WebSocket');
+        return;
+      }
+
+      // Capture wasReconnect BEFORE resetting silentReconnect
+      const wasReconnect = silentReconnect;
+
       console.log('[WS] Connected' + (gatewayMode ? ' (gateway mode)' : ''));
       isConnected = true;
+      connectionState = ConnectionState.CONNECTED;
       connectionStatus = 'connected';
       reconnectAttempts = 0;
-      silentReconnect = false; // Reset silent mode after successful connection
+      silentReconnect = false;
       clearTimeout(reconnectTimer);
+      reconnectTimer = null;
       startHeartbeat();
       startPingMeasurement();
-      emit('connected', { gatewayMode, serverId: currentServerId, wasReconnect: silentReconnect });
+      emit('connected', { gatewayMode, serverId: currentServerId, wasReconnect: wasReconnect });
       emit('status_change', { status: connectionStatus, ping: lastPing });
       if (window.debugLog) window.debugLog('WS', 'Connected to server' + (gatewayMode ? ' via gateway' : ''), 'success');
     };
 
     ws.onclose = (event) => {
-      console.log('[WS] Disconnected:', event.code, event.reason);
+      // Guard against callbacks from a stale/replaced socket
+      if (thisSocket !== ws && ws !== null) {
+        console.warn('[WS] Ignoring onclose from stale WebSocket');
+        return;
+      }
+
+      const wasIntentionalDisconnect = connectionState === ConnectionState.DISCONNECTING;
+      console.log('[WS] Disconnected:', event.code, event.reason, wasIntentionalDisconnect ? '(intentional)' : '');
       isConnected = false;
+      connectionState = ConnectionState.DISCONNECTED;
       connectionStatus = 'disconnected';
       sessionData = null;
+      ws = null; // Null out to prevent stale reference
       stopHeartbeat();
       stopPingMeasurement();
-      emit('disconnected', { code: event.code, reason: event.reason, gatewayMode });
-      emit('status_change', { status: connectionStatus, ping: 0 });
-      if (window.debugLog) window.debugLog('WS', `Disconnected (${event.code}: ${event.reason || 'No reason'})`, 'warn');
+
+      // Don't emit disconnected or trigger reconnect for intentional disconnects or page unload
+      if (!wasIntentionalDisconnect && !isPageUnloading) {
+        emit('disconnected', { code: event.code, reason: event.reason, gatewayMode });
+        emit('status_change', { status: connectionStatus, ping: 0 });
+        if (window.debugLog) window.debugLog('WS', `Disconnected (${event.code}: ${event.reason || 'No reason'})`, 'warn');
+      }
 
       // Reconnect is handled by auth.js to avoid dual-reconnect race condition.
       // Auth.js listens for 'disconnected' event and manages reconnection + re-authentication.
     };
 
     ws.onerror = (error) => {
+      // Guard against callbacks from a stale/replaced socket
+      if (thisSocket !== ws && ws !== null) return;
+
       console.error('[WS] Error:', error);
       emit('error', error);
       const errorMsg = error.message || error.type || 'Connection error';
@@ -769,6 +882,9 @@
     };
 
     ws.onmessage = (event) => {
+      // Guard against callbacks from a stale/replaced socket
+      if (thisSocket !== ws) return;
+
       try {
         const message = JSON.parse(event.data);
         const silentTypes = ['PONG', 'SERVER_STATUS', 'HEARTBEAT_ACK'];
@@ -1127,8 +1243,11 @@
     getPort: () => currentPort,
     getPing: () => lastPing,
     getStatus: () => connectionStatus,
+    getConnectionState: () => connectionState,
+    ConnectionState,
     setStatus,
     isSilentReconnect: () => silentReconnect,
+    isPageUnloading: () => isPageUnloading,
     getReconnectAttempts: () => reconnectAttempts,
 
     // Auth methods

@@ -207,6 +207,11 @@
    * Start the connection process
    */
   async function startConnection() {
+    // Don't start connection if page is unloading
+    if (ws.isPageUnloading && ws.isPageUnloading()) {
+      return;
+    }
+
     authState.connectionPhase = 'connecting';
     authState.status = AuthStatus.PENDING_VERIFICATION;
 
@@ -718,6 +723,12 @@
       console.log('[Auth] Disconnected:', data.code, data.reason);
       if (window.devtoolsLog) window.devtoolsLog('WS', `Disconnected (code: ${data.code}, reason: ${data.reason || 'none'})`, 'warn');
 
+      // Don't reconnect if page is unloading
+      if (ws.isPageUnloading && ws.isPageUnloading()) {
+        console.log('[Auth] Page unloading - not reconnecting');
+        return;
+      }
+
       // If gateway WS drops while server offline overlay is showing, use fixed 5s retry
       if (ws.isGatewayMode() && document.getElementById('serverOfflineOverlay')?.classList.contains('show')) {
         console.log('[Auth] Gateway WS disconnected while server offline - retrying in 5s');
@@ -730,6 +741,14 @@
         authState.status = AuthStatus.UNAUTHENTICATED;
         authState.token = null;
         showAccessDenied(data.reason || 'Access denied');
+        return;
+      }
+
+      // Normal close (code 1000) from intentional disconnect - don't auto-reconnect
+      if (data.code === 1000 && data.reason === 'Client disconnect') {
+        console.log('[Auth] Intentional disconnect - not auto-reconnecting');
+        authState.status = AuthStatus.UNAUTHENTICATED;
+        authState.connectionPhase = 'idle';
         return;
       }
 
@@ -756,14 +775,20 @@
         authState.status = AuthStatus.PENDING_VERIFICATION;
         authState.connectionPhase = 'idle';
         scheduleReconnect();
+      } else if (wasAuthenticated) {
+        // Only auto-reconnect if we were previously authenticated
+        // This prevents reconnect loops when manually disconnected or auth failed
+        authState.status = AuthStatus.UNAUTHENTICATED;
+        authState.connectionPhase = 'idle';
+        // Keep saved token but user will need to re-authenticate
+        scheduleReconnect();
       } else {
-        // Fully logout
+        // Never authenticated - don't auto-reconnect, just show manual auth
         authState.status = AuthStatus.UNAUTHENTICATED;
         authState.token = null;
         authState.session = null;
         authState.connectionPhase = 'idle';
-        // Keep saved token but user will need to re-authenticate
-        scheduleReconnect();
+        showManualAuth(disconnectReason);
       }
     });
 
@@ -1167,12 +1192,21 @@
    */
   function forceLogout(message) {
     stopTokenValidation();
+
+    // Cancel any pending reconnect to prevent reconnect loop after logout
+    if (authState.reconnectTimer) {
+      clearTimeout(authState.reconnectTimer);
+      authState.reconnectTimer = null;
+    }
+
     authState.status = AuthStatus.UNAUTHENTICATED;
     authState.authenticated = false;
     authState.token = null;
     authState.tokenValid = false;
     authState.session = null;
+    authState.connected = false;
     authState.connectionPhase = 'idle';
+    authState.reconnectAttempts = 0;
 
     // Don't clear saved token - user can re-authenticate
     clearSavedSession();
@@ -1187,11 +1221,18 @@
   }
 
   /**
-   * Schedule auto-reconnect with exponential backoff
+   * Schedule auto-reconnect with exponential backoff + jitter
+   * Uses 2-second minimum delay to match websocket.js and prevent rapid reconnection
    */
   function scheduleReconnect() {
+    // Don't reconnect if page is unloading
+    if (ws.isPageUnloading && ws.isPageUnloading()) {
+      return;
+    }
+
     if (authState.reconnectTimer) {
       clearTimeout(authState.reconnectTimer);
+      authState.reconnectTimer = null;
     }
 
     if (authState.reconnectAttempts >= authState.maxReconnectAttempts) {
@@ -1201,7 +1242,10 @@
       return;
     }
 
-    const delay = Math.min(1000 * Math.pow(2, authState.reconnectAttempts), 30000);
+    // Match websocket.js: 2s minimum, exponential backoff, with jitter to avoid thundering herd
+    const baseDelay = Math.min(2000 * Math.pow(2, authState.reconnectAttempts), 30000);
+    const jitter = Math.floor(Math.random() * 1000);
+    const delay = baseDelay + jitter;
     authState.reconnectAttempts++;
 
     console.log(`[Auth] Reconnecting in ${delay}ms (attempt ${authState.reconnectAttempts}/${authState.maxReconnectAttempts})`);
@@ -1217,6 +1261,9 @@
     }
 
     authState.reconnectTimer = setTimeout(() => {
+      authState.reconnectTimer = null;
+      // Final check before reconnecting
+      if (ws.isPageUnloading && ws.isPageUnloading()) return;
       console.log('[Auth] Attempting reconnect...');
       startConnection();
     }, delay);
@@ -1786,7 +1833,7 @@
   }
 
   /**
-   * Manual reconnect
+   * Manual reconnect (user-triggered)
    */
   function reconnect() {
     if (authState.reconnectTimer) {
@@ -1797,6 +1844,8 @@
     authState.reconnectAttempts = 0;
     authState.connectionPhase = 'idle';
     authState.status = AuthStatus.UNAUTHENTICATED;
+    authState.connected = false;
+    authState.authenticated = false;
 
     if (dom.authStatusArea) {
       dom.authStatusArea.style.display = '';
@@ -1809,10 +1858,20 @@
 
     showAuthOverlay();
 
+    // Disconnect fully (this sets connectionState to DISCONNECTED)
     ws.disconnect();
+
+    // Wait for cleanup before starting new connection
     setTimeout(() => {
+      // Verify we're in a clean state before reconnecting
+      const state = ws.getConnectionState ? ws.getConnectionState() : 'unknown';
+      if (state !== 'disconnected' && state !== 'unknown') {
+        console.warn('[Auth] Connection not yet in clean state:', state, '- waiting longer');
+        setTimeout(() => startConnection(), 500);
+        return;
+      }
       startConnection();
-    }, 300);
+    }, 500);
   }
 
   // Initialize on DOM ready
