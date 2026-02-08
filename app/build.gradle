@@ -103,52 +103,43 @@ tasks.register('generateVersionFiles') {
     inputs.property('version', version)
     inputs.property('buildNumber', buildNumber)
 
-    // Declare outputs so Gradle knows what this task produces
+    // Capture paths at configuration time (configuration cache compatible)
     def panelVersionFile = file("src/main/resources/panel-version.properties")
-    def buildInfoFile = project.rootProject.file("releases/build-info.txt")
+    def buildInfoFile = rootProject.file("releases/build-info.txt")
+    def rootDir = rootProject.projectDir
     outputs.file(panelVersionFile)
     outputs.file(buildInfoFile)
 
     doLast {
-        // Get version from inputs (configuration cache compatible)
         def versionStr = inputs.properties.get('version')
         def buildNum = inputs.properties.get('buildNumber')
 
         // Get the current git commit hash
         def gitHash = 'unknown'
         try {
-            def proc = ['git', 'rev-parse', '--short', 'HEAD'].execute(null, project.rootProject.projectDir)
+            def proc = ['git', 'rev-parse', '--short', 'HEAD'].execute(null, rootDir)
             proc.waitFor()
             if (proc.exitValue() == 0) {
                 gitHash = proc.text.trim()
             }
-        } catch (Exception ignored) {
-            logger.warn('Could not determine git commit hash, using "unknown"')
-        }
+        } catch (Exception ignored) {}
 
         def now = java.time.Instant.now().toString()
         def buildDateStr = java.time.LocalDate.now().toString()
 
-        // Generate panel-version.properties
         panelVersionFile.text = """\
 version=${versionStr}
 buildDate=${buildDateStr}
 buildNumber=${buildNum}
 notes=Auto-generated from build
 """
-        logger.lifecycle("Generated panel-version.properties (v${versionStr}, build ${buildNum})")
-
-        // Ensure releases/ directory exists
         buildInfoFile.parentFile.mkdirs()
-
-        // Generate releases/build-info.txt
         buildInfoFile.text = """\
 ${now}
 Version: ${versionStr}
 Build: ${buildNum}
 Commit: ${gitHash}
 """
-        logger.lifecycle("Generated releases/build-info.txt (commit ${gitHash})")
     }
 }
 
@@ -206,9 +197,10 @@ shadowJar {
     // minimize() can aggressively remove classes that are loaded via reflection
 
     // After building, copy the JAR to releases/ModereX-latest.jar
+    // Capture path at configuration time (configuration cache compatible)
+    def releasesDir = rootProject.file('releases')
     doLast {
         def builtJar = archiveFile.get().asFile
-        def releasesDir = project.rootProject.file('releases')
         releasesDir.mkdirs()
 
         def latestJar = new File(releasesDir, 'ModereX-latest.jar')
@@ -217,7 +209,6 @@ shadowJar {
                 output << input
             }
         }
-        logger.lifecycle("Copied ${builtJar.name} → releases/ModereX-latest.jar")
     }
 }
 
