@@ -14,6 +14,43 @@
 
 window.MX_CHANGELOGS = [
   {
+    build: 288,
+    version: "2.0dev-288",
+    date: "2026-02-08",
+    title: "Dev Build License System + Admin Panel Overhaul",
+    sections: [
+      { type: "new", title: "New Features", items: [
+        "**Dev Build License System** - Licensed development builds now require validation via Cloudflare Workers API with RSA-2048 signature verification",
+        "**Admin Panel Licenses** - Gateway admin panel now supports creating, revoking, and managing dev build licenses with token watermarking",
+        "**Licensed JAR Builder** - Admin panel can generate licensed builds directly from gateway with embedded unique tokens",
+        "**Server Suspension** - Admins can now suspend servers from the gateway admin panel, preventing reconnection until unsuspended"
+      ]},
+      { type: "fixed", title: "Bug Fixes", items: [
+        "**Gateway CPU Stats** - CPU usage now shows actual calculated percentage instead of hardcoded 0%",
+        "**Connection History** - Connection history chart now displays real historical data stored in database instead of repeated current snapshot",
+        "**Gateway Metrics** - Metrics now stored hourly in gateway_metrics_history table for accurate trend tracking"
+      ]},
+      { type: "technical", title: "Technical Changes", items: [
+        "**LicenseManager** - Validates license tokens on plugin startup and periodically (every 30 minutes) with automatic plugin disabling if invalid",
+        "**LicenseValidator** - RSA signature verification ensures Cloudflare Workers API responses cannot be tampered with or faked",
+        "**Gradle buildLicensed** - New Gradle task embeds unique license tokens into JAR files at build time",
+        "**Gateway Build Script** - Node.js script (build-licensed.js) automates cloning, building, and storing licensed JARs",
+        "**Metrics Collection** - Gateway now stores snapshots every hour with 7-day retention and automatic cleanup",
+        "**CPU Calculation** - Real CPU usage calculated using process.cpuUsage() with user + system time tracking",
+        "**Suspension System** - Database-backed server suspension with immediate connection blocking and admin panel UI"
+      ]},
+      { type: "permissions", title: "New Permissions", items: [
+        "No new player-facing permissions - License system operates at plugin/server level",
+        "Gateway admin access controlled via Cloudflare Access email domain authentication"
+      ]},
+      { type: "config", title: "Configuration", items: [
+        "**Cloudflare Workers** - License API requires KV namespace (LICENSE_TOKENS) and environment secrets (PRIVATE_KEY, ADMIN_SECRET)",
+        "**Gateway Database** - New tables: license_builds, suspended_servers, gateway_metrics_history",
+        "**Build Properties** - Licensed builds store token in license-token.properties and public key in license-public-key.pem"
+      ]}
+    ]
+  },
+  {
     build: 286,
     version: "2.0dev-286",
     date: "2026-02-08",
