@@ -30,11 +30,11 @@
     // Request initial status
     refreshServerStatus();
 
-    // Set up periodic refresh (every 2 seconds)
+    // Set up periodic refresh (every 1 second)
     if (statusUpdateInterval) {
       clearInterval(statusUpdateInterval);
     }
-    statusUpdateInterval = setInterval(refreshServerStatus, 2000);
+    statusUpdateInterval = setInterval(refreshServerStatus, 1000);
   };
 
   // Cleanup when leaving page
