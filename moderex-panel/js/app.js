@@ -151,38 +151,82 @@
 
   /**
    * Gate configuration page cards behind their permissions.
-   * Cards remain visible but disabled with a lock overlay when user lacks permission.
+   * Cards remain visible but visually locked with an overlay when user lacks permission.
+   * All inputs are disabled and clicks show a toast notification.
    */
   function gateConfigPermissions() {
     const gates = [
-      { id: 'warningSettingsCard', perm: 'moderex.admin.warnings' },
-      { id: 'muteSettingsCard', perm: 'moderex.admin.mutes' },
-      { id: 'serverLockdownCard', perm: 'moderex.admin.lockdown' },
-      { id: 'notificationConfigCard', perm: 'moderex.admin.notifications' },
-      { id: 'commandBlacklistCard', perm: 'moderex.cmdblacklist' },
-      { id: 'activityLogConfigCard', perm: 'moderex.admin.activitylog' },
-      { id: 'evidenceConfigCard', perm: 'moderex.admin.evidence' },
-      { id: 'anticheatIntegrationCard', perm: 'moderex.anticheat.configure' }
+      // Configuration page (page-actions)
+      { id: 'chatManagementGrid', perm: 'moderex.admin.chat', label: 'Chat Management' },
+      { id: 'kickAllCard', perm: 'moderex.admin.kickall', label: 'Kick All' },
+      { id: 'warningSettingsCard', perm: 'moderex.admin.warnings', label: 'Warning Settings' },
+      { id: 'muteSettingsCard', perm: 'moderex.admin.mutes', label: 'Mute Settings' },
+      { id: 'serverLockdownCard', perm: 'moderex.admin.lockdown', label: 'Lockdown Settings' },
+      { id: 'notificationConfigCard', perm: 'moderex.admin.notifications', label: 'Notification Config' },
+      { id: 'commandBlacklistCard', perm: 'moderex.cmdblacklist', label: 'Command Blacklist' },
+      { id: 'activityLogConfigCard', perm: 'moderex.admin.activitylog', label: 'Activity Log Config' },
+      { id: 'evidenceConfigCard', perm: 'moderex.admin.evidence', label: 'Evidence Config' },
+      { id: 'anticheatIntegrationCard', perm: 'moderex.anticheat.configure', label: 'Anticheat Integration' },
+      // Integrations page
+      { id: 'discordIntegrationCard', perm: 'moderex.admin.discord', label: 'Discord Integration' }
     ];
-    gates.forEach(({ id, perm }) => {
+
+    gates.forEach(({ id, perm, label }) => {
       const card = document.getElementById(id);
       if (!card) return;
-      // Remove previous lock overlay if re-visiting page
-      const existing = card.querySelector('.config-perm-overlay');
-      if (existing) existing.remove();
+
+      // Clean up previous lock state (for page re-visits)
+      const existingOverlay = card.querySelector('.config-lock-overlay');
+      if (existingOverlay) existingOverlay.remove();
+      card.classList.remove('config-locked');
       card.style.opacity = '';
       card.style.pointerEvents = '';
+      card.style.position = '';
+
+      // Re-enable inputs that were previously disabled by this function
+      card.querySelectorAll('[data-perm-disabled]').forEach(el => {
+        el.disabled = false;
+        el.removeAttribute('data-perm-disabled');
+      });
+
       if (!hasPermission(perm)) {
-        card.style.opacity = '0.5';
-        card.style.pointerEvents = 'none';
+        // Add locked class for CSS styling
+        card.classList.add('config-locked');
+
+        // Disable all form elements within this section
+        card.querySelectorAll('input, select, textarea, button').forEach(el => {
+          el.disabled = true;
+          el.setAttribute('data-perm-disabled', 'true');
+        });
+
+        // Create the lock overlay
         const overlay = document.createElement('div');
-        overlay.className = 'config-perm-overlay';
-        overlay.style.cssText = 'position:absolute;top:8px;right:12px;font-size:11px;color:var(--muted);display:flex;align-items:center;gap:4px';
-        overlay.innerHTML = '<i class="fa-solid fa-lock"></i> No Permission';
-        card.style.position = 'relative';
+        overlay.className = 'config-lock-overlay';
+        overlay.innerHTML =
+          '<div class="config-lock-badge">' +
+            '<i class="fa-solid fa-lock"></i>' +
+            '<span>Insufficient Permissions</span>' +
+          '</div>' +
+          '<span class="config-lock-perm">' + perm + '</span>';
+
+        // Click handler shows toast notification
+        overlay.addEventListener('click', function(e) {
+          e.preventDefault();
+          e.stopPropagation();
+          toast('bad', 'No Permission', 'You need <code>' + perm + '</code> to configure ' + label + '.');
+        });
+
         card.appendChild(overlay);
       }
     });
+  }
+
+  /**
+   * Gate integrations page sections behind their permissions.
+   * Reuses the same gating logic as configuration page.
+   */
+  function gateIntegrationPermissions() {
+    gateConfigPermissions();
   }
 
   /**
@@ -1038,6 +1082,7 @@
     if (page === 'messages') ui.renderMessages();
     if (page === 'settings') ui.renderChatToggles();
     if (page === 'actions') gateConfigPermissions();
+    if (page === 'integrations') gateConfigPermissions();
     if (page === 'mysettings') {
       // Refresh user settings from server when opening My Settings page
       const ws = window.MX?.ws;

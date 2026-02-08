@@ -237,6 +237,92 @@
   font-weight: 500;
 }
 
+/* ===== CONFIG SECTION PERMISSION LOCK ===== */
+.config-locked {
+  position: relative;
+  opacity: 0.5;
+  pointer-events: none;
+  user-select: none;
+  border: 1px solid rgba(var(--bad-rgb), 0.25) !important;
+  background: linear-gradient(
+    135deg,
+    rgba(var(--bad-rgb), 0.03) 0%,
+    transparent 50%,
+    rgba(var(--bad-rgb), 0.03) 100%
+  ) !important;
+  transition: opacity 0.3s ease, border-color 0.3s ease;
+}
+
+.config-locked * {
+  pointer-events: none !important;
+}
+
+.config-locked input,
+.config-locked select,
+.config-locked textarea,
+.config-locked button,
+.config-locked .toggle {
+  cursor: not-allowed !important;
+  opacity: 0.6;
+}
+
+.config-locked .config-lock-overlay {
+  pointer-events: auto;
+}
+
+.config-lock-overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-direction: column;
+  gap: 8px;
+  z-index: 15;
+  border-radius: inherit;
+  cursor: not-allowed;
+  background: repeating-linear-gradient(
+    -45deg,
+    transparent,
+    transparent 20px,
+    rgba(0, 0, 0, 0.04) 20px,
+    rgba(0, 0, 0, 0.04) 40px
+  );
+}
+
+.config-lock-overlay .config-lock-badge {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 16px;
+  background: rgba(0, 0, 0, 0.75);
+  backdrop-filter: blur(4px);
+  border-radius: var(--radius);
+  border: 1px solid rgba(var(--bad-rgb), 0.3);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
+}
+
+.config-lock-overlay .config-lock-badge i {
+  font-size: 0.85rem;
+  color: var(--bad);
+}
+
+.config-lock-overlay .config-lock-badge span {
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+  letter-spacing: 0.02em;
+}
+
+.config-lock-overlay .config-lock-perm {
+  font-size: 0.7rem;
+  color: var(--muted);
+  font-family: var(--font-mono);
+  background: rgba(0, 0, 0, 0.4);
+  padding: 2px 8px;
+  border-radius: 4px;
+}
+
 /* ===== NO PERMISSION OVERLAY (for modals) ===== */
 .no-permission-overlay {
   position: absolute;

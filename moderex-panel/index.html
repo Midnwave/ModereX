@@ -2245,7 +2245,7 @@
           </div>
 
           <div class="panel pad">
-            <div class="grid cols-3">
+            <div class="grid cols-3" id="chatManagementGrid">
               <div class="card" style="margin:0">
                 <h3><i class="fa-solid fa-lock" style="color:var(--bad)"></i> Chat Lockdown</h3>
                 <p>Disable chat for all non-staff players.</p>
@@ -2284,7 +2284,7 @@
             </div>
 
             <!-- Kick All Section -->
-            <div class="card" style="margin-top:20px">
+            <div class="card" style="margin-top:20px" id="kickAllCard">
               <h3><i class="fa-solid fa-person-walking-arrow-right" style="color:var(--warn)"></i> Kick All Players</h3>
               <p>Immediately disconnect all players from the server (excluding yourself).</p>
               <div style="margin-top:14px">
@@ -2907,7 +2907,7 @@
             </div>
 
             <!-- Discord Integration -->
-            <div class="card">
+            <div class="card" id="discordIntegrationCard">
               <h3><i class="fa-brands fa-discord" style="color:#5865F2"></i> Discord Integration</h3>
               <p>Discord invite link and webhook notifications.</p>
               <div style="margin-top:14px">
