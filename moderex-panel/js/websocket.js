@@ -310,10 +310,16 @@
     'UPDATE_USER_SETTINGS', 'CREATE_PUNISHMENT', 'REVOKE_PUNISHMENT'
   ]);
 
+  // Request types excluded from loading bar (auto-polling / background requests)
+  const LOADING_BAR_EXCLUDED = new Set([
+    'GET_SERVER_STATUS', 'HEARTBEAT', 'PING'
+  ]);
+
   // Track pending requests to auto-hide loading bar
   let pendingLoadingRequests = 0;
 
   function shouldShowLoadingBar(type) {
+    if (LOADING_BAR_EXCLUDED.has(type)) return false;
     return LOADING_BAR_REQUESTS.has(type) || type.startsWith('GET_');
   }
 
@@ -522,7 +528,7 @@
     'ANTICHEAT_CONFIG', 'ANTICHEAT_INFO', 'ANTICHEAT_ALERTS',
     'STAFF_ALERT_PREFS', 'ALERT_PRESETS', 'SERVER_SETTINGS', 'CHAT_STATUS',
     'PLAYER_DETAILS', 'COMMAND_HISTORY', 'AUTOMOD_LOGS', 'CHAT_LOGS',
-    'DEV_CHECKLIST', 'GEYSER_STATUS', 'TRUSTED_DEVICE_COUNT', 'STAFFCHAT_HISTORY',
+    'DEV_CHECKLIST', 'GEYSER_STATUS', 'TRUSTED_DEVICE_COUNT', 'STAFFCHAT_HISTORY', 'DEBUG_PERMISSIONS_DATA',
     'PUNISHMENT_CREATED', 'PUNISHMENT_REVOKED', 'SETTINGS_UPDATED',
     'ERROR', 'SUCCESS'
   ]);

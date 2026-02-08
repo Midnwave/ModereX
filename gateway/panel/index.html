@@ -346,6 +346,12 @@
           <div class="sb-item" data-page="permissions" id="sbPermissions"><i class="fa-solid fa-shield-halved"></i> Permissions</div>
         </div>
 
+        <!-- Admin Debug Section (shown for users with moderex.admin.debug) -->
+        <div class="sb-group" id="sbDebugSection" style="display:none">
+          <div class="sb-label">Debug</div>
+          <div class="sb-item" data-page="debug"><i class="fa-solid fa-bug"></i> Permission Debug</div>
+        </div>
+
         <!-- Developer Section (shown when dev mode enabled) -->
         <div class="sb-group sb-dev-section" id="sbDevSection" style="display:none">
           <div class="sb-label">Developer</div>
@@ -2979,62 +2985,6 @@
               </div>
             </div>
 
-            <div class="grid cols-2" style="margin-top:20px">
-              <div class="card" style="margin:0">
-                <h3><i class="fa-solid fa-triangle-exclamation" style="color:var(--warn)"></i> Warn Settings</h3>
-                <p>Configure how warning events are surfaced to staff.</p>
-                <div class="toggle-wrap" style="margin-top:14px">
-                  <button class="toggle" id="warnNotifyToggle" onclick="toggleSetting('warnNotify')"><span class="toggle-thumb"></span></button>
-                  <div class="toggle-meta">
-                    <div class="toggle-title">Notify on Warn</div>
-                    <div class="toggle-sub" id="warnNotifyHint">On</div>
-                  </div>
-                </div>
-                <div class="toggle-wrap" style="margin-top:12px">
-                  <button class="toggle" id="warnEscalateToggle" onclick="toggleSetting('warnAutoEscalate')"><span class="toggle-thumb"></span></button>
-                  <div class="toggle-meta">
-                    <div class="toggle-title">Auto Escalate</div>
-                    <div class="toggle-sub" id="warnEscalateHint">Off</div>
-                  </div>
-                </div>
-              </div>
-
-              <div class="card" style="margin:0">
-                <h3><i class="fa-solid fa-volume-xmark" style="color:var(--primary-light)"></i> Mute Settings</h3>
-                <p>Define what muted players can do.</p>
-                <div class="grid cols-2" style="margin-top:14px">
-                  <div class="toggle-wrap">
-                    <button class="toggle" id="muteChatToggle" onclick="toggleSetting('muteChat')"><span class="toggle-thumb"></span></button>
-                    <div class="toggle-meta"><div class="toggle-title">Chat</div></div>
-                  </div>
-                  <div class="toggle-wrap">
-                    <button class="toggle" id="muteMsgToggle" onclick="toggleSetting('muteMsg')"><span class="toggle-thumb"></span></button>
-                    <div class="toggle-meta"><div class="toggle-title">/msg &amp; Whisper</div></div>
-                  </div>
-                  <div class="toggle-wrap">
-                    <button class="toggle" id="muteSignsToggle" onclick="toggleSetting('muteSigns')"><span class="toggle-thumb"></span></button>
-                    <div class="toggle-meta"><div class="toggle-title">Signs</div></div>
-                  </div>
-                  <div class="toggle-wrap">
-                    <button class="toggle" id="muteBooksToggle" onclick="toggleSetting('muteBooks')"><span class="toggle-thumb"></span></button>
-                    <div class="toggle-meta"><div class="toggle-title">Books</div></div>
-                  </div>
-                  <div class="toggle-wrap">
-                    <button class="toggle" id="muteBroadcastToggle" onclick="toggleSetting('muteBroadcast')"><span class="toggle-thumb"></span></button>
-                    <div class="toggle-meta"><div class="toggle-title">Broadcast</div></div>
-                  </div>
-                  <div class="toggle-wrap">
-                    <button class="toggle" id="muteVoiceToggle" onclick="toggleSetting('muteVoice')"><span class="toggle-thumb"></span></button>
-                    <div class="toggle-meta"><div class="toggle-title">Voice Chat</div></div>
-                  </div>
-                  <div class="toggle-wrap">
-                    <button class="toggle" id="muteVoiceJoinToggle" onclick="toggleSetting('muteVoiceJoin')"><span class="toggle-thumb"></span></button>
-                    <div class="toggle-meta"><div class="toggle-title">Voice Join</div></div>
-                  </div>
-                </div>
-              </div>
-            </div>
-
             <!-- Activity Log Configuration -->
             <div class="card" style="margin-top:20px" id="activityLogConfigCard">
               <h3><i class="fa-solid fa-scroll" style="color:var(--primary-light)"></i> Activity Log Configuration</h3>
@@ -3573,7 +3523,9 @@
                 <h3 style="margin:0"><i class="fa-solid fa-list-check" style="color:var(--dev-light);margin-right:10px"></i>Development Checklist</h3>
                 <div style="display:flex;gap:8px">
                   <button class="mini" onclick="addChecklistItem()"><i class="fa-solid fa-plus"></i> Add Item</button>
+                  <button class="mini" onclick="importChecklistTxt()"><i class="fa-solid fa-file-import"></i> Import TXT</button>
                   <button class="mini" onclick="resetChecklist()"><i class="fa-solid fa-rotate-right"></i> Reset</button>
+                  <input type="file" id="checklistFileInput" accept=".txt" style="display:none" onchange="handleChecklistFileUpload(event)">
                 </div>
               </div>
               <div id="checklistProgress" style="margin-bottom:14px"></div>
@@ -3796,6 +3748,72 @@
                 <button class="mini" onclick="clearDebugLogs()"><i class="fa-solid fa-eraser"></i> Clear</button>
                 <button class="mini" onclick="copyDebugLogs()"><i class="fa-solid fa-copy"></i> Copy</button>
               </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- ===== DEBUG PAGE ===== -->
+        <section class="page" id="page-debug">
+          <div class="page-head">
+            <div class="page-title">
+              <h1><i class="fa-solid fa-bug" style="color:var(--bad);margin-right:12px"></i>Permission Debug</h1>
+              <p>Inspect player permissions across all ModereX features. Select a player to view their full permission matrix.</p>
+            </div>
+          </div>
+
+          <div class="panel pad">
+            <!-- Player Selection -->
+            <div class="card" style="margin:0">
+              <div style="display:flex;align-items:center;gap:12px;margin-bottom:16px">
+                <h3 style="margin:0"><i class="fa-solid fa-user-magnifying-glass" style="color:var(--blue);margin-right:10px"></i>Player Selection</h3>
+              </div>
+              <div style="display:flex;gap:12px;align-items:center">
+                <div style="flex:1;position:relative">
+                  <input type="text" class="input" id="debugPlayerInput" placeholder="Search for a player..." oninput="filterDebugPlayers(this.value)" autocomplete="off">
+                  <div class="debug-player-dropdown" id="debugPlayerDropdown" style="display:none"></div>
+                </div>
+                <button class="btn primary" onclick="loadDebugPermissions()"><i class="fa-solid fa-magnifying-glass"></i> Inspect</button>
+              </div>
+              <div id="debugPlayerInfo" style="display:none;margin-top:16px;padding:16px;background:rgba(0,0,0,0.2);border-radius:var(--radius);border:1px solid var(--border)">
+                <div style="display:flex;align-items:center;gap:16px">
+                  <img id="debugPlayerAvatar" src="" alt="" style="width:48px;height:48px;border-radius:var(--radius);border:2px solid var(--border)">
+                  <div>
+                    <div style="font-weight:700;font-size:16px" id="debugPlayerName"></div>
+                    <div style="font-size:12px;color:var(--text-secondary)" id="debugPlayerUuid"></div>
+                    <div style="display:flex;gap:8px;margin-top:6px">
+                      <span class="chip" id="debugPlayerStatus"></span>
+                      <span class="chip" id="debugPlayerWeight" style="display:none"></span>
+                      <span class="chip" id="debugPlayerOp" style="display:none"></span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Permission Matrix -->
+            <div id="debugPermissionMatrix" style="display:none;margin-top:16px">
+              <!-- Filter bar -->
+              <div class="card" style="margin:0;margin-bottom:16px">
+                <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
+                  <input type="text" class="input" id="debugPermFilter" placeholder="Filter permissions..." oninput="filterDebugMatrix()" style="flex:1;min-width:200px">
+                  <div style="display:flex;gap:8px">
+                    <button class="mini active" id="debugFilterAll" onclick="setDebugFilter('all')">All</button>
+                    <button class="mini" id="debugFilterGranted" onclick="setDebugFilter('granted')" style="color:var(--ok)"><i class="fa-solid fa-check"></i> Granted</button>
+                    <button class="mini" id="debugFilterDenied" onclick="setDebugFilter('denied')" style="color:var(--bad)"><i class="fa-solid fa-xmark"></i> Denied</button>
+                  </div>
+                  <div style="font-size:12px;color:var(--text-secondary)" id="debugPermStats"></div>
+                </div>
+              </div>
+
+              <!-- Categories -->
+              <div id="debugCategories"></div>
+            </div>
+
+            <!-- No permission state -->
+            <div id="debugNoPermission" style="display:none;text-align:center;padding:60px 20px">
+              <i class="fa-solid fa-lock" style="font-size:48px;color:var(--muted);margin-bottom:16px"></i>
+              <h3 style="color:var(--text-secondary)">No Permission</h3>
+              <p style="color:var(--muted)">You need <code>moderex.admin.debug</code> to access this page.</p>
             </div>
           </div>
         </section>
@@ -4260,7 +4278,7 @@
       <div class="modal-body">
         <div style="margin-bottom:14px">
           <label class="hintline" style="margin-top:0">Title <span style="color:var(--bad)">*</span></label>
-          <input type="text" class="input" id="checklistItemTitle" placeholder="Enter item title..." maxlength="200">
+          <input type="text" class="input" id="checklistItemTitle" placeholder="Enter item title...">
         </div>
         <div style="margin-bottom:14px">
           <label class="hintline" style="margin-top:0">Category</label>
@@ -4298,6 +4316,38 @@
       <div class="modal-foot" style="justify-content:center">
         <button class="btn ghost" onclick="closeChecklistDeleteModal()"><i class="fa-solid fa-xmark"></i> Cancel</button>
         <button class="btn bad" onclick="confirmDeleteChecklistItem()"><i class="fa-solid fa-trash"></i> Delete</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Checklist Import TXT Modal -->
+  <div class="overlay" id="checklistImportOverlay">
+    <div class="modal" style="max-width:560px" onclick="event.stopPropagation()">
+      <div class="modal-top">
+        <div style="display:flex;align-items:center;gap:10px">
+          <i class="fa-solid fa-file-import" style="color:var(--info)"></i>
+          <b>Import Checklist from TXT</b>
+        </div>
+        <button class="mini" onclick="closeChecklistImportModal()"><i class="fa-solid fa-xmark"></i></button>
+      </div>
+      <div class="modal-body">
+        <div style="margin-bottom:14px">
+          <label class="hintline" style="margin-top:0">Category for imported items</label>
+          <input type="text" class="input" id="checklistImportCategory" placeholder="Imported" value="Imported" maxlength="50">
+        </div>
+        <div style="margin-bottom:14px">
+          <label class="hintline" style="margin-top:0">Preview <span id="checklistImportCount" style="color:var(--text-secondary)"></span></label>
+          <div id="checklistImportPreview" style="max-height:300px;overflow-y:auto;background:rgba(0,0,0,.3);border-radius:var(--radius);padding:12px;font-size:13px;border:1px solid var(--border)">
+            <span style="color:var(--text-secondary)">No file loaded</span>
+          </div>
+        </div>
+      </div>
+      <div class="modal-foot">
+        <span class="badge gray"><i class="fa-solid fa-info-circle"></i> Numbered lines become items</span>
+        <div style="display:flex;gap:10px">
+          <button class="btn ghost" onclick="closeChecklistImportModal()"><i class="fa-solid fa-xmark"></i> Cancel</button>
+          <button class="btn primary" id="checklistImportBtn" onclick="confirmImportChecklist()" disabled><i class="fa-solid fa-file-import"></i> Import Items</button>
+        </div>
       </div>
     </div>
   </div>

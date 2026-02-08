@@ -253,74 +253,34 @@
   transition: opacity 0.3s ease, border-color 0.3s ease;
 }
 
-.config-locked * {
-  pointer-events: none !important;
+/* Read-only config sections: visible and interactive-looking but changes denied */
+.config-read-only {
+  position: relative;
+  border: 1px solid rgba(var(--bad-rgb), 0.15) !important;
+  transition: border-color 0.3s ease;
 }
 
-.config-locked input,
-.config-locked select,
-.config-locked textarea,
-.config-locked button,
-.config-locked .toggle {
-  cursor: not-allowed !important;
-  opacity: 0.6;
-}
-
-.config-locked .config-lock-overlay {
-  pointer-events: auto;
-}
-
-.config-lock-overlay {
+.config-lock-indicator {
   position: absolute;
-  inset: 0;
+  top: 12px;
+  right: 12px;
   display: flex;
   align-items: center;
-  justify-content: center;
-  flex-direction: column;
-  gap: 8px;
-  z-index: 15;
-  border-radius: inherit;
-  cursor: not-allowed;
-  background: repeating-linear-gradient(
-    -45deg,
-    transparent,
-    transparent 20px,
-    rgba(0, 0, 0, 0.04) 20px,
-    rgba(0, 0, 0, 0.04) 40px
-  );
-}
-
-.config-lock-overlay .config-lock-badge {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 8px 16px;
-  background: rgba(0, 0, 0, 0.75);
-  backdrop-filter: blur(4px);
+  gap: 5px;
+  padding: 3px 10px;
+  background: rgba(var(--bad-rgb), 0.12);
+  border: 1px solid rgba(var(--bad-rgb), 0.2);
   border-radius: var(--radius);
-  border: 1px solid rgba(var(--bad-rgb), 0.3);
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
-}
-
-.config-lock-overlay .config-lock-badge i {
-  font-size: 0.85rem;
-  color: var(--bad);
-}
-
-.config-lock-overlay .config-lock-badge span {
-  font-size: 0.8rem;
-  font-weight: 600;
-  color: var(--text-secondary);
-  letter-spacing: 0.02em;
-}
-
-.config-lock-overlay .config-lock-perm {
   font-size: 0.7rem;
-  color: var(--muted);
-  font-family: var(--font-mono);
-  background: rgba(0, 0, 0, 0.4);
-  padding: 2px 8px;
-  border-radius: 4px;
+  color: var(--bad);
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  pointer-events: none;
+  z-index: 5;
+}
+
+.config-lock-indicator i {
+  font-size: 0.65rem;
 }
 
 /* ===== NO PERMISSION OVERLAY (for modals) ===== */
@@ -994,6 +954,117 @@ body {
 .sb-dev-section .sb-item.active::before {
   background: var(--dev-light);
 }
+
+/* ===== DEBUG PAGE STYLES ===== */
+.debug-player-dropdown {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  background: var(--card-bg);
+  border: 1px solid var(--border);
+  border-radius: 0 0 var(--radius) var(--radius);
+  max-height: 240px;
+  overflow-y: auto;
+  z-index: 100;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+}
+.debug-player-dropdown .debug-player-option {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 12px;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+.debug-player-dropdown .debug-player-option:hover {
+  background: rgba(255, 255, 255, 0.05);
+}
+.debug-player-dropdown .debug-player-option img {
+  width: 28px;
+  height: 28px;
+  border-radius: 4px;
+}
+.debug-player-dropdown .debug-player-option .player-name {
+  font-weight: 600;
+  font-size: 13px;
+}
+.debug-player-dropdown .debug-player-option .player-uuid {
+  font-size: 11px;
+  color: var(--text-secondary);
+  font-family: var(--font-mono);
+}
+.debug-category {
+  margin-bottom: 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  overflow: hidden;
+  background: var(--card-bg);
+}
+.debug-category-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 16px;
+  background: rgba(0, 0, 0, 0.2);
+  cursor: pointer;
+  user-select: none;
+  transition: background 0.15s;
+}
+.debug-category-header:hover {
+  background: rgba(0, 0, 0, 0.3);
+}
+.debug-category-header .cat-left {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-weight: 600;
+}
+.debug-category-header .cat-stats {
+  display: flex;
+  gap: 12px;
+  font-size: 12px;
+}
+.debug-category-header .cat-stats .granted { color: var(--ok); }
+.debug-category-header .cat-stats .denied { color: var(--bad); }
+.debug-category-body {
+  padding: 0;
+}
+.debug-perm-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 16px;
+  border-top: 1px solid rgba(255, 255, 255, 0.04);
+  font-size: 13px;
+  transition: background 0.1s;
+}
+.debug-perm-row:hover {
+  background: rgba(255, 255, 255, 0.02);
+}
+.debug-perm-row .perm-node {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+.debug-perm-row .perm-desc {
+  flex: 1;
+  margin-left: 12px;
+  color: var(--text-secondary);
+  font-size: 12px;
+}
+.debug-perm-row .perm-status {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-weight: 600;
+  font-size: 12px;
+  min-width: 80px;
+  justify-content: flex-end;
+}
+.debug-perm-row .perm-status.granted { color: var(--ok); }
+.debug-perm-row .perm-status.denied { color: var(--bad); }
+.debug-perm-row.hidden-by-filter { display: none; }
 
 /* ===== STRESS TEST STYLES ===== */
 .stress-progress {

@@ -151,8 +151,9 @@
 
   /**
    * Gate configuration page cards behind their permissions.
-   * Cards remain visible but visually locked with an overlay when user lacks permission.
-   * All inputs are disabled and clicks show a toast notification.
+   * Cards remain visible and interactive-looking, but changes are intercepted
+   * and denied with a toast when user lacks permission. Toggle switches snap
+   * back after 300ms to provide visual feedback before denying.
    */
   function gateConfigPermissions() {
     const gates = [
@@ -178,7 +179,9 @@
       // Clean up previous lock state (for page re-visits)
       const existingOverlay = card.querySelector('.config-lock-overlay');
       if (existingOverlay) existingOverlay.remove();
-      card.classList.remove('config-locked');
+      const existingBadge = card.querySelector('.config-lock-indicator');
+      if (existingBadge) existingBadge.remove();
+      card.classList.remove('config-locked', 'config-read-only');
       card.style.opacity = '';
       card.style.pointerEvents = '';
       card.style.position = '';
@@ -189,34 +192,90 @@
         el.removeAttribute('data-perm-disabled');
       });
 
+      // Remove previously attached permission interceptors
+      if (card._permClickHandler) {
+        card.removeEventListener('click', card._permClickHandler, true);
+        card._permClickHandler = null;
+      }
+      if (card._permChangeHandler) {
+        card.removeEventListener('change', card._permChangeHandler, true);
+        card._permChangeHandler = null;
+      }
+      if (card._permInputHandler) {
+        card.removeEventListener('input', card._permInputHandler, true);
+        card._permInputHandler = null;
+      }
+
       if (!hasPermission(perm)) {
-        // Add locked class for CSS styling
-        card.classList.add('config-locked');
+        // Add read-only class for subtle visual indication
+        card.classList.add('config-read-only');
 
-        // Disable all form elements within this section
-        card.querySelectorAll('input, select, textarea, button').forEach(el => {
-          el.disabled = true;
-          el.setAttribute('data-perm-disabled', 'true');
-        });
+        // Add small lock indicator badge at top-right
+        const indicator = document.createElement('div');
+        indicator.className = 'config-lock-indicator';
+        indicator.innerHTML = '<i class="fa-solid fa-lock"></i> <span>Read-only</span>';
+        indicator.title = 'You need ' + perm + ' to modify these settings';
+        card.style.position = 'relative';
+        card.appendChild(indicator);
 
-        // Create the lock overlay
-        const overlay = document.createElement('div');
-        overlay.className = 'config-lock-overlay';
-        overlay.innerHTML =
-          '<div class="config-lock-badge">' +
-            '<i class="fa-solid fa-lock"></i>' +
-            '<span>Insufficient Permissions</span>' +
-          '</div>' +
-          '<span class="config-lock-perm">' + perm + '</span>';
+        // Intercept click events on toggles and buttons
+        const clickHandler = function(e) {
+          const target = e.target.closest('button, .toggle, .toggle-thumb, a.btn, [role="button"]');
+          if (!target) return;
+          // Allow closing/navigation but block config changes
+          if (target.closest('.config-lock-indicator')) return;
 
-        // Click handler shows toast notification
-        overlay.addEventListener('click', function(e) {
           e.preventDefault();
           e.stopPropagation();
-          toast('bad', 'No Permission', 'You need <code>' + perm + '</code> to configure ' + label + '.');
-        });
 
-        card.appendChild(overlay);
+          // For toggle buttons, let them visually toggle then snap back
+          const toggle = target.closest('.toggle');
+          if (toggle) {
+            const wasOn = toggle.classList.contains('on');
+            toggle.classList.toggle('on');
+            setTimeout(() => {
+              if (wasOn) toggle.classList.add('on');
+              else toggle.classList.remove('on');
+            }, 300);
+          }
+
+          toast('bad', 'No Permission', 'You need <code>' + perm + '</code> to modify this setting.');
+        };
+
+        // Intercept change events on inputs/selects
+        const changeHandler = function(e) {
+          const target = e.target;
+          if (target.matches('input, select, textarea')) {
+            e.preventDefault();
+            e.stopPropagation();
+            toast('bad', 'No Permission', 'You need <code>' + perm + '</code> to modify this setting.');
+          }
+        };
+
+        // Intercept input events (for text fields as user types)
+        const inputHandler = function(e) {
+          const target = e.target;
+          if (target.matches('input[type="text"], input[type="number"], textarea')) {
+            // Store original value on first input, revert after toast
+            if (!target.dataset.permOriginal) {
+              target.dataset.permOriginal = target.defaultValue || '';
+            }
+            setTimeout(() => {
+              target.value = target.dataset.permOriginal;
+              delete target.dataset.permOriginal;
+            }, 300);
+            toast('bad', 'No Permission', 'You need <code>' + perm + '</code> to modify this setting.');
+          }
+        };
+
+        card.addEventListener('click', clickHandler, true);
+        card.addEventListener('change', changeHandler, true);
+        card.addEventListener('input', inputHandler, true);
+
+        // Store references for cleanup
+        card._permClickHandler = clickHandler;
+        card._permChangeHandler = changeHandler;
+        card._permInputHandler = inputHandler;
       }
     });
   }
@@ -588,6 +647,9 @@
       // Show/hide permissions tab based on moderex.admin.permissions
       const permTab = document.getElementById('sbPermissions');
       if (permTab) permTab.style.display = hasPermission('moderex.admin.permissions') ? '' : 'none';
+      // Show/hide debug section based on moderex.admin.debug
+      const debugSec = document.getElementById('sbDebugSection');
+      if (debugSec) debugSec.style.display = hasPermission('moderex.admin.debug') ? '' : 'none';
 
       // Re-render current page if needed (all permission-gated pages)
       switch (state.currentPage) {
@@ -628,6 +690,9 @@
     // Always update permissions sidebar visibility
     const permTab = document.getElementById('sbPermissions');
     if (permTab) permTab.style.display = hasPermission('moderex.admin.permissions') ? '' : 'none';
+    // Show/hide debug section based on moderex.admin.debug
+    const debugSection = document.getElementById('sbDebugSection');
+    if (debugSection) debugSection.style.display = hasPermission('moderex.admin.debug') ? '' : 'none';
   }
 
   /**
@@ -1130,6 +1195,14 @@
         return;
       }
       loadDevChecklist();
+    }
+    if (page === 'debug') {
+      if (!hasPermission('moderex.admin.debug')) {
+        document.getElementById('debugNoPermission').style.display = '';
+        document.getElementById('debugPermissionMatrix').style.display = 'none';
+      } else {
+        document.getElementById('debugNoPermission').style.display = 'none';
+      }
     }
 
     // Hide loading line after a short delay for smooth transition
@@ -3088,6 +3161,18 @@
       return;
     }
 
+    // Block additional player search when lacking mass permission and already have 1 player
+    if (state.massPlayerIds.length >= 1) {
+      const currentType = (dom().punishCreateType?.value || state.pendingPunishType || 'WARN').toUpperCase();
+      const massPermMap = { 'WARN': 'moderex.masswarn', 'MUTE': 'moderex.massmute', 'BAN': 'moderex.massban', 'KICK': 'moderex.masskick' };
+      const massPerm = massPermMap[currentType] || 'moderex.mass.*';
+      if (!hasPermission(massPerm) && !hasPermission('moderex.mass.*')) {
+        if (combo) combo.classList.remove('open');
+        dom().punishCreateList.innerHTML = '';
+        return;
+      }
+    }
+
     // Filter out already selected players
     const list = state.players
       .filter(p => p.name.toLowerCase().includes(q) && !state.massPlayerIds.includes(p.id))
@@ -3169,6 +3254,22 @@
     if (state.massPlayerIds.includes(playerId)) {
       toast('warn', 'Already Added', `${p.name} is already selected.`);
       return;
+    }
+
+    // Gate multi-player selection behind mass punishment permission
+    if (state.massPlayerIds.length >= 1) {
+      const currentType = (dom().punishCreateType?.value || state.pendingPunishType || 'WARN').toUpperCase();
+      const massPermMap = {
+        'WARN': 'moderex.masswarn',
+        'MUTE': 'moderex.massmute',
+        'BAN': 'moderex.massban',
+        'KICK': 'moderex.masskick'
+      };
+      const massPerm = massPermMap[currentType] || 'moderex.mass.*';
+      if (!hasPermission(massPerm) && !hasPermission('moderex.mass.*')) {
+        toast('bad', 'No Permission', 'You need <code>' + massPerm + '</code> to select multiple players.');
+        return;
+      }
     }
 
     // Add to selection
@@ -9778,6 +9879,14 @@
       }
     });
 
+    // Handle debug permissions response
+    ws.on('DEBUG_PERMISSIONS_DATA', (data) => {
+      if (!isLiveMode) return;
+      if (window.handleDebugPermissionData) {
+        window.handleDebugPermissionData(data);
+      }
+    });
+
     // Handle templates from server
     ws.on('TEMPLATES', (data) => {
       if (!isLiveMode) return;
@@ -10357,6 +10466,25 @@
       if (window.hasPermission && !window.hasPermission('moderex.alerts.pardon')) return;
 
       showPanelAlert('punishments', `Punishment Revoked: ${data.caseId}`, `${pun?.type || 'Unknown'} for ${pun?.playerName || 'Unknown'} was revoked`, { caseId: data.caseId });
+    });
+
+    ws.on('PUNISHMENT_UPDATED', (data) => {
+      if (!isLiveMode) return;
+      if (data.caseId) {
+        const pun = state.punishments.find(p => p.id === data.caseId);
+        if (pun) {
+          // Merge updated fields into existing punishment
+          if (data.reason !== undefined) pun.reason = data.reason;
+          if (data.duration !== undefined) pun.duration = data.duration;
+          if (data.expiresAt !== undefined) pun.expiresAt = data.expiresAt;
+          if (data.active !== undefined) pun.active = data.active;
+          if (data.revoked !== undefined) pun.revoked = data.revoked;
+          if (data.revokedBy !== undefined) pun.revokedBy = data.revokedBy;
+          if (data.revokedAt !== undefined) pun.revokedAt = data.revokedAt;
+          if (data.revokeReason !== undefined) pun.revokeReason = data.revokeReason;
+        }
+        ui.renderPunishments();
+      }
     });
 
     // Rate limiting state for watchlist alerts (by player/IP)
@@ -12390,6 +12518,111 @@
     }
   }
 
+  // ===== CHECKLIST TXT IMPORT =====
+  let pendingImportItems = [];
+
+  function importChecklistTxt() {
+    const fileInput = document.getElementById('checklistFileInput');
+    if (fileInput) {
+      fileInput.value = '';
+      fileInput.click();
+    }
+  }
+
+  function handleChecklistFileUpload(event) {
+    const file = event.target?.files?.[0];
+    if (!file) return;
+
+    if (!file.name.endsWith('.txt')) {
+      toast('error', 'Error', 'Please select a .txt file');
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = function(e) {
+      const text = e.target.result;
+      pendingImportItems = parseNumberedList(text);
+
+      if (pendingImportItems.length === 0) {
+        toast('warn', 'No Items Found', 'Could not find any numbered items in the file. Use format: 1. Item title');
+        return;
+      }
+
+      // Show preview modal
+      const overlay = document.getElementById('checklistImportOverlay');
+      const preview = document.getElementById('checklistImportPreview');
+      const countEl = document.getElementById('checklistImportCount');
+      const importBtn = document.getElementById('checklistImportBtn');
+
+      if (countEl) countEl.textContent = `(${pendingImportItems.length} items found)`;
+      if (importBtn) importBtn.disabled = false;
+
+      if (preview) {
+        let html = '';
+        pendingImportItems.forEach((item, i) => {
+          html += `<div style="display:flex;gap:8px;padding:6px 0;${i > 0 ? 'border-top:1px solid rgba(255,255,255,.05)' : ''}">
+            <span style="color:var(--info);font-weight:600;flex-shrink:0">${i + 1}.</span>
+            <span style="color:var(--text-primary);word-break:break-word">${escapeHtml(item)}</span>
+          </div>`;
+        });
+        preview.innerHTML = html;
+      }
+
+      if (overlay) overlay.classList.add('show');
+    };
+    reader.onerror = function() {
+      toast('error', 'Error', 'Failed to read file');
+    };
+    reader.readAsText(file);
+  }
+
+  function parseNumberedList(text) {
+    const lines = text.split(/\r?\n/);
+    const items = [];
+
+    for (const line of lines) {
+      const trimmed = line.trim();
+      if (!trimmed) continue;
+
+      // Match numbered patterns: "1. text", "1) text", "1 - text", "1: text", or just "1 text"
+      const match = trimmed.match(/^(\d+)\s*[.)\-:]\s*(.+)$/);
+      if (match) {
+        const title = match[2].trim();
+        if (title) items.push(title);
+      }
+    }
+
+    return items;
+  }
+
+  function closeChecklistImportModal() {
+    const overlay = document.getElementById('checklistImportOverlay');
+    if (overlay) overlay.classList.remove('show');
+    pendingImportItems = [];
+  }
+
+  function confirmImportChecklist() {
+    if (pendingImportItems.length === 0) return;
+
+    const ws = window.MX?.ws;
+    if (!ws?.isConnected()) {
+      toast('error', 'Error', 'Not connected to server');
+      return;
+    }
+
+    const categoryEl = document.getElementById('checklistImportCategory');
+    const category = categoryEl?.value?.trim() || 'Imported';
+
+    let added = 0;
+    for (const title of pendingImportItems) {
+      ws.send('ADD_CHECKLIST_ITEM', { title, category, description: '' });
+      added++;
+    }
+
+    toast('success', 'Imported', `Adding ${added} checklist items...`);
+    closeChecklistImportModal();
+  }
+
   // Expose new functions globally
   window.attemptReconnect = attemptReconnect;
   window.toggleSidebar = toggleSidebar;
@@ -12419,6 +12652,10 @@
   window.closeChecklistResetModal = closeChecklistResetModal;
   window.confirmResetChecklist = confirmResetChecklist;
   window.loadDevChecklist = loadDevChecklist;
+  window.importChecklistTxt = importChecklistTxt;
+  window.handleChecklistFileUpload = handleChecklistFileUpload;
+  window.closeChecklistImportModal = closeChecklistImportModal;
+  window.confirmImportChecklist = confirmImportChecklist;
 
   // ===== DEVELOPER MODE =====
   function toggleDevMode() {
@@ -12923,6 +13160,351 @@
 
   window.debugCheckPermissions = debugCheckPermissions;
   window.debugRefreshPermissions = debugRefreshPermissions;
+
+  // ===== PERMISSION DEBUG PAGE =====
+  let debugCurrentFilter = 'all';
+  let debugPermData = null;
+
+  // Permission matrix definition - all ModereX permissions organized by category
+  const DEBUG_PERMISSION_CATEGORIES = [
+    {
+      name: 'Punishment Commands', icon: 'fa-gavel', color: 'var(--bad)',
+      perms: [
+        { node: 'moderex.ban', desc: 'Ban players' },
+        { node: 'moderex.tempban', desc: 'Temporarily ban players' },
+        { node: 'moderex.ipban', desc: 'IP ban players' },
+        { node: 'moderex.mute', desc: 'Mute players' },
+        { node: 'moderex.tempmute', desc: 'Temporarily mute players' },
+        { node: 'moderex.ipmute', desc: 'IP mute players' },
+        { node: 'moderex.warn', desc: 'Warn players' },
+        { node: 'moderex.kick', desc: 'Kick players' },
+        { node: 'moderex.unban', desc: 'Unban players' },
+        { node: 'moderex.unmute', desc: 'Unmute players' },
+        { node: 'moderex.unwarn', desc: 'Remove warnings' },
+        { node: 'moderex.punish', desc: 'Open punishment GUI' },
+        { node: 'moderex.punish.delete', desc: 'Delete punishments' },
+        { node: 'moderex.punish.modify', desc: 'Edit punishments' },
+      ]
+    },
+    {
+      name: 'Mass Punishments', icon: 'fa-users', color: 'var(--orange)',
+      perms: [
+        { node: 'moderex.massban', desc: 'Mass ban' },
+        { node: 'moderex.massmute', desc: 'Mass mute' },
+        { node: 'moderex.masskick', desc: 'Mass kick' },
+        { node: 'moderex.masswarn', desc: 'Mass warn' },
+        { node: 'moderex.massunban', desc: 'Mass unban' },
+        { node: 'moderex.massunmute', desc: 'Mass unmute' },
+        { node: 'moderex.massunwarn', desc: 'Mass unwarn' },
+      ]
+    },
+    {
+      name: 'Info Visibility', icon: 'fa-eye', color: 'var(--cyan)',
+      perms: [
+        { node: 'moderex.info.ip', desc: 'View player IP' },
+        { node: 'moderex.info.uuid', desc: 'View player UUID' },
+        { node: 'moderex.info.nick', desc: 'View nickname' },
+        { node: 'moderex.info.joindate', desc: 'View join date' },
+        { node: 'moderex.info.time', desc: 'View online time' },
+        { node: 'moderex.info.namehistory', desc: 'View name history' },
+        { node: 'moderex.check', desc: 'Check player info' },
+        { node: 'moderex.check.ip', desc: 'View IP in /check' },
+        { node: 'moderex.command.seen', desc: '/seen command' },
+        { node: 'moderex.command.seen.ip', desc: 'View IP in /seen' },
+        { node: 'moderex.dupeip', desc: 'Check alt accounts' },
+        { node: 'moderex.iphistory', desc: 'View IP history' },
+        { node: 'moderex.geoip', desc: 'GeoIP lookup' },
+      ]
+    },
+    {
+      name: 'History & Logs', icon: 'fa-scroll', color: 'var(--gold)',
+      perms: [
+        { node: 'moderex.history', desc: 'View punishment history' },
+        { node: 'moderex.staffhistory', desc: 'View staff history' },
+        { node: 'moderex.checkban', desc: 'Check bans' },
+        { node: 'moderex.checkmute', desc: 'Check mutes' },
+        { node: 'moderex.checkwarn', desc: 'Check warnings' },
+        { node: 'moderex.banlist', desc: 'View ban list' },
+        { node: 'moderex.mutelist', desc: 'View mute list' },
+        { node: 'moderex.warnlist', desc: 'View warning list' },
+        { node: 'moderex.command.viewpunishment', desc: 'View punishment details' },
+        { node: 'moderex.log', desc: 'View activity log' },
+        { node: 'moderex.log.teleport', desc: 'Teleport from log' },
+        { node: 'moderex.log.automod', desc: 'View automod history' },
+        { node: 'moderex.log.nicknames', desc: 'View nickname history' },
+        { node: 'moderex.cmdhistory', desc: 'View command history' },
+        { node: 'moderex.modlog', desc: 'View moderation log' },
+      ]
+    },
+    {
+      name: 'Staff Tools', icon: 'fa-wrench', color: 'var(--purple)',
+      perms: [
+        { node: 'moderex.staff', desc: 'General staff access' },
+        { node: 'moderex.staffmode', desc: 'Staff mode' },
+        { node: 'moderex.vanish', desc: 'Toggle vanish' },
+        { node: 'moderex.vanish.others', desc: 'Vanish others' },
+        { node: 'moderex.vanish.flight', desc: 'Flight while vanished' },
+        { node: 'moderex.vanish.spectator', desc: 'Spectator while vanished' },
+        { node: 'moderex.disguise', desc: 'Use disguise' },
+        { node: 'moderex.staff.inspect', desc: 'Inspect inventories' },
+        { node: 'moderex.staff.inspect.modify', desc: 'Modify inventories' },
+        { node: 'moderex.command.fly', desc: 'Toggle flight' },
+        { node: 'moderex.command.broadcast', desc: 'Broadcast messages' },
+        { node: 'moderex.command.invsee', desc: 'View inventories' },
+        { node: 'moderex.command.echest', desc: 'View ender chests' },
+        { node: 'moderex.staffchat', desc: 'Staff chat' },
+        { node: 'moderex.command.watchlist', desc: 'Manage watchlist' },
+      ]
+    },
+    {
+      name: 'Automod', icon: 'fa-robot', color: '#22c55e',
+      perms: [
+        { node: 'moderex.automod.view', desc: 'View automod rules' },
+        { node: 'moderex.automod.edit', desc: 'Edit automod rules' },
+        { node: 'moderex.automod.create', desc: 'Create automod rules' },
+        { node: 'moderex.automod.delete', desc: 'Delete automod rules' },
+      ]
+    },
+    {
+      name: 'Templates', icon: 'fa-bookmark', color: 'var(--blue)',
+      perms: [
+        { node: 'moderex.template.create', desc: 'Create templates' },
+        { node: 'moderex.template.edit', desc: 'Edit templates' },
+        { node: 'moderex.template.delete', desc: 'Delete templates' },
+      ]
+    },
+    {
+      name: 'Web Panel & Admin', icon: 'fa-shield-halved', color: 'var(--bad)',
+      perms: [
+        { node: 'moderex.webpanel', desc: 'Access web panel' },
+        { node: 'moderex.admin', desc: 'Full admin access' },
+        { node: 'moderex.admin.permissions', desc: 'Manage permissions' },
+        { node: 'moderex.admin.debug', desc: 'Debug permissions' },
+        { node: 'moderex.admin.debug.simulate', desc: 'Simulate permissions' },
+        { node: 'moderex.reload', desc: 'Reload plugin' },
+        { node: 'moderex.lockdown', desc: 'Server lockdown' },
+        { node: 'moderex.prunehistory', desc: 'Prune history' },
+        { node: 'moderex.staffrollback', desc: 'Staff rollback' },
+      ]
+    },
+    {
+      name: 'Server Status', icon: 'fa-server', color: 'var(--green)',
+      perms: [
+        { node: 'moderex.status.view', desc: 'View server status' },
+        { node: 'moderex.status.restart', desc: 'Restart server' },
+        { node: 'moderex.status.reload', desc: 'Reload from panel' },
+        { node: 'moderex.status.broadcast', desc: 'Broadcast from panel' },
+      ]
+    },
+    {
+      name: 'Replay System', icon: 'fa-film', color: 'var(--warn)',
+      perms: [
+        { node: 'moderex.replay.view', desc: 'View replays' },
+        { node: 'moderex.replay.manage', desc: 'Manage replays' },
+      ]
+    },
+    {
+      name: 'Bypass Permissions', icon: 'fa-forward', color: '#a78bfa',
+      perms: [
+        { node: 'moderex.bypass.automod', desc: 'Bypass automod' },
+        { node: 'moderex.bypass.automod.nickname', desc: 'Bypass nick automod' },
+        { node: 'moderex.bypass.lockdown', desc: 'Bypass lockdown' },
+        { node: 'moderex.bypass.chatdisable', desc: 'Bypass chat disable' },
+        { node: 'moderex.bypass.slowmode', desc: 'Bypass slowmode' },
+        { node: 'moderex.bypass.clearchat', desc: 'Bypass clear chat' },
+        { node: 'moderex.bypass.mute', desc: 'Bypass mute' },
+        { node: 'moderex.bypass.afk', desc: 'Bypass AFK detection' },
+      ]
+    },
+    {
+      name: 'Notifications', icon: 'fa-bell', color: '#06b6d4',
+      perms: [
+        { node: 'moderex.notify.punishments', desc: 'Punishment notifications' },
+        { node: 'moderex.notify.automod', desc: 'Automod notifications' },
+        { node: 'moderex.notify.anticheat', desc: 'Anticheat notifications' },
+        { node: 'moderex.notify.staffchat', desc: 'Staff chat messages' },
+        { node: 'moderex.notify.broadcast', desc: 'Broadcast notifications' },
+        { node: 'moderex.notify.joinleave', desc: 'Join/leave alerts' },
+        { node: 'moderex.notify.lockdown', desc: 'Lockdown alerts' },
+        { node: 'moderex.notify.afk', desc: 'AFK warnings' },
+        { node: 'moderex.notify.status', desc: 'Server status updates' },
+        { node: 'moderex.notify.pm', desc: 'Private messages' },
+      ]
+    },
+    {
+      name: 'Punishment Flags', icon: 'fa-flag', color: '#f59e0b',
+      perms: [
+        { node: 'moderex.flag.silent', desc: 'Silent flag (-s)' },
+        { node: 'moderex.flag.extrasilent', desc: 'Extra silent (-es)' },
+        { node: 'moderex.flag.public', desc: 'Public flag (-p)' },
+        { node: 'moderex.flag.global', desc: 'Global flag (-g)' },
+        { node: 'moderex.flag.hidden', desc: 'Hidden flag (-h)' },
+        { node: 'moderex.flag.skip', desc: 'Skip confirmation (-skip)' },
+      ]
+    },
+  ];
+
+  function filterDebugPlayers(query) {
+    const dropdown = document.getElementById('debugPlayerDropdown');
+    if (!query || query.length < 1) { dropdown.style.display = 'none'; return; }
+    const players = state.players || [];
+    const q = query.toLowerCase();
+    const matches = players.filter(p => (p.name || '').toLowerCase().includes(q)).slice(0, 10);
+    if (matches.length === 0) { dropdown.style.display = 'none'; return; }
+    dropdown.style.display = 'block';
+    dropdown.innerHTML = matches.map(p => `
+      <div class="debug-player-option" onclick="selectDebugPlayer('${escapeHtml(p.name)}', '${escapeHtml(p.uuid || '')}')">
+        <img src="https://mc-heads.net/avatar/${p.uuid || p.name}/28" alt="">
+        <div>
+          <div class="player-name">${escapeHtml(p.name)}</div>
+          <div class="player-uuid">${p.uuid ? p.uuid.substring(0, 13) + '...' : ''}</div>
+        </div>
+      </div>
+    `).join('');
+  }
+
+  function selectDebugPlayer(name, uuid) {
+    document.getElementById('debugPlayerInput').value = name;
+    document.getElementById('debugPlayerDropdown').style.display = 'none';
+  }
+
+  function loadDebugPermissions() {
+    const playerName = document.getElementById('debugPlayerInput').value.trim();
+    if (!playerName) {
+      toast('warn', 'No Player', 'Enter a player name to inspect.');
+      return;
+    }
+    const ws = window.MX?.ws;
+    if (!ws || !ws.isConnected()) {
+      toast('error', 'Not Connected', 'WebSocket not connected.');
+      return;
+    }
+    if (window.showLoadingLine) window.showLoadingLine();
+    ws.send('GET_DEBUG_PERMISSIONS', { player: playerName });
+  }
+
+  // Handle debug permission response from backend
+  function handleDebugPermissionData(data) {
+    if (window.hideLoadingLine) window.hideLoadingLine();
+    if (data.error) {
+      toast('error', 'Error', data.error);
+      return;
+    }
+    debugPermData = data;
+
+    // Show player info
+    const infoEl = document.getElementById('debugPlayerInfo');
+    infoEl.style.display = '';
+    document.getElementById('debugPlayerAvatar').src = `https://mc-heads.net/avatar/${data.uuid || data.player}/48`;
+    document.getElementById('debugPlayerName').textContent = data.player || 'Unknown';
+    document.getElementById('debugPlayerUuid').textContent = data.uuid || 'Unknown UUID';
+
+    const statusEl = document.getElementById('debugPlayerStatus');
+    statusEl.textContent = data.online ? 'Online' : 'Offline';
+    statusEl.className = 'chip ' + (data.online ? 'ok' : '');
+
+    const weightEl = document.getElementById('debugPlayerWeight');
+    if (data.weight > 0) {
+      weightEl.style.display = '';
+      weightEl.textContent = 'Weight: ' + data.weight;
+      weightEl.className = 'chip';
+    } else {
+      weightEl.style.display = 'none';
+    }
+
+    const opEl = document.getElementById('debugPlayerOp');
+    if (data.isOp) {
+      opEl.style.display = '';
+      opEl.textContent = 'OP';
+      opEl.className = 'chip warn';
+    } else {
+      opEl.style.display = 'none';
+    }
+
+    // Build the permission matrix
+    document.getElementById('debugPermissionMatrix').style.display = '';
+    renderDebugMatrix(data.permissions || {});
+  }
+
+  function renderDebugMatrix(permMap) {
+    const container = document.getElementById('debugCategories');
+    const filterText = (document.getElementById('debugPermFilter')?.value || '').toLowerCase();
+    let totalGranted = 0, totalDenied = 0;
+
+    let html = '';
+    for (const cat of DEBUG_PERMISSION_CATEGORIES) {
+      let catGranted = 0, catDenied = 0;
+      let rowsHtml = '';
+
+      for (const perm of cat.perms) {
+        const granted = permMap[perm.node] === true;
+        if (granted) { catGranted++; totalGranted++; } else { catDenied++; totalDenied++; }
+
+        // Filter
+        const matchesText = !filterText || perm.node.toLowerCase().includes(filterText) || perm.desc.toLowerCase().includes(filterText);
+        const matchesFilter = debugCurrentFilter === 'all' || (debugCurrentFilter === 'granted' && granted) || (debugCurrentFilter === 'denied' && !granted);
+        const hidden = (!matchesText || !matchesFilter) ? ' hidden-by-filter' : '';
+
+        rowsHtml += `<div class="debug-perm-row${hidden}">
+          <span class="perm-node">${perm.node}</span>
+          <span class="perm-desc">${perm.desc}</span>
+          <span class="perm-status ${granted ? 'granted' : 'denied'}">
+            <i class="fa-solid ${granted ? 'fa-check' : 'fa-xmark'}"></i> ${granted ? 'Granted' : 'Denied'}
+          </span>
+        </div>`;
+      }
+
+      // Check if all rows are hidden
+      const allHidden = cat.perms.every(p => {
+        const granted = permMap[p.node] === true;
+        const matchesText = !filterText || p.node.toLowerCase().includes(filterText) || p.desc.toLowerCase().includes(filterText);
+        const matchesFilter = debugCurrentFilter === 'all' || (debugCurrentFilter === 'granted' && granted) || (debugCurrentFilter === 'denied' && !granted);
+        return !matchesText || !matchesFilter;
+      });
+
+      html += `<div class="debug-category" ${allHidden ? 'style="display:none"' : ''}>
+        <div class="debug-category-header" onclick="this.parentElement.classList.toggle('collapsed')">
+          <div class="cat-left">
+            <i class="fa-solid ${cat.icon}" style="color:${cat.color}"></i>
+            <span>${cat.name}</span>
+          </div>
+          <div class="cat-stats">
+            <span class="granted"><i class="fa-solid fa-check"></i> ${catGranted}</span>
+            <span class="denied"><i class="fa-solid fa-xmark"></i> ${catDenied}</span>
+          </div>
+        </div>
+        <div class="debug-category-body">${rowsHtml}</div>
+      </div>`;
+    }
+
+    container.innerHTML = html;
+
+    // Update stats
+    const statsEl = document.getElementById('debugPermStats');
+    if (statsEl) {
+      statsEl.innerHTML = `<span style="color:var(--ok)">${totalGranted} granted</span> / <span style="color:var(--bad)">${totalDenied} denied</span> of ${totalGranted + totalDenied} total`;
+    }
+  }
+
+  function filterDebugMatrix() {
+    if (debugPermData) renderDebugMatrix(debugPermData.permissions || {});
+  }
+
+  function setDebugFilter(filter) {
+    debugCurrentFilter = filter;
+    document.getElementById('debugFilterAll').classList.toggle('active', filter === 'all');
+    document.getElementById('debugFilterGranted').classList.toggle('active', filter === 'granted');
+    document.getElementById('debugFilterDenied').classList.toggle('active', filter === 'denied');
+    if (debugPermData) renderDebugMatrix(debugPermData.permissions || {});
+  }
+
+  // Export debug page functions
+  window.filterDebugPlayers = filterDebugPlayers;
+  window.selectDebugPlayer = selectDebugPlayer;
+  window.loadDebugPermissions = loadDebugPermissions;
+  window.handleDebugPermissionData = handleDebugPermissionData;
+  window.filterDebugMatrix = filterDebugMatrix;
+  window.setDebugFilter = setDebugFilter;
 
   // ===== DATABASE DEBUG =====
   function showDatabaseOutput(html) {
