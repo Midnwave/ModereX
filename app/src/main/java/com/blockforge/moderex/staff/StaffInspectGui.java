@@ -2,22 +2,30 @@ package com.blockforge.moderex.staff;
 
 import com.blockforge.moderex.ModereX;
 import com.blockforge.moderex.util.Msg;
+import com.blockforge.moderex.util.PermissionUtil;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
+import net.kyori.adventure.text.format.TextDecoration;
 import org.bukkit.Bukkit;
 import org.bukkit.Material;
+import org.bukkit.Sound;
 import org.bukkit.entity.Player;
 import org.bukkit.inventory.Inventory;
 import org.bukkit.inventory.ItemStack;
+import org.bukkit.inventory.PlayerInventory;
 import org.bukkit.inventory.meta.ItemMeta;
 import org.bukkit.inventory.meta.SkullMeta;
 
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 
 /**
- * GUI for inspecting and managing a player.
+ * Full OpenInv-style inventory viewer for staff inspection.
+ * Layout (6 rows, 54 slots):
+ *   Row 1 (0-8):   Target's hotbar (player inv slots 0-8)
+ *   Row 2-4 (9-35): Target's main inventory (player inv slots 9-35)
+ *   Row 5 (36-44): Armor (36-39) + Offhand (40) + empty (41) + Ender Chest (42) + Refresh (43) + Close (44)
+ *   Row 6 (45-53): Info/status items
  */
 public class StaffInspectGui {
 
@@ -25,11 +33,26 @@ public class StaffInspectGui {
     private final Player staff;
     private final Player target;
     private final Inventory inventory;
+    private final boolean canModify;
+
+    // Slot constants for action buttons (row 5)
+    private static final int ENDER_CHEST_SLOT = 42;
+    private static final int REFRESH_SLOT = 43;
+    private static final int CLOSE_SLOT = 44;
+
+    // Row 5 armor/offhand mapping
+    private static final int HELMET_SLOT = 36;
+    private static final int CHESTPLATE_SLOT = 37;
+    private static final int LEGGINGS_SLOT = 38;
+    private static final int BOOTS_SLOT = 39;
+    private static final int OFFHAND_SLOT = 40;
+    private static final int SEPARATOR_SLOT = 41;
 
     public StaffInspectGui(ModereX plugin, Player staff, Player target) {
         this.plugin = plugin;
         this.staff = staff;
         this.target = target;
+        this.canModify = PermissionUtil.hasPermission(staff, "moderex.staff.inspect.modify");
         this.inventory = Msg.createInventory(null, 54, Component.text("Inspect: " + target.getName()));
     }
 
@@ -37,299 +60,313 @@ public class StaffInspectGui {
      * Open the GUI.
      */
     public void open() {
-        setupItems();
+        populateInventory();
+        populateArmorRow();
+        populateInfoRow();
         staff.openInventory(inventory);
     }
 
     /**
-     * Setup GUI items.
+     * Populate the target's inventory contents into the GUI.
+     * Row 1 (slots 0-8): Hotbar
+     * Rows 2-4 (slots 9-35): Main inventory
      */
-    private void setupItems() {
-        inventory.setItem(4, createPlayerHead());
+    private void populateInventory() {
+        PlayerInventory playerInv = target.getInventory();
 
-        inventory.setItem(10, createInfoItem());
-        inventory.setItem(12, createInventoryItem());
-        inventory.setItem(14, createEnderChestItem());
-        inventory.setItem(16, createHealthItem());
+        // Row 1: Hotbar (player slots 0-8 -> GUI slots 0-8)
+        for (int i = 0; i <= 8; i++) {
+            ItemStack item = playerInv.getItem(i);
+            inventory.setItem(i, item != null ? item.clone() : null);
+        }
 
-        inventory.setItem(19, createPunishItem());
-        inventory.setItem(21, createHistoryItem());
-        inventory.setItem(23, createFreezeItem());
-        inventory.setItem(25, createTeleportItem());
-
-        inventory.setItem(28, createNotesItem());
-        inventory.setItem(30, createWatchlistItem());
-        inventory.setItem(32, createAnticheatItem());
-        inventory.setItem(34, createAdvancedItem());
-
-        inventory.setItem(49, createCloseItem());
+        // Rows 2-4: Main inventory (player slots 9-35 -> GUI slots 9-35)
+        for (int i = 9; i <= 35; i++) {
+            ItemStack item = playerInv.getItem(i);
+            inventory.setItem(i, item != null ? item.clone() : null);
+        }
     }
 
     /**
-     * Create player head item.
+     * Populate Row 5 with armor, offhand, and action buttons.
      */
+    private void populateArmorRow() {
+        PlayerInventory playerInv = target.getInventory();
+
+        // Armor slots (GUI 36-39): Helmet, Chestplate, Leggings, Boots
+        ItemStack helmet = playerInv.getHelmet();
+        ItemStack chestplate = playerInv.getChestplate();
+        ItemStack leggings = playerInv.getLeggings();
+        ItemStack boots = playerInv.getBoots();
+
+        inventory.setItem(HELMET_SLOT, helmet != null ? helmet.clone() : createPlaceholder("<gray>No Helmet", Material.LIGHT_GRAY_STAINED_GLASS_PANE));
+        inventory.setItem(CHESTPLATE_SLOT, chestplate != null ? chestplate.clone() : createPlaceholder("<gray>No Chestplate", Material.LIGHT_GRAY_STAINED_GLASS_PANE));
+        inventory.setItem(LEGGINGS_SLOT, leggings != null ? leggings.clone() : createPlaceholder("<gray>No Leggings", Material.LIGHT_GRAY_STAINED_GLASS_PANE));
+        inventory.setItem(BOOTS_SLOT, boots != null ? boots.clone() : createPlaceholder("<gray>No Boots", Material.LIGHT_GRAY_STAINED_GLASS_PANE));
+
+        // Offhand (GUI slot 40)
+        ItemStack offhand = playerInv.getItemInOffHand();
+        inventory.setItem(OFFHAND_SLOT, offhand.getType() != Material.AIR ? offhand.clone() : createPlaceholder("<gray>No Offhand", Material.LIGHT_GRAY_STAINED_GLASS_PANE));
+
+        // Separator
+        inventory.setItem(SEPARATOR_SLOT, createPlaceholder(" ", Material.GRAY_STAINED_GLASS_PANE));
+
+        // Ender Chest button
+        inventory.setItem(ENDER_CHEST_SLOT, createActionItem(Material.ENDER_CHEST,
+                "<light_purple>Ender Chest",
+                "<gray>Click to view ender chest"));
+
+        // Refresh button
+        inventory.setItem(REFRESH_SLOT, createActionItem(Material.LIME_DYE,
+                "<green>Refresh",
+                "<gray>Click to reload inventory"));
+
+        // Close button
+        inventory.setItem(CLOSE_SLOT, createActionItem(Material.BARRIER,
+                "<red>Close",
+                "<gray>Click to close"));
+    }
+
+    /**
+     * Populate Row 6 with player info and status.
+     */
+    private void populateInfoRow() {
+        // Player head with info (center)
+        inventory.setItem(49, createPlayerHead());
+
+        // Health info
+        inventory.setItem(46, createStatusItem(Material.RED_DYE,
+                "<red>Health",
+                "<gray>Health: <white>" + String.format("%.1f", target.getHealth()) + "/" + String.format("%.1f", target.getMaxHealth()),
+                "<gray>Food: <white>" + target.getFoodLevel() + "/20",
+                "<gray>Saturation: <white>" + String.format("%.1f", target.getSaturation())));
+
+        // Location info
+        inventory.setItem(47, createStatusItem(Material.COMPASS,
+                "<green>Location",
+                "<gray>World: <white>" + target.getWorld().getName(),
+                "<gray>X: <white>" + target.getLocation().getBlockX(),
+                "<gray>Y: <white>" + target.getLocation().getBlockY(),
+                "<gray>Z: <white>" + target.getLocation().getBlockZ()));
+
+        // Game info
+        inventory.setItem(48, createStatusItem(Material.DIAMOND_SWORD,
+                "<aqua>Game Info",
+                "<gray>Gamemode: <white>" + target.getGameMode().name(),
+                "<gray>Exp Level: <white>" + target.getLevel(),
+                "<gray>Fly: <white>" + (target.getAllowFlight() ? "Enabled" : "Disabled")));
+
+        // Connection info
+        inventory.setItem(50, createStatusItem(Material.PAPER,
+                "<yellow>Connection",
+                "<gray>Ping: <white>" + target.getPing() + "ms",
+                "<gray>Client: <white>" + (Msg.getClientBrand(target) != null ? Msg.getClientBrand(target) : "Unknown")));
+
+        // Permission indicator
+        inventory.setItem(51, createStatusItem(
+                canModify ? Material.LIME_DYE : Material.GRAY_DYE,
+                canModify ? "<green>Mode: Edit" : "<gray>Mode: Read-Only",
+                canModify ? "<gray>You can modify items" : "<gray>View only - no modifications",
+                canModify ? "<yellow>Changes sync to player" : "<yellow>Need moderex.staff.inspect.modify"));
+
+        // Fill remaining empty info row slots with glass
+        for (int i = 45; i <= 53; i++) {
+            if (inventory.getItem(i) == null) {
+                inventory.setItem(i, createPlaceholder(" ", Material.GRAY_STAINED_GLASS_PANE));
+            }
+        }
+    }
+
+    /**
+     * Handle click event from the inventory.
+     *
+     * @param slot The slot clicked
+     * @param isShiftClick Whether shift was held
+     * @return true if the event should be cancelled (no item movement allowed)
+     */
+    public boolean handleClick(int slot, boolean isShiftClick) {
+        // Action buttons - always cancel
+        if (slot == CLOSE_SLOT) {
+            staff.closeInventory();
+            return true;
+        }
+
+        if (slot == REFRESH_SLOT) {
+            refreshInventory();
+            staff.playSound(staff.getLocation(), Sound.BLOCK_NOTE_BLOCK_PLING, 1.0f, 2.0f);
+            return true;
+        }
+
+        if (slot == ENDER_CHEST_SLOT) {
+            openEnderChest();
+            return true;
+        }
+
+        // Separator and info row - always cancel
+        if (slot == SEPARATOR_SLOT || slot >= 45) {
+            return true;
+        }
+
+        // Placeholder items (armor/offhand empty slots) - always cancel
+        if (slot >= HELMET_SLOT && slot <= OFFHAND_SLOT) {
+            ItemStack clicked = inventory.getItem(slot);
+            if (clicked != null && clicked.getType() == Material.LIGHT_GRAY_STAINED_GLASS_PANE) {
+                return true;
+            }
+        }
+
+        // Inventory content slots (0-35) and armor/offhand (36-40)
+        if (canModify) {
+            // Allow the click - item movement will be synced
+            return false;
+        } else {
+            // Read-only mode - cancel all item movements
+            return true;
+        }
+    }
+
+    /**
+     * Sync changes from the GUI inventory back to the target player.
+     * Called after an allowed inventory click event completes.
+     */
+    public void syncToTarget() {
+        if (!canModify || !target.isOnline()) return;
+
+        Bukkit.getScheduler().runTaskLater(plugin, () -> {
+            if (!target.isOnline()) return;
+
+            PlayerInventory playerInv = target.getInventory();
+
+            // Sync hotbar (slots 0-8)
+            for (int i = 0; i <= 8; i++) {
+                playerInv.setItem(i, inventory.getItem(i));
+            }
+
+            // Sync main inventory (slots 9-35)
+            for (int i = 9; i <= 35; i++) {
+                playerInv.setItem(i, inventory.getItem(i));
+            }
+
+            // Sync armor
+            ItemStack helmet = inventory.getItem(HELMET_SLOT);
+            ItemStack chestplate = inventory.getItem(CHESTPLATE_SLOT);
+            ItemStack leggings = inventory.getItem(LEGGINGS_SLOT);
+            ItemStack boots = inventory.getItem(BOOTS_SLOT);
+
+            playerInv.setHelmet(isPlaceholder(helmet) ? null : helmet);
+            playerInv.setChestplate(isPlaceholder(chestplate) ? null : chestplate);
+            playerInv.setLeggings(isPlaceholder(leggings) ? null : leggings);
+            playerInv.setBoots(isPlaceholder(boots) ? null : boots);
+
+            // Sync offhand
+            ItemStack offhand = inventory.getItem(OFFHAND_SLOT);
+            playerInv.setItemInOffHand(isPlaceholder(offhand) ? new ItemStack(Material.AIR) : offhand);
+        }, 1L);
+    }
+
+    /**
+     * Refresh the GUI with current target inventory data.
+     */
+    public void refreshInventory() {
+        if (!target.isOnline()) {
+            staff.closeInventory();
+            Msg.send(staff, Component.text("Player is no longer online.").color(NamedTextColor.RED));
+            return;
+        }
+
+        populateInventory();
+        populateArmorRow();
+        populateInfoRow();
+    }
+
+    /**
+     * Open the target's ender chest in a separate GUI.
+     */
+    private void openEnderChest() {
+        if (!target.isOnline()) {
+            Msg.send(staff, Component.text("Player is no longer online.").color(NamedTextColor.RED));
+            return;
+        }
+        staff.openInventory(target.getEnderChest());
+    }
+
+    /**
+     * Check if an ItemStack is one of our placeholder glass panes.
+     */
+    private boolean isPlaceholder(ItemStack item) {
+        if (item == null) return true;
+        return item.getType() == Material.LIGHT_GRAY_STAINED_GLASS_PANE
+                || item.getType() == Material.GRAY_STAINED_GLASS_PANE;
+    }
+
+    // --- Item creation helpers ---
+
     private ItemStack createPlayerHead() {
         ItemStack item = new ItemStack(Material.PLAYER_HEAD);
         SkullMeta meta = (SkullMeta) item.getItemMeta();
         if (meta != null) {
             meta.setOwningPlayer(target);
             Msg.displayName(meta, Component.text(target.getName()).color(NamedTextColor.YELLOW));
-            Msg.lore(meta, Arrays.asList(
-                    Component.text("UUID: " + target.getUniqueId()).color(NamedTextColor.GRAY),
-                    Component.text("Health: " + String.format("%.1f", target.getHealth()) + "/" + String.format("%.1f", target.getMaxHealth())).color(NamedTextColor.RED),
-                    Component.text("Gamemode: " + target.getGameMode()).color(NamedTextColor.AQUA),
-                    Component.text("Location: " + target.getLocation().getBlockX() + ", " + target.getLocation().getBlockY() + ", " + target.getLocation().getBlockZ()).color(NamedTextColor.GREEN)
-            ));
-            item.setItemMeta(meta);
-        }
-        return item;
-    }
 
-    /**
-     * Create player info item.
-     */
-    private ItemStack createInfoItem() {
-        ItemStack item = new ItemStack(Material.PAPER);
-        ItemMeta meta = item.getItemMeta();
-        if (meta != null) {
-            Msg.displayName(meta, Component.text("Player Info").color(NamedTextColor.YELLOW));
-            List<Component> lore = new ArrayList<>();
-            lore.add(Component.text("IP: " + target.getAddress().getAddress().getHostAddress()).color(NamedTextColor.GRAY));
-            lore.add(Component.text("Ping: " + target.getPing() + "ms").color(NamedTextColor.GRAY));
-            String clientBrand = Msg.getClientBrand(target);
-            lore.add(Component.text("Client: " + (clientBrand != null ? clientBrand : "Unknown")).color(NamedTextColor.GRAY));
+            List<Component> lore = Arrays.asList(
+                    Component.text("UUID: " + target.getUniqueId()).color(NamedTextColor.GRAY),
+                    Component.empty(),
+                    Component.text("Inventory Viewer").color(NamedTextColor.WHITE).decoration(TextDecoration.BOLD, true),
+                    Component.text(canModify ? "Edit Mode" : "Read-Only Mode")
+                            .color(canModify ? NamedTextColor.GREEN : NamedTextColor.GRAY)
+            );
             Msg.lore(meta, lore);
             item.setItemMeta(meta);
         }
         return item;
     }
 
-    /**
-     * Create inventory view item.
-     */
-    private ItemStack createInventoryItem() {
-        ItemStack item = new ItemStack(Material.CHEST);
+    private ItemStack createActionItem(Material material, String name, String... loreLines) {
+        ItemStack item = new ItemStack(material);
         ItemMeta meta = item.getItemMeta();
         if (meta != null) {
-            Msg.displayName(meta, Component.text("View Inventory").color(NamedTextColor.AQUA));
-            Msg.lore(meta, Arrays.asList(
-                    Component.text("Click to view").color(NamedTextColor.GRAY),
-                    Component.text("player's inventory").color(NamedTextColor.GRAY)
-            ));
-            item.setItemMeta(meta);
-        }
-        return item;
-    }
-
-    /**
-     * Create ender chest view item.
-     */
-    private ItemStack createEnderChestItem() {
-        ItemStack item = new ItemStack(Material.ENDER_CHEST);
-        ItemMeta meta = item.getItemMeta();
-        if (meta != null) {
-            Msg.displayName(meta, Component.text("View Ender Chest").color(NamedTextColor.LIGHT_PURPLE));
-            Msg.lore(meta, Arrays.asList(
-                    Component.text("Click to view").color(NamedTextColor.GRAY),
-                    Component.text("player's ender chest").color(NamedTextColor.GRAY)
-            ));
-            item.setItemMeta(meta);
-        }
-        return item;
-    }
-
-    /**
-     * Create health management item.
-     */
-    private ItemStack createHealthItem() {
-        ItemStack item = new ItemStack(Material.GOLDEN_APPLE);
-        ItemMeta meta = item.getItemMeta();
-        if (meta != null) {
-            Msg.displayName(meta, Component.text("Health Manager").color(NamedTextColor.RED));
-            Msg.lore(meta, Arrays.asList(
-                    Component.text("Left: Kill player").color(NamedTextColor.GRAY),
-                    Component.text("Right: Heal player").color(NamedTextColor.GRAY)
-            ));
-            item.setItemMeta(meta);
-        }
-        return item;
-    }
-
-    /**
-     * Create punish item.
-     */
-    private ItemStack createPunishItem() {
-        ItemStack item = new ItemStack(Material.IRON_SWORD);
-        ItemMeta meta = item.getItemMeta();
-        if (meta != null) {
-            Msg.displayName(meta, Component.text("Punish Player").color(NamedTextColor.RED));
-            Msg.lore(meta, Arrays.asList(
-                    Component.text("Click to open").color(NamedTextColor.GRAY),
-                    Component.text("punishment GUI").color(NamedTextColor.GRAY)
-            ));
-            item.setItemMeta(meta);
-        }
-        return item;
-    }
-
-    /**
-     * Create history item.
-     */
-    private ItemStack createHistoryItem() {
-        ItemStack item = new ItemStack(Material.BOOK);
-        ItemMeta meta = item.getItemMeta();
-        if (meta != null) {
-            Msg.displayName(meta, Component.text("Punishment History").color(NamedTextColor.YELLOW));
-            Msg.lore(meta, Arrays.asList(
-                    Component.text("Click to view").color(NamedTextColor.GRAY),
-                    Component.text("player's history").color(NamedTextColor.GRAY)
-            ));
-            item.setItemMeta(meta);
-        }
-        return item;
-    }
-
-    /**
-     * Create freeze item.
-     */
-    private ItemStack createFreezeItem() {
-        boolean frozen = target.hasMetadata("moderex_frozen");
-        ItemStack item = new ItemStack(frozen ? Material.PACKED_ICE : Material.ICE);
-        ItemMeta meta = item.getItemMeta();
-        if (meta != null) {
-            Msg.displayName(meta, Component.text(frozen ? "Unfreeze Player" : "Freeze Player").color(NamedTextColor.BLUE));
-            Msg.lore(meta, Arrays.asList(
-                    Component.text("Click to " + (frozen ? "unfreeze" : "freeze")).color(NamedTextColor.GRAY),
-                    Component.text("this player").color(NamedTextColor.GRAY)
-            ));
-            item.setItemMeta(meta);
-        }
-        return item;
-    }
-
-    /**
-     * Create teleport item.
-     */
-    private ItemStack createTeleportItem() {
-        ItemStack item = new ItemStack(Material.ENDER_PEARL);
-        ItemMeta meta = item.getItemMeta();
-        if (meta != null) {
-            Msg.displayName(meta, Component.text("Teleport").color(NamedTextColor.LIGHT_PURPLE));
-            Msg.lore(meta, Arrays.asList(
-                    Component.text("Left: Teleport to player").color(NamedTextColor.GRAY),
-                    Component.text("Right: Teleport player to you").color(NamedTextColor.GRAY)
-            ));
-            item.setItemMeta(meta);
-        }
-        return item;
-    }
-
-    /**
-     * Create notes item.
-     */
-    private ItemStack createNotesItem() {
-        ItemStack item = new ItemStack(Material.WRITABLE_BOOK);
-        ItemMeta meta = item.getItemMeta();
-        if (meta != null) {
-            Msg.displayName(meta, Component.text("Staff Notes").color(NamedTextColor.GOLD));
-            Msg.lore(meta, Arrays.asList(
-                    Component.text("Click to view/add").color(NamedTextColor.GRAY),
-                    Component.text("staff notes").color(NamedTextColor.GRAY)
-            ));
-            item.setItemMeta(meta);
-        }
-        return item;
-    }
-
-    /**
-     * Create watchlist item.
-     */
-    private ItemStack createWatchlistItem() {
-        ItemStack item = new ItemStack(Material.SPYGLASS);
-        ItemMeta meta = item.getItemMeta();
-        if (meta != null) {
-            Msg.displayName(meta, Component.text("Watchlist").color(NamedTextColor.YELLOW));
-            Msg.lore(meta, Arrays.asList(
-                    Component.text("Click to add/remove").color(NamedTextColor.GRAY),
-                    Component.text("from watchlist").color(NamedTextColor.GRAY)
-            ));
-            item.setItemMeta(meta);
-        }
-        return item;
-    }
-
-    /**
-     * Create anticheat item.
-     */
-    private ItemStack createAnticheatItem() {
-        ItemStack item = new ItemStack(Material.REDSTONE);
-        ItemMeta meta = item.getItemMeta();
-        if (meta != null) {
-            Msg.displayName(meta, Component.text("Anticheat Info").color(NamedTextColor.RED));
-            Msg.lore(meta, Arrays.asList(
-                    Component.text("Click to view").color(NamedTextColor.GRAY),
-                    Component.text("anticheat violations").color(NamedTextColor.GRAY)
-            ));
-            item.setItemMeta(meta);
-        }
-        return item;
-    }
-
-    /**
-     * Create advanced options item.
-     */
-    private ItemStack createAdvancedItem() {
-        ItemStack item = new ItemStack(Material.COMPARATOR);
-        ItemMeta meta = item.getItemMeta();
-        if (meta != null) {
-            Msg.displayName(meta, Component.text("Advanced").color(NamedTextColor.DARK_PURPLE));
-            Msg.lore(meta, Arrays.asList(
-                    Component.text("Click for more").color(NamedTextColor.GRAY),
-                    Component.text("options").color(NamedTextColor.GRAY)
-            ));
-            item.setItemMeta(meta);
-        }
-        return item;
-    }
-
-    /**
-     * Create close item.
-     */
-    private ItemStack createCloseItem() {
-        ItemStack item = new ItemStack(Material.BARRIER);
-        ItemMeta meta = item.getItemMeta();
-        if (meta != null) {
-            Msg.displayName(meta, Component.text("Close").color(NamedTextColor.RED));
-            item.setItemMeta(meta);
-        }
-        return item;
-    }
-
-    /**
-     * Handle click event.
-     *
-     * @param slot The slot clicked
-     */
-    public void handleClick(int slot) {
-        switch (slot) {
-            case 12 -> staff.openInventory(target.getInventory());
-            case 14 -> staff.openInventory(target.getEnderChest());
-            case 16 -> {
-                target.setHealth(target.getMaxHealth());
-                target.setFoodLevel(20);
-                target.setSaturation(20);
-                Msg.send(staff, Component.text("Healed " + target.getName()).color(NamedTextColor.GREEN));
-            }
-            case 19 -> Bukkit.dispatchCommand(staff, "punish " + target.getName());
-            case 21 -> Bukkit.dispatchCommand(staff, "history " + target.getName());
-            case 23 -> {
-                if (plugin.getStaffModeManager() != null) {
-                    plugin.getStaffModeManager().handleItemClick(staff, 2, target);
-                    open();
+            Msg.displayName(meta, com.blockforge.moderex.util.TextUtil.parseLore(name));
+            if (loreLines != null && loreLines.length > 0) {
+                List<Component> lore = new java.util.ArrayList<>();
+                for (String line : loreLines) {
+                    lore.add(com.blockforge.moderex.util.TextUtil.parseLore(line));
                 }
+                Msg.lore(meta, lore);
             }
-            case 25 -> staff.teleport(target);
-            case 49 -> staff.closeInventory();
+            item.setItemMeta(meta);
         }
+        return item;
+    }
+
+    private ItemStack createStatusItem(Material material, String name, String... loreLines) {
+        return createActionItem(material, name, loreLines);
+    }
+
+    private ItemStack createPlaceholder(String name, Material material) {
+        ItemStack item = new ItemStack(material);
+        ItemMeta meta = item.getItemMeta();
+        if (meta != null) {
+            Msg.displayName(meta, com.blockforge.moderex.util.TextUtil.parseLore(name));
+            item.setItemMeta(meta);
+        }
+        return item;
+    }
+
+    // --- Accessors ---
+
+    public Inventory getInventory() {
+        return inventory;
+    }
+
+    public Player getStaff() {
+        return staff;
+    }
+
+    public Player getTarget() {
+        return target;
+    }
+
+    public boolean canModify() {
+        return canModify;
     }
 }

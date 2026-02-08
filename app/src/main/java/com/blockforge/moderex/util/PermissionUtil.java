@@ -1,10 +1,13 @@
 package com.blockforge.moderex.util;
 
+import org.bukkit.Bukkit;
 import org.bukkit.command.CommandSender;
 import org.bukkit.entity.Player;
 import org.bukkit.permissions.Permissible;
+import org.bukkit.permissions.PermissionAttachmentInfo;
 
 import java.util.Set;
+import java.util.UUID;
 
 /**
  * Utility class for permission checking with OP bypass support.
@@ -150,5 +153,86 @@ public class PermissionUtil {
      */
     public static boolean isAdmin(Permissible permissible) {
         return hasPermission(permissible, "moderex.admin");
+    }
+
+    // --- Staff Weight System ---
+
+    /**
+     * Get the staff weight for a permissible.
+     * Scans for moderex.weight.<number> permissions and returns the highest value.
+     * Higher weight = higher rank. Default is 0 (no weight set).
+     *
+     * @param permissible The player or command sender
+     * @return The highest weight value found, or 0 if none
+     */
+    public static int getWeight(Permissible permissible) {
+        if (permissible == null) return 0;
+
+        int maxWeight = 0;
+
+        for (PermissionAttachmentInfo info : permissible.getEffectivePermissions()) {
+            if (!info.getValue()) continue; // Skip negated permissions
+            String perm = info.getPermission();
+            if (perm.startsWith("moderex.weight.")) {
+                try {
+                    int weight = Integer.parseInt(perm.substring("moderex.weight.".length()));
+                    if (weight > maxWeight) {
+                        maxWeight = weight;
+                    }
+                } catch (NumberFormatException ignored) {
+                    // Not a valid weight number, skip
+                }
+            }
+        }
+
+        return maxWeight;
+    }
+
+    /**
+     * Get the staff weight for an offline player by UUID.
+     * Falls back to checking online player, then returns 0.
+     */
+    public static int getWeight(UUID uuid) {
+        Player player = Bukkit.getPlayer(uuid);
+        if (player != null) {
+            return getWeight(player);
+        }
+        return 0;
+    }
+
+    /**
+     * Check if an executor can perform staff actions on a target based on weight.
+     * The executor must have equal or higher weight than the target.
+     * If neither has a weight set (both 0), actions are allowed.
+     * If only the target has weight, the executor is blocked.
+     *
+     * @param executor The staff member performing the action
+     * @param target The target of the action
+     * @return true if the executor can act on the target
+     */
+    public static boolean canActOn(Permissible executor, Permissible target) {
+        if (executor == null || target == null) return true;
+
+        int executorWeight = getWeight(executor);
+        int targetWeight = getWeight(target);
+
+        // If target has no weight, anyone can act on them
+        if (targetWeight == 0) return true;
+
+        // Executor must have equal or higher weight
+        return executorWeight >= targetWeight;
+    }
+
+    /**
+     * Check if an executor can perform staff actions on a target by UUID.
+     */
+    public static boolean canActOn(Permissible executor, UUID targetUuid) {
+        Player target = Bukkit.getPlayer(targetUuid);
+        if (target != null) {
+            return canActOn(executor, target);
+        }
+        // Offline player - can't check weight effectively without LuckPerms
+        // Allow action on offline players by default
+        return true;
     }
 }

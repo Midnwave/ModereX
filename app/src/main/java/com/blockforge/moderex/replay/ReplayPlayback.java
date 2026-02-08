@@ -5,6 +5,7 @@ import com.blockforge.moderex.hooks.CitizensHook;
 import com.blockforge.moderex.replay.block.BlockLogEntry;
 import com.blockforge.moderex.replay.block.FakeBlockManager;
 import com.blockforge.moderex.util.Msg;
+import com.blockforge.moderex.util.PermissionUtil;
 import com.blockforge.moderex.util.TextUtil;
 import net.kyori.adventure.title.Title;
 import org.bukkit.*;
@@ -1129,7 +1130,7 @@ public class ReplayPlayback {
             if (plugin.getReplayManager().isViewingReplay(player.getUniqueId())) continue;
 
             // Skip players with bypass permission
-            if (player.hasPermission("moderex.replay.bypass-teleport-safety")) continue;
+            if (PermissionUtil.hasPermission(player, "moderex.replay.bypass-teleport-safety")) continue;
 
             // Check if within safety radius
             if (player.getLocation().distance(center) <= safetyRadius) {

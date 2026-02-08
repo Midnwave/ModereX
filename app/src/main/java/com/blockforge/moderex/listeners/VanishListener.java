@@ -2,6 +2,7 @@ package com.blockforge.moderex.listeners;
 
 import com.blockforge.moderex.ModereX;
 import com.blockforge.moderex.util.Msg;
+import com.blockforge.moderex.util.PermissionUtil;
 import org.bukkit.GameMode;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
@@ -38,7 +39,7 @@ public class VanishListener implements Listener {
         if (event.getTarget() instanceof Player player) {
             if (plugin.getVanishManager().isVanished(player)) {
                 // Check if player has permission to be attacked by mobs while vanished
-                if (!player.hasPermission("moderex.vanish.mobattack")) {
+                if (!PermissionUtil.hasPermission(player, "moderex.vanish.mobattack")) {
                     event.setCancelled(true);
                 }
             }
@@ -70,7 +71,7 @@ public class VanishListener implements Listener {
         if (event.getEntity() instanceof Player player) {
             if (plugin.getVanishManager().isVanished(player)) {
                 // Check if player has permission to pick up items while vanished
-                if (!player.hasPermission("moderex.vanish.pickup")) {
+                if (!PermissionUtil.hasPermission(player, "moderex.vanish.pickup")) {
                     event.setCancelled(true);
                 }
             }
@@ -82,7 +83,7 @@ public class VanishListener implements Listener {
         Player player = event.getPlayer();
         if (plugin.getVanishManager().isVanished(player)) {
             // Check if player has permission to pick up items while vanished
-            if (!player.hasPermission("moderex.vanish.pickup")) {
+            if (!PermissionUtil.hasPermission(player, "moderex.vanish.pickup")) {
                 event.setCancelled(true);
             }
         }
@@ -120,7 +121,7 @@ public class VanishListener implements Listener {
         Player player = event.getPlayer();
         if (plugin.getVanishManager().isVanished(player)) {
             // Check if player has permission to chat while vanished
-            if (!player.hasPermission("moderex.vanish.chat")) {
+            if (!PermissionUtil.hasPermission(player, "moderex.vanish.chat")) {
                 event.setCancelled(true);
                 Msg.send(player, plugin.getLanguageManager().getPrefix()
                         .append(net.kyori.adventure.text.Component.text("§cYou cannot chat while vanished!")));
@@ -133,7 +134,7 @@ public class VanishListener implements Listener {
         Player player = event.getPlayer();
         if (plugin.getVanishManager().isVanished(player)) {
             // Check if player has permission to place blocks while vanished
-            if (!player.hasPermission("moderex.vanish.place")) {
+            if (!PermissionUtil.hasPermission(player, "moderex.vanish.place")) {
                 event.setCancelled(true);
                 Msg.send(player, plugin.getLanguageManager().getPrefix()
                         .append(net.kyori.adventure.text.Component.text("§cYou cannot place blocks while vanished!")));
@@ -146,7 +147,7 @@ public class VanishListener implements Listener {
         Player player = event.getPlayer();
         if (plugin.getVanishManager().isVanished(player)) {
             // Check if player has permission to break blocks while vanished
-            if (!player.hasPermission("moderex.vanish.break")) {
+            if (!PermissionUtil.hasPermission(player, "moderex.vanish.break")) {
                 event.setCancelled(true);
                 Msg.send(player, plugin.getLanguageManager().getPrefix()
                         .append(net.kyori.adventure.text.Component.text("§cYou cannot break blocks while vanished!")));
@@ -159,7 +160,7 @@ public class VanishListener implements Listener {
         if (event.getDamager() instanceof Player player) {
             if (plugin.getVanishManager().isVanished(player)) {
                 // Check if player has permission to attack while vanished
-                if (!player.hasPermission("moderex.vanish.attack")) {
+                if (!PermissionUtil.hasPermission(player, "moderex.vanish.attack")) {
                     event.setCancelled(true);
                     Msg.send(player, plugin.getLanguageManager().getPrefix()
                             .append(net.kyori.adventure.text.Component.text("§cYou cannot attack while vanished!")));
@@ -186,7 +187,7 @@ public class VanishListener implements Listener {
             return;
         }
 
-        if (!player.hasPermission("moderex.vanish.spectator")) {
+        if (!PermissionUtil.hasPermission(player, "moderex.vanish.spectator")) {
             return;
         }
 

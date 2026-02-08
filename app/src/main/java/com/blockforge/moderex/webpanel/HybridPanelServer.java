@@ -2592,6 +2592,7 @@ public class HybridPanelServer implements com.blockforge.moderex.gateway.Gateway
             case "DEV_STRESS_CLEANUP" -> handleDevStressCleanup(conn);
             case "DEV_STRESS_STOP" -> handleDevStressStop(conn);
             case "GET_DATABASE_DEBUG" -> sendDatabaseDebug(conn, data);
+            case "GET_DEBUG_PERMISSIONS" -> handleGetDebugPermissions(conn, data, session);
             case "IMPORT_MEDAL_CLIP" -> importMedalClip(conn, data, session);
 
             // Permission system endpoints
@@ -5833,6 +5834,116 @@ public class HybridPanelServer implements com.blockforge.moderex.gateway.Gateway
         });
     }
 
+    private void handleGetDebugPermissions(WebSocketConnection conn, JsonObject data, WebPanelSession session) {
+        // Require moderex.admin.debug permission
+        if (!hasViewPermission(session.playerUuid, "moderex.admin.debug")) {
+            sendError(conn, "PERMISSION_DENIED", "You need moderex.admin.debug to use this feature.");
+            return;
+        }
+
+        String playerName = data.has("player") ? data.get("player").getAsString() : "";
+        if (playerName.isEmpty()) {
+            sendError(conn, "MISSING_DATA", "Player name required.");
+            return;
+        }
+
+        plugin.getServer().getScheduler().runTask(plugin, () -> {
+            // Resolve player
+            @SuppressWarnings("deprecation")
+            org.bukkit.OfflinePlayer target = Bukkit.getOfflinePlayer(playerName);
+            if (target == null || (!target.hasPlayedBefore() && !target.isOnline())) {
+                JsonObject error = new JsonObject();
+                error.addProperty("type", "DEBUG_PERMISSIONS_DATA");
+                JsonObject errData = new JsonObject();
+                errData.addProperty("error", "Player not found: " + playerName);
+                error.add("data", errData);
+                conn.send(GSON.toJson(error));
+                return;
+            }
+
+            UUID uuid = target.getUniqueId();
+            Player onlinePlayer = Bukkit.getPlayer(uuid);
+            boolean isOnline = onlinePlayer != null;
+            boolean isOp = isOnline ? onlinePlayer.isOp() : target.isOp();
+
+            // Get weight
+            int weight = 0;
+            if (isOnline) {
+                weight = PermissionUtil.getWeight(onlinePlayer);
+            } else if (plugin.getHookManager().isLuckPermsEnabled()) {
+                var lpHook = plugin.getHookManager().getLuckPermsHook();
+                for (int w = 100; w >= 1; w--) {
+                    if (lpHook.hasPermission(uuid, "moderex.weight." + w)) {
+                        weight = w;
+                        break;
+                    }
+                }
+            }
+
+            // All permissions to check
+            String[] allPerms = {
+                "moderex.ban", "moderex.tempban", "moderex.ipban",
+                "moderex.mute", "moderex.tempmute", "moderex.ipmute", "moderex.ipwarn",
+                "moderex.warn", "moderex.kick",
+                "moderex.unban", "moderex.unmute", "moderex.unwarn",
+                "moderex.punish", "moderex.punish.delete", "moderex.punish.modify",
+                "moderex.massban", "moderex.massmute", "moderex.masskick", "moderex.masswarn",
+                "moderex.massunban", "moderex.massunmute", "moderex.massunwarn",
+                "moderex.info.ip", "moderex.info.uuid", "moderex.info.nick",
+                "moderex.info.joindate", "moderex.info.time", "moderex.info.namehistory",
+                "moderex.check", "moderex.check.ip", "moderex.command.seen", "moderex.command.seen.ip",
+                "moderex.dupeip", "moderex.iphistory", "moderex.geoip",
+                "moderex.history", "moderex.staffhistory",
+                "moderex.checkban", "moderex.checkmute", "moderex.checkwarn",
+                "moderex.banlist", "moderex.mutelist", "moderex.warnlist",
+                "moderex.command.viewpunishment",
+                "moderex.log", "moderex.log.teleport", "moderex.log.automod", "moderex.log.nicknames",
+                "moderex.cmdhistory", "moderex.modlog",
+                "moderex.staff", "moderex.staffmode",
+                "moderex.vanish", "moderex.vanish.others", "moderex.vanish.flight", "moderex.vanish.spectator",
+                "moderex.disguise",
+                "moderex.staff.inspect", "moderex.staff.inspect.modify",
+                "moderex.command.fly", "moderex.command.broadcast",
+                "moderex.command.invsee", "moderex.command.echest",
+                "moderex.staffchat", "moderex.command.watchlist",
+                "moderex.automod.view", "moderex.automod.edit", "moderex.automod.create", "moderex.automod.delete",
+                "moderex.template.create", "moderex.template.edit", "moderex.template.delete",
+                "moderex.webpanel", "moderex.admin", "moderex.admin.permissions",
+                "moderex.admin.debug", "moderex.admin.debug.simulate",
+                "moderex.reload", "moderex.lockdown", "moderex.prunehistory", "moderex.staffrollback",
+                "moderex.status.view", "moderex.status.restart", "moderex.status.reload", "moderex.status.broadcast",
+                "moderex.replay.view", "moderex.replay.manage",
+                "moderex.bypass.automod", "moderex.bypass.automod.nickname", "moderex.bypass.lockdown",
+                "moderex.bypass.chatdisable", "moderex.bypass.slowmode", "moderex.bypass.clearchat",
+                "moderex.bypass.mute", "moderex.bypass.afk",
+                "moderex.notify.punishments", "moderex.notify.automod", "moderex.notify.anticheat",
+                "moderex.notify.staffchat", "moderex.notify.broadcast", "moderex.notify.joinleave",
+                "moderex.notify.lockdown", "moderex.notify.afk", "moderex.notify.status", "moderex.notify.pm",
+                "moderex.flag.silent", "moderex.flag.extrasilent", "moderex.flag.public",
+                "moderex.flag.global", "moderex.flag.hidden", "moderex.flag.skip"
+            };
+
+            // Check each permission
+            JsonObject permissions = new JsonObject();
+            for (String perm : allPerms) {
+                permissions.addProperty(perm, hasViewPermission(uuid, perm));
+            }
+
+            // Build response
+            JsonObject response = new JsonObject();
+            response.addProperty("type", "DEBUG_PERMISSIONS_DATA");
+            JsonObject responseData = new JsonObject();
+            responseData.addProperty("player", target.getName() != null ? target.getName() : playerName);
+            responseData.addProperty("uuid", uuid.toString());
+            responseData.addProperty("online", isOnline);
+            responseData.addProperty("isOp", isOp);
+            responseData.addProperty("weight", weight);
+            responseData.add("permissions", permissions);
+            response.add("data", responseData);
+            conn.send(GSON.toJson(response));
+        });
+    }
+
     private String formatFileSize(long bytes) {
         if (bytes < 1024) return bytes + " B";
         if (bytes < 1024 * 1024) return String.format("%.1f KB", bytes / 1024.0);
@@ -5916,6 +6027,18 @@ public class HybridPanelServer implements com.blockforge.moderex.gateway.Gateway
         plugin.getServer().getScheduler().runTaskAsynchronously(plugin, () -> {
             try {
                 PunishmentType type = PunishmentType.valueOf(typeStr.toUpperCase());
+
+                // Check for duplicate active punishments (excludes WARN and KICK)
+                if (type == PunishmentType.BAN || type == PunishmentType.MUTE
+                        || type == PunishmentType.IPBAN || type == PunishmentType.IPMUTE) {
+                    Punishment existing = plugin.getPunishmentManager().getActivePunishment(targetUuid, type);
+                    if (existing != null) {
+                        sendError(conn, "DUPLICATE_PUNISHMENT", "Player already has an active "
+                                + type.name().toLowerCase() + " (Case #" + existing.getCaseId()
+                                + "). Revoke the existing punishment first or use the modify option.");
+                        return;
+                    }
+                }
 
                 CompletableFuture<Punishment> future = switch (type) {
                     case BAN -> plugin.getPunishmentManager().ban(targetUuid, resolvedName, staffUuid, staffName, durationMs, reason);
@@ -10342,6 +10465,7 @@ public class HybridPanelServer implements com.blockforge.moderex.gateway.Gateway
 
                 // Debug
                 case "GET_DATABASE_DEBUG" -> sendDatabaseDebug(wrapper, data);
+                case "GET_DEBUG_PERMISSIONS" -> handleGetDebugPermissions(wrapper, data, session);
 
                 // Panel version (for gateway mode)
                 case "GET_PANEL_VERSION" -> sendPanelVersionWebSocket(wrapper);

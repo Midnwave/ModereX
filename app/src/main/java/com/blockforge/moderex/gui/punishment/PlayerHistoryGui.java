@@ -23,22 +23,27 @@ public class PlayerHistoryGui extends PaginatedGui<Punishment> {
     private final OfflinePlayer target;
     private final UUID targetUuid;
     private List<Punishment> cachedPunishments = new ArrayList<>();
+    private boolean loaded = false;
 
     public PlayerHistoryGui(ModereX plugin, OfflinePlayer target) {
         super(plugin, "<light_purple>History: <white>" + target.getName(), 6);
         this.target = target;
         this.targetUuid = target.getUniqueId();
-        loadPunishments();
     }
 
     private void loadPunishments() {
         // Load punishments asynchronously and cache them
         plugin.getPunishmentManager().getPunishments(targetUuid)
                 .thenAccept(punishments -> {
-                    this.cachedPunishments = punishments;
+                    this.cachedPunishments = punishments != null ? punishments : new ArrayList<>();
+                    this.loaded = true;
                     // Refresh GUI on main thread if viewer is still viewing
-                    if (viewer != null && plugin.getGuiManager().hasGuiOpen(viewer)) {
-                        plugin.getServer().getScheduler().runTask(plugin, this::refresh);
+                    if (viewer != null) {
+                        plugin.getServer().getScheduler().runTask(plugin, () -> {
+                            if (viewer != null && plugin.getGuiManager().hasGuiOpen(viewer)) {
+                                refresh();
+                            }
+                        });
                     }
                 });
     }
@@ -60,6 +65,16 @@ public class PlayerHistoryGui extends PaginatedGui<Punishment> {
     @Override
     protected void populate() {
         super.populate();
+
+        // Trigger async load on first populate (viewer is now set)
+        if (!loaded) {
+            loadPunishments();
+
+            // Show loading indicator while data is being fetched
+            setItem(22, createItem(Material.CLOCK,
+                    "<yellow>Loading...",
+                    "<gray>Fetching punishment history"));
+        }
 
         // Back button in bottom row
         setItem(45, createBackButton(), () -> openGui(new PunishPlayerGui(plugin, target)));

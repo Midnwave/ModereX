@@ -1,6 +1,7 @@
 package com.blockforge.moderex.staff;
 
 import com.blockforge.moderex.ModereX;
+import com.blockforge.moderex.util.PermissionUtil;
 import org.bukkit.Bukkit;
 import org.bukkit.configuration.file.FileConfiguration;
 import org.bukkit.configuration.file.YamlConfiguration;
@@ -106,7 +107,7 @@ public class VanishLevel {
             }
 
             for (int level = 100; level >= 1; level--) {
-                if (player.hasPermission("moderex.vanish.level." + level)) {
+                if (PermissionUtil.hasPermission(player, "moderex.vanish.level." + level)) {
                     return level;
                 }
             }
@@ -141,7 +142,7 @@ public class VanishLevel {
      */
     public int getSeeLevel(Player player) {
         for (int level = 100; level >= 1; level--) {
-            if (player.hasPermission("moderex.vanish.see.level." + level)) {
+            if (PermissionUtil.hasPermission(player, "moderex.vanish.see.level." + level)) {
                 return level;
             }
         }
@@ -161,14 +162,14 @@ public class VanishLevel {
      */
     public boolean canSee(Player observer, Player target) {
         if (!plugin.getConfigManager().getSettings().isVanishLevelsEnabled()) {
-            return observer.hasPermission("moderex.command.vanish");
+            return PermissionUtil.hasPermission(observer, "moderex.command.vanish");
         }
 
         if (observer.isOp()) {
             return true;
         }
 
-        if (!observer.hasPermission("moderex.command.vanish")) {
+        if (!PermissionUtil.hasPermission(observer, "moderex.command.vanish")) {
             return false;
         }
 

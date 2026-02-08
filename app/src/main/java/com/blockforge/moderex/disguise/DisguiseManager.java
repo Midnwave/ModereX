@@ -72,6 +72,11 @@ public class DisguiseManager {
 
         plugin.logDebug("[Disguise] " + player.getName() + " disguised as " + profile.getDisplayName());
 
+        // Log to staff activity log
+        plugin.getActivityLogManager().logDisguiseStart(
+                player.getUniqueId(), player.getName(),
+                profile.getDisplayName(), profile.getRank());
+
         // Web panel debug
         WebPanelDebugger debugger = plugin.getWebPanelDebugger();
         if (debugger != null) {
@@ -107,6 +112,11 @@ public class DisguiseManager {
         Msg.send(player, Component.text("§aDisguise removed. You are now §f" + player.getName()));
 
         plugin.logDebug("[Disguise] " + player.getName() + " undisguised");
+
+        // Log to staff activity log
+        plugin.getActivityLogManager().logDisguiseEnd(
+                player.getUniqueId(), player.getName(),
+                profile.getDisplayName());
 
         // Web panel debug
         WebPanelDebugger debugger = plugin.getWebPanelDebugger();

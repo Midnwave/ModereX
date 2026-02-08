@@ -5,6 +5,7 @@ import com.blockforge.moderex.punishment.Punishment;
 import com.blockforge.moderex.punishment.PunishmentType;
 import com.blockforge.moderex.util.DurationParser;
 import com.blockforge.moderex.util.Msg;
+import com.blockforge.moderex.util.PermissionUtil;
 import com.blockforge.moderex.util.TextUtil;
 import com.blockforge.moderex.util.TimeUtil;
 import net.kyori.adventure.text.Component;
@@ -78,8 +79,8 @@ public class ModLogGui extends PaginatedGui<Punishment> {
         if (clickType == ClickType.SHIFT_LEFT || clickType == ClickType.SHIFT_RIGHT) {
             // Shift-click to revoke
             if (punishment.isActive() && !punishment.isExpired()) {
-                if (viewer.hasPermission("moderex.command.unban") ||
-                    viewer.hasPermission("moderex.command.unmute")) {
+                if (PermissionUtil.hasPermission(viewer, "moderex.command.unban") ||
+                    PermissionUtil.hasPermission(viewer, "moderex.command.unmute")) {
                     revokePunishment(punishment);
                 } else {
                     Msg.send(viewer, TextUtil.parse("<red>You don't have permission to revoke punishments."));

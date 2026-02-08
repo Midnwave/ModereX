@@ -6,6 +6,7 @@ import com.blockforge.moderex.punishment.Punishment;
 import com.blockforge.moderex.punishment.PunishmentType;
 import com.blockforge.moderex.replay.ReplaySnapshot;
 import com.blockforge.moderex.util.Msg;
+import com.blockforge.moderex.util.PermissionUtil;
 import com.blockforge.moderex.util.TextUtil;
 import org.bukkit.Bukkit;
 import org.bukkit.entity.Player;
@@ -37,7 +38,7 @@ public class CommandListener implements Listener {
         String baseCommand = fullCommand.split(" ")[0].toLowerCase();
 
         // Check if muted and command is blocked
-        if (!player.hasPermission("moderex.bypass.mute")) {
+        if (!PermissionUtil.hasPermission(player, "moderex.bypass.mute")) {
             if (!plugin.getConfigManager().getSettings().isMutedPlayersCanUseCommands()) {
                 Punishment mute = plugin.getPunishmentManager().getActivePunishment(uuid, PunishmentType.MUTE);
                 if (mute != null && !mute.isExpired()) {
@@ -192,7 +193,7 @@ public class CommandListener implements Listener {
             }
 
             // Must have permission to see PM alerts
-            if (!staff.hasPermission("moderex.notify.pm")) {
+            if (!PermissionUtil.hasPermission(staff, "moderex.notify.pm")) {
                 continue;
             }
 

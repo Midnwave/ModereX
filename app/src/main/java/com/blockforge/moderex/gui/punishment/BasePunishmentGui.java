@@ -6,9 +6,11 @@ import com.blockforge.moderex.gui.TemplateGui;
 import com.blockforge.moderex.punishment.PunishmentTemplate;
 import com.blockforge.moderex.punishment.PunishmentType;
 import com.blockforge.moderex.util.Msg;
+import com.blockforge.moderex.util.PermissionUtil;
 import com.blockforge.moderex.util.TextUtil;
 import org.bukkit.Material;
 import org.bukkit.OfflinePlayer;
+import org.bukkit.Sound;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.SkullMeta;
 
@@ -128,7 +130,23 @@ public abstract class BasePunishmentGui extends BaseGui {
 
         List<String> lore = new ArrayList<>();
         lore.add("<gray>Duration: <white>" + (template.getDuration().isEmpty() ? "instant" : template.getDuration()));
-        lore.add("<gray>Reason: <white>" + truncate(template.getReason(), 30));
+
+        // Wrap reason text at 40 characters per line
+        String reasonText = template.getReason();
+        if (reasonText != null && !reasonText.isEmpty()) {
+            List<String> reasonLines = wrapLore(reasonText, 40);
+            lore.add("<gray>Reason: <white>" + reasonLines.get(0));
+            for (int i = 1; i < reasonLines.size(); i++) {
+                lore.add("<white>" + reasonLines.get(i));
+            }
+        } else {
+            lore.add("<gray>Reason: <white>No reason");
+        }
+
+        if (template.getCategory() != null && !template.getCategory().isEmpty()) {
+            lore.add("<gray>Category: <white>" + template.getCategory());
+        }
+
         lore.add("");
         lore.add("<yellow>Click to apply this template");
 
@@ -140,6 +158,12 @@ public abstract class BasePunishmentGui extends BaseGui {
         if (!template.getDuration().isEmpty()) {
             parseDuration(template.getDuration());
         }
+
+        // Play confirmation sound
+        if (viewer != null) {
+            viewer.playSound(viewer.getLocation(), Sound.BLOCK_NOTE_BLOCK_PLING, 1.0f, 2.0f);
+        }
+
         refresh();
     }
 
@@ -224,12 +248,12 @@ public abstract class BasePunishmentGui extends BaseGui {
         lore.add("<gray>Target: <white>" + target.getName());
 
         // Show UUID if has permission
-        if (viewer.hasPermission("moderex.info.uuid")) {
+        if (PermissionUtil.hasPermission(viewer, "moderex.info.uuid")) {
             lore.add("<gray>UUID: <dark_gray>" + target.getUniqueId().toString().substring(0, 8) + "...");
         }
 
         // Show IP if has permission and player is online
-        if (viewer.hasPermission("moderex.info.ip") && target.isOnline()) {
+        if (PermissionUtil.hasPermission(viewer, "moderex.info.ip") && target.isOnline()) {
             String ip = target.getPlayer().getAddress().getAddress().getHostAddress();
             lore.add("<gray>IP: <dark_gray>" + ip);
         }
@@ -419,5 +443,52 @@ public abstract class BasePunishmentGui extends BaseGui {
 
     public boolean isPermanent() {
         return isPermanent;
+    }
+
+    /**
+     * Wraps text into multiple lines at word boundaries.
+     * Each line will be at most maxLen visible characters.
+     */
+    protected static List<String> wrapLore(String text, int maxLen) {
+        List<String> lines = new ArrayList<>();
+        if (text == null || text.isEmpty()) {
+            lines.add("");
+            return lines;
+        }
+
+        String[] words = text.split(" ");
+        StringBuilder currentLine = new StringBuilder();
+        int visibleLength = 0;
+
+        for (String word : words) {
+            String visibleWord = TextUtil.stripColor(word);
+            int wordLength = visibleWord.length();
+
+            if (visibleLength + wordLength + (visibleLength > 0 ? 1 : 0) > maxLen) {
+                if (currentLine.length() > 0) {
+                    lines.add(currentLine.toString().trim());
+                    currentLine = new StringBuilder();
+                    visibleLength = 0;
+                }
+            }
+
+            if (visibleLength > 0) {
+                currentLine.append(" ");
+                visibleLength++;
+            }
+
+            currentLine.append(word);
+            visibleLength += wordLength;
+        }
+
+        if (currentLine.length() > 0) {
+            lines.add(currentLine.toString().trim());
+        }
+
+        if (lines.isEmpty()) {
+            lines.add("");
+        }
+
+        return lines;
     }
 }

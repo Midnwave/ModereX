@@ -4,6 +4,7 @@ import com.blockforge.moderex.ModereX;
 import com.blockforge.moderex.punishment.Punishment;
 import com.blockforge.moderex.punishment.PunishmentType;
 import com.blockforge.moderex.util.DurationParser;
+import com.blockforge.moderex.util.PermissionUtil;
 import me.clip.placeholderapi.expansion.PlaceholderExpansion;
 import org.bukkit.OfflinePlayer;
 import org.jetbrains.annotations.NotNull;
@@ -99,7 +100,7 @@ public class PlaceholderAPIHook extends PlaceholderExpansion {
         // %moderex_online_staff%
         if (params.equalsIgnoreCase("online_staff")) {
             long count = plugin.getServer().getOnlinePlayers().stream()
-                    .filter(p -> p.hasPermission("moderex.command.mute"))
+                    .filter(p -> PermissionUtil.hasPermission(p, "moderex.command.mute"))
                     .count();
             return String.valueOf(count);
         }

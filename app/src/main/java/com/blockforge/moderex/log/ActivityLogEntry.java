@@ -268,8 +268,8 @@ public class ActivityLogEntry {
     public String getTypeColor() {
         return switch (type) {
             // Player Activity
-            case CHAT -> "<aqua>";
-            case COMMAND -> "<yellow>";
+            case CHAT -> "<white>";
+            case COMMAND -> "<aqua>";
             case SIGN -> "<gold>";
             case ITEM_DROP -> "<red>";
             case ITEM_PICKUP -> "<green>";
@@ -278,18 +278,18 @@ public class ActivityLogEntry {
             case PROJECTILE -> "<blue>";
             case ANVIL_RENAME -> "<dark_aqua>";
             case SESSION_JOIN -> "<green>";
-            case SESSION_QUIT -> "<red>";
+            case SESSION_QUIT -> "<green>";
             case USERNAME_CHANGE -> "<gold>";
             case NICKNAME_CHANGE -> "<gold>";
             case IP_CHANGE -> "<gray>";
-            // Punishments (red spectrum for negative, green for positive)
-            case PUNISHMENT_BAN, PUNISHMENT_IPBAN -> "<dark_red>";
+            // Punishments (red for all punishment actions)
+            case PUNISHMENT_BAN, PUNISHMENT_IPBAN -> "<red>";
             case PUNISHMENT_MUTE, PUNISHMENT_IPMUTE -> "<red>";
-            case PUNISHMENT_WARN -> "<gold>";
+            case PUNISHMENT_WARN -> "<red>";
             case PUNISHMENT_KICK -> "<red>";
             case PUNISHMENT_UNBAN, PUNISHMENT_UNMUTE, PUNISHMENT_UNWARN -> "<green>";
             // Automod & Anticheat
-            case AUTOMOD_TRIGGER -> "<#ff6b6b>";
+            case AUTOMOD_TRIGGER -> "<yellow>";
             case ANTICHEAT_ALERT -> "<#ff4757>";
             // Watchlist
             case WATCHLIST_ALERT -> "<gold>";

@@ -1,6 +1,7 @@
 package com.blockforge.moderex.vanish.api;
 
 import com.blockforge.moderex.ModereX;
+import com.blockforge.moderex.util.PermissionUtil;
 import org.bukkit.entity.Player;
 import org.bukkit.plugin.Plugin;
 
@@ -76,7 +77,7 @@ public class VanishAPI {
             return true;
         }
 
-        return observer.hasPermission("moderex.command.vanish");
+        return PermissionUtil.hasPermission(observer, "moderex.command.vanish");
     }
 
     /**

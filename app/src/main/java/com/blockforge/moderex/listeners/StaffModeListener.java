@@ -2,6 +2,7 @@ package com.blockforge.moderex.listeners;
 
 import com.blockforge.moderex.ModereX;
 import com.blockforge.moderex.staff.StaffInspectGui;
+import com.blockforge.moderex.util.PermissionUtil;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
@@ -94,19 +95,96 @@ public class StaffModeListener implements Listener {
         }
 
         if (event.getView().getTitle().startsWith("Inspect: ")) {
-            event.setCancelled(true);
-
             int slot = event.getRawSlot();
             if (slot < 0 || slot >= event.getView().getTopInventory().getSize()) {
+                // Click in player's own inventory while inspect GUI is open
+                // Allow if staff can modify (e.g., shift-clicking items into inspect GUI)
+                if (!PermissionUtil.hasPermission(player, "moderex.staff.inspect.modify")) {
+                    event.setCancelled(true);
+                }
                 return;
             }
 
             String targetName = event.getView().getTitle().substring("Inspect: ".length());
             Player target = plugin.getServer().getPlayer(targetName);
 
-            if (target != null) {
+            if (target == null) {
+                event.setCancelled(true);
+                return;
+            }
+
+            boolean canModify = PermissionUtil.hasPermission(player, "moderex.staff.inspect.modify");
+
+            // Handle action buttons (row 5 special slots, row 6)
+            if (slot == 42) {
+                // Ender chest button
+                event.setCancelled(true);
+                player.openInventory(target.getEnderChest());
+                return;
+            }
+            if (slot == 43) {
+                // Refresh button
+                event.setCancelled(true);
                 StaffInspectGui gui = new StaffInspectGui(plugin, player, target);
-                gui.handleClick(slot);
+                gui.open();
+                player.playSound(player.getLocation(), org.bukkit.Sound.BLOCK_NOTE_BLOCK_PLING, 1.0f, 2.0f);
+                return;
+            }
+            if (slot == 44) {
+                // Close button
+                event.setCancelled(true);
+                player.closeInventory();
+                return;
+            }
+            // Separator and info row - always cancel
+            if (slot == 41 || slot >= 45) {
+                event.setCancelled(true);
+                return;
+            }
+
+            // Armor/offhand placeholder check (empty armor slots shown as glass)
+            if (slot >= 36 && slot <= 40) {
+                ItemStack clicked = event.getView().getTopInventory().getItem(slot);
+                if (clicked != null && (clicked.getType() == org.bukkit.Material.LIGHT_GRAY_STAINED_GLASS_PANE
+                        || clicked.getType() == org.bukkit.Material.GRAY_STAINED_GLASS_PANE)) {
+                    if (canModify) {
+                        // Remove the placeholder so item can be placed
+                        event.getView().getTopInventory().setItem(slot, null);
+                    } else {
+                        event.setCancelled(true);
+                        return;
+                    }
+                }
+            }
+
+            // Inventory slots (0-35) and armor/offhand (36-40)
+            if (canModify) {
+                // Allow the item movement, then sync to target on next tick
+                org.bukkit.inventory.Inventory topInv = event.getView().getTopInventory();
+                org.bukkit.Bukkit.getScheduler().runTaskLater(plugin, () -> {
+                    if (!target.isOnline()) return;
+                    org.bukkit.inventory.PlayerInventory playerInv = target.getInventory();
+
+                    // Sync hotbar and main inventory
+                    for (int i = 0; i <= 35; i++) {
+                        playerInv.setItem(i, topInv.getItem(i));
+                    }
+
+                    // Sync armor
+                    ItemStack helmet = topInv.getItem(36);
+                    ItemStack chestplate = topInv.getItem(37);
+                    ItemStack leggings = topInv.getItem(38);
+                    ItemStack boots = topInv.getItem(39);
+                    ItemStack offhand = topInv.getItem(40);
+
+                    playerInv.setHelmet(isPlaceholderItem(helmet) ? null : helmet);
+                    playerInv.setChestplate(isPlaceholderItem(chestplate) ? null : chestplate);
+                    playerInv.setLeggings(isPlaceholderItem(leggings) ? null : leggings);
+                    playerInv.setBoots(isPlaceholderItem(boots) ? null : boots);
+                    playerInv.setItemInOffHand(isPlaceholderItem(offhand) ? new ItemStack(org.bukkit.Material.AIR) : offhand);
+                }, 1L);
+            } else {
+                event.setCancelled(true);
             }
 
             return;
@@ -117,5 +195,11 @@ public class StaffModeListener implements Listener {
                 event.setCancelled(true);
             }
         }
+    }
+
+    private boolean isPlaceholderItem(ItemStack item) {
+        if (item == null) return true;
+        return item.getType() == org.bukkit.Material.LIGHT_GRAY_STAINED_GLASS_PANE
+                || item.getType() == org.bukkit.Material.GRAY_STAINED_GLASS_PANE;
     }
 }

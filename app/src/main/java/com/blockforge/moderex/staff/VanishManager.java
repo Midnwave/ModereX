@@ -5,9 +5,11 @@ import com.blockforge.moderex.config.lang.MessageKey;
 import com.blockforge.moderex.webpanel.debug.WebPanelDebugger;
 import com.blockforge.moderex.staff.hooks.VanishPluginHookManager;
 import com.blockforge.moderex.util.Msg;
+import com.blockforge.moderex.util.PermissionUtil;
 import com.blockforge.moderex.util.TextUtil;
 import com.blockforge.moderex.vanish.packet.PacketVanishInjector;
 import net.kyori.adventure.text.Component;
+import net.kyori.adventure.text.format.NamedTextColor;
 import org.bukkit.Bukkit;
 import org.bukkit.GameMode;
 import org.bukkit.entity.Player;
@@ -28,6 +30,7 @@ public class VanishManager {
     private final VanishLevel vanishLevel;
     private final VanishPluginHookManager hookManager;
     private final Map<UUID, GameMode> previousGameModes = new HashMap<>();
+    private final Map<UUID, Integer> actionBarTaskIds = new HashMap<>();
 
     public VanishManager(ModereX plugin) {
         this.plugin = plugin;
@@ -118,7 +121,7 @@ public class VanishManager {
 
         // Enable flight if configured and player has permission
         if (plugin.getConfig().getBoolean("vanish.enable-flight", false) &&
-                player.hasPermission("moderex.vanish.flight")) {
+                PermissionUtil.hasPermission(player, "moderex.vanish.flight")) {
             if (!player.getAllowFlight()) {
                 player.setAllowFlight(true);
                 player.setFlying(true);
@@ -128,6 +131,9 @@ public class VanishManager {
         if (plugin.getConfigManager().getSettings().isVanishSaveVanishState()) {
             updateVanishStateInDatabase(uuid, true);
         }
+
+        // Start persistent action bar notification
+        startActionBarTask(player);
 
         // Send message
         Msg.send(player, plugin.getLanguageManager().getPrefixed(MessageKey.VANISH_ENABLED));
@@ -158,6 +164,9 @@ public class VanishManager {
         vanishedPlayers.remove(uuid);
         player.removeMetadata(VANISH_METADATA, plugin);
 
+        // Stop action bar notification
+        stopActionBarTask(player);
+
         if (plugin.getConfigManager().getSettings().isVanishFakeMessagesEnabled()) {
             sendFakeJoinMessage(player);
         }
@@ -181,8 +190,8 @@ public class VanishManager {
 
         // Disable flight if it was enabled by vanish (unless player has keepfly permission)
         if (plugin.getConfig().getBoolean("vanish.enable-flight", false) &&
-                player.hasPermission("moderex.vanish.flight") &&
-                !player.hasPermission("moderex.vanish.keepfly")) {
+                PermissionUtil.hasPermission(player, "moderex.vanish.flight") &&
+                !PermissionUtil.hasPermission(player, "moderex.vanish.keepfly")) {
             if (player.getGameMode() != GameMode.CREATIVE && player.getGameMode() != GameMode.SPECTATOR) {
                 player.setAllowFlight(false);
                 player.setFlying(false);
@@ -260,7 +269,7 @@ public class VanishManager {
 
         // Auto vanish on join if enabled in staff settings
         StaffSettings staffSettings = plugin.getStaffSettingsManager().getSettings(player);
-        if (staffSettings.isAutoVanishOnJoin() && player.hasPermission("moderex.command.vanish")) {
+        if (staffSettings.isAutoVanishOnJoin() && PermissionUtil.hasPermission(player, "moderex.command.vanish")) {
             plugin.getServer().getScheduler().runTaskLater(plugin, () -> {
                 if (!isVanished(player)) {
                     vanish(player);
@@ -272,6 +281,9 @@ public class VanishManager {
 
     public void onPlayerQuit(Player player) {
         packetInjector.removePlayer(player);
+
+        // Stop action bar task on quit
+        stopActionBarTask(player);
 
         if (plugin.getConfigManager().getSettings().isVanishSaveVanishState()) {
             saveVanishState(player);
@@ -309,7 +321,7 @@ public class VanishManager {
 
     private void notifyStaff(String message) {
         for (Player player : Bukkit.getOnlinePlayers()) {
-            if (player.hasPermission("moderex.command.vanish")) {
+            if (PermissionUtil.hasPermission(player, "moderex.command.vanish")) {
                 Msg.send(player, plugin.getLanguageManager().getPrefix()
                         .append(net.kyori.adventure.text.Component.text(message)));
             }
@@ -330,7 +342,7 @@ public class VanishManager {
             if (vanishing && canSeeVanished(staff, target)) {
                 staff.sendMessage(plugin.getLanguageManager().getPrefix()
                         .append(Component.text(message)));
-            } else if (!vanishing && staff.hasPermission("moderex.command.vanish")) {
+            } else if (!vanishing && PermissionUtil.hasPermission(staff, "moderex.command.vanish")) {
                 staff.sendMessage(plugin.getLanguageManager().getPrefix()
                         .append(Component.text(message)));
             }
@@ -356,7 +368,7 @@ public class VanishManager {
         Component component = TextUtil.parse(message);
 
         for (Player online : Bukkit.getOnlinePlayers()) {
-            if (!online.hasPermission("moderex.command.vanish")) {
+            if (!PermissionUtil.hasPermission(online, "moderex.command.vanish")) {
                 online.sendMessage(component);
             }
         }
@@ -373,7 +385,7 @@ public class VanishManager {
         Component component = TextUtil.parse(message);
 
         for (Player online : Bukkit.getOnlinePlayers()) {
-            if (!online.hasPermission("moderex.command.vanish")) {
+            if (!PermissionUtil.hasPermission(online, "moderex.command.vanish")) {
                 online.sendMessage(component);
             }
         }
@@ -611,7 +623,7 @@ public class VanishManager {
             return;
         }
 
-        if (!player.hasPermission("moderex.vanish.spectator")) {
+        if (!PermissionUtil.hasPermission(player, "moderex.vanish.spectator")) {
             return;
         }
 
@@ -632,6 +644,41 @@ public class VanishManager {
 
             Msg.send(player, plugin.getLanguageManager().getPrefix()
                     .append(Component.text("§aEntered spectator mode")));
+        }
+    }
+
+    /**
+     * Start a repeating action bar task to remind the player they are vanished.
+     */
+    private void startActionBarTask(Player player) {
+        UUID uuid = player.getUniqueId();
+
+        // Cancel any existing task first
+        stopActionBarTask(player);
+
+        int taskId = plugin.getServer().getScheduler().runTaskTimer(plugin, () -> {
+            if (player.isOnline() && isVanished(player)) {
+                player.sendActionBar(Component.text("You are currently vanished")
+                        .color(NamedTextColor.GOLD));
+            } else {
+                // Player left or unvanished, cancel
+                Integer storedTaskId = actionBarTaskIds.remove(uuid);
+                if (storedTaskId != null) {
+                    plugin.getServer().getScheduler().cancelTask(storedTaskId);
+                }
+            }
+        }, 0L, 40L).getTaskId();
+
+        actionBarTaskIds.put(uuid, taskId);
+    }
+
+    /**
+     * Stop the action bar task for a player.
+     */
+    private void stopActionBarTask(Player player) {
+        Integer taskId = actionBarTaskIds.remove(player.getUniqueId());
+        if (taskId != null) {
+            plugin.getServer().getScheduler().cancelTask(taskId);
         }
     }
 }

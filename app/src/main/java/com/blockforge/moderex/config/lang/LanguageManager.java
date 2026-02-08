@@ -115,8 +115,8 @@ public class LanguageManager {
         DEFAULTS.put("modlog.footer", "<gold><strikethrough>     </strikethrough> Page <yellow><page></yellow>/<yellow><total></yellow> <strikethrough>     </strikethrough>");
 
         // Activity Log (for /log command)
-        DEFAULTS.put("log.header", "<gold><strikethrough>     </strikethrough> Activity Log for <yellow><player></yellow> <dark_gray>(<white><total></white> entries) <strikethrough>     </strikethrough>");
-        DEFAULTS.put("log.entry", "<gray><time> <white>- <type_color>(<player>): <white><content>");
+        DEFAULTS.put("log.header", "<gold>--- Activity Log for <yellow><player></yellow> <gold>--- <dark_gray>(<white><total></white> entries)");
+        DEFAULTS.put("log.entry", "<gray>[<type_color><type_label><gray>] <white><time> <gray>- <white><content>");
         DEFAULTS.put("log.empty", "<gray>No activity logs found for <yellow><player></yellow>.");
         DEFAULTS.put("log.footer", "<gold><strikethrough>     </strikethrough> Page <yellow><page></yellow>/<yellow><total></yellow> <strikethrough>     </strikethrough>");
         DEFAULTS.put("log.filter-info", "<gray>Filters: <white><filters>");

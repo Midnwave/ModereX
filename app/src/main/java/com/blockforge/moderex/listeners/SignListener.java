@@ -6,6 +6,7 @@ import com.blockforge.moderex.punishment.Punishment;
 import com.blockforge.moderex.punishment.PunishmentType;
 import com.blockforge.moderex.util.DurationParser;
 import com.blockforge.moderex.util.Msg;
+import com.blockforge.moderex.util.PermissionUtil;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
@@ -29,7 +30,7 @@ public class SignListener implements Listener {
 
         // Check if muted players can write signs
         if (!plugin.getConfigManager().getSettings().isMutedPlayersCanWriteSigns()) {
-            if (!player.hasPermission("moderex.bypass.mute")) {
+            if (!PermissionUtil.hasPermission(player, "moderex.bypass.mute")) {
                 Punishment mute = plugin.getPunishmentManager().getActivePunishment(uuid, PunishmentType.MUTE);
                 if (mute != null && !mute.isExpired()) {
                     event.setCancelled(true);

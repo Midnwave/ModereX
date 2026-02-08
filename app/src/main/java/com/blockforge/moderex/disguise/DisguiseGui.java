@@ -2,6 +2,7 @@ package com.blockforge.moderex.disguise;
 
 import com.blockforge.moderex.ModereX;
 import com.blockforge.moderex.util.Msg;
+import com.blockforge.moderex.util.PermissionUtil;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
 import net.kyori.adventure.text.format.TextDecoration;
@@ -143,7 +144,7 @@ public class DisguiseGui {
                     String groupName = group.getName();
 
                     // Check if player has permission to disguise as this rank
-                    if (player.hasPermission("moderex.disguise.rank." + groupName.toLowerCase())) {
+                    if (PermissionUtil.hasPermission(player, "moderex.disguise.rank." + groupName.toLowerCase())) {
                         String displayName = group.getDisplayName() != null ? group.getDisplayName() : groupName;
 
                         // Get prefix from group
@@ -194,7 +195,7 @@ public class DisguiseGui {
                     String prefix = ranksSection.getString(key + ".prefix", "");
                     String skullTexture = ranksSection.getString(key + ".skull-texture");
 
-                    if (player.hasPermission("moderex.disguise.rank." + key.toLowerCase())) {
+                    if (PermissionUtil.hasPermission(player, "moderex.disguise.rank." + key.toLowerCase())) {
                         DisguiseRank rank = new DisguiseRank(key, displayName, description, prefix, skullTexture);
                         ranks.add(rank);
                     }

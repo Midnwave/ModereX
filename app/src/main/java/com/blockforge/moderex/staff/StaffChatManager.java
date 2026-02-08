@@ -4,6 +4,7 @@ import com.blockforge.moderex.ModereX;
 import com.blockforge.moderex.config.lang.MessageKey;
 import com.blockforge.moderex.hooks.LuckPermsHook;
 import com.blockforge.moderex.util.Msg;
+import com.blockforge.moderex.util.PermissionUtil;
 import com.blockforge.moderex.util.TextUtil;
 import net.kyori.adventure.text.Component;
 import org.bukkit.Bukkit;
@@ -39,7 +40,7 @@ public class StaffChatManager {
 
         // Send to all staff members
         for (Player player : Bukkit.getOnlinePlayers()) {
-            if (player.hasPermission("moderex.notify.staffchat")) {
+            if (PermissionUtil.hasPermission(player, "moderex.notify.staffchat")) {
                 Msg.send(player, formattedMessage);
 
                 // Play sound if enabled
@@ -76,7 +77,7 @@ public class StaffChatManager {
 
         // Send to all staff members
         for (Player player : Bukkit.getOnlinePlayers()) {
-            if (player.hasPermission("moderex.notify.staffchat")) {
+            if (PermissionUtil.hasPermission(player, "moderex.notify.staffchat")) {
                 Msg.send(player, formattedMessage);
 
                 // Play sound if enabled
@@ -107,7 +108,7 @@ public class StaffChatManager {
 
         // Send to all staff members
         for (Player player : Bukkit.getOnlinePlayers()) {
-            if (player.hasPermission("moderex.notify.staffchat")) {
+            if (PermissionUtil.hasPermission(player, "moderex.notify.staffchat")) {
                 Msg.send(player, message);
 
                 // Play urgent sound

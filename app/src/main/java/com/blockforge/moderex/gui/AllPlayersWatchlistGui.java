@@ -3,6 +3,7 @@ package com.blockforge.moderex.gui;
 import com.blockforge.moderex.ModereX;
 import com.blockforge.moderex.player.PlayerProfile;
 import com.blockforge.moderex.util.Msg;
+import com.blockforge.moderex.util.PermissionUtil;
 import com.blockforge.moderex.util.TextUtil;
 import net.kyori.adventure.text.serializer.legacy.LegacyComponentSerializer;
 import org.bukkit.Bukkit;
@@ -157,7 +158,7 @@ public class AllPlayersWatchlistGui extends PaginatedGui<PlayerProfile> {
         });
 
         // Bulk actions (admin only)
-        if (viewer.hasPermission("moderex.admin")) {
+        if (PermissionUtil.hasPermission(viewer, "moderex.admin")) {
             setItem(7, createItem(Material.COMMAND_BLOCK, "<red>Bulk Actions",
                     "<gray>Mass watchlist management",
                     "",

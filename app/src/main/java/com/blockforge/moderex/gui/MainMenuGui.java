@@ -4,6 +4,7 @@ import com.blockforge.moderex.ModereX;
 import com.blockforge.moderex.gui.punishment.PunishPlayerGui;
 import com.blockforge.moderex.gui.ReplayGui;
 import com.blockforge.moderex.util.Msg;
+import com.blockforge.moderex.util.PermissionUtil;
 import com.blockforge.moderex.util.TextUtil;
 import org.bukkit.Bukkit;
 import org.bukkit.Material;
@@ -100,7 +101,7 @@ public class MainMenuGui extends BaseGui {
         });
 
         // Templates
-        if (viewer.hasPermission("moderex.template.view")) {
+        if (PermissionUtil.hasPermission(viewer, "moderex.template.view")) {
             setItem(35, createItem(Material.WRITABLE_BOOK, "<light_purple>Templates",
                     "<gray>Manage punishment templates",
                     "",
@@ -112,7 +113,7 @@ public class MainMenuGui extends BaseGui {
         // ======== Row 4: Admin Tools ========
 
         // Replays
-        if (viewer.hasPermission("moderex.command.replay")) {
+        if (PermissionUtil.hasPermission(viewer, "moderex.command.replay")) {
             setItem(37, createItem(Material.JUKEBOX, "<gradient:#a855f7:#ec4899>Replays</gradient>",
                     "<gray>View recorded player sessions",
                     "",
@@ -123,7 +124,7 @@ public class MainMenuGui extends BaseGui {
         }
 
         // Admin Settings
-        if (viewer.hasPermission("moderex.command.admin")) {
+        if (PermissionUtil.hasPermission(viewer, "moderex.command.admin")) {
             // Automod Settings
             setItem(38, createItem(Material.COMPARATOR, "<light_purple>Automod Settings",
                     "<gray>Configure automatic moderation",
@@ -150,7 +151,7 @@ public class MainMenuGui extends BaseGui {
         });
 
         // Web Panel
-        if (viewer.hasPermission("moderex.webpanel") && plugin.getConfigManager().getSettings().isWebPanelEnabled()) {
+        if (PermissionUtil.hasPermission(viewer, "moderex.webpanel") && plugin.getConfigManager().getSettings().isWebPanelEnabled()) {
             setItem(49, createItem(Material.END_PORTAL_FRAME, "<light_purple>Web Panel",
                     "<gray>Connect to the web panel",
                     "",
@@ -189,7 +190,7 @@ public class MainMenuGui extends BaseGui {
     private ItemStack createStaffOnlineItem() {
         List<String> staffNames = new ArrayList<>();
         for (Player p : Bukkit.getOnlinePlayers()) {
-            if (p.hasPermission("moderex.command.punish")) {
+            if (PermissionUtil.hasPermission(p, "moderex.command.punish")) {
                 String name = p.getName();
                 if (plugin.getVanishManager().isVanished(p)) {
                     name = "<gray><strikethrough>" + name + "</strikethrough>";

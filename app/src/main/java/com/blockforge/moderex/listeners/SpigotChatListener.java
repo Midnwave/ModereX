@@ -8,6 +8,7 @@ import com.blockforge.moderex.punishment.PunishmentType;
 import com.blockforge.moderex.replay.ReplaySnapshot;
 import com.blockforge.moderex.util.DurationParser;
 import com.blockforge.moderex.util.Msg;
+import com.blockforge.moderex.util.PermissionUtil;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
@@ -58,7 +59,7 @@ public class SpigotChatListener implements Listener {
 
         // Check if chat is disabled
         if (!plugin.getConfigManager().getSettings().isChatEnabled()) {
-            if (!player.hasPermission("moderex.bypass.chatdisable")) {
+            if (!PermissionUtil.hasPermission(player, "moderex.bypass.chatdisable")) {
                 event.setCancelled(true);
                 Msg.send(player, plugin.getLanguageManager().get(MessageKey.CHAT_DISABLED_MESSAGE));
                 return;
@@ -73,7 +74,7 @@ public class SpigotChatListener implements Listener {
         }
 
         // Check if player is muted
-        if (!player.hasPermission("moderex.bypass.mute")) {
+        if (!PermissionUtil.hasPermission(player, "moderex.bypass.mute")) {
             Punishment mute = plugin.getPunishmentManager().getActivePunishment(uuid, PunishmentType.MUTE);
             if (mute != null && !mute.isExpired()) {
                 event.setCancelled(true);
@@ -86,7 +87,7 @@ public class SpigotChatListener implements Listener {
         }
 
         // Check slowmode
-        if (!player.hasPermission("moderex.bypass.slowmode")) {
+        if (!PermissionUtil.hasPermission(player, "moderex.bypass.slowmode")) {
             int slowmode = plugin.getConfigManager().getSettings().getDefaultSlowmodeSeconds();
             if (slowmode > 0) {
                 Long lastTime = lastMessageTime.get(uuid);

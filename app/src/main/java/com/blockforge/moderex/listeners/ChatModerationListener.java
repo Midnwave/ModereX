@@ -6,6 +6,7 @@ import com.blockforge.moderex.punishment.Punishment;
 import com.blockforge.moderex.punishment.PunishmentType;
 import com.blockforge.moderex.util.DurationParser;
 import com.blockforge.moderex.util.Msg;
+import com.blockforge.moderex.util.PermissionUtil;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
@@ -34,7 +35,7 @@ public class ChatModerationListener implements Listener {
         Player player = event.getPlayer();
         UUID uuid = player.getUniqueId();
 
-        if (!player.hasPermission("moderex.bypass.mute")) {
+        if (!PermissionUtil.hasPermission(player, "moderex.bypass.mute")) {
             Punishment mute = plugin.getPunishmentManager().getActivePunishment(uuid, PunishmentType.MUTE);
             if (mute != null && !mute.isExpired()) {
                 event.setCancelled(true);
@@ -62,7 +63,7 @@ public class ChatModerationListener implements Listener {
             return;
         }
 
-        if (!player.hasPermission("moderex.bypass.mute")) {
+        if (!PermissionUtil.hasPermission(player, "moderex.bypass.mute")) {
             Punishment mute = plugin.getPunishmentManager().getActivePunishment(uuid, PunishmentType.MUTE);
             if (mute != null && !mute.isExpired()) {
                 ItemStack result = event.getCurrentItem();

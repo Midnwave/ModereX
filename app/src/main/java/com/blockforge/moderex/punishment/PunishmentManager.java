@@ -6,6 +6,7 @@ import com.blockforge.moderex.log.ActivityLogEntry;
 import com.blockforge.moderex.webpanel.debug.WebPanelDebugger;
 import com.blockforge.moderex.util.DurationParser;
 import com.blockforge.moderex.util.Msg;
+import com.blockforge.moderex.util.PermissionUtil;
 import com.blockforge.moderex.util.TextUtil;
 import com.blockforge.moderex.util.TimeUtil;
 import net.kyori.adventure.text.Component;
@@ -53,6 +54,14 @@ public class PunishmentManager {
 
     public CompletableFuture<Punishment> mute(UUID playerUuid, String playerName, UUID staffUuid,
                                                String staffName, long duration, String reason) {
+        // Safety net: prevent duplicate active mutes
+        Punishment existingMute = getActivePunishment(playerUuid, PunishmentType.MUTE);
+        if (existingMute != null) {
+            plugin.getLogger().warning("[Punishments] Player " + playerName + " already has active mute (Case #"
+                    + existingMute.getCaseId() + "). Use -m flag to modify it.");
+            return CompletableFuture.completedFuture(null);
+        }
+
         return createPunishment(playerUuid, playerName, PunishmentType.MUTE, staffUuid, staffName, duration, reason, null)
                 .thenApply(punishment -> {
                     // Notify player if online
@@ -67,6 +76,14 @@ public class PunishmentManager {
 
     public CompletableFuture<Punishment> ban(UUID playerUuid, String playerName, UUID staffUuid,
                                               String staffName, long duration, String reason) {
+        // Safety net: prevent duplicate active bans
+        Punishment existingBan = getActivePunishment(playerUuid, PunishmentType.BAN);
+        if (existingBan != null) {
+            plugin.getLogger().warning("[Punishments] Player " + playerName + " already has active ban (Case #"
+                    + existingBan.getCaseId() + "). Use -m flag to modify it.");
+            return CompletableFuture.completedFuture(null);
+        }
+
         return createPunishment(playerUuid, playerName, PunishmentType.BAN, staffUuid, staffName, duration, reason, null)
                 .thenApply(punishment -> {
                     // Kick player if online
@@ -81,6 +98,14 @@ public class PunishmentManager {
 
     public CompletableFuture<Punishment> ipBan(UUID playerUuid, String playerName, String ipAddress,
                                                 UUID staffUuid, String staffName, long duration, String reason) {
+        // Safety net: prevent duplicate active IP bans
+        Punishment existingBan = getActivePunishment(playerUuid, PunishmentType.IPBAN);
+        if (existingBan != null) {
+            plugin.getLogger().warning("[Punishments] Player " + playerName + " already has active IP ban (Case #"
+                    + existingBan.getCaseId() + "). Use -m flag to modify it.");
+            return CompletableFuture.completedFuture(null);
+        }
+
         return createPunishment(playerUuid, playerName, PunishmentType.IPBAN, staffUuid, staffName, duration, reason, ipAddress)
                 .thenApply(punishment -> {
                     // Kick player if online
@@ -128,10 +153,13 @@ public class PunishmentManager {
         String template = plugin.getLanguageManager().getRaw(messageKey);
         String prefix = plugin.getLanguageManager().getRaw(MessageKey.PREFIX);
 
+        // Strip mass tags from reason before showing to player
+        String displayReason = stripMassTag(punishment.getReason());
+
         // Replace basic placeholders
         template = template
                 .replace("<prefix>", prefix)
-                .replace("<reason>", punishment.getReason())
+                .replace("<reason>", displayReason)
                 .replace("<duration>", duration == -1 ? "Permanent" : DurationParser.format(duration));
 
         // Add evidence section if applicable
@@ -269,7 +297,8 @@ public class PunishmentManager {
                         OfflinePlayer player = Bukkit.getOfflinePlayer(playerUuid);
                         broadcastToStaff(plugin.getLanguageManager().get(broadcastKey,
                                 "staff", staffName,
-                                "player", player.getName() != null ? player.getName() : playerUuid.toString()));
+                                "player", player.getName() != null ? player.getName() : playerUuid.toString(),
+                                "case_id", "N/A"));
                     }
 
                     return true;
@@ -331,7 +360,8 @@ public class PunishmentManager {
                     if (broadcastKey != null) {
                         broadcastToStaff(plugin.getLanguageManager().get(broadcastKey,
                                 "staff", staffName,
-                                "player", punishment.getPlayerName()));
+                                "player", punishment.getPlayerName(),
+                                "case_id", punishment.getCaseId() != null ? punishment.getCaseId() : "N/A"));
                     }
 
                     return true;
@@ -754,7 +784,8 @@ public class PunishmentManager {
                 "player_prefix", playerPrefix,
                 "duration", DurationParser.format(punishment.getExpiresAt() == -1 ? -1 :
                         punishment.getExpiresAt() - punishment.getCreatedAt()),
-                "reason", punishment.getReason()
+                "reason", punishment.getReason(),
+                "case_id", punishment.getCaseId() != null ? punishment.getCaseId() : "N/A"
         );
 
         broadcastToStaff(message);
@@ -766,13 +797,26 @@ public class PunishmentManager {
     }
 
     private void broadcastToStaff(Component message) {
+        Component separator = TextUtil.parse("<dark_gray><strikethrough>                              </strikethrough>");
         for (Player player : Bukkit.getOnlinePlayers()) {
-            if (player.hasPermission("moderex.notify.punishments")) {
+            if (PermissionUtil.hasPermission(player, "moderex.notify.punishments")) {
+                Msg.send(player, separator);
                 Msg.send(player, message);
+                Msg.send(player, separator);
             }
         }
         // Also log to console
         plugin.getLogger().info(TextUtil.toPlainText(message));
+    }
+
+    /**
+     * Strip [MASS-timestamp] tags from a reason string before displaying to players.
+     * The batch ID is internal metadata and should not be shown on kick/disconnect screens.
+     */
+    private String stripMassTag(String reason) {
+        if (reason == null) return "No reason specified";
+        // Remove [MASS-1234567890] style tags and any surrounding whitespace
+        return reason.replaceAll("\\s*\\[MASS-\\d+]\\s*", " ").trim();
     }
 
     public Component buildDisconnectMessage(Punishment punishment) {
@@ -784,12 +828,15 @@ public class PunishmentManager {
         String duration = punishment.isPermanent() ? "Permanent" :
                 DurationParser.formatRemaining(punishment.getExpiresAt());
 
+        // Strip mass tags from reason before showing to player
+        String displayReason = stripMassTag(punishment.getReason());
+
         template = template
                 .replace("<prefix>", prefix)
                 .replace("<date>", TimeUtil.formatFull(punishment.getCreatedAt()))
                 .replace("<staff>", punishment.getStaffName())
                 .replace("<duration>", duration)
-                .replace("<reason>", punishment.getReason());
+                .replace("<reason>", displayReason);
 
         // Check for evidence and add portal link if applicable
         String evidenceSection = buildEvidenceSection(punishment);
@@ -802,10 +849,13 @@ public class PunishmentManager {
         String template = plugin.getLanguageManager().getRaw(MessageKey.KICK_DISCONNECT);
         String prefix = plugin.getLanguageManager().getRaw(MessageKey.PREFIX);
 
+        // Strip mass tags from reason before showing to player
+        String displayReason = stripMassTag(punishment.getReason());
+
         template = template
                 .replace("<prefix>", prefix)
                 .replace("<staff>", punishment.getStaffName())
-                .replace("<reason>", punishment.getReason());
+                .replace("<reason>", displayReason);
 
         // Check for evidence and add portal link if applicable
         String evidenceSection = buildEvidenceSection(punishment);
@@ -1020,6 +1070,14 @@ public class PunishmentManager {
      */
     public CompletableFuture<Punishment> ipMute(UUID playerUuid, String playerName, String ipAddress,
                                                   UUID staffUuid, String staffName, long duration, String reason) {
+        // Safety net: prevent duplicate active IP mutes
+        Punishment existingMute = getActivePunishment(playerUuid, PunishmentType.IPMUTE);
+        if (existingMute != null) {
+            plugin.getLogger().warning("[Punishments] Player " + playerName + " already has active IP mute (Case #"
+                    + existingMute.getCaseId() + "). Use -m flag to modify it.");
+            return CompletableFuture.completedFuture(null);
+        }
+
         return createPunishment(playerUuid, playerName, PunishmentType.IPMUTE, staffUuid, staffName, duration, reason, ipAddress)
                 .thenApply(punishment -> {
                     // Notify player if online

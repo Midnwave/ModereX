@@ -5,9 +5,12 @@ import com.blockforge.moderex.gui.BaseGui;
 import com.blockforge.moderex.punishment.Punishment;
 import com.blockforge.moderex.punishment.PunishmentType;
 import com.blockforge.moderex.util.Msg;
+import com.blockforge.moderex.util.PermissionUtil;
 import com.blockforge.moderex.util.TextUtil;
+import org.bukkit.Bukkit;
 import org.bukkit.Material;
 import org.bukkit.OfflinePlayer;
+import org.bukkit.Sound;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.SkullMeta;
 
@@ -35,21 +38,48 @@ public class PunishPlayerGui extends BaseGui {
         // Player head with info in center top
         setItem(4, createPlayerHead());
 
-        // Punishment type options
+        // Punishment type options with permission checks
         // Row 2: Mute, Kick, Warn
-        setItem(20, createMuteItem(), () -> openGui(new MuteGui(plugin, target)));
-        setItem(22, createKickItem(), () -> openGui(new KickGui(plugin, target)));
-        setItem(24, createWarnItem(), () -> openGui(new WarnGui(plugin, target)));
+        setPermissionGuardedItem(20, createMuteItem(), "moderex.mute", () -> openGui(new MuteGui(plugin, target)));
+        setPermissionGuardedItem(22, createKickItem(), "moderex.kick", () -> openGui(new KickGui(plugin, target)));
+        setPermissionGuardedItem(24, createWarnItem(), "moderex.warn", () -> openGui(new WarnGui(plugin, target)));
 
         // Row 3: Ban, IP Ban
-        setItem(29, createBanItem(), () -> openGui(new BanGui(plugin, target)));
-        setItem(33, createIpBanItem(), () -> openGui(new IpBanGui(plugin, target)));
+        setPermissionGuardedItem(29, createBanItem(), "moderex.ban", () -> openGui(new BanGui(plugin, target)));
+        setPermissionGuardedItem(33, createIpBanItem(), "moderex.ipban", () -> openGui(new IpBanGui(plugin, target)));
 
         // Player history button
         setItem(40, createHistoryItem(), () -> openGui(new PlayerHistoryGui(plugin, target)));
 
         // Close button
         setItem(44, createCloseButton(), this::close);
+    }
+
+    /**
+     * Sets an item with a permission guard. If the player lacks the permission,
+     * clicking shows a brief "No Permission" flash with an error sound.
+     */
+    private void setPermissionGuardedItem(int slot, ItemStack item, String permission, Runnable action) {
+        setItem(slot, item, () -> {
+            if (PermissionUtil.hasPermission(viewer, permission)) {
+                action.run();
+            } else {
+                // Play error sound
+                viewer.playSound(viewer.getLocation(), Sound.ENTITY_VILLAGER_NO, 1.0f, 1.0f);
+
+                // Flash a "No Permission" barrier item
+                ItemStack noPermItem = createItem(Material.BARRIER, "<red>No Permission",
+                        "<gray>You lack <white>" + permission);
+                inventory.setItem(slot, noPermItem);
+
+                // Restore original item after 500ms (10 ticks)
+                Bukkit.getScheduler().runTaskLater(plugin, () -> {
+                    if (viewer != null && plugin.getGuiManager().hasGuiOpen(viewer)) {
+                        inventory.setItem(slot, item);
+                    }
+                }, 10L);
+            }
+        });
     }
 
     private ItemStack createPlayerHead() {
@@ -92,39 +122,35 @@ public class PunishPlayerGui extends BaseGui {
         return createItem(Material.PAPER, "<gold>Mute",
                 "<gray>Prevent the player from chatting",
                 "",
-                "<yellow>Left-click <gray>for quick mute",
-                "<yellow>Right-click <gray>for custom duration");
+                "<yellow>Click to mute");
     }
 
     private ItemStack createKickItem() {
         return createItem(Material.LEATHER_BOOTS, "<yellow>Kick",
                 "<gray>Remove player from the server",
                 "",
-                "<yellow>Click <gray>to kick player");
+                "<yellow>Click to kick");
     }
 
     private ItemStack createWarnItem() {
         return createItem(Material.BOOK, "<aqua>Warn",
                 "<gray>Issue a warning to the player",
                 "",
-                "<yellow>Click <gray>to warn player");
+                "<yellow>Click to warn");
     }
 
     private ItemStack createBanItem() {
         return createItem(Material.BARRIER, "<red>Ban",
                 "<gray>Ban the player from the server",
                 "",
-                "<yellow>Left-click <gray>for quick ban",
-                "<yellow>Right-click <gray>for custom duration");
+                "<yellow>Click to ban");
     }
 
     private ItemStack createIpBanItem() {
         return createItem(Material.IRON_BARS, "<dark_red>IP Ban",
                 "<gray>Ban the player's IP address",
                 "",
-                "<red>Use with caution!",
-                "",
-                "<yellow>Click <gray>to IP ban player");
+                "<yellow>Click to IP ban");
     }
 
     private ItemStack createHistoryItem() {

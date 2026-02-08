@@ -4,6 +4,7 @@ import com.blockforge.moderex.ModereX;
 import com.blockforge.moderex.punishment.PunishmentTemplate;
 import com.blockforge.moderex.punishment.PunishmentType;
 import com.blockforge.moderex.util.Msg;
+import com.blockforge.moderex.util.PermissionUtil;
 import com.blockforge.moderex.util.TextUtil;
 import org.bukkit.Material;
 import org.bukkit.OfflinePlayer;
@@ -45,7 +46,7 @@ public class TemplateGui extends PaginatedGui<PunishmentTemplate> {
     protected void renderItem(int slot, PunishmentTemplate template) {
         ItemStack item = createTemplateItem(template);
         setItem(slot, item, clickType -> {
-            if (clickType.isRightClick() && viewer.hasPermission("moderex.template.edit")) {
+            if (clickType.isRightClick() && PermissionUtil.hasPermission(viewer, "moderex.template.edit")) {
                 // Edit template
                 openGui(new TemplateEditorGui(plugin, template, () -> openGui(this)));
             } else if (onSelect != null) {
@@ -95,7 +96,7 @@ public class TemplateGui extends PaginatedGui<PunishmentTemplate> {
         });
 
         // Create new template button (admin only)
-        if (viewer.hasPermission("moderex.template.create")) {
+        if (PermissionUtil.hasPermission(viewer, "moderex.template.create")) {
             setItem(8, createItem(Material.EMERALD, "<green>Create Template",
                     "<gray>Create a new punishment template",
                     "",
@@ -143,7 +144,7 @@ public class TemplateGui extends PaginatedGui<PunishmentTemplate> {
             lore.add("<yellow>Click to view details");
         }
 
-        if (viewer.hasPermission("moderex.template.edit")) {
+        if (PermissionUtil.hasPermission(viewer, "moderex.template.edit")) {
             lore.add("<aqua>Right-click to edit");
         }
 
@@ -308,7 +309,7 @@ public class TemplateGui extends PaginatedGui<PunishmentTemplate> {
             });
 
             // Delete button (only for existing templates)
-            if (template != null && viewer.hasPermission("moderex.template.delete")) {
+            if (template != null && PermissionUtil.hasPermission(viewer, "moderex.template.delete")) {
                 setItem(40, createItem(Material.TNT, "<dark_red>Delete Template",
                         "<gray>Permanently delete this template",
                         "",

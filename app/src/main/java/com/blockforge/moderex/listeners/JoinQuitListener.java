@@ -4,6 +4,7 @@ import com.blockforge.moderex.ModereX;
 import com.blockforge.moderex.punishment.Punishment;
 import com.blockforge.moderex.punishment.PunishmentType;
 import com.blockforge.moderex.util.Msg;
+import com.blockforge.moderex.util.PermissionUtil;
 import com.blockforge.moderex.util.TextUtil;
 import net.kyori.adventure.text.Component;
 import org.bukkit.Bukkit;
@@ -121,7 +122,7 @@ public class JoinQuitListener implements Listener {
         }
 
         // Update checker notification for admins
-        if (player.hasPermission("moderex.admin")) {
+        if (PermissionUtil.hasPermission(player, "moderex.admin")) {
             plugin.getServer().getScheduler().runTaskLater(plugin, () -> {
                 // Notify about updates if available
             }, 40L); // 2 seconds delay
@@ -155,7 +156,7 @@ public class JoinQuitListener implements Listener {
         if ("MODERATORS_ONLY".equalsIgnoreCase(visibility)) {
             // Only send to staff
             for (Player staff : Bukkit.getOnlinePlayers()) {
-                if (staff.hasPermission("moderex.notify.joinleave")) {
+                if (PermissionUtil.hasPermission(staff, "moderex.notify.joinleave")) {
                     Msg.send(staff, message);
                 }
             }
@@ -226,7 +227,7 @@ public class JoinQuitListener implements Listener {
         if ("MODERATORS_ONLY".equalsIgnoreCase(visibility)) {
             // Only send to staff
             for (Player staff : Bukkit.getOnlinePlayers()) {
-                if (staff.hasPermission("moderex.notify.joinleave")) {
+                if (PermissionUtil.hasPermission(staff, "moderex.notify.joinleave")) {
                     Msg.send(staff, message);
                 }
             }
