@@ -14,6 +14,74 @@
 
 window.MX_CHANGELOGS = [
   {
+    build: 278,
+    version: "2.0dev-278",
+    date: "2026-02-07",
+    title: "Configuration & Settings Fixes",
+    sections: [
+      {
+        type: "improved",
+        title: "Improvements",
+        items: [
+          "**Server Status Polling** - Increased refresh rate from 2s to 1s for more responsive monitoring",
+          "**Loading Bar** - No longer flashes during server status polling (excluded frequent requests)",
+          "**Discord Integration** - Added Discord invite link field for ban/kick appeal messages",
+          "**Configuration Permissions** - Each config section now gated behind its permission (warning, mute, lockdown, etc.)"
+        ]
+      },
+      {
+        type: "fixed",
+        title: "Bug Fixes",
+        items: [
+          "**Panel Notifications** - Removed empty/unused Panel Notifications card from My Settings"
+        ]
+      }
+    ]
+  },
+  {
+    build: 277,
+    version: "2.0dev-277",
+    date: "2026-02-07",
+    title: "Web Panel UI Overhaul",
+    sections: [
+      {
+        type: "new",
+        title: "New Features",
+        items: [
+          "**Custom Duration Picker** - Structured time picker with Years/Months/Weeks/Days/Hours/Minutes fields replaces free-text input",
+          "**Permanent Punishment Toggle** - Permission-gated permanent option in duration picker (requires moderex.punish.permanent)",
+          "**Custom Dropdown Menus** - All native selects replaced with styled custom dropdowns matching panel theme",
+          "**Permission Search Filter** - Search bar to filter permissions by name in the permissions tab",
+          "**Permission Bulk Actions** - Allow All and Reset All buttons per permission category",
+          "**Permission Count Badges** - Green/red badges showing allowed/denied count per category",
+          "**Citizens Download Link** - Replay settings now shows download link when Citizens is not detected"
+        ]
+      },
+      {
+        type: "improved",
+        title: "Improvements",
+        items: [
+          "**Permission Categories** - Icons for each category, shorter permission names with full name in tooltip",
+          "**Reason Column** - Increased truncation limit from 15 to 40 characters with wider column",
+          "**CSS Variables** - Replaced 100+ hardcoded color values with CSS custom properties for consistent theming",
+          "**Duration Auto-Hide** - Duration picker automatically hidden for Kick/Warn punishment types",
+          "**Replay Duration** - Fixed duration calculation from server timestamps instead of missing field"
+        ]
+      },
+      {
+        type: "fixed",
+        title: "Bug Fixes",
+        items: [
+          "**Modal Close** - All modals now close when clicking outside (overlay click-to-close)",
+          "**Replay Toggles** - Fixed broken toggle switches using wrong CSS class (switch vs toggle-switch-label)",
+          "**Replay Duration** - Fixed duration showing 0:00 by calculating from startTime/endTime",
+          "**Discord Form** - Removed duplicate CSS toggle definition causing inconsistent styling",
+          "**Template Duration** - Templates now properly populate the duration picker fields"
+        ]
+      }
+    ]
+  },
+  {
     build: 270,
     version: "2.0dev-270",
     date: "2026-02-07",
