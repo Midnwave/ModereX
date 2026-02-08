@@ -464,7 +464,12 @@
     transparentMaterial: null, // For glass, leaves, water, ice
     atlasWidth: 0,
     atlasHeight: 0,
+    atlasCols: 0,
+    atlasRows: 0,
+    tileUVWidth: 0, // width of one tile in UV space (1 / atlasCols)
+    tileUVHeight: 0, // height of one tile in UV space (1 / atlasRows)
     blockUVs: {}, // blockName -> { top: [u0,v0,u1,v1], side: [...], bottom: [...] }
+    blockFaceKeys: {}, // blockName -> { top: 'texName', side: 'texName', ... } for merge comparison
     tintedBlocks: new Set(), // blocks that need green biome tint (grass tops, leaves)
   };
 
@@ -839,10 +844,18 @@
 
       console.log(`[TextureAtlas] Loaded ${loadedCount}/${texNames.length} textures`);
 
+      // Store atlas grid dimensions for UV tiling math
+      TEXTURE_ATLAS.atlasCols = ATLAS_COLS;
+      TEXTURE_ATLAS.atlasRows = ATLAS_ROWS;
+      TEXTURE_ATLAS.tileUVWidth = TILE_SIZE / atlasW;   // 1.0 / ATLAS_COLS
+      TEXTURE_ATLAS.tileUVHeight = TILE_SIZE / atlasH;  // 1.0 / ATLAS_ROWS
+
       // Build UV map for each block and track tinted blocks
       TEXTURE_ATLAS.tintedBlocks.clear();
+      TEXTURE_ATLAS.blockFaceKeys = {};
       for (const [blockName, mapping] of Object.entries(BLOCK_TEXTURE_MAP)) {
         const uvs = {};
+        const faceKeys = {};
         const getUV = (texName) => {
           const tc = texCoords[texName];
           if (!tc) return [0, 0, 1/atlasW * TILE_SIZE, 1/atlasH * TILE_SIZE];
@@ -858,14 +871,25 @@
           const uv = getUV(mapping.all);
           uvs.top = uv; uvs.bottom = uv; uvs.north = uv;
           uvs.south = uv; uvs.east = uv; uvs.west = uv;
+          faceKeys.top = mapping.all; faceKeys.bottom = mapping.all;
+          faceKeys.north = mapping.all; faceKeys.south = mapping.all;
+          faceKeys.east = mapping.all; faceKeys.west = mapping.all;
         } else {
-          uvs.top = getUV(mapping.top || mapping.side || 'stone');
-          uvs.bottom = getUV(mapping.bottom || mapping.top || mapping.side || 'stone');
-          const sideUV = getUV(mapping.side || mapping.all || 'stone');
-          uvs.north = mapping.front ? getUV(mapping.front) : sideUV;
+          const topTex = mapping.top || mapping.side || 'stone';
+          const bottomTex = mapping.bottom || mapping.top || mapping.side || 'stone';
+          const sideTex = mapping.side || mapping.all || 'stone';
+          const frontTex = mapping.front || sideTex;
+          uvs.top = getUV(topTex);
+          uvs.bottom = getUV(bottomTex);
+          const sideUV = getUV(sideTex);
+          uvs.north = mapping.front ? getUV(frontTex) : sideUV;
           uvs.south = sideUV; uvs.east = sideUV; uvs.west = sideUV;
+          faceKeys.top = topTex; faceKeys.bottom = bottomTex;
+          faceKeys.north = frontTex; faceKeys.south = sideTex;
+          faceKeys.east = sideTex; faceKeys.west = sideTex;
         }
         TEXTURE_ATLAS.blockUVs[blockName] = uvs;
+        TEXTURE_ATLAS.blockFaceKeys[blockName] = faceKeys;
 
         // Track blocks that need biome tinting
         if (mapping.tint) {
@@ -877,7 +901,48 @@
       const texture = new THREE.CanvasTexture(canvas);
       texture.magFilter = THREE.NearestFilter;
       texture.minFilter = THREE.NearestFilter;
+      texture.generateMipmaps = false; // Crisp pixelated Minecraft look
       texture.colorSpace = THREE.SRGBColorSpace;
+
+      // Shader injection for atlas-aware UV tiling.
+      // When greedy-merged quads span multiple blocks, UVs extend beyond a single
+      // atlas tile. This shader snippet wraps UVs back into the correct tile using
+      // a per-vertex tileOrigin attribute and the known uniform tile size.
+      const tileUW = TEXTURE_ATLAS.tileUVWidth;
+      const tileUH = TEXTURE_ATLAS.tileUVHeight;
+      const atlasTilingShader = (shader) => {
+        // Add the tileOrigin attribute and tileSize uniform
+        shader.vertexShader = shader.vertexShader.replace(
+          '#include <uv_pars_vertex>',
+          `#include <uv_pars_vertex>
+attribute vec2 tileOrigin;
+varying vec2 vTileOrigin;`
+        );
+        shader.vertexShader = shader.vertexShader.replace(
+          '#include <uv_vertex>',
+          `#include <uv_vertex>
+vTileOrigin = tileOrigin;`
+        );
+        // In the fragment shader, wrap UVs within their atlas tile
+        shader.fragmentShader = shader.fragmentShader.replace(
+          '#include <map_pars_fragment>',
+          `#include <map_pars_fragment>
+varying vec2 vTileOrigin;
+const vec2 atlasTileSize = vec2(${tileUW.toFixed(10)}, ${tileUH.toFixed(10)});`
+        );
+        shader.fragmentShader = shader.fragmentShader.replace(
+          '#include <map_fragment>',
+          `#ifdef USE_MAP
+  // Wrap UVs within the atlas tile for texture tiling on merged quads
+  vec2 tiledUV = vTileOrigin + fract((vMapUv - vTileOrigin) / atlasTileSize) * atlasTileSize;
+  vec4 sampledDiffuseColor = texture2D(map, tiledUV);
+  #ifdef DECODE_VIDEO_TEXTURE
+    sampledDiffuseColor = vec4(mix(pow(sampledDiffuseColor.rgb * 0.9478672986 + vec3(0.0521327014), vec3(2.4)), sampledDiffuseColor.rgb * 0.0773993808, vec3(lessThanEqual(sampledDiffuseColor.rgb, vec3(0.04045)))), sampledDiffuseColor.w);
+  #endif
+  diffuseColor *= sampledDiffuseColor;
+#endif`
+        );
+      };
 
       // Create opaque textured material
       // vertexColors are used for AO shading (white tinted by face brightness)
@@ -889,6 +954,7 @@
         metalness: 0.05,
         side: THREE.FrontSide,
       });
+      material.onBeforeCompile = atlasTilingShader;
 
       // Create transparent textured material (glass, leaves, water, ice)
       const transparentMaterial = new THREE.MeshStandardMaterial({
@@ -901,6 +967,7 @@
         alphaTest: 0.01,
         depthWrite: false,
       });
+      transparentMaterial.onBeforeCompile = atlasTilingShader;
 
       TEXTURE_ATLAS.texture = texture;
       TEXTURE_ATLAS.material = material;
@@ -922,7 +989,9 @@
 
   /**
    * Get UV coordinates for a block face.
-   * Returns { uv: [u0, v0, u1, v1], tint: string|null } or null if not in atlas.
+   * Returns { uv: [u0, v0, u1, v1], tint: string|null, texKey: string } or null if not in atlas.
+   * texKey is the texture name used for greedy merge comparison - only merge faces
+   * that share the same texKey AND tint.
    */
   function getBlockFaceUV(blockState, faceName) {
     if (!TEXTURE_ATLAS.loaded) return null;
@@ -936,7 +1005,9 @@
     const uv = uvs[uvKey] || uvs.north || null;
     if (!uv) return null;
     const mapping = BLOCK_TEXTURE_MAP[name];
-    return { uv, tint: mapping?.tint || null };
+    const faceKeys = TEXTURE_ATLAS.blockFaceKeys[name];
+    const texKey = faceKeys ? (faceKeys[uvKey] || faceKeys.north || '') : '';
+    return { uv, tint: mapping?.tint || null, texKey };
   }
 
   /**
@@ -1220,10 +1291,13 @@
   /**
    * Build geometry for a chunk section using greedy meshing.
    * When texture atlas is loaded, generates UV coordinates and splits geometry
-   * into opaque and transparent passes. Vertex colors carry AO shading
-   * (white * brightness) and biome tinting for grass/leaves when textured.
-   * Returns { positions, normals, colors, indices, uvs?,
-   *           hasTransparent?, tPositions?, tNormals?, tColors?, tIndices?, tUvs? }
+   * into opaque and transparent passes. Same-texture-tile faces are greedily
+   * merged; the shader uses tileOrigin + fract() to wrap tiled UVs within
+   * their atlas tile. Vertex colors carry AO shading (white * brightness)
+   * and biome tinting for grass/leaves when textured.
+   * Returns { positions, normals, colors, indices, uvs?, tileOrigins?,
+   *           hasTransparent?, tPositions?, tNormals?, tColors?, tIndices?,
+   *           tUvs?, tTileOrigins? }
    */
   function buildSectionMesh(section, chunkX, chunkZ, getNeighborBlock) {
     // Opaque geometry buffers
@@ -1231,6 +1305,7 @@
     const normals = [];
     const colors = [];
     const uvs = [];
+    const tileOrigins = []; // Per-vertex atlas tile origin for shader-based UV tiling
     const indices = [];
     let vertexCount = 0;
 
@@ -1239,6 +1314,7 @@
     const tNormals = [];
     const tColors = [];
     const tUvs = [];
+    const tTileOrigins = [];
     const tIndices = [];
     let tVertexCount = 0;
 
@@ -1276,6 +1352,10 @@
         // Build a 16x16 mask of faces to render
         const mask = new Array(256).fill(null); // 16x16
         const maskColors = new Array(256).fill(null);
+        // Pre-compute face texture results for greedy merge comparison
+        const maskFaceResults = new Array(256).fill(null);
+        // Merge key: combines texture key + tint for same-texture merging
+        const maskMergeKeys = new Array(256).fill(null);
 
         for (let j = 0; j < 16; j++) {
           for (let i = 0; i < 16; i++) {
@@ -1304,14 +1384,23 @@
               if (face.name === 'up' && info.topColor) {
                 faceColor = info.topColor;
               }
-              mask[j * 16 + i] = blockState;
-              maskColors[j * 16 + i] = faceColor;
+              const midx = j * 16 + i;
+              mask[midx] = blockState;
+              maskColors[midx] = faceColor;
+              // Pre-compute atlas face result for greedy merge comparison
+              if (useAtlas) {
+                const fr = getBlockFaceUV(blockState, face.name);
+                maskFaceResults[midx] = fr;
+                // Merge key: blocks with same texture tile AND same tint can be merged
+                maskMergeKeys[midx] = fr ? (fr.texKey + '|' + (fr.tint || '')) : null;
+              }
             }
           }
         }
 
-        // Greedy merge: scan the mask and merge rectangles of identical blocks
-        // When texture atlas is loaded, only merge same block types (1x1 if textured)
+        // Greedy merge: scan the mask and merge rectangles of same-texture blocks.
+        // When texture atlas is loaded, merge faces that share the SAME texture tile
+        // and tint. The shader handles UV tiling for merged quads.
         const visited = new Array(256).fill(false);
 
         for (let j = 0; j < 16; j++) {
@@ -1321,17 +1410,38 @@
 
             const color = maskColors[idx];
             const state = mask[idx];
-            const faceResult = useAtlas ? getBlockFaceUV(state, face.name) : null;
+            const faceResult = useAtlas ? maskFaceResults[idx] : null;
             const faceUV = faceResult ? faceResult.uv : null;
+            const mergeKey = useAtlas ? maskMergeKeys[idx] : null;
 
             // Determine if this block is transparent (for separate geometry pass)
             const blockInfo = getBlockInfo(state);
             const isBlockTransparent = blockInfo.opacity !== undefined && blockInfo.opacity < 1;
 
-            // When textured, don't merge (each block needs its own UVs)
+            // Greedy merge: extend width and height as far as possible
+            // For textured blocks, merge faces with same texture tile + tint (mergeKey)
+            // For vertex-color blocks, merge faces with same block state + color
             let width = 1;
             let height = 1;
-            if (!faceUV) {
+            if (faceUV && mergeKey) {
+              // Textured mode: greedy merge across same-texture-tile blocks
+              while (i + width < 16) {
+                const ni = j * 16 + (i + width);
+                if (!visited[ni] && mask[ni] && maskMergeKeys[ni] === mergeKey) {
+                  width++;
+                } else break;
+              }
+              outerTex:
+              while (j + height < 16) {
+                for (let wi = 0; wi < width; wi++) {
+                  const ni = (j + height) * 16 + (i + wi);
+                  if (visited[ni] || !mask[ni] || maskMergeKeys[ni] !== mergeKey) {
+                    break outerTex;
+                  }
+                }
+                height++;
+              }
+            } else {
               // Vertex-color mode: greedy merge across same-color blocks
               while (i + width < 16) {
                 const ni = j * 16 + (i + width);
@@ -1425,6 +1535,7 @@
             const tgtNorm = useTransparentBuf ? tNormals : normals;
             const tgtCol = useTransparentBuf ? tColors : colors;
             const tgtUvArr = useTransparentBuf ? tUvs : uvs;
+            const tgtTileArr = useTransparentBuf ? tTileOrigins : tileOrigins;
             const tgtIdx = useTransparentBuf ? tIndices : indices;
             const tgtVC = useTransparentBuf ? tVertexCount : vertexCount;
 
@@ -1437,17 +1548,37 @@
             // Generate UV coordinates if atlas is loaded and block has texture
             if (faceUV) {
               const [u0, v0t, u1, v1t] = faceUV;
+              // Tile size in UV space (one block = one tile)
+              const tileW = u1 - u0; // width of one atlas tile in UV
+              const tileH = v1t - v0t; // height of one atlas tile in UV
+
+              // Tiled UV coordinates for merged quads:
+              // For a merged quad of width x height blocks, the UVs span
+              // width tiles horizontally and height tiles vertically.
+              // The shader uses fract() to wrap UVs back into the tile.
+              const uEnd = u0 + width * tileW;
+              const vEnd = v0t + height * tileH;
+
               // UV coordinates mapped to match quad vertex winding:
               // Positive face: v0(origin), v1(+u), v2(+u+v), v3(+v)
               // Negative face: v0(origin), v3(+v), v2(+u+v), v1(+u)
               if (face.positive) {
-                tgtUvArr.push(u0, v0t, u1, v0t, u1, v1t, u0, v1t);
+                tgtUvArr.push(u0, v0t, uEnd, v0t, uEnd, vEnd, u0, vEnd);
               } else {
-                tgtUvArr.push(u0, v0t, u0, v1t, u1, v1t, u1, v0t);
+                tgtUvArr.push(u0, v0t, u0, vEnd, uEnd, vEnd, uEnd, v0t);
+              }
+
+              // Store tile origin for all 4 vertices (used by shader for UV wrapping)
+              for (let vi = 0; vi < 4; vi++) {
+                tgtTileArr.push(u0, v0t);
               }
             } else if (useAtlas) {
               // No texture for this block - degenerate UVs (vertex colors only)
               tgtUvArr.push(0, 0, 0, 0, 0, 0, 0, 0);
+              // Degenerate tile origins
+              for (let vi = 0; vi < 4; vi++) {
+                tgtTileArr.push(0, 0);
+              }
             }
 
             // Two triangles
@@ -1474,6 +1605,7 @@
     };
     if (useAtlas && uvs.length > 0) {
       result.uvs = new Float32Array(uvs);
+      result.tileOrigins = new Float32Array(tileOrigins);
     }
 
     // Include transparent geometry if present
@@ -1485,6 +1617,7 @@
       result.tIndices = new Uint32Array(tIndices);
       if (useAtlas && tUvs.length > 0) {
         result.tUvs = new Float32Array(tUvs);
+        result.tTileOrigins = new Float32Array(tTileOrigins);
       }
     }
     return result;
@@ -1691,6 +1824,10 @@
         let material = this.opaqueMaterial;
         if (meshData.uvs && TEXTURE_ATLAS.material) {
           geometry.setAttribute('uv', new THREE.BufferAttribute(meshData.uvs, 2));
+          // tileOrigin attribute: per-vertex atlas tile origin for shader UV wrapping
+          if (meshData.tileOrigins) {
+            geometry.setAttribute('tileOrigin', new THREE.BufferAttribute(meshData.tileOrigins, 2));
+          }
           material = TEXTURE_ATLAS.material;
         }
 
@@ -1715,6 +1852,10 @@
         let tMaterial = this.transparentMaterial;
         if (meshData.tUvs && TEXTURE_ATLAS.transparentMaterial) {
           tGeometry.setAttribute('uv', new THREE.BufferAttribute(meshData.tUvs, 2));
+          // tileOrigin attribute: per-vertex atlas tile origin for shader UV wrapping
+          if (meshData.tTileOrigins) {
+            tGeometry.setAttribute('tileOrigin', new THREE.BufferAttribute(meshData.tTileOrigins, 2));
+          }
           tMaterial = TEXTURE_ATLAS.transparentMaterial;
         }
 

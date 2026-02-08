@@ -5893,6 +5893,20 @@ public class HybridPanelServer implements com.blockforge.moderex.gateway.Gateway
             }
         }
 
+        // Extract evidence IDs if provided
+        List<String> evidenceIds = new ArrayList<>();
+        if (data.has("evidenceIds") && data.get("evidenceIds").isJsonArray()) {
+            for (var el : data.getAsJsonArray("evidenceIds")) {
+                if (el.isJsonPrimitive()) evidenceIds.add(el.getAsString());
+            }
+        }
+        List<Integer> activityLogIds = new ArrayList<>();
+        if (data.has("activityLogIds") && data.get("activityLogIds").isJsonArray()) {
+            for (var el : data.getAsJsonArray("activityLogIds")) {
+                if (el.isJsonPrimitive()) activityLogIds.add(el.getAsInt());
+            }
+        }
+
         // Get the target player's UUID
         OfflinePlayer target = Bukkit.getOfflinePlayer(targetName);
         UUID targetUuid = target.getUniqueId();
@@ -5903,7 +5917,7 @@ public class HybridPanelServer implements com.blockforge.moderex.gateway.Gateway
             try {
                 PunishmentType type = PunishmentType.valueOf(typeStr.toUpperCase());
 
-                switch (type) {
+                CompletableFuture<Punishment> future = switch (type) {
                     case BAN -> plugin.getPunishmentManager().ban(targetUuid, resolvedName, staffUuid, staffName, durationMs, reason);
                     case MUTE -> plugin.getPunishmentManager().mute(targetUuid, resolvedName, staffUuid, staffName, durationMs, reason);
                     case KICK -> plugin.getPunishmentManager().kick(targetUuid, resolvedName, staffUuid, staffName, reason);
@@ -5914,16 +5928,42 @@ public class HybridPanelServer implements com.blockforge.moderex.gateway.Gateway
                                 ? onlineTarget.getAddress().getAddress().getHostAddress()
                                 : null;
                         if (ip != null) {
-                            plugin.getPunishmentManager().ipBan(targetUuid, resolvedName, ip, staffUuid, staffName, durationMs, reason);
+                            yield plugin.getPunishmentManager().ipBan(targetUuid, resolvedName, ip, staffUuid, staffName, durationMs, reason);
                         } else {
                             sendError(conn, "NO_IP", "Cannot IP ban - player has no stored IP address");
-                            return;
+                            yield null;
                         }
                     }
-                }
+                    default -> null;
+                };
 
-                sendSuccess(conn, "Punishment issued for " + resolvedName);
-                plugin.getLogger().info("[WebPanel] " + staffName + " issued " + typeStr + " to " + resolvedName + ": " + reason);
+                if (future == null) return;
+
+                future.thenAccept(punishment -> {
+                    if (punishment == null) return;
+                    String caseId = punishment.getCaseId();
+
+                    // Link file evidence
+                    for (String evId : evidenceIds) {
+                        plugin.getPunishmentManager().linkFileEvidence(caseId, evId, staffUuid.toString(), staffName);
+                    }
+
+                    // Link activity log evidence
+                    if (!activityLogIds.isEmpty()) {
+                        List<ActivityLogEntry> entries = new ArrayList<>();
+                        for (int logId : activityLogIds) {
+                            ActivityLogEntry entry = plugin.getActivityLogManager().getEntryById(logId);
+                            if (entry != null) entries.add(entry);
+                        }
+                        if (!entries.isEmpty()) {
+                            plugin.getPunishmentManager().linkActivityLogEvidence(caseId, entries, staffUuid.toString(), staffName);
+                        }
+                    }
+
+                    sendSuccess(conn, "Punishment issued for " + resolvedName);
+                    plugin.getLogger().info("[WebPanel] " + staffName + " issued " + typeStr + " to " + resolvedName + ": " + reason
+                            + (evidenceIds.isEmpty() && activityLogIds.isEmpty() ? "" : " (with " + (evidenceIds.size() + activityLogIds.size()) + " evidence items)"));
+                });
 
             } catch (IllegalArgumentException e) {
                 sendError(conn, "INVALID_TYPE", "Unknown punishment type: " + typeStr);
@@ -9873,8 +9913,15 @@ public class HybridPanelServer implements com.blockforge.moderex.gateway.Gateway
             session.lastActivity = System.currentTimeMillis();
             plugin.getLogger().info("[Gateway] Handling request: " + type + " for " + session.playerName);
 
-            // Route to request handler
-            handleGatewayRequest(type, data, session, wrapper);
+            // Make session accessible via sessions.get(wrapper) for handler methods
+            // that look up the session internally (e.g. sendPlayerDetails, sendPlayerList)
+            sessions.put(wrapper, session);
+            try {
+                // Route to request handler
+                handleGatewayRequest(type, data, session, wrapper);
+            } finally {
+                sessions.remove(wrapper);
+            }
 
         } catch (Exception e) {
             plugin.logDebug("[Gateway] Error handling message type " + type + ": " + e.getMessage());

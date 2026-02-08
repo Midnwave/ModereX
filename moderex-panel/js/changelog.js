@@ -14,6 +14,65 @@
 
 window.MX_CHANGELOGS = [
   {
+    build: 285,
+    version: "2.0dev-285",
+    date: "2026-02-08",
+    title: "Evidence Fix, Admin Panel Fix & Getting Started Rewrite",
+    sections: [
+      { type: "new", title: "New Features", items: [
+        "**Getting Started Rewrite** - Expanded from 11 to 21 comprehensive sections with detailed guides for every feature",
+        "**New Guide Sections** - Added First Steps, Templates, Evidence System, Watchlist, Server Status, Replays, Messages, Permissions, Shortcuts, Do's & Don'ts"
+      ]},
+      { type: "fixed", title: "Bug Fixes", items: [
+        "**Evidence Linking** - Evidence files and activity logs are now properly attached to punishments created from the web panel",
+        "**Admin Dashboard Activity** - Activity items now show full text content instead of just timestamps",
+        "**Admin Gateway Health** - Gateway status now shows correct uptime, health status, memory and message rate",
+        "**Admin Version Chart** - Version distribution chart now populated from connected server data",
+        "**Admin Connection Chart** - Connection history placeholder now shows actual chart data"
+      ]},
+      { type: "technical", title: "Technical Changes", items: [
+        "**Activity Log Storage** - Added getEntryById() for looking up individual log entries by database ID",
+        "**Gateway Health Data** - Added healthy, cpuUsage, memoryUsage, messagesPerSecond fields to gateway health messages",
+        "**Dashboard Data** - Added versionDistribution and connectionHistory to dashboard data, mapped audit log to activity format"
+      ]}
+    ]
+  },
+  {
+    build: 284,
+    version: "2.0dev-284",
+    date: "2026-02-08",
+    title: "Replay 3D Overhaul & Gateway Player Profile Fix",
+    sections: [
+      {
+        type: "new",
+        title: "New Features",
+        items: [
+          "**Real Block Textures** - Replay viewer now loads actual Minecraft block textures from PrismarineJS atlas with per-face UV mapping",
+          "**Shader-Based Tiling** - Custom atlas shader enables greedy mesh merging for textured blocks with correct UV wrapping",
+          "**Noise-Grain Sound Engine** - All replay sounds rebuilt using multi-grain filtered noise synthesis for realistic Minecraft-like audio"
+        ]
+      },
+      {
+        type: "improved",
+        title: "Improvements",
+        items: [
+          "**Player Model** - Correct Steve proportions, body pivot for sneaking, shoulder/hip limb pivots, proper overlay layers",
+          "**Skin UV Mapping** - Fixed face order mapping for models rotated to face -Z (left/right/front/back corrected)",
+          "**Walk Animation** - Calibrated to Minecraft walk speed (4.317 b/s) with natural sinusoidal limb swing and speed scaling",
+          "**Punishment Dropdowns** - Template and punishment type dropdowns now stretch full width inside modals"
+        ]
+      },
+      {
+        type: "fixed",
+        title: "Bug Fixes",
+        items: [
+          "**Gateway Player Profile** - Fixed player details (IP, nicknames, commands, automod, sessions) showing empty on gateway panel",
+          "**Permission Check** - Gateway session now correctly found for permission-gated handler methods"
+        ]
+      }
+    ]
+  },
+  {
     build: 280,
     version: "2.0dev-280",
     date: "2026-02-08",

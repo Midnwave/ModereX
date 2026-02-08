@@ -238,6 +238,38 @@ public class DatabaseActivityLogStorage implements ActivityLogStorage {
     }
 
     @Override
+    public ActivityLogEntry getEntryById(long id) {
+        String sql = "SELECT * FROM moderex_activity_log WHERE id = ?";
+        try (Connection conn = plugin.getDatabaseManager().getConnection();
+             PreparedStatement stmt = conn.prepareStatement(sql)) {
+            stmt.setLong(1, id);
+            try (ResultSet rs = stmt.executeQuery()) {
+                if (rs.next()) {
+                    ActivityType type;
+                    try {
+                        type = ActivityType.valueOf(rs.getString("type"));
+                    } catch (IllegalArgumentException e) {
+                        return null;
+                    }
+                    return new ActivityLogEntry(
+                            rs.getLong("id"),
+                            UUID.fromString(rs.getString("player_uuid")),
+                            rs.getString("player_name"),
+                            type,
+                            rs.getString("content"),
+                            rs.getString("extra"),
+                            rs.getLong("timestamp"),
+                            rs.getString("server")
+                    );
+                }
+            }
+        } catch (SQLException e) {
+            plugin.logError("Failed to get activity log entry by ID", e);
+        }
+        return null;
+    }
+
+    @Override
     public int getEntryCount(UUID playerUuid, List<ActivityType> types, long sinceTimestamp, long beforeTimestamp) {
         StringBuilder sql = new StringBuilder("SELECT COUNT(*) FROM moderex_activity_log WHERE player_uuid = ?");
 

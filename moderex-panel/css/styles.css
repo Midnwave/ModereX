@@ -9187,6 +9187,14 @@ textarea.input {
   min-width: 100px;
 }
 
+/* Stretch custom selects to full width inside modals and grid cells */
+.punish-modal .mx-select,
+.modal-body .mx-select,
+.grid .mx-select {
+  display: flex;
+  width: 100%;
+}
+
 .mx-select:hover {
   border-color: var(--border-light);
   background: rgba(255, 255, 255, 0.03);

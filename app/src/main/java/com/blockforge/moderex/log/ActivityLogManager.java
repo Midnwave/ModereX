@@ -489,6 +489,14 @@ public class ActivityLogManager {
     }
 
     /**
+     * Get a single activity log entry by its database ID.
+     */
+    public ActivityLogEntry getEntryById(long id) {
+        if (storage == null) return null;
+        return storage.getEntryById(id);
+    }
+
+    /**
      * Get activity log entries with filtering.
      */
     public List<ActivityLogEntry> getEntries(UUID playerUuid, List<ActivityType> types,

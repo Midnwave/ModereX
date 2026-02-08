@@ -15,14 +15,16 @@
   }
 
   // ===== REPLAY SOUND MANAGER =====
-  // Synthesized sound effects for the 3D replay viewer using Web Audio API.
-  // All sounds are generated procedurally - no external audio files needed.
+  // Realistic Minecraft-style sound effects using multi-grain noise synthesis.
+  // Uses filtered white noise buffers with overlapping grains to produce
+  // sounds that closely approximate real Minecraft audio. No external files needed.
 
   class ReplaySoundManager {
     constructor() {
       this._ctx = null;
       this._masterGain = null;
-      this._volume = 0.35;
+      this._noiseBuffer = null;
+      this._volume = 0.3;
       this._muted = false;
       this._enabled = true;
       this._playbackSpeed = 1;
@@ -30,11 +32,7 @@
       // Footstep state
       this._lastFootstepTime = 0;
       this._footstepInterval = 380; // ms between footsteps at normal walk speed
-
-      // Ambient state
-      this._ambientOsc = null;
-      this._ambientGain = null;
-      this._ambientRunning = false;
+      this._footstepAlternate = false; // alternate left/right foot
 
       // Throttle: prevent sound spam
       this._lastSoundTimes = {};
@@ -47,7 +45,8 @@
     // --- Initialization ---
 
     /**
-     * Initialize the AudioContext. Must be called after a user gesture.
+     * Initialize the AudioContext and pre-generate the white noise buffer.
+     * Must be called after a user gesture.
      */
     init() {
       if (this._ctx) return;
@@ -56,9 +55,27 @@
         this._masterGain = this._ctx.createGain();
         this._masterGain.gain.setValueAtTime(this._muted ? 0 : this._volume, this._ctx.currentTime);
         this._masterGain.connect(this._ctx.destination);
+
+        // Pre-generate 1 second of white noise and reuse for all sounds
+        this._noiseBuffer = this._createNoiseBuffer(1.0);
       } catch (e) {
         console.warn('[ReplaySounds] Web Audio API not available:', e.message);
       }
+    }
+
+    /**
+     * Create a white noise AudioBuffer of the given duration (seconds).
+     * This buffer is reused by all grain-based sound effects.
+     */
+    _createNoiseBuffer(duration) {
+      const sampleRate = this._ctx.sampleRate;
+      const length = Math.floor(sampleRate * duration);
+      const buffer = this._ctx.createBuffer(1, length, sampleRate);
+      const data = buffer.getChannelData(0);
+      for (let i = 0; i < length; i++) {
+        data[i] = Math.random() * 2 - 1;
+      }
+      return buffer;
     }
 
     /**
@@ -99,9 +116,6 @@
       if (this._masterGain && !this._muted) {
         this._masterGain.gain.setTargetAtTime(this._volume, this._ctx.currentTime, 0.02);
       }
-      if (this._ambientGain && !this._muted) {
-        this._ambientGain.gain.setTargetAtTime(this._volume * 0.02, this._ctx.currentTime, 0.05);
-      }
       this._saveSettings();
     }
 
@@ -113,9 +127,6 @@
       this._muted = muted;
       if (this._masterGain) {
         this._masterGain.gain.setTargetAtTime(muted ? 0 : this._volume, this._ctx.currentTime, 0.02);
-      }
-      if (this._ambientGain) {
-        this._ambientGain.gain.setTargetAtTime(muted ? 0 : this._volume * 0.02, this._ctx.currentTime, 0.05);
       }
       this._saveSettings();
     }
@@ -144,67 +155,141 @@
       return true;
     }
 
-    // --- Sound generators ---
+    // --- Core grain engine ---
 
     /**
-     * Block break: crunchy noise burst with pitch variation.
+     * Play a single filtered noise grain. Multiple overlapping grains
+     * create the textured, realistic sound of Minecraft audio.
+     * Uses the pre-generated 1s white noise buffer, starting at a random
+     * offset each time for natural variation.
+     *
+     * @param {number} startTime   - AudioContext time to start
+     * @param {number} duration    - Grain length in seconds
+     * @param {number} filterFreq  - BiquadFilter frequency (Hz)
+     * @param {number} filterQ     - BiquadFilter Q factor
+     * @param {string} filterType  - 'bandpass', 'lowpass', 'highpass'
+     * @param {number} volume      - Gain level (0-1, keep subtle: 0.03-0.1)
+     * @param {number} [attack]    - Attack time in seconds (default 0.003)
+     */
+    _playGrain(startTime, duration, filterFreq, filterQ, filterType, volume, attack) {
+      if (!this._noiseBuffer) return;
+      const atk = attack || 0.003;
+      const source = this._ctx.createBufferSource();
+      source.buffer = this._noiseBuffer;
+      // Start at a random offset within the noise buffer for variety
+      const maxOffset = Math.max(0, this._noiseBuffer.duration - duration - 0.01);
+      const offset = Math.random() * maxOffset;
+
+      const filter = this._ctx.createBiquadFilter();
+      filter.type = filterType;
+      filter.frequency.setValueAtTime(filterFreq, startTime);
+      filter.Q.setValueAtTime(filterQ, startTime);
+
+      const gain = this._ctx.createGain();
+      gain.gain.setValueAtTime(0, startTime);
+      gain.gain.linearRampToValueAtTime(volume, startTime + atk);
+      gain.gain.exponentialRampToValueAtTime(0.001, startTime + duration);
+
+      source.connect(filter);
+      filter.connect(gain);
+      gain.connect(this._masterGain);
+      source.start(startTime, offset, duration + 0.01);
+    }
+
+    /**
+     * Play a sine/triangle tone grain (for tonal sounds like bow twang).
+     *
+     * @param {number} startTime  - AudioContext time to start
+     * @param {number} duration   - Tone length in seconds
+     * @param {number} freqStart  - Starting frequency (Hz)
+     * @param {number} freqEnd    - Ending frequency (Hz)
+     * @param {string} waveType   - Oscillator type ('sine', 'triangle')
+     * @param {number} volume     - Gain level (0-1)
+     */
+    _playTone(startTime, duration, freqStart, freqEnd, waveType, volume) {
+      const osc = this._ctx.createOscillator();
+      const gain = this._ctx.createGain();
+      osc.type = waveType;
+      osc.frequency.setValueAtTime(freqStart, startTime);
+      osc.frequency.exponentialRampToValueAtTime(freqEnd, startTime + duration);
+      gain.gain.setValueAtTime(volume, startTime);
+      gain.gain.exponentialRampToValueAtTime(0.001, startTime + duration);
+      osc.connect(gain);
+      gain.connect(this._masterGain);
+      osc.start(startTime);
+      osc.stop(startTime + duration + 0.01);
+    }
+
+    /**
+     * Play a sine chirp (frequency sweep) - used for item pickup pop sound.
+     * The Minecraft item pickup is a clean rising tone, so an oscillator is
+     * the right tool here rather than noise grains.
+     *
+     * @param {number} startTime  - AudioContext time to start
+     * @param {number} duration   - Chirp length in seconds
+     * @param {number} freqStart  - Starting frequency (Hz)
+     * @param {number} freqEnd    - Ending frequency (Hz)
+     * @param {number} volume     - Gain level (0-1)
+     */
+    _playChirp(startTime, duration, freqStart, freqEnd, volume) {
+      const osc = this._ctx.createOscillator();
+      const gain = this._ctx.createGain();
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(freqStart, startTime);
+      osc.frequency.linearRampToValueAtTime(freqEnd, startTime + duration);
+      gain.gain.setValueAtTime(0, startTime);
+      gain.gain.linearRampToValueAtTime(volume, startTime + 0.002);
+      gain.gain.setValueAtTime(volume, startTime + duration * 0.6);
+      gain.gain.exponentialRampToValueAtTime(0.001, startTime + duration);
+      osc.connect(gain);
+      gain.connect(this._masterGain);
+      osc.start(startTime);
+      osc.stop(startTime + duration + 0.01);
+    }
+
+    // --- Sound generators (multi-grain noise synthesis) ---
+
+    /**
+     * Block break: crunchy stone/dirt breaking sound.
+     * 4 overlapping noise grains at slightly randomized filter frequencies
+     * plus a low-frequency thud for impact. The overlapping grains at
+     * different center frequencies create the textured crunch that makes
+     * this sound like actual stone breaking rather than a single beep.
      */
     playBlockBreak() {
       if (!this._canPlay('block_break')) return;
       this._resume();
-      const ctx = this._ctx;
-      const t = ctx.currentTime;
-      const dur = 0.1 / Math.max(this._playbackSpeed, 0.5);
-
-      // Noise via short square wave with rapid frequency sweep
-      const osc = ctx.createOscillator();
-      const gain = ctx.createGain();
-      osc.type = 'square';
-      osc.frequency.setValueAtTime(180 + Math.random() * 120, t);
-      osc.frequency.exponentialRampToValueAtTime(40, t + dur);
-      gain.gain.setValueAtTime(0.12, t);
-      gain.gain.exponentialRampToValueAtTime(0.001, t + dur);
-      osc.connect(gain).connect(this._masterGain);
-      osc.start(t);
-      osc.stop(t + dur);
-
-      // Add a bit of higher noise crunch
-      const osc2 = ctx.createOscillator();
-      const gain2 = ctx.createGain();
-      osc2.type = 'sawtooth';
-      osc2.frequency.setValueAtTime(400 + Math.random() * 200, t);
-      osc2.frequency.exponentialRampToValueAtTime(80, t + dur * 0.8);
-      gain2.gain.setValueAtTime(0.04, t);
-      gain2.gain.exponentialRampToValueAtTime(0.001, t + dur * 0.8);
-      osc2.connect(gain2).connect(this._masterGain);
-      osc2.start(t);
-      osc2.stop(t + dur);
+      const t = this._ctx.currentTime;
+      // Main crunch grains - bandpass filtered noise at varying frequencies
+      this._playGrain(t, 0.12, 600 + Math.random() * 400, 2, 'bandpass', 0.08);
+      this._playGrain(t + 0.008, 0.10, 800 + Math.random() * 300, 1.5, 'bandpass', 0.06);
+      this._playGrain(t + 0.015, 0.08, 400 + Math.random() * 200, 3, 'bandpass', 0.05);
+      // Higher crackle grain for texture
+      this._playGrain(t + 0.005, 0.06, 1200 + Math.random() * 500, 1, 'bandpass', 0.03);
+      // Low-end thud for impact weight
+      this._playGrain(t, 0.05, 200, 1, 'lowpass', 0.04);
     }
 
     /**
-     * Block place: short thud/click.
+     * Block place: shorter, slightly softer stone/wood placement sound.
+     * Similar to break but more compact and lower volume.
      */
     playBlockPlace() {
       if (!this._canPlay('block_place')) return;
       this._resume();
-      const ctx = this._ctx;
-      const t = ctx.currentTime;
-      const dur = 0.07 / Math.max(this._playbackSpeed, 0.5);
-
-      const osc = ctx.createOscillator();
-      const gain = ctx.createGain();
-      osc.type = 'triangle';
-      osc.frequency.setValueAtTime(300 + Math.random() * 60, t);
-      osc.frequency.exponentialRampToValueAtTime(150, t + dur);
-      gain.gain.setValueAtTime(0.1, t);
-      gain.gain.exponentialRampToValueAtTime(0.001, t + dur);
-      osc.connect(gain).connect(this._masterGain);
-      osc.start(t);
-      osc.stop(t + dur);
+      const t = this._ctx.currentTime;
+      // Compact placement crunch - 3 grains for texture
+      this._playGrain(t, 0.08, 500 + Math.random() * 300, 2.5, 'bandpass', 0.06);
+      this._playGrain(t + 0.005, 0.07, 700 + Math.random() * 200, 2, 'bandpass', 0.05);
+      this._playGrain(t + 0.01, 0.06, 350 + Math.random() * 150, 3, 'bandpass', 0.04);
+      // Subtle thud
+      this._playGrain(t, 0.04, 180, 1, 'lowpass', 0.035);
     }
 
     /**
-     * Footstep: soft thump. Call periodically based on player movement speed.
+     * Footstep: very short, quiet step sound on stone.
+     * Alternates subtly between left/right foot with a small
+     * frequency offset for natural variation.
      * Returns true if a footstep was played (for external tracking).
      */
     playFootstep(currentTimeMs) {
@@ -213,218 +298,186 @@
       if (!this._canPlay('footstep')) return false;
       this._resume();
       this._lastFootstepTime = currentTimeMs;
+      this._footstepAlternate = !this._footstepAlternate;
 
-      const ctx = this._ctx;
-      const t = ctx.currentTime;
-      const dur = 0.06;
-
-      const osc = ctx.createOscillator();
-      const gain = ctx.createGain();
-      osc.type = 'sine';
-      // Alternate pitch slightly for left/right foot
-      const foot = (Math.floor(currentTimeMs / interval) % 2 === 0);
-      osc.frequency.setValueAtTime(foot ? 90 : 100, t);
-      osc.frequency.exponentialRampToValueAtTime(50, t + dur);
-      gain.gain.setValueAtTime(0.06, t);
-      gain.gain.exponentialRampToValueAtTime(0.001, t + dur);
-      osc.connect(gain).connect(this._masterGain);
-      osc.start(t);
-      osc.stop(t + dur);
+      const t = this._ctx.currentTime;
+      // Slight frequency offset between left and right foot
+      const freqOffset = this._footstepAlternate ? 0 : 150;
+      // Very short noise grains - stone step sound
+      this._playGrain(t, 0.04, 300 + freqOffset + Math.random() * 200, 2, 'bandpass', 0.04);
+      this._playGrain(t + 0.003, 0.035, 600 + freqOffset + Math.random() * 300, 1.5, 'bandpass', 0.03);
+      // Subtle low thump
+      this._playGrain(t, 0.025, 150, 1, 'lowpass', 0.025);
       return true;
     }
 
     /**
-     * Hit/Attack: quick impact with a punch.
+     * Attack/swing: swooshing whoosh sound.
+     * Noise through a bandpass filter that sweeps from high to low
+     * frequency over the duration, simulating an arm swing through air.
+     * Uses manual filter frequency automation for the sweep effect.
      */
     playAttack() {
       if (!this._canPlay('attack')) return;
       this._resume();
-      const ctx = this._ctx;
-      const t = ctx.currentTime;
-      const dur = 0.12 / Math.max(this._playbackSpeed, 0.5);
+      const t = this._ctx.currentTime;
+      const dur = 0.12;
 
-      // Main punch thud
-      const osc = ctx.createOscillator();
-      const gain = ctx.createGain();
-      osc.type = 'sine';
-      osc.frequency.setValueAtTime(200, t);
-      osc.frequency.exponentialRampToValueAtTime(60, t + dur);
-      gain.gain.setValueAtTime(0.15, t);
+      // Sweeping bandpass whoosh - create manually for frequency automation
+      const source = this._ctx.createBufferSource();
+      source.buffer = this._noiseBuffer;
+      const maxOffset = Math.max(0, this._noiseBuffer.duration - dur - 0.01);
+
+      const filter = this._ctx.createBiquadFilter();
+      filter.type = 'bandpass';
+      filter.Q.setValueAtTime(1.5, t);
+      filter.frequency.setValueAtTime(2000 + Math.random() * 500, t);
+      filter.frequency.exponentialRampToValueAtTime(300, t + dur);
+
+      const gain = this._ctx.createGain();
+      gain.gain.setValueAtTime(0, t);
+      gain.gain.linearRampToValueAtTime(0.07, t + 0.008);
+      gain.gain.setValueAtTime(0.07, t + dur * 0.3);
       gain.gain.exponentialRampToValueAtTime(0.001, t + dur);
-      osc.connect(gain).connect(this._masterGain);
-      osc.start(t);
-      osc.stop(t + dur);
 
-      // Snap/crack overlay
-      const osc2 = ctx.createOscillator();
-      const gain2 = ctx.createGain();
-      osc2.type = 'square';
-      osc2.frequency.setValueAtTime(600 + Math.random() * 200, t);
-      osc2.frequency.exponentialRampToValueAtTime(100, t + dur * 0.6);
-      gain2.gain.setValueAtTime(0.05, t);
-      gain2.gain.exponentialRampToValueAtTime(0.001, t + dur * 0.6);
-      osc2.connect(gain2).connect(this._masterGain);
-      osc2.start(t);
-      osc2.stop(t + dur);
+      source.connect(filter);
+      filter.connect(gain);
+      gain.connect(this._masterGain);
+      source.start(t, Math.random() * maxOffset, dur + 0.01);
+
+      // Second layer for depth
+      this._playGrain(t + 0.005, 0.08, 1500 + Math.random() * 400, 1, 'bandpass', 0.04);
+      // Subtle low punch at impact
+      this._playGrain(t, 0.04, 250, 1.5, 'lowpass', 0.03);
     }
 
     /**
-     * Damage received: lower-pitched hit with wobble.
+     * Damage received: Minecraft "oof" hurt sound.
+     * Three formant bands of filtered noise to simulate the vocal quality
+     * of the classic Minecraft hurt sound. The high Q values on the bandpass
+     * filters create resonant peaks that approximate human vocal formants.
      */
     playDamage() {
       if (!this._canPlay('damage')) return;
       this._resume();
-      const ctx = this._ctx;
-      const t = ctx.currentTime;
-      const dur = 0.15;
-
-      const osc = ctx.createOscillator();
-      const gain = ctx.createGain();
-      osc.type = 'sawtooth';
-      osc.frequency.setValueAtTime(160, t);
-      osc.frequency.exponentialRampToValueAtTime(50, t + dur);
-      gain.gain.setValueAtTime(0.08, t);
-      gain.gain.exponentialRampToValueAtTime(0.001, t + dur);
-      osc.connect(gain).connect(this._masterGain);
-      osc.start(t);
-      osc.stop(t + dur);
+      const t = this._ctx.currentTime;
+      // Formant 1: low vocal band (~400 Hz)
+      this._playGrain(t, 0.15, 400 + Math.random() * 50, 5, 'bandpass', 0.07);
+      // Formant 2: mid vocal band (~800 Hz)
+      this._playGrain(t, 0.12, 800 + Math.random() * 80, 3, 'bandpass', 0.05);
+      // Formant 3: higher presence (~1200 Hz)
+      this._playGrain(t + 0.01, 0.10, 1200 + Math.random() * 100, 2, 'bandpass', 0.03);
+      // Low body thud
+      this._playGrain(t, 0.06, 120, 1, 'lowpass', 0.04);
     }
 
     /**
-     * Bow shoot: quick rising whistle.
+     * Bow shoot: string release twang with arrow whoosh.
+     * Combination of a sharp tonal transient (triangle wave for string
+     * vibration) and a trailing noise sweep for the arrow release.
      */
     playBowShoot() {
       if (!this._canPlay('bow')) return;
       this._resume();
-      const ctx = this._ctx;
-      const t = ctx.currentTime;
-      const dur = 0.15;
+      const t = this._ctx.currentTime;
 
-      const osc = ctx.createOscillator();
-      const gain = ctx.createGain();
-      osc.type = 'sine';
-      osc.frequency.setValueAtTime(300, t);
-      osc.frequency.exponentialRampToValueAtTime(800, t + dur * 0.4);
-      osc.frequency.exponentialRampToValueAtTime(600, t + dur);
-      gain.gain.setValueAtTime(0.08, t);
-      gain.gain.linearRampToValueAtTime(0.06, t + dur * 0.4);
-      gain.gain.exponentialRampToValueAtTime(0.001, t + dur);
-      osc.connect(gain).connect(this._masterGain);
-      osc.start(t);
-      osc.stop(t + dur);
+      // Sharp string twang - short tonal ping
+      this._playTone(t, 0.06, 800 + Math.random() * 200, 400, 'triangle', 0.06);
+
+      // Arrow whoosh - noise sweep from mid to high frequency
+      const source = this._ctx.createBufferSource();
+      source.buffer = this._noiseBuffer;
+      const maxOffset = Math.max(0, this._noiseBuffer.duration - 0.16);
+
+      const filter = this._ctx.createBiquadFilter();
+      filter.type = 'bandpass';
+      filter.Q.setValueAtTime(2, t);
+      filter.frequency.setValueAtTime(400, t + 0.02);
+      filter.frequency.exponentialRampToValueAtTime(1800, t + 0.12);
+
+      const gain = this._ctx.createGain();
+      gain.gain.setValueAtTime(0, t + 0.02);
+      gain.gain.linearRampToValueAtTime(0.05, t + 0.04);
+      gain.gain.exponentialRampToValueAtTime(0.001, t + 0.15);
+
+      source.connect(filter);
+      filter.connect(gain);
+      gain.connect(this._masterGain);
+      source.start(t + 0.02, Math.random() * maxOffset, 0.14);
+
+      // High-frequency string rattle
+      this._playGrain(t, 0.04, 2000 + Math.random() * 500, 2, 'bandpass', 0.03);
     }
 
     /**
-     * Death: descending tone sequence.
+     * Death: descending impact sequence.
+     * Series of heavy thuds that descend in pitch, mimicking
+     * the Minecraft death sound's falling quality. Each thud uses
+     * multiple grains for weight, and a damage formant overlay
+     * on the initial hit adds the vocal "oof" quality.
      */
     playDeath() {
       if (!this._canPlay('death')) return;
       this._resume();
-      const ctx = this._ctx;
-      const t = ctx.currentTime;
+      const t = this._ctx.currentTime;
 
-      const notes = [350, 280, 200];
-      notes.forEach((freq, i) => {
-        const osc = ctx.createOscillator();
-        const gain = ctx.createGain();
-        osc.type = 'triangle';
-        const start = t + i * 0.12;
-        osc.frequency.setValueAtTime(freq, start);
-        osc.frequency.exponentialRampToValueAtTime(freq * 0.6, start + 0.15);
-        gain.gain.setValueAtTime(0.1, start);
-        gain.gain.exponentialRampToValueAtTime(0.001, start + 0.2);
-        osc.connect(gain).connect(this._masterGain);
-        osc.start(start);
-        osc.stop(start + 0.2);
-      });
+      // Initial heavy impact
+      this._playGrain(t, 0.15, 600 + Math.random() * 100, 2, 'bandpass', 0.09);
+      this._playGrain(t, 0.10, 300, 1.5, 'lowpass', 0.07);
+
+      // Descending sequence of thuds
+      this._playGrain(t + 0.10, 0.12, 450 + Math.random() * 80, 2, 'bandpass', 0.07);
+      this._playGrain(t + 0.10, 0.08, 200, 1.5, 'lowpass', 0.05);
+
+      this._playGrain(t + 0.20, 0.14, 300 + Math.random() * 60, 2, 'bandpass', 0.06);
+      this._playGrain(t + 0.20, 0.10, 150, 1, 'lowpass', 0.04);
+
+      // Trailing fade - lowest thud (body fall)
+      this._playGrain(t + 0.30, 0.18, 200 + Math.random() * 40, 1.5, 'bandpass', 0.04);
+      this._playGrain(t + 0.30, 0.12, 100, 1, 'lowpass', 0.03);
+
+      // Damage formant overlay on the initial hit for "oof" quality
+      this._playGrain(t, 0.12, 400, 5, 'bandpass', 0.05);
+      this._playGrain(t, 0.10, 800, 3, 'bandpass', 0.03);
     }
 
     /**
-     * Item pickup: quick rising blip.
+     * Item pickup: clean sine chirp (rising pop).
+     * This is one of the few sounds that actually works well as a pure
+     * oscillator - the Minecraft item pickup is a clean rising tone.
      */
     playItemPickup() {
       if (!this._canPlay('pickup')) return;
       this._resume();
-      const ctx = this._ctx;
-      const t = ctx.currentTime;
-
-      const osc = ctx.createOscillator();
-      const gain = ctx.createGain();
-      osc.type = 'sine';
-      osc.frequency.setValueAtTime(600, t);
-      osc.frequency.exponentialRampToValueAtTime(900, t + 0.06);
-      gain.gain.setValueAtTime(0.06, t);
-      gain.gain.exponentialRampToValueAtTime(0.001, t + 0.08);
-      osc.connect(gain).connect(this._masterGain);
-      osc.start(t);
-      osc.stop(t + 0.08);
+      const t = this._ctx.currentTime;
+      // Clean rising chirp 800->1400 Hz
+      this._playChirp(t, 0.08, 800 + Math.random() * 50, 1400 + Math.random() * 100, 0.06);
     }
 
     /**
-     * Start ambient background wind/hum. Very subtle.
+     * Drop item: shorter, lower-pitched falling pop (reverse of pickup).
+     */
+    playDropItem() {
+      if (!this._canPlay('drop')) return;
+      this._resume();
+      const t = this._ctx.currentTime;
+      // Falling chirp 1000->600 Hz
+      this._playChirp(t, 0.06, 1000, 600 + Math.random() * 80, 0.05);
+    }
+
+    /**
+     * No-op: ambient drone removed.
+     * Minecraft does not have an ambient drone during normal gameplay.
      */
     startAmbient() {
-      if (!this._ctx || this._ambientRunning) return;
-      this._resume();
-      const ctx = this._ctx;
-
-      // Very low, subtle wind-like noise using detuned oscillators
-      this._ambientGain = ctx.createGain();
-      this._ambientGain.gain.setValueAtTime(0, ctx.currentTime);
-      this._ambientGain.gain.linearRampToValueAtTime(
-        this._muted ? 0 : this._volume * 0.02,
-        ctx.currentTime + 2
-      );
-      this._ambientGain.connect(ctx.destination); // Bypass master for independent control
-
-      const osc1 = ctx.createOscillator();
-      osc1.type = 'sine';
-      osc1.frequency.setValueAtTime(55, ctx.currentTime);
-      osc1.connect(this._ambientGain);
-      osc1.start();
-
-      const osc2 = ctx.createOscillator();
-      osc2.type = 'sine';
-      osc2.frequency.setValueAtTime(58, ctx.currentTime); // Slight detune for beating
-      osc2.connect(this._ambientGain);
-      osc2.start();
-
-      // Slow LFO modulation for natural wind feel
-      const lfo = ctx.createOscillator();
-      const lfoGain = ctx.createGain();
-      lfo.type = 'sine';
-      lfo.frequency.setValueAtTime(0.15, ctx.currentTime);
-      lfoGain.gain.setValueAtTime(this._volume * 0.008, ctx.currentTime);
-      lfo.connect(lfoGain);
-      lfoGain.connect(this._ambientGain.gain);
-      lfo.start();
-
-      this._ambientOsc = [osc1, osc2, lfo];
-      this._ambientRunning = true;
+      // Intentionally empty - no ambient drone
     }
 
     /**
-     * Stop ambient sound.
+     * No-op: ambient drone removed.
      */
     stopAmbient() {
-      if (!this._ambientRunning) return;
-      if (this._ambientGain) {
-        try {
-          this._ambientGain.gain.setTargetAtTime(0, this._ctx.currentTime, 0.3);
-        } catch (e) { /* ignore */ }
-      }
-      // Stop oscillators after fade
-      setTimeout(() => {
-        if (this._ambientOsc) {
-          this._ambientOsc.forEach(o => { try { o.stop(); } catch (e) {} });
-          this._ambientOsc = null;
-        }
-        if (this._ambientGain) {
-          try { this._ambientGain.disconnect(); } catch (e) {}
-          this._ambientGain = null;
-        }
-      }, 600);
-      this._ambientRunning = false;
+      // Intentionally empty - no ambient drone
     }
 
     // --- Event dispatcher ---
@@ -462,7 +515,7 @@
           this.playItemPickup();
           break;
         case 'DROP_ITEM':
-          this.playItemPickup(); // Reuse blip
+          this.playDropItem();
           break;
         // Silently ignore non-sound actions
         default:
@@ -473,12 +526,12 @@
     // --- Cleanup ---
 
     dispose() {
-      this.stopAmbient();
       if (this._ctx) {
         try { this._ctx.close(); } catch (e) {}
         this._ctx = null;
       }
       this._masterGain = null;
+      this._noiseBuffer = null;
     }
   }
 
@@ -1036,7 +1089,9 @@
     // ===== PLAYER MODELS (Minecraft Skin Rendering) =====
 
     // Skin UV regions: [x, y, width, height] in pixel coords on 64x64 skin
-    // Face order matches Three.js BoxGeometry: +x(right), -x(left), +y(top), -y(bottom), +z(front), -z(back)
+    // Keys use Minecraft wiki naming (right/left/front/back from the player's own perspective).
+    // The _applySkinUVs method maps these to Three.js BoxGeometry face indices accounting
+    // for the model facing -Z (group rotation PI): +X=left, -X=right, +Z=back, -Z=front.
     static SKIN_UV = {
       head:     { right:[0,8,8,8],   left:[16,8,8,8],  top:[8,0,8,8],   bottom:[16,0,8,8],  front:[8,8,8,8],   back:[24,8,8,8] },
       body:     { right:[16,20,4,12], left:[28,20,4,12], top:[20,16,8,4], bottom:[28,16,8,4], front:[20,20,8,12], back:[32,20,8,12] },
@@ -1059,7 +1114,10 @@
       const uvAttr = geometry.getAttribute('uv');
       const tw = skinWidth || 64;
       const th = skinHeight || 64;
-      const faceOrder = ['right', 'left', 'top', 'bottom', 'front', 'back'];
+      // Three.js BoxGeometry face order: +X, -X, +Y, -Y, +Z, -Z
+      // When the model faces -Z (via group rotation PI), these map to:
+      // +X = player's left, -X = player's right, +Z = player's back, -Z = player's front
+      const faceOrder = ['left', 'right', 'top', 'bottom', 'back', 'front'];
       for (let f = 0; f < 6; f++) {
         const [x, y, w, h] = regions[faceOrder[f]];
         const u0 = x / tw, u1 = (x + w) / tw;
@@ -1074,50 +1132,77 @@
     }
 
     /**
-     * Build a Minecraft player model with correct pivot points for limb animation.
-     * Arms and legs are wrapped in pivot groups so rotation happens at the shoulder/hip
-     * rather than at the center of the limb geometry.
+     * Build a Minecraft player model with correct Steve proportions and pivot points.
+     *
+     * Minecraft Steve dimensions (pixels):
+     *   Head  8x8x8   (y = 24..32)
+     *   Body  8x12x4  (y = 12..24)
+     *   Arms  4x12x4  shoulder at y=24, hanging to y=12
+     *   Legs  4x12x4  hip at y=12, feet at y=0
+     *   Total height = 32 px = 1.8 blocks (PLAYER_SCALE)
+     *
+     * Pivot hierarchy:
+     *   group                          -- positioned in world, rotated by body yaw
+     *     bodyPivot                    -- tilts forward when sneaking
+     *       body mesh (y=18*s)
+     *       headPivot (y=24*s)         -- independent yaw + pitch
+     *         head mesh (y=4*s above pivot)
+     *       rightArmPivot (y=24*s)     -- shoulder pivot
+     *         rightArm mesh (y=-6*s)
+     *       leftArmPivot (y=24*s)
+     *         leftArm mesh (y=-6*s)
+     *       rightLegPivot (y=12*s)     -- hip pivot
+     *         rightLeg mesh (y=-6*s)
+     *       leftLegPivot (y=12*s)
+     *         leftLeg mesh (y=-6*s)
+     *     nameTag sprite
      */
     _getOrCreatePlayer(uuid, name) {
       if (this.players.has(uuid)) return this.players.get(uuid);
 
       const group = new THREE.Group();
-      group.userData = { uuid, name, skinLoaded: false };
+      group.userData = { uuid, name, skinLoaded: false, walkPhase: 0 };
 
       const color = this.playerColors[this.colorIndex++ % this.playerColors.length];
       const placeholderMat = new THREE.MeshStandardMaterial({ color, roughness: 0.8, metalness: 0.1 });
-      const s = PLAYER_SCALE / 32;
+      const s = PLAYER_SCALE / 32; // 1 pixel = 0.05625 world units
 
-      // Head (8x8x8) - pivot at neck (bottom of head)
+      // Body pivot group - everything except nameTag lives here.
+      // Tilts forward for sneaking; pivot point at hip height (y=12*s).
+      const bodyPivot = new THREE.Group();
+      bodyPivot.name = 'bodyPivot';
+      group.add(bodyPivot);
+
+      // Head (8x8x8) - pivot at neck (bottom of head, y=24)
       const headPivot = new THREE.Group();
-      headPivot.position.y = 24 * s; // Neck position
+      headPivot.position.y = 24 * s;
       headPivot.name = 'headPivot';
       const head = new THREE.Mesh(new THREE.BoxGeometry(8*s, 8*s, 8*s), placeholderMat.clone());
-      head.position.y = 4 * s; // Offset so pivot is at bottom of head
+      head.position.y = 4 * s; // Center of head is 4px above neck
       head.castShadow = true;
       head.name = 'head';
       headPivot.add(head);
-      group.add(headPivot);
+      bodyPivot.add(headPivot);
 
-      // Body (8x12x4) - no pivot needed, static
+      // Body (8x12x4) - center at y=18 (12 + 12/2)
       const body = new THREE.Mesh(new THREE.BoxGeometry(8*s, 12*s, 4*s), placeholderMat.clone());
       body.position.y = 18 * s;
       body.castShadow = true;
       body.name = 'body';
-      group.add(body);
+      bodyPivot.add(body);
 
-      // Right Arm (4x12x4) - pivot at shoulder (top of arm)
+      // Right Arm (4x12x4) - pivot at shoulder (y=24), offset -6px in X
       const rArmPivot = new THREE.Group();
-      rArmPivot.position.set(-6*s, 24*s, 0); // Shoulder position
+      rArmPivot.position.set(-6*s, 24*s, 0);
       rArmPivot.name = 'rightArmPivot';
       const rArm = new THREE.Mesh(new THREE.BoxGeometry(4*s, 12*s, 4*s), placeholderMat.clone());
-      rArm.position.y = -6 * s; // Offset so pivot is at top
+      rArm.position.y = -6 * s; // Hangs 6px below shoulder pivot
       rArm.castShadow = true;
       rArm.name = 'rightArm';
       rArmPivot.add(rArm);
-      group.add(rArmPivot);
+      bodyPivot.add(rArmPivot);
 
-      // Left Arm (4x12x4) - pivot at shoulder
+      // Left Arm (4x12x4) - pivot at shoulder (y=24), offset +6px in X
       const lArmPivot = new THREE.Group();
       lArmPivot.position.set(6*s, 24*s, 0);
       lArmPivot.name = 'leftArmPivot';
@@ -1126,20 +1211,20 @@
       lArm.castShadow = true;
       lArm.name = 'leftArm';
       lArmPivot.add(lArm);
-      group.add(lArmPivot);
+      bodyPivot.add(lArmPivot);
 
-      // Right Leg (4x12x4) - pivot at hip (top of leg)
+      // Right Leg (4x12x4) - pivot at hip (y=12), offset -2px in X
       const rLegPivot = new THREE.Group();
-      rLegPivot.position.set(-2*s, 12*s, 0); // Hip position
+      rLegPivot.position.set(-2*s, 12*s, 0);
       rLegPivot.name = 'rightLegPivot';
       const rLeg = new THREE.Mesh(new THREE.BoxGeometry(4*s, 12*s, 4*s), placeholderMat.clone());
-      rLeg.position.y = -6 * s; // Offset so pivot is at top
+      rLeg.position.y = -6 * s; // Hangs 6px below hip pivot
       rLeg.castShadow = true;
       rLeg.name = 'rightLeg';
       rLegPivot.add(rLeg);
-      group.add(rLegPivot);
+      bodyPivot.add(rLegPivot);
 
-      // Left Leg (4x12x4) - pivot at hip
+      // Left Leg (4x12x4) - pivot at hip (y=12), offset +2px in X
       const lLegPivot = new THREE.Group();
       lLegPivot.position.set(2*s, 12*s, 0);
       lLegPivot.name = 'leftLegPivot';
@@ -1148,9 +1233,9 @@
       lLeg.castShadow = true;
       lLeg.name = 'leftLeg';
       lLegPivot.add(lLeg);
-      group.add(lLegPivot);
+      bodyPivot.add(lLegPivot);
 
-      // Name tag sprite (white text, Minecraft style)
+      // Name tag sprite (white text on dark background, Minecraft style)
       const canvas = document.createElement('canvas');
       const ctx = canvas.getContext('2d');
       canvas.width = 256;
@@ -1160,7 +1245,6 @@
       ctx.font = 'bold 30px "Minecraft", "Courier New", monospace';
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
-      // White text with dark shadow like Minecraft
       ctx.fillStyle = '#3f3f3f';
       ctx.fillText(name || 'Player', 130, 34);
       ctx.fillStyle = '#ffffff';
@@ -1171,7 +1255,7 @@
       sprite.scale.set(2.5, 0.625, 1);
       sprite.position.y = PLAYER_SCALE + 0.6;
       sprite.name = 'nameTag';
-      group.add(sprite);
+      group.add(sprite); // Directly on group so it doesn't tilt with bodyPivot
 
       this.players.set(uuid, group);
       this.scene.add(group);
@@ -1236,10 +1320,13 @@
       const s = PLAYER_SCALE / 32;
       const overlayMat = baseMat.clone();
       overlayMat.transparent = true;
-      overlayMat.alphaTest = 0.01;
+      overlayMat.alphaTest = 0.1;
       overlayMat.side = THREE.DoubleSide;
+      overlayMat.depthWrite = false; // Prevent z-fighting with base layer
 
-      const overlayScale = 1.1; // Slightly larger than base layer
+      // Overlay is 0.5px larger on each side (in skin pixels) for the classic
+      // Minecraft hat/jacket puffiness effect
+      const inflate = 0.5 * s; // Half a skin pixel in world units
       const overlays = [
         { name: 'headOverlay',     parent: 'head',     size: [8,8,8] },
         { name: 'bodyOverlay',     parent: 'body',     size: [8,12,4] },
@@ -1253,12 +1340,18 @@
         const parentMesh = group.getObjectByName(ol.parent);
         if (!parentMesh) continue;
         const [w, h, d] = ol.size;
-        const geom = new THREE.BoxGeometry(w*s*overlayScale, h*s*overlayScale, d*s*overlayScale);
+        // Each dimension gets +1px total (0.5px each side) for overlay inflation
+        const geom = new THREE.BoxGeometry(
+          w * s + inflate * 2,
+          h * s + inflate * 2,
+          d * s + inflate * 2
+        );
         this._applySkinUVs(geom, ol.name, tw, th);
         const mesh = new THREE.Mesh(geom, overlayMat.clone());
         mesh.name = ol.name;
         mesh.castShadow = false;
-        // Add as child of parent mesh so it rotates with it (head pitch, arm/leg swing)
+        mesh.renderOrder = 1; // Render after base layer
+        // Add as child of parent mesh so it inherits position and rotation
         parentMesh.add(mesh);
       }
     }
@@ -1304,6 +1397,27 @@
       return results;
     }
 
+    /**
+     * Apply sneaking pose to a player model.
+     * In Minecraft, sneaking lowers the player ~0.3 blocks and tilts the upper body forward.
+     * We tilt the bodyPivot around the hip line and shift it down.
+     */
+    _applySneakPose(group, sneaking) {
+      const bodyPivot = group.getObjectByName('bodyPivot');
+      if (!bodyPivot) return;
+
+      const s = PLAYER_SCALE / 32;
+      if (sneaking) {
+        // Tilt upper body forward ~25 degrees around hip pivot (y=12*s)
+        bodyPivot.rotation.x = 0.44; // ~25 degrees
+        // Shift down slightly to simulate the lower eye height
+        bodyPivot.position.y = -4 * s;
+      } else {
+        bodyPivot.rotation.x = 0;
+        bodyPivot.position.y = 0;
+      }
+    }
+
     _updatePlayersAtTime(timeMs) {
       const absoluteTime = this.startTime + timeMs;
       const activeUuids = new Set();
@@ -1323,7 +1437,8 @@
         const group = this._getOrCreatePlayer(uuid, snap1.playerName);
         group.visible = true;
 
-        // Get pivot groups for limb animation
+        // Get pivot groups for animation
+        const bodyPivot = group.getObjectByName('bodyPivot');
         const headPivot = group.getObjectByName('headPivot');
         const rArmPivot = group.getObjectByName('rightArmPivot');
         const lArmPivot = group.getObjectByName('leftArmPivot');
@@ -1340,19 +1455,23 @@
           const z = this._lerp(snap1.z, snap2.z, t);
           group.position.set(x, y, z);
 
-          // Yaw interpolation (shortest path around 360)
-          const yawRad1 = -snap1.yaw * (Math.PI / 180) + Math.PI;
-          const yawRad2 = -snap2.yaw * (Math.PI / 180) + Math.PI;
-          group.rotation.y = this._lerpAngle(yawRad1, yawRad2, t);
+          // Body yaw interpolation (shortest path around 360)
+          const bodyYaw1 = -snap1.yaw * (Math.PI / 180) + Math.PI;
+          const bodyYaw2 = -snap2.yaw * (Math.PI / 180) + Math.PI;
+          group.rotation.y = this._lerpAngle(bodyYaw1, bodyYaw2, t);
 
-          // Head pitch interpolation (on pivot group)
+          // Head pitch (up/down look) interpolated on headPivot.rotation.x
+          // Clamp to roughly -90..+90 degrees
           if (headPivot) {
-            const pitchRad1 = snap1.pitch * (Math.PI / 180);
-            const pitchRad2 = snap2.pitch * (Math.PI / 180);
-            headPivot.rotation.x = this._lerp(pitchRad1, pitchRad2, t);
+            const pitch1 = THREE.MathUtils.clamp(snap1.pitch, -90, 90) * (Math.PI / 180);
+            const pitch2 = THREE.MathUtils.clamp(snap2.pitch, -90, 90) * (Math.PI / 180);
+            headPivot.rotation.x = this._lerp(pitch1, pitch2, t);
+            // Head yaw is already handled by body rotation since head yaw ~= body yaw
+            // in Minecraft snapshot data (head faces same direction as body yaw)
+            headPivot.rotation.y = 0;
           }
 
-          // Velocity-based walk animation
+          // ----- Velocity-based walk animation -----
           const dx = snap2.x - snap1.x;
           const dz = snap2.z - snap1.z;
           const dt = (snap2.timestamp - snap1.timestamp) / 1000;
@@ -1360,33 +1479,53 @@
 
           const isMoving = speed > 0.5;
           if (isMoving) movingCount++;
-          const animTime = absoluteTime * 0.006;
-          const swingFreq = Math.min(speed * 0.8, 4);
-          const swing = isMoving ? Math.sin(animTime * swingFreq) * Math.min(speed * 0.15, 0.7) : 0;
 
-          // Animate pivot groups (rotation at shoulder/hip)
+          // Accumulate walk phase based on distance/time for smooth animation
+          // Walk cycle: ~2 full swings per second at walking speed (4.317 blocks/s)
+          // Running speed is ~5.612 blocks/s, sprinting ~7.143
+          const walkCycleSpeed = 1.8; // Full cycles per second at speed 4.3
+          const normalizedSpeed = speed / 4.317;
+          const cycleFreq = walkCycleSpeed * Math.min(normalizedSpeed, 2.0);
+
+          // Use absolute time for continuous smooth sine wave
+          const phase = absoluteTime * 0.001 * cycleFreq * Math.PI * 2;
+
+          // Swing amplitude: scales with speed, capped for realism
+          // Walking ~40 degrees, sprinting ~55 degrees
+          const maxSwing = isMoving
+            ? Math.min(normalizedSpeed * 0.7, 1.0) * (Math.PI / 180) * 40
+            : 0;
+          const swing = Math.sin(phase) * maxSwing;
+
+          // Arms swing opposite to legs (right arm with left leg)
           if (rArmPivot) rArmPivot.rotation.x = swing;
           if (lArmPivot) lArmPivot.rotation.x = -swing;
           if (rLegPivot) rLegPivot.rotation.x = -swing;
           if (lLegPivot) lLegPivot.rotation.x = swing;
 
           // Sneaking state (use nearer snapshot)
-          group.scale.y = (t < 0.5 ? snap1.sneaking : snap2.sneaking) ? 0.85 : 1;
+          const isSneaking = (t < 0.5 ? snap1.sneaking : snap2.sneaking);
+          this._applySneakPose(group, isSneaking);
 
         } else {
           // No interpolation target - hold at snap1
           group.position.set(snap1.x, snap1.y, snap1.z);
           group.rotation.y = -snap1.yaw * (Math.PI / 180) + Math.PI;
 
-          if (headPivot) headPivot.rotation.x = snap1.pitch * (Math.PI / 180);
+          // Head pitch
+          if (headPivot) {
+            headPivot.rotation.x = THREE.MathUtils.clamp(snap1.pitch, -90, 90) * (Math.PI / 180);
+            headPivot.rotation.y = 0;
+          }
 
-          // Static pose (no walking)
+          // Static pose (arms at sides, legs straight)
           if (rArmPivot) rArmPivot.rotation.x = 0;
           if (lArmPivot) lArmPivot.rotation.x = 0;
           if (rLegPivot) rLegPivot.rotation.x = 0;
           if (lLegPivot) lLegPivot.rotation.x = 0;
 
-          group.scale.y = snap1.sneaking ? 0.85 : 1;
+          // Sneaking
+          this._applySneakPose(group, snap1.sneaking);
         }
       }
 

@@ -69,6 +69,11 @@ public interface ActivityLogStorage {
     int purgeOldEntries(long olderThan);
 
     /**
+     * Get a single entry by its database ID.
+     */
+    ActivityLogEntry getEntryById(long id);
+
+    /**
      * Get the storage type name.
      */
     String getStorageType();

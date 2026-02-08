@@ -461,9 +461,16 @@
     loading: false,
     texture: null,
     material: null,
+    transparentMaterial: null, // For glass, leaves, water, ice
     atlasWidth: 0,
     atlasHeight: 0,
+    atlasCols: 0,
+    atlasRows: 0,
+    tileUVWidth: 0, // width of one tile in UV space (1 / atlasCols)
+    tileUVHeight: 0, // height of one tile in UV space (1 / atlasRows)
     blockUVs: {}, // blockName -> { top: [u0,v0,u1,v1], side: [...], bottom: [...] }
+    blockFaceKeys: {}, // blockName -> { top: 'texName', side: 'texName', ... } for merge comparison
+    tintedBlocks: new Set(), // blocks that need green biome tint (grass tops, leaves)
   };
 
   // Map Minecraft block names to their texture file names
@@ -483,7 +490,7 @@
     'minecraft:stone_bricks': { all: 'stone_bricks' },
     'minecraft:mossy_stone_bricks': { all: 'mossy_stone_bricks' },
     'minecraft:cracked_stone_bricks': { all: 'cracked_stone_bricks' },
-    'minecraft:grass_block': { top: 'grass_block_top', side: 'grass_block_side', bottom: 'dirt' },
+    'minecraft:grass_block': { top: 'grass_block_top', side: 'grass_block_side', bottom: 'dirt', tint: 'grass' },
     'minecraft:dirt': { all: 'dirt' },
     'minecraft:coarse_dirt': { all: 'coarse_dirt' },
     'minecraft:podzol': { top: 'podzol_top', side: 'podzol_side', bottom: 'dirt' },
@@ -510,14 +517,15 @@
     'minecraft:dark_oak_planks': { all: 'dark_oak_planks' },
     'minecraft:cherry_planks': { all: 'cherry_planks' },
     'minecraft:mangrove_planks': { all: 'mangrove_planks' },
-    'minecraft:oak_leaves': { all: 'oak_leaves' },
-    'minecraft:spruce_leaves': { all: 'spruce_leaves' },
-    'minecraft:birch_leaves': { all: 'birch_leaves' },
-    'minecraft:jungle_leaves': { all: 'jungle_leaves' },
-    'minecraft:acacia_leaves': { all: 'acacia_leaves' },
-    'minecraft:dark_oak_leaves': { all: 'dark_oak_leaves' },
+    'minecraft:oak_leaves': { all: 'oak_leaves', tint: 'foliage' },
+    'minecraft:spruce_leaves': { all: 'spruce_leaves', tint: 'evergreen' },
+    'minecraft:birch_leaves': { all: 'birch_leaves', tint: 'birch' },
+    'minecraft:jungle_leaves': { all: 'jungle_leaves', tint: 'foliage' },
+    'minecraft:acacia_leaves': { all: 'acacia_leaves', tint: 'foliage' },
+    'minecraft:dark_oak_leaves': { all: 'dark_oak_leaves', tint: 'foliage' },
     'minecraft:cherry_leaves': { all: 'cherry_leaves' },
     'minecraft:azalea_leaves': { all: 'azalea_leaves' },
+    'minecraft:mangrove_leaves': { all: 'mangrove_leaves', tint: 'foliage' },
     'minecraft:glass': { all: 'glass' },
     'minecraft:sandstone': { top: 'sandstone_top', side: 'sandstone', bottom: 'sandstone_bottom' },
     'minecraft:red_sandstone': { top: 'red_sandstone_top', side: 'red_sandstone', bottom: 'red_sandstone_bottom' },
@@ -676,6 +684,92 @@
     'minecraft:raw_copper_block': { all: 'raw_copper_block' },
     'minecraft:quartz_bricks': { all: 'quartz_bricks' },
     'minecraft:cherry_planks': { all: 'cherry_planks' },
+    // Water and lava
+    'minecraft:water': { all: 'water_still' },
+    'minecraft:lava': { all: 'lava_still' },
+    // Snow and ice
+    'minecraft:snow_block': { all: 'snow' },
+    'minecraft:snow': { all: 'snow' },
+    'minecraft:powder_snow': { all: 'powder_snow' },
+    'minecraft:ice': { all: 'ice' },
+    'minecraft:packed_ice': { all: 'packed_ice' },
+    'minecraft:blue_ice': { all: 'blue_ice' },
+    // Stained glass (just use base glass texture - the vertex colors handle tinting)
+    'minecraft:white_stained_glass': { all: 'white_stained_glass' },
+    'minecraft:orange_stained_glass': { all: 'orange_stained_glass' },
+    'minecraft:magenta_stained_glass': { all: 'magenta_stained_glass' },
+    'minecraft:light_blue_stained_glass': { all: 'light_blue_stained_glass' },
+    'minecraft:yellow_stained_glass': { all: 'yellow_stained_glass' },
+    'minecraft:lime_stained_glass': { all: 'lime_stained_glass' },
+    'minecraft:pink_stained_glass': { all: 'pink_stained_glass' },
+    'minecraft:gray_stained_glass': { all: 'gray_stained_glass' },
+    'minecraft:light_gray_stained_glass': { all: 'light_gray_stained_glass' },
+    'minecraft:cyan_stained_glass': { all: 'cyan_stained_glass' },
+    'minecraft:purple_stained_glass': { all: 'purple_stained_glass' },
+    'minecraft:blue_stained_glass': { all: 'blue_stained_glass' },
+    'minecraft:brown_stained_glass': { all: 'brown_stained_glass' },
+    'minecraft:green_stained_glass': { all: 'green_stained_glass' },
+    'minecraft:red_stained_glass': { all: 'red_stained_glass' },
+    'minecraft:black_stained_glass': { all: 'black_stained_glass' },
+    // Glazed terracotta
+    'minecraft:white_glazed_terracotta': { all: 'white_glazed_terracotta' },
+    'minecraft:orange_glazed_terracotta': { all: 'orange_glazed_terracotta' },
+    'minecraft:magenta_glazed_terracotta': { all: 'magenta_glazed_terracotta' },
+    'minecraft:light_blue_glazed_terracotta': { all: 'light_blue_glazed_terracotta' },
+    'minecraft:yellow_glazed_terracotta': { all: 'yellow_glazed_terracotta' },
+    'minecraft:lime_glazed_terracotta': { all: 'lime_glazed_terracotta' },
+    'minecraft:pink_glazed_terracotta': { all: 'pink_glazed_terracotta' },
+    'minecraft:gray_glazed_terracotta': { all: 'gray_glazed_terracotta' },
+    'minecraft:light_gray_glazed_terracotta': { all: 'light_gray_glazed_terracotta' },
+    'minecraft:cyan_glazed_terracotta': { all: 'cyan_glazed_terracotta' },
+    'minecraft:purple_glazed_terracotta': { all: 'purple_glazed_terracotta' },
+    'minecraft:blue_glazed_terracotta': { all: 'blue_glazed_terracotta' },
+    'minecraft:brown_glazed_terracotta': { all: 'brown_glazed_terracotta' },
+    'minecraft:green_glazed_terracotta': { all: 'green_glazed_terracotta' },
+    'minecraft:red_glazed_terracotta': { all: 'red_glazed_terracotta' },
+    'minecraft:black_glazed_terracotta': { all: 'black_glazed_terracotta' },
+    // Concrete powder
+    'minecraft:white_concrete_powder': { all: 'white_concrete_powder' },
+    'minecraft:orange_concrete_powder': { all: 'orange_concrete_powder' },
+    'minecraft:magenta_concrete_powder': { all: 'magenta_concrete_powder' },
+    'minecraft:light_blue_concrete_powder': { all: 'light_blue_concrete_powder' },
+    'minecraft:yellow_concrete_powder': { all: 'yellow_concrete_powder' },
+    'minecraft:lime_concrete_powder': { all: 'lime_concrete_powder' },
+    'minecraft:pink_concrete_powder': { all: 'pink_concrete_powder' },
+    'minecraft:gray_concrete_powder': { all: 'gray_concrete_powder' },
+    'minecraft:light_gray_concrete_powder': { all: 'light_gray_concrete_powder' },
+    'minecraft:cyan_concrete_powder': { all: 'cyan_concrete_powder' },
+    'minecraft:purple_concrete_powder': { all: 'purple_concrete_powder' },
+    'minecraft:blue_concrete_powder': { all: 'blue_concrete_powder' },
+    'minecraft:brown_concrete_powder': { all: 'brown_concrete_powder' },
+    'minecraft:green_concrete_powder': { all: 'green_concrete_powder' },
+    'minecraft:red_concrete_powder': { all: 'red_concrete_powder' },
+    'minecraft:black_concrete_powder': { all: 'black_concrete_powder' },
+    // Copper aging variants
+    'minecraft:copper_block': { all: 'copper_block' },
+    'minecraft:exposed_copper': { all: 'exposed_copper' },
+    'minecraft:weathered_copper': { all: 'weathered_copper' },
+    'minecraft:oxidized_copper': { all: 'oxidized_copper' },
+    'minecraft:cut_copper': { all: 'cut_copper' },
+    'minecraft:exposed_cut_copper': { all: 'exposed_cut_copper' },
+    'minecraft:weathered_cut_copper': { all: 'weathered_cut_copper' },
+    'minecraft:oxidized_cut_copper': { all: 'oxidized_cut_copper' },
+    // Misc building blocks
+    'minecraft:smooth_stone': { all: 'smooth_stone' },
+    'minecraft:smooth_sandstone': { all: 'sandstone_top' },
+    'minecraft:farmland': { top: 'farmland', side: 'dirt', bottom: 'dirt' },
+    'minecraft:dirt_path': { top: 'dirt_path_top', side: 'dirt_path_side', bottom: 'dirt' },
+    'minecraft:sponge': { all: 'sponge' },
+    'minecraft:wet_sponge': { all: 'wet_sponge' },
+    'minecraft:dried_kelp_block': { all: 'dried_kelp_side' },
+    'minecraft:magma_block': { all: 'magma' },
+    'minecraft:lodestone': { top: 'lodestone_top', side: 'lodestone_side' },
+    'minecraft:respawn_anchor': { top: 'respawn_anchor_top', side: 'respawn_anchor_side0', bottom: 'respawn_anchor_bottom' },
+    // Short grass and vegetation (rendered as full blocks in voxel view)
+    'minecraft:short_grass': { all: 'grass', tint: 'grass' },
+    'minecraft:tall_grass': { all: 'tall_grass_top', tint: 'grass' },
+    'minecraft:fern': { all: 'fern', tint: 'grass' },
+    'minecraft:large_fern': { all: 'large_fern_top', tint: 'grass' },
   };
 
   /**
@@ -714,8 +808,8 @@
       canvas.height = atlasH;
       const ctx = canvas.getContext('2d');
 
-      // Load textures from prismarine-minecraft-data CDN
-      const CDN_BASE = 'https://cdn.jsdelivr.net/npm/minecraft-assets@latest/data/1.20.4/blocks';
+      // Load textures from PrismarineJS minecraft-assets on GitHub (raw URLs)
+      const CDN_BASE = 'https://raw.githubusercontent.com/PrismarineJS/minecraft-assets/master/data/1.20.2/blocks';
       const texCoords = {}; // texName -> { col, row }
       let loadedCount = 0;
 
@@ -750,9 +844,18 @@
 
       console.log(`[TextureAtlas] Loaded ${loadedCount}/${texNames.length} textures`);
 
-      // Build UV map for each block
+      // Store atlas grid dimensions for UV tiling math
+      TEXTURE_ATLAS.atlasCols = ATLAS_COLS;
+      TEXTURE_ATLAS.atlasRows = ATLAS_ROWS;
+      TEXTURE_ATLAS.tileUVWidth = TILE_SIZE / atlasW;   // 1.0 / ATLAS_COLS
+      TEXTURE_ATLAS.tileUVHeight = TILE_SIZE / atlasH;  // 1.0 / ATLAS_ROWS
+
+      // Build UV map for each block and track tinted blocks
+      TEXTURE_ATLAS.tintedBlocks.clear();
+      TEXTURE_ATLAS.blockFaceKeys = {};
       for (const [blockName, mapping] of Object.entries(BLOCK_TEXTURE_MAP)) {
         const uvs = {};
+        const faceKeys = {};
         const getUV = (texName) => {
           const tc = texCoords[texName];
           if (!tc) return [0, 0, 1/atlasW * TILE_SIZE, 1/atlasH * TILE_SIZE];
@@ -768,40 +871,114 @@
           const uv = getUV(mapping.all);
           uvs.top = uv; uvs.bottom = uv; uvs.north = uv;
           uvs.south = uv; uvs.east = uv; uvs.west = uv;
+          faceKeys.top = mapping.all; faceKeys.bottom = mapping.all;
+          faceKeys.north = mapping.all; faceKeys.south = mapping.all;
+          faceKeys.east = mapping.all; faceKeys.west = mapping.all;
         } else {
-          uvs.top = getUV(mapping.top || mapping.side || 'stone');
-          uvs.bottom = getUV(mapping.bottom || mapping.top || mapping.side || 'stone');
-          const sideUV = getUV(mapping.side || mapping.all || 'stone');
-          uvs.north = mapping.front ? getUV(mapping.front) : sideUV;
+          const topTex = mapping.top || mapping.side || 'stone';
+          const bottomTex = mapping.bottom || mapping.top || mapping.side || 'stone';
+          const sideTex = mapping.side || mapping.all || 'stone';
+          const frontTex = mapping.front || sideTex;
+          uvs.top = getUV(topTex);
+          uvs.bottom = getUV(bottomTex);
+          const sideUV = getUV(sideTex);
+          uvs.north = mapping.front ? getUV(frontTex) : sideUV;
           uvs.south = sideUV; uvs.east = sideUV; uvs.west = sideUV;
+          faceKeys.top = topTex; faceKeys.bottom = bottomTex;
+          faceKeys.north = frontTex; faceKeys.south = sideTex;
+          faceKeys.east = sideTex; faceKeys.west = sideTex;
         }
         TEXTURE_ATLAS.blockUVs[blockName] = uvs;
+        TEXTURE_ATLAS.blockFaceKeys[blockName] = faceKeys;
+
+        // Track blocks that need biome tinting
+        if (mapping.tint) {
+          TEXTURE_ATLAS.tintedBlocks.add(blockName);
+        }
       }
 
-      // Create Three.js texture
+      // Create Three.js texture from the atlas canvas
       const texture = new THREE.CanvasTexture(canvas);
       texture.magFilter = THREE.NearestFilter;
       texture.minFilter = THREE.NearestFilter;
+      texture.generateMipmaps = false; // Crisp pixelated Minecraft look
       texture.colorSpace = THREE.SRGBColorSpace;
 
-      // Create textured material
+      // Shader injection for atlas-aware UV tiling.
+      // When greedy-merged quads span multiple blocks, UVs extend beyond a single
+      // atlas tile. This shader snippet wraps UVs back into the correct tile using
+      // a per-vertex tileOrigin attribute and the known uniform tile size.
+      const tileUW = TEXTURE_ATLAS.tileUVWidth;
+      const tileUH = TEXTURE_ATLAS.tileUVHeight;
+      const atlasTilingShader = (shader) => {
+        // Add the tileOrigin attribute and tileSize uniform
+        shader.vertexShader = shader.vertexShader.replace(
+          '#include <uv_pars_vertex>',
+          `#include <uv_pars_vertex>
+attribute vec2 tileOrigin;
+varying vec2 vTileOrigin;`
+        );
+        shader.vertexShader = shader.vertexShader.replace(
+          '#include <uv_vertex>',
+          `#include <uv_vertex>
+vTileOrigin = tileOrigin;`
+        );
+        // In the fragment shader, wrap UVs within their atlas tile
+        shader.fragmentShader = shader.fragmentShader.replace(
+          '#include <map_pars_fragment>',
+          `#include <map_pars_fragment>
+varying vec2 vTileOrigin;
+const vec2 atlasTileSize = vec2(${tileUW.toFixed(10)}, ${tileUH.toFixed(10)});`
+        );
+        shader.fragmentShader = shader.fragmentShader.replace(
+          '#include <map_fragment>',
+          `#ifdef USE_MAP
+  // Wrap UVs within the atlas tile for texture tiling on merged quads
+  vec2 tiledUV = vTileOrigin + fract((vMapUv - vTileOrigin) / atlasTileSize) * atlasTileSize;
+  vec4 sampledDiffuseColor = texture2D(map, tiledUV);
+  #ifdef DECODE_VIDEO_TEXTURE
+    sampledDiffuseColor = vec4(mix(pow(sampledDiffuseColor.rgb * 0.9478672986 + vec3(0.0521327014), vec3(2.4)), sampledDiffuseColor.rgb * 0.0773993808, vec3(lessThanEqual(sampledDiffuseColor.rgb, vec3(0.04045)))), sampledDiffuseColor.w);
+  #endif
+  diffuseColor *= sampledDiffuseColor;
+#endif`
+        );
+      };
+
+      // Create opaque textured material
+      // vertexColors are used for AO shading (white tinted by face brightness)
+      // and biome tinting (green for grass/leaves)
       const material = new THREE.MeshStandardMaterial({
         map: texture,
-        vertexColors: true, // Keep vertex colors for AO shading
+        vertexColors: true,
         roughness: 0.85,
         metalness: 0.05,
         side: THREE.FrontSide,
       });
+      material.onBeforeCompile = atlasTilingShader;
+
+      // Create transparent textured material (glass, leaves, water, ice)
+      const transparentMaterial = new THREE.MeshStandardMaterial({
+        map: texture,
+        vertexColors: true,
+        roughness: 0.85,
+        metalness: 0.05,
+        side: THREE.DoubleSide,
+        transparent: true,
+        alphaTest: 0.01,
+        depthWrite: false,
+      });
+      transparentMaterial.onBeforeCompile = atlasTilingShader;
 
       TEXTURE_ATLAS.texture = texture;
       TEXTURE_ATLAS.material = material;
+      TEXTURE_ATLAS.transparentMaterial = transparentMaterial;
       TEXTURE_ATLAS.atlasWidth = atlasW;
       TEXTURE_ATLAS.atlasHeight = atlasH;
       TEXTURE_ATLAS.loaded = true;
       TEXTURE_ATLAS.loading = false;
 
       const elapsed = (performance.now() - startTime).toFixed(0);
-      console.log(`[TextureAtlas] Atlas ready: ${atlasW}x${atlasH}, ${Object.keys(TEXTURE_ATLAS.blockUVs).length} blocks mapped in ${elapsed}ms`);
+      console.log(`[TextureAtlas] Atlas ready: ${atlasW}x${atlasH}, ${Object.keys(TEXTURE_ATLAS.blockUVs).length} blocks mapped, ${TEXTURE_ATLAS.tintedBlocks.size} tinted blocks in ${elapsed}ms`);
       return true;
     } catch (err) {
       console.warn('[TextureAtlas] Failed to load:', err);
@@ -812,14 +989,54 @@
 
   /**
    * Get UV coordinates for a block face.
-   * Returns [u0, v0, u1, v1] or null if not in atlas.
+   * Returns { uv: [u0, v0, u1, v1], tint: string|null, texKey: string } or null if not in atlas.
+   * texKey is the texture name used for greedy merge comparison - only merge faces
+   * that share the same texKey AND tint.
    */
   function getBlockFaceUV(blockState, faceName) {
     if (!TEXTURE_ATLAS.loaded) return null;
     const { name } = parseBlockState(blockState);
     const uvs = TEXTURE_ATLAS.blockUVs[name];
     if (!uvs) return null;
-    return uvs[faceName] || uvs.north || null;
+    // Map face direction names to UV storage keys
+    // FACES uses: east, west, up, down, south, north
+    // UV storage uses: east, west, top, bottom, south, north
+    const uvKey = faceName === 'up' ? 'top' : faceName === 'down' ? 'bottom' : faceName;
+    const uv = uvs[uvKey] || uvs.north || null;
+    if (!uv) return null;
+    const mapping = BLOCK_TEXTURE_MAP[name];
+    const faceKeys = TEXTURE_ATLAS.blockFaceKeys[name];
+    const texKey = faceKeys ? (faceKeys[uvKey] || faceKeys.north || '') : '';
+    return { uv, tint: mapping?.tint || null, texKey };
+  }
+
+  /**
+   * Get the tint color for biome-dependent blocks.
+   * Returns [r, g, b] multiplier in 0-1 range.
+   */
+  function getTintColor(tintType, faceName) {
+    switch (tintType) {
+      case 'grass':
+        // Plains biome grass color - applied to top face and side overlay
+        if (faceName === 'up' || faceName === 'down') {
+          return [0.486, 0.741, 0.314]; // #7cba50 - bright grass green
+        }
+        // Side faces of grass_block use the side texture which has its own brown band
+        // Only the grassy top portion of the side needs tinting, but for simplicity
+        // we tint the whole side slightly
+        return [0.486, 0.741, 0.314];
+      case 'foliage':
+        // Standard foliage (oak, jungle, acacia, dark oak leaves)
+        return [0.345, 0.616, 0.200]; // #589d33 - medium green
+      case 'evergreen':
+        // Spruce leaves - darker, bluish green
+        return [0.380, 0.510, 0.380]; // #618261
+      case 'birch':
+        // Birch leaves - lighter, warmer green
+        return [0.502, 0.667, 0.322]; // #80aa52
+      default:
+        return [1, 1, 1]; // No tint
+    }
   }
 
   // Helper: parse block state string to extract base name and properties
@@ -1073,17 +1290,34 @@
 
   /**
    * Build geometry for a chunk section using greedy meshing.
-   * When texture atlas is loaded, also generates UV coordinates and disables
-   * greedy merge across different block types to preserve per-block texturing.
-   * Returns { positions, normals, colors, indices, uvs? }
+   * When texture atlas is loaded, generates UV coordinates and splits geometry
+   * into opaque and transparent passes. Same-texture-tile faces are greedily
+   * merged; the shader uses tileOrigin + fract() to wrap tiled UVs within
+   * their atlas tile. Vertex colors carry AO shading (white * brightness)
+   * and biome tinting for grass/leaves when textured.
+   * Returns { positions, normals, colors, indices, uvs?, tileOrigins?,
+   *           hasTransparent?, tPositions?, tNormals?, tColors?, tIndices?,
+   *           tUvs?, tTileOrigins? }
    */
   function buildSectionMesh(section, chunkX, chunkZ, getNeighborBlock) {
+    // Opaque geometry buffers
     const positions = [];
     const normals = [];
     const colors = [];
     const uvs = [];
+    const tileOrigins = []; // Per-vertex atlas tile origin for shader-based UV tiling
     const indices = [];
     let vertexCount = 0;
+
+    // Transparent geometry buffers (glass, leaves, water, ice)
+    const tPositions = [];
+    const tNormals = [];
+    const tColors = [];
+    const tUvs = [];
+    const tTileOrigins = [];
+    const tIndices = [];
+    let tVertexCount = 0;
+
     const useAtlas = TEXTURE_ATLAS.loaded;
 
     const { palette, blocks, sectionY } = section;
@@ -1118,6 +1352,10 @@
         // Build a 16x16 mask of faces to render
         const mask = new Array(256).fill(null); // 16x16
         const maskColors = new Array(256).fill(null);
+        // Pre-compute face texture results for greedy merge comparison
+        const maskFaceResults = new Array(256).fill(null);
+        // Merge key: combines texture key + tint for same-texture merging
+        const maskMergeKeys = new Array(256).fill(null);
 
         for (let j = 0; j < 16; j++) {
           for (let i = 0; i < 16; i++) {
@@ -1146,14 +1384,23 @@
               if (face.name === 'up' && info.topColor) {
                 faceColor = info.topColor;
               }
-              mask[j * 16 + i] = blockState;
-              maskColors[j * 16 + i] = faceColor;
+              const midx = j * 16 + i;
+              mask[midx] = blockState;
+              maskColors[midx] = faceColor;
+              // Pre-compute atlas face result for greedy merge comparison
+              if (useAtlas) {
+                const fr = getBlockFaceUV(blockState, face.name);
+                maskFaceResults[midx] = fr;
+                // Merge key: blocks with same texture tile AND same tint can be merged
+                maskMergeKeys[midx] = fr ? (fr.texKey + '|' + (fr.tint || '')) : null;
+              }
             }
           }
         }
 
-        // Greedy merge: scan the mask and merge rectangles of identical blocks
-        // When texture atlas is loaded, only merge same block types (1x1 if textured)
+        // Greedy merge: scan the mask and merge rectangles of same-texture blocks.
+        // When texture atlas is loaded, merge faces that share the SAME texture tile
+        // and tint. The shader handles UV tiling for merged quads.
         const visited = new Array(256).fill(false);
 
         for (let j = 0; j < 16; j++) {
@@ -1163,12 +1410,38 @@
 
             const color = maskColors[idx];
             const state = mask[idx];
-            const faceUV = useAtlas ? getBlockFaceUV(state, face.name) : null;
+            const faceResult = useAtlas ? maskFaceResults[idx] : null;
+            const faceUV = faceResult ? faceResult.uv : null;
+            const mergeKey = useAtlas ? maskMergeKeys[idx] : null;
 
-            // When textured, don't merge (each block needs its own UVs)
+            // Determine if this block is transparent (for separate geometry pass)
+            const blockInfo = getBlockInfo(state);
+            const isBlockTransparent = blockInfo.opacity !== undefined && blockInfo.opacity < 1;
+
+            // Greedy merge: extend width and height as far as possible
+            // For textured blocks, merge faces with same texture tile + tint (mergeKey)
+            // For vertex-color blocks, merge faces with same block state + color
             let width = 1;
             let height = 1;
-            if (!faceUV) {
+            if (faceUV && mergeKey) {
+              // Textured mode: greedy merge across same-texture-tile blocks
+              while (i + width < 16) {
+                const ni = j * 16 + (i + width);
+                if (!visited[ni] && mask[ni] && maskMergeKeys[ni] === mergeKey) {
+                  width++;
+                } else break;
+              }
+              outerTex:
+              while (j + height < 16) {
+                for (let wi = 0; wi < width; wi++) {
+                  const ni = (j + height) * 16 + (i + wi);
+                  if (visited[ni] || !mask[ni] || maskMergeKeys[ni] !== mergeKey) {
+                    break outerTex;
+                  }
+                }
+                height++;
+              }
+            } else {
               // Vertex-color mode: greedy merge across same-color blocks
               while (i + width < 16) {
                 const ni = j * 16 + (i + width);
@@ -1212,17 +1485,35 @@
             // Normal
             const nx = dx, ny = dy, nz = dz;
 
-            // Convert color int to RGB floats with face-based AO shading
-            // Top faces brightest, bottom darkest, sides in between
+            // AO factor: directional ambient lighting (Minecraft-style face shading)
             let aoFactor = 1.0;
-            if (face.name === 'down') aoFactor = 0.6;
+            if (face.name === 'down') aoFactor = 0.5;
             else if (face.name === 'up') aoFactor = 1.0;
             else if (face.name === 'north' || face.name === 'south') aoFactor = 0.8;
-            else aoFactor = 0.75; // east/west
+            else aoFactor = 0.6; // east/west
 
-            const r = (((color >> 16) & 0xFF) / 255) * aoFactor;
-            const g = (((color >> 8) & 0xFF) / 255) * aoFactor;
-            const b = ((color & 0xFF) / 255) * aoFactor;
+            let r, g, b;
+            if (faceUV) {
+              // Textured mode: vertex colors carry AO and optional biome tinting
+              // The texture provides the actual block appearance
+              if (faceResult.tint) {
+                // Biome-tinted block (grass, leaves) - multiply tint color by AO
+                const [tr, tg, tb] = getTintColor(faceResult.tint, face.name);
+                r = tr * aoFactor;
+                g = tg * aoFactor;
+                b = tb * aoFactor;
+              } else {
+                // Non-tinted textured block: white * AO (texture color is sufficient)
+                r = aoFactor;
+                g = aoFactor;
+                b = aoFactor;
+              }
+            } else {
+              // Vertex-color mode (no texture for this block): use block color * AO
+              r = (((color >> 16) & 0xFF) / 255) * aoFactor;
+              g = (((color >> 8) & 0xFF) / 255) * aoFactor;
+              b = ((color & 0xFF) / 255) * aoFactor;
+            }
 
             // 4 vertices for the quad
             const v0 = [wx, wy, wz];
@@ -1238,28 +1529,69 @@
               quad = [v0, v3, v2, v1]; // Reversed for negative faces
             }
 
+            // Choose target buffers: transparent blocks go to separate geometry
+            const useTransparentBuf = useAtlas && isBlockTransparent;
+            const tgtPos = useTransparentBuf ? tPositions : positions;
+            const tgtNorm = useTransparentBuf ? tNormals : normals;
+            const tgtCol = useTransparentBuf ? tColors : colors;
+            const tgtUvArr = useTransparentBuf ? tUvs : uvs;
+            const tgtTileArr = useTransparentBuf ? tTileOrigins : tileOrigins;
+            const tgtIdx = useTransparentBuf ? tIndices : indices;
+            const tgtVC = useTransparentBuf ? tVertexCount : vertexCount;
+
             for (const vert of quad) {
-              positions.push(vert[0], vert[1], vert[2]);
-              normals.push(nx, ny, nz);
-              colors.push(r, g, b);
+              tgtPos.push(vert[0], vert[1], vert[2]);
+              tgtNorm.push(nx, ny, nz);
+              tgtCol.push(r, g, b);
             }
 
             // Generate UV coordinates if atlas is loaded and block has texture
             if (faceUV) {
               const [u0, v0t, u1, v1t] = faceUV;
-              // Map quad corners to UV (4 vertices, same winding)
-              uvs.push(u0, v0t, u1, v0t, u1, v1t, u0, v1t);
+              // Tile size in UV space (one block = one tile)
+              const tileW = u1 - u0; // width of one atlas tile in UV
+              const tileH = v1t - v0t; // height of one atlas tile in UV
+
+              // Tiled UV coordinates for merged quads:
+              // For a merged quad of width x height blocks, the UVs span
+              // width tiles horizontally and height tiles vertically.
+              // The shader uses fract() to wrap UVs back into the tile.
+              const uEnd = u0 + width * tileW;
+              const vEnd = v0t + height * tileH;
+
+              // UV coordinates mapped to match quad vertex winding:
+              // Positive face: v0(origin), v1(+u), v2(+u+v), v3(+v)
+              // Negative face: v0(origin), v3(+v), v2(+u+v), v1(+u)
+              if (face.positive) {
+                tgtUvArr.push(u0, v0t, uEnd, v0t, uEnd, vEnd, u0, vEnd);
+              } else {
+                tgtUvArr.push(u0, v0t, u0, vEnd, uEnd, vEnd, uEnd, v0t);
+              }
+
+              // Store tile origin for all 4 vertices (used by shader for UV wrapping)
+              for (let vi = 0; vi < 4; vi++) {
+                tgtTileArr.push(u0, v0t);
+              }
             } else if (useAtlas) {
-              // No texture for this block - use white pixel region (0,0)
-              uvs.push(0, 0, 0, 0, 0, 0, 0, 0);
+              // No texture for this block - degenerate UVs (vertex colors only)
+              tgtUvArr.push(0, 0, 0, 0, 0, 0, 0, 0);
+              // Degenerate tile origins
+              for (let vi = 0; vi < 4; vi++) {
+                tgtTileArr.push(0, 0);
+              }
             }
 
             // Two triangles
-            indices.push(
-              vertexCount, vertexCount + 1, vertexCount + 2,
-              vertexCount, vertexCount + 2, vertexCount + 3
+            tgtIdx.push(
+              tgtVC, tgtVC + 1, tgtVC + 2,
+              tgtVC, tgtVC + 2, tgtVC + 3
             );
-            vertexCount += 4;
+
+            if (useTransparentBuf) {
+              tVertexCount += 4;
+            } else {
+              vertexCount += 4;
+            }
           }
         }
       }
@@ -1273,6 +1605,20 @@
     };
     if (useAtlas && uvs.length > 0) {
       result.uvs = new Float32Array(uvs);
+      result.tileOrigins = new Float32Array(tileOrigins);
+    }
+
+    // Include transparent geometry if present
+    if (tPositions.length > 0) {
+      result.hasTransparent = true;
+      result.tPositions = new Float32Array(tPositions);
+      result.tNormals = new Float32Array(tNormals);
+      result.tColors = new Float32Array(tColors);
+      result.tIndices = new Uint32Array(tIndices);
+      if (useAtlas && tUvs.length > 0) {
+        result.tUvs = new Float32Array(tUvs);
+        result.tTileOrigins = new Float32Array(tTileOrigins);
+      }
     }
     return result;
   }
@@ -1282,7 +1628,7 @@
   class ChunkColumnManager {
     constructor(scene) {
       this.scene = scene;
-      this.columns = new Map(); // "cx,cz" -> { group, sectionData, sectionMeshes }
+      this.columns = new Map(); // "cx,cz" -> { group, sectionData, sectionMeshes, sectionIndex }
       this.terrainGroup = new THREE.Group();
       this.terrainGroup.name = 'terrain';
       scene.add(this.terrainGroup);
@@ -1308,7 +1654,21 @@
     }
 
     /**
+     * Build a sectionY -> section Map for O(1) lookup instead of Array.find().
+     * Called once per column during loading.
+     */
+    _buildSectionIndex(sections) {
+      const index = new Map();
+      for (const s of sections) {
+        index.set(s.sectionY, s);
+      }
+      return index;
+    }
+
+    /**
      * Load parsed chunk columns into the scene.
+     * Processes mesh building in batches via setTimeout to avoid blocking the UI
+     * on large terrain datasets (100+ chunks).
      * @param {Array} columns - Array of { chunkX, chunkZ, sections }
      */
     loadColumns(columns) {
@@ -1322,20 +1682,33 @@
           data: col,
           group: null,
           sectionMeshes: new Map(),
+          sectionIndex: this._buildSectionIndex(col.sections),
         });
       }
 
-      // Build meshes
-      for (const col of columns) {
-        this._buildColumnMeshes(col.chunkX, col.chunkZ);
-      }
-
-      const elapsed = (performance.now() - startTime).toFixed(1);
-      console.log(`[Terrain] Built meshes for ${columns.length} columns in ${elapsed}ms`);
+      // Build meshes in batches to avoid blocking the browser UI thread
+      const BATCH_SIZE = 8;
+      let built = 0;
+      const buildBatch = () => {
+        const batchEnd = Math.min(built + BATCH_SIZE, columns.length);
+        for (let i = built; i < batchEnd; i++) {
+          this._buildColumnMeshes(columns[i].chunkX, columns[i].chunkZ);
+        }
+        built = batchEnd;
+        if (built < columns.length) {
+          setTimeout(buildBatch, 0);
+        } else {
+          const elapsed = (performance.now() - startTime).toFixed(1);
+          console.log(`[Terrain] Built meshes for ${columns.length} columns in ${elapsed}ms`);
+        }
+      };
+      buildBatch();
     }
 
     /**
      * Get block state at a world coordinate.
+     * Uses O(1) sectionIndex Map lookup instead of Array.find() for performance.
+     * This is called thousands of times during mesh building for neighbor checks.
      */
     getBlockAt(wx, wy, wz) {
       const cx = Math.floor(wx / 16);
@@ -1345,7 +1718,7 @@
       if (!column) return 'minecraft:air';
 
       const sy = Math.floor(wy / 16);
-      const section = column.data.sections.find(s => s.sectionY === sy);
+      const section = column.sectionIndex.get(sy);
       if (!section) return 'minecraft:air';
 
       const lx = ((wx % 16) + 16) % 16;
@@ -1366,7 +1739,7 @@
       if (!column) return;
 
       const sy = Math.floor(wy / 16);
-      let section = column.data.sections.find(s => s.sectionY === sy);
+      let section = column.sectionIndex.get(sy);
 
       if (!section) {
         // Create a new air section and add the block
@@ -1378,6 +1751,7 @@
         blocks[ly * 256 + lz * 16 + lx] = 1;
         section = { sectionY: sy, palette, blocks };
         column.data.sections.push(section);
+        column.sectionIndex.set(sy, section);
       } else {
         // Update existing section
         const lx = ((wx % 16) + 16) % 16;
@@ -1430,26 +1804,72 @@
       const getNeighborBlock = (wx, wy, wz) => this.getBlockAt(wx, wy, wz);
       const meshData = buildSectionMesh(section, cx, cz, getNeighborBlock);
 
-      if (meshData.positions.length === 0) return null;
+      const hasOpaque = meshData.positions.length > 0;
+      const hasTransparent = meshData.hasTransparent && meshData.tPositions.length > 0;
+      if (!hasOpaque && !hasTransparent) return null;
 
-      const geometry = new THREE.BufferGeometry();
-      geometry.setAttribute('position', new THREE.BufferAttribute(meshData.positions, 3));
-      geometry.setAttribute('normal', new THREE.BufferAttribute(meshData.normals, 3));
-      geometry.setAttribute('color', new THREE.BufferAttribute(meshData.colors, 3));
-      geometry.setIndex(new THREE.BufferAttribute(meshData.indices, 1));
+      // Use a Group to hold opaque + transparent meshes for this section
+      const group = new THREE.Group();
+      group.name = `section_${section.sectionY}`;
 
-      // Use textured material when UV data is available
-      let material = this.opaqueMaterial;
-      if (meshData.uvs && TEXTURE_ATLAS.material) {
-        geometry.setAttribute('uv', new THREE.BufferAttribute(meshData.uvs, 2));
-        material = TEXTURE_ATLAS.material;
+      // Opaque mesh
+      if (hasOpaque) {
+        const geometry = new THREE.BufferGeometry();
+        geometry.setAttribute('position', new THREE.BufferAttribute(meshData.positions, 3));
+        geometry.setAttribute('normal', new THREE.BufferAttribute(meshData.normals, 3));
+        geometry.setAttribute('color', new THREE.BufferAttribute(meshData.colors, 3));
+        geometry.setIndex(new THREE.BufferAttribute(meshData.indices, 1));
+
+        // Use textured material when UV data is available
+        let material = this.opaqueMaterial;
+        if (meshData.uvs && TEXTURE_ATLAS.material) {
+          geometry.setAttribute('uv', new THREE.BufferAttribute(meshData.uvs, 2));
+          // tileOrigin attribute: per-vertex atlas tile origin for shader UV wrapping
+          if (meshData.tileOrigins) {
+            geometry.setAttribute('tileOrigin', new THREE.BufferAttribute(meshData.tileOrigins, 2));
+          }
+          material = TEXTURE_ATLAS.material;
+        }
+
+        geometry.computeBoundingSphere();
+        const mesh = new THREE.Mesh(geometry, material);
+        mesh.name = 'opaque';
+        mesh.castShadow = true;
+        mesh.receiveShadow = true;
+        mesh.frustumCulled = true;
+        group.add(mesh);
       }
 
-      const mesh = new THREE.Mesh(geometry, material);
-      mesh.name = `section_${section.sectionY}`;
-      mesh.castShadow = true;
-      mesh.receiveShadow = true;
-      return mesh;
+      // Transparent mesh (glass, leaves, water, ice)
+      if (hasTransparent) {
+        const tGeometry = new THREE.BufferGeometry();
+        tGeometry.setAttribute('position', new THREE.BufferAttribute(meshData.tPositions, 3));
+        tGeometry.setAttribute('normal', new THREE.BufferAttribute(meshData.tNormals, 3));
+        tGeometry.setAttribute('color', new THREE.BufferAttribute(meshData.tColors, 3));
+        tGeometry.setIndex(new THREE.BufferAttribute(meshData.tIndices, 1));
+
+        // Use transparent textured material when UV data is available
+        let tMaterial = this.transparentMaterial;
+        if (meshData.tUvs && TEXTURE_ATLAS.transparentMaterial) {
+          tGeometry.setAttribute('uv', new THREE.BufferAttribute(meshData.tUvs, 2));
+          // tileOrigin attribute: per-vertex atlas tile origin for shader UV wrapping
+          if (meshData.tTileOrigins) {
+            tGeometry.setAttribute('tileOrigin', new THREE.BufferAttribute(meshData.tTileOrigins, 2));
+          }
+          tMaterial = TEXTURE_ATLAS.transparentMaterial;
+        }
+
+        tGeometry.computeBoundingSphere();
+        const tMesh = new THREE.Mesh(tGeometry, tMaterial);
+        tMesh.name = 'transparent';
+        tMesh.castShadow = false;
+        tMesh.receiveShadow = true;
+        tMesh.frustumCulled = true;
+        tMesh.renderOrder = 1; // Render after opaque
+        group.add(tMesh);
+      }
+
+      return group;
     }
 
     _remeshSection(cx, cz, sectionY) {
@@ -1457,14 +1877,16 @@
       const column = this.columns.get(key);
       if (!column || !column.group) return;
 
-      const section = column.data.sections.find(s => s.sectionY === sectionY);
+      const section = column.sectionIndex ? column.sectionIndex.get(sectionY) : column.data.sections.find(s => s.sectionY === sectionY);
       if (!section) return;
 
-      // Remove old mesh
+      // Remove old mesh (may be a Group with opaque + transparent children)
       const oldMesh = column.sectionMeshes.get(sectionY);
       if (oldMesh) {
         column.group.remove(oldMesh);
-        oldMesh.geometry.dispose();
+        oldMesh.traverse(child => {
+          if (child.geometry) child.geometry.dispose();
+        });
       }
 
       // Build new mesh
@@ -1515,6 +1937,17 @@
       this.scene.remove(this.terrainGroup);
       this.opaqueMaterial.dispose();
       this.transparentMaterial.dispose();
+
+      // Dispose texture atlas materials if loaded
+      if (TEXTURE_ATLAS.material) {
+        TEXTURE_ATLAS.material.dispose();
+      }
+      if (TEXTURE_ATLAS.transparentMaterial) {
+        TEXTURE_ATLAS.transparentMaterial.dispose();
+      }
+      if (TEXTURE_ATLAS.texture) {
+        TEXTURE_ATLAS.texture.dispose();
+      }
     }
   }
 

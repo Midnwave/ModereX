@@ -376,6 +376,31 @@
         // Update version chart
         if (data.versionDistribution) {
             updateVersionChart(data.versionDistribution);
+        } else {
+            const versionChart = document.getElementById('versionChart');
+            if (versionChart) {
+                versionChart.innerHTML = `
+                    <div class="chart-placeholder">
+                        <i class="fas fa-chart-pie"></i>
+                        <span>No servers connected</span>
+                    </div>
+                `;
+            }
+        }
+
+        // Update connection history chart
+        if (data.connectionHistory) {
+            updateConnectionChart(data.connectionHistory);
+        } else {
+            const connChart = document.getElementById('connectionChart');
+            if (connChart) {
+                connChart.innerHTML = `
+                    <div class="chart-placeholder">
+                        <i class="fas fa-chart-area"></i>
+                        <span>No connection data available</span>
+                    </div>
+                `;
+            }
         }
     }
 
@@ -592,6 +617,35 @@
                     </div>
                 `;
             }).join('');
+    }
+
+    function updateConnectionChart(history) {
+        const container = document.getElementById('connectionChart');
+        if (!container || !history || history.length === 0) return;
+
+        const maxVal = Math.max(1, ...history.map(h => Math.max(h.servers || 0, h.browsers || 0)));
+        const barWidth = Math.max(2, Math.floor(100 / history.length));
+
+        container.innerHTML = `
+            <div style="display:flex;align-items:flex-end;gap:2px;height:100%;padding:8px 0;">
+                ${history.map(h => {
+                    const sH = Math.max(2, Math.round(((h.servers || 0) / maxVal) * 80));
+                    const bH = Math.max(2, Math.round(((h.browsers || 0) / maxVal) * 80));
+                    const time = new Date(h.time);
+                    const label = time.getHours() + ':00';
+                    return `<div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:1px;" title="${label} - ${h.servers || 0} servers, ${h.browsers || 0} browsers">
+                        <div style="display:flex;align-items:flex-end;gap:1px;height:80px;">
+                            <div style="width:${barWidth}%;min-width:3px;height:${sH}px;background:var(--primary, #6366f1);border-radius:2px 2px 0 0;"></div>
+                            <div style="width:${barWidth}%;min-width:3px;height:${bH}px;background:var(--accent, #22d3ee);border-radius:2px 2px 0 0;opacity:0.7;"></div>
+                        </div>
+                    </div>`;
+                }).join('')}
+            </div>
+            <div style="display:flex;justify-content:space-between;font-size:10px;color:var(--text-muted, #888);padding-top:4px;">
+                <span>24h ago</span>
+                <span>Now</span>
+            </div>
+        `;
     }
 
     // ========================================

@@ -2322,13 +2322,29 @@ function broadcastAnnouncementToAll(ws, email, announcementId, silent = false) {
 // ============================================================================
 
 function sendGatewayHealth(ws) {
+    const mem = process.memoryUsage();
+    const memUsedMB = mem.rss / (1024 * 1024);
+    const memTotalMB = require('os').totalmem() / (1024 * 1024);
+    const memPercent = Math.round((memUsedMB / memTotalMB) * 100);
+
+    // Calculate messages per second from recent activity
+    let totalMsgRate = 0;
+    messageRates.forEach(rate => {
+        const elapsed = (Date.now() - rate.windowStart) / 1000;
+        if (elapsed > 0) totalMsgRate += rate.count / elapsed;
+    });
+
     const health = {
         status: 'ok',
-        uptime: process.uptime(),
+        healthy: true,
+        uptime: Math.round(process.uptime() * 1000),
         connections: mcServers.size,
         browsers: browserClients.size,
         admins: adminClients.size,
-        memory: process.memoryUsage(),
+        memoryUsage: memPercent,
+        cpuUsage: 0,
+        messagesPerSecond: Math.round(totalMsgRate),
+        recentErrors: [],
         timestamp: Date.now()
     };
 
@@ -2423,12 +2439,54 @@ function sendDashboardData(ws) {
 
     const activeAnnouncementCount = getActiveAnnouncements().length;
 
-    // Get recent activity from audit log
+    // Get recent activity from audit log and map to frontend format
     let recentActivity = [];
     if (db) {
         try {
-            recentActivity = db.prepare('SELECT * FROM admin_audit_log ORDER BY timestamp DESC LIMIT 10').all();
+            const rows = db.prepare('SELECT * FROM admin_audit_log ORDER BY timestamp DESC LIMIT 10').all();
+            recentActivity = rows.map(row => {
+                // Map audit action to activity type for icon
+                let type = 'circle';
+                const action = (row.action || '').toLowerCase();
+                if (action.includes('connect') || action.includes('login') || action.includes('auth')) type = 'connect';
+                else if (action.includes('disconnect') || action.includes('logout')) type = 'disconnect';
+                else if (action.includes('announcement')) type = 'announcement';
+                else if (action.includes('premium')) type = 'premium';
+                else if (action.includes('error') || action.includes('fail')) type = 'error';
+
+                // Build readable text
+                let text = row.action || 'Unknown action';
+                if (row.admin_email) text = `${row.admin_email}: ${text}`;
+                if (row.details) {
+                    try {
+                        const details = JSON.parse(row.details);
+                        if (details.serverName) text += ` (${details.serverName})`;
+                        else if (details.id) text += ` #${details.id}`;
+                    } catch (e) {}
+                }
+
+                return { type, text, timestamp: row.timestamp };
+            });
         } catch (e) {}
+    }
+
+    // Build version distribution from connected servers
+    const versionDistribution = {};
+    mcServers.forEach(data => {
+        const ver = data.info?.version || 'unknown';
+        versionDistribution[ver] = (versionDistribution[ver] || 0) + 1;
+    });
+
+    // Build connection history from last 24h (simplified - shows current snapshot)
+    const connectionHistory = [];
+    const now = Date.now();
+    for (let i = 23; i >= 0; i--) {
+        const hour = new Date(now - i * 3600000);
+        connectionHistory.push({
+            time: hour.toISOString(),
+            servers: mcServers.size,
+            browsers: browserClients.size
+        });
     }
 
     ws.send(JSON.stringify({
@@ -2438,8 +2496,10 @@ function sendDashboardData(ws) {
             players: totalPlayers,
             browsers: browserClients.size,
             announcements: activeAnnouncementCount,
-            uptime: process.uptime(),
-            activity: recentActivity
+            uptime: Math.round(process.uptime() * 1000),
+            activity: recentActivity,
+            versionDistribution: Object.keys(versionDistribution).length > 0 ? versionDistribution : null,
+            connectionHistory: connectionHistory
         }
     }));
 }

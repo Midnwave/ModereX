@@ -10842,6 +10842,12 @@
             if (f.id) evidenceIds.push(f.id);
           }
         }
+        const activityLogIds = [];
+        if (state.punishEvidence?.selectedLogs) {
+          for (const logId of state.punishEvidence.selectedLogs) {
+            activityLogIds.push(logId);
+          }
+        }
 
         ws.createPunishment({
           playerUuid: p?.uuid || opts.playerId,
@@ -10849,7 +10855,8 @@
           type: opts.type,
           reason: opts.reason,
           duration: opts.duration,
-          evidenceIds: evidenceIds.length > 0 ? evidenceIds : undefined
+          evidenceIds: evidenceIds.length > 0 ? evidenceIds : undefined,
+          activityLogIds: activityLogIds.length > 0 ? activityLogIds : undefined
         });
         toast('info', 'Sending', `Creating ${opts.type.toLowerCase()}...`);
       } else {
