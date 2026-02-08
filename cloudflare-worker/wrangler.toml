@@ -1,0 +1,17 @@
+name = "moderex-license-api"
+main = "license-api.js"
+compatibility_date = "2024-01-01"
+
+# KV Namespace for license token storage
+kv_namespaces = [
+  { binding = "LICENSE_TOKENS", id = "YOUR_KV_NAMESPACE_ID", preview_id = "YOUR_PREVIEW_KV_NAMESPACE_ID" }
+]
+
+# Routes - Deploy to license.moderex.net
+routes = [
+  { pattern = "license.moderex.net/*", zone_name = "moderex.net" }
+]
+
+# Environment variables (set via wrangler secret)
+# wrangler secret put PRIVATE_KEY
+# wrangler secret put ADMIN_SECRET

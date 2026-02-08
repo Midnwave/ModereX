@@ -126,6 +126,51 @@ buildDate=${java.time.LocalDate.now().toString()}
     }
 }
 
+// ── Build licensed JAR with embedded token ──────────────────────────────
+// Usage: ./gradlew buildLicensed -PlicenseToken=<uuid-token>
+// Creates a dev build with embedded license token for validation
+tasks.register('buildLicensed') {
+    description = 'Build ModereX JAR with embedded license token for dev builds'
+    group = 'build'
+
+    dependsOn clean, shadowJar
+
+    doFirst {
+        def token = project.findProperty('licenseToken') ?: 'UNLICENSED'
+
+        if (token == 'UNLICENSED') {
+            throw new GradleException('License token required! Usage: ./gradlew buildLicensed -PlicenseToken=<uuid>')
+        }
+
+        def tokenPropsFile = file('src/main/resources/license-token.properties')
+        tokenPropsFile.text = """\
+# ModereX License Token - Embedded at build time
+token=${token}
+buildTimestamp=${System.currentTimeMillis()}
+"""
+        logger.lifecycle("License token embedded: ${token.take(8)}...${token.takeLast(4)}")
+    }
+
+    doLast {
+        def builtJar = shadowJar.archiveFile.get().asFile
+        def releasesDir = rootProject.file('releases/licensed')
+        releasesDir.mkdirs()
+
+        def token = project.findProperty('licenseToken')
+        def shortToken = token.take(8)
+        def licensedJar = new File(releasesDir, "ModereX-licensed-${shortToken}.jar")
+
+        builtJar.withInputStream { input ->
+            licensedJar.withOutputStream { output ->
+                output << input
+            }
+        }
+
+        logger.lifecycle("Licensed JAR created: ${licensedJar.name}")
+        logger.lifecycle("Output: ${licensedJar.absolutePath}")
+    }
+}
+
 // ── Shadow JAR configuration ────────────────────────────────────────────
 shadowJar {
     archiveClassifier.set('')

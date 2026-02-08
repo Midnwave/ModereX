@@ -6,6 +6,7 @@ import com.blockforge.moderex.commands.CommandManager;
 import com.blockforge.moderex.config.ConfigManager;
 import com.blockforge.moderex.config.lang.LanguageManager;
 import com.blockforge.moderex.database.DatabaseManager;
+import com.blockforge.moderex.license.LicenseManager;
 import com.blockforge.moderex.gui.GuiManager;
 import com.blockforge.moderex.hooks.HookManager;
 import com.blockforge.moderex.listeners.ListenerManager;
@@ -84,6 +85,7 @@ public final class ModereX extends JavaPlugin {
     private com.blockforge.moderex.identity.ServerIdentity serverIdentity;
     private com.blockforge.moderex.gateway.GatewayClient gatewayClient;
     private com.blockforge.moderex.permissions.PermissionManager permissionManager;
+    private LicenseManager licenseManager;
 
     // Lockdown state
     private boolean globalLockdown = false;
@@ -134,6 +136,15 @@ public final class ModereX extends JavaPlugin {
         logStartup("Initializing server identity...");
         this.serverIdentity = new com.blockforge.moderex.identity.ServerIdentity(this);
         serverIdentity.initialize();
+
+        // Initialize license system (for dev builds)
+        logStartup("Initializing license system...");
+        this.licenseManager = new LicenseManager(this);
+        boolean licenseValid = licenseManager.init().join(); // Block until validation completes
+        if (!licenseValid) {
+            // License validation failed - plugin will be disabled by LicenseManager
+            return;
+        }
 
         // Initialize hook manager (connects to other plugins)
         logStartup("Initializing plugin hooks...");
@@ -326,6 +337,11 @@ public final class ModereX extends JavaPlugin {
     @Override
     public void onDisable() {
         logStartup("Disabling ModereX...");
+
+        // Stop license manager
+        if (licenseManager != null) {
+            licenseManager.shutdown();
+        }
 
         // Stop gateway client
         if (gatewayClient != null) {
@@ -744,6 +760,10 @@ public final class ModereX extends JavaPlugin {
 
     public com.blockforge.moderex.monitor.ServerStatusManager getServerStatusManager() {
         return serverStatusManager;
+    }
+
+    public LicenseManager getLicenseManager() {
+        return licenseManager;
     }
 
     public Component getPrefix() {

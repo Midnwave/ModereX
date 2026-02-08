@@ -1,0 +1,14 @@
+{
+  "name": "moderex-license-api",
+  "version": "1.0.0",
+  "description": "Cloudflare Worker for ModereX license validation",
+  "main": "license-api.js",
+  "scripts": {
+    "deploy": "wrangler deploy",
+    "dev": "wrangler dev",
+    "tail": "wrangler tail"
+  },
+  "keywords": ["moderex", "license", "cloudflare-worker"],
+  "author": "BlockForge Studios",
+  "license": "PROPRIETARY"
+}

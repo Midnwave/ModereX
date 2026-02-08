@@ -5,7 +5,8 @@
   "main": "gateway.js",
   "scripts": {
     "start": "node gateway.js",
-    "dev": "node --watch gateway.js"
+    "dev": "node --watch gateway.js",
+    "build-licensed": "node scripts/build-licensed.js"
   },
   "dependencies": {
     "ws": "^8.19.0",
