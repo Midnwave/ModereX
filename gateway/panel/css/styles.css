@@ -12294,3 +12294,93 @@ body.has-update-banner .announcementBanner.show {
     grid-template-columns: 1fr;
   }
 }
+
+/* ==================== Custom Modal System ==================== */
+
+/* Modal Overlay */
+.mx-modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.5);
+  backdrop-filter: blur(4px);
+  z-index: 10000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.2s ease;
+}
+
+.mx-modal-overlay.show {
+  opacity: 1;
+  pointer-events: all;
+}
+
+/* Modal Container */
+.mx-modal {
+  background: var(--surface);
+  border-radius: 12px;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+  max-width: 500px;
+  width: 90%;
+  transform: scale(0.9);
+  transition: transform 0.2s ease;
+  border: 1px solid var(--border);
+}
+
+.mx-modal-overlay.show .mx-modal {
+  transform: scale(1);
+}
+
+/* Modal Header */
+.mx-modal-header {
+  padding: 20px 24px;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.mx-modal-header i {
+  font-size: 24px;
+  color: var(--primary);
+}
+
+.mx-modal-header.warning i {
+  color: var(--warning);
+}
+
+.mx-modal-header.danger i {
+  color: var(--danger);
+}
+
+.mx-modal-title {
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--text);
+}
+
+/* Modal Body */
+.mx-modal-body {
+  padding: 24px;
+  color: var(--text-secondary);
+  line-height: 1.6;
+  white-space: pre-line; /* Preserve \n line breaks */
+}
+
+/* Modal Footer */
+.mx-modal-footer {
+  padding: 16px 24px;
+  border-top: 1px solid var(--border);
+  display: flex;
+  gap: 12px;
+  justify-content: flex-end;
+}
+
+.mx-modal-footer .btn {
+  min-width: 80px;
+}

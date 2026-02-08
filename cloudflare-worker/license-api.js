@@ -255,10 +255,10 @@ async function handleAdminCreate(request, env) {
 
   try {
     const body = await request.json();
-    const { maxServers = 1, expiresAt = null, note = '', createdBy = 'admin' } = body;
+    const { token: providedToken, maxServers = 1, expiresAt = null, note = '', createdBy = 'admin' } = body;
 
-    // Generate UUID v4 token
-    const token = crypto.randomUUID();
+    // Use provided token or generate new one
+    const token = providedToken || crypto.randomUUID();
     const now = Date.now();
 
     const licenseData = {

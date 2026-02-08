@@ -14,6 +14,29 @@
 
 window.MX_CHANGELOGS = [
   {
+    build: 289,
+    version: "2.0dev-289",
+    date: "2026-02-08",
+    title: "UI Modernization & Polish (Part 1)",
+    sections: [
+      { type: "improved", title: "UI Improvements", items: [
+        "**Custom Modals** - Replaced all browser confirm() dialogs with beautiful styled modals that match the panel theme",
+        "**Modal Types** - Modals now have three visual styles (default, warning, danger) with appropriate icons and color schemes",
+        "**Smooth Animations** - Modal overlays fade in with backdrop blur, content scales smoothly, and clicking outside dismisses",
+        "**ESC Key Support** - Press Escape to quickly cancel any confirmation modal"
+      ]},
+      { type: "fixed", title: "Bug Fixes", items: [
+        "**License Dates** - Fixed 'Invalid Date' error in admin panel licenses table caused by database field name mismatch (snake_case → camelCase)"
+      ]},
+      { type: "technical", title: "Technical Changes", items: [
+        "**showConfirm() Function** - New reusable modal system with Promise-based async/await support for cleaner code",
+        "**Gateway Date Mapping** - sendLicensesList() now properly maps database column names (created_at → createdAt) for frontend consumption",
+        "**Modal CSS** - Added .mx-modal-overlay, .mx-modal, .mx-modal-header/.body/.footer classes with full theming support",
+        "**Async Functions** - Updated 9 functions to async to support await showConfirm() (stress tests, rank management, imports)"
+      ]}
+    ]
+  },
+  {
     build: 288,
     version: "2.0dev-288",
     date: "2026-02-08",

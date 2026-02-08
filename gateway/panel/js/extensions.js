@@ -327,17 +327,23 @@
     }
   };
 
-  window.importFromPlugin = function(pluginName) {
+  window.importFromPlugin = async function(pluginName) {
     const ws = window.MX?.ws;
     if (!ws || !ws.isConnected()) {
       window.toast('warn', 'Not Connected', 'Cannot import - not connected to server');
       return;
     }
 
-    // Show confirmation dialog (you could add a proper modal here)
-    if (!confirm(`Import punishment history from ${pluginName}? This will add all punishments to ModereX.`)) {
-      return;
-    }
+    const confirmed = await window.MX.ui.showConfirm({
+      title: 'Import Punishment History',
+      message: `Import punishment history from ${pluginName}? This will add all punishments to ModereX.`,
+      confirmText: 'Import',
+      cancelText: 'Cancel',
+      type: 'warning',
+      icon: 'fa-exclamation-circle'
+    });
+
+    if (!confirmed) return;
 
     ws.send('IMPORT_EXTERNAL_PUNISHMENTS', {
       plugin: pluginName,
@@ -349,13 +355,20 @@
 
   // ===== KICK ALL =====
 
-  window.kickAllPlayers = function() {
+  window.kickAllPlayers = async function() {
     const reasonInput = document.getElementById('kickAllReason');
     const reason = reasonInput?.value?.trim() || 'Server maintenance';
 
-    if (!confirm(`Kick ALL players from the server?\n\nReason: ${reason}\n\nThis action cannot be undone.`)) {
-      return;
-    }
+    const confirmed = await window.MX.ui.showConfirm({
+      title: 'Kick All Players',
+      message: `Kick ALL players from the server?\n\nReason: ${reason}\n\nThis action cannot be undone.`,
+      confirmText: 'Kick All',
+      cancelText: 'Cancel',
+      type: 'danger',
+      icon: 'fa-triangle-exclamation'
+    });
+
+    if (!confirmed) return;
 
     const ws = window.MX?.ws;
     if (!ws || !ws.isConnected()) {

@@ -2146,12 +2146,88 @@
     refreshUnsavedUI();
   }
 
+  // ==================== Custom Modal System ====================
+
+  // Create modal container if it doesn't exist
+  function ensureModalContainer() {
+    if (!document.getElementById('mxModalOverlay')) {
+      const overlay = document.createElement('div');
+      overlay.id = 'mxModalOverlay';
+      overlay.className = 'mx-modal-overlay';
+      overlay.addEventListener('click', (e) => {
+        if (e.target === overlay) hideModal();
+      });
+      document.body.appendChild(overlay);
+    }
+    return document.getElementById('mxModalOverlay');
+  }
+
+  // Show confirmation modal (replaces confirm())
+  function showConfirm(options) {
+    return new Promise((resolve) => {
+      const {
+        title = 'Confirm',
+        message = '',
+        confirmText = 'Confirm',
+        cancelText = 'Cancel',
+        type = 'default', // 'default', 'warning', 'danger'
+        icon = 'fa-circle-question'
+      } = options;
+
+      const overlay = ensureModalContainer();
+
+      overlay.innerHTML = `
+        <div class="mx-modal">
+          <div class="mx-modal-header ${type}">
+            <i class="fa-solid ${icon}"></i>
+            <div class="mx-modal-title">${escapeHtml(title)}</div>
+          </div>
+          <div class="mx-modal-body">${escapeHtml(message)}</div>
+          <div class="mx-modal-footer">
+            <button class="btn" id="modalCancel">${escapeHtml(cancelText)}</button>
+            <button class="btn primary ${type === 'danger' ? 'danger' : ''}" id="modalConfirm">${escapeHtml(confirmText)}</button>
+          </div>
+        </div>
+      `;
+
+      overlay.classList.add('show');
+
+      document.getElementById('modalConfirm').onclick = () => {
+        hideModal();
+        resolve(true);
+      };
+
+      document.getElementById('modalCancel').onclick = () => {
+        hideModal();
+        resolve(false);
+      };
+
+      // ESC key to cancel
+      const escHandler = (e) => {
+        if (e.key === 'Escape') {
+          hideModal();
+          resolve(false);
+          document.removeEventListener('keydown', escHandler);
+        }
+      };
+      document.addEventListener('keydown', escHandler);
+    });
+  }
+
+  function hideModal() {
+    const overlay = document.getElementById('mxModalOverlay');
+    if (overlay) {
+      overlay.classList.remove('show');
+      setTimeout(() => overlay.innerHTML = '', 200);
+    }
+  }
+
   // Export to window
   window.MX = window.MX || {};
   window.MX.ui = {
     initDom, getDom, renderAll, renderDashboard, renderPlayers, renderPunishments,
     renderTemplates, renderRules, renderMessages, renderIntegrations, renderAnticheat, renderWatchlist,
     renderLogs, renderChatToggles, renderTopUser, renderWatchToastsToggle, refreshUnsavedUI, markUnsaved,
-    renderStaffSettings
+    renderStaffSettings, showConfirm, hideModal
   };
 })();

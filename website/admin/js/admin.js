@@ -45,7 +45,7 @@
             <div style="background:#1e1e1e;padding:30px;border-radius:8px;max-width:500px;color:#fff;">
                 <h2 style="margin-top:0;color:#4CAF50;">Configure Gateway</h2>
                 <p>Enter your ModereX gateway tunnel URL:</p>
-                <input type="text" id="gateway-url-input" placeholder="wss://geek-gotta-moon-wanna.trycloudflare.com"
+                <input type="text" id="gateway-url-input" placeholder="wss://ranges-references-diane-weather.trycloudflare.com"
                     value="${localStorage.getItem('moderex_gateway_url') || ''}"
                     style="width:100%;padding:10px;margin:10px 0;background:#2d2d2d;border:1px solid #444;color:#fff;border-radius:4px;">
                 <button id="save-gateway-btn" style="background:#4CAF50;color:#fff;border:none;padding:10px 20px;border-radius:4px;cursor:pointer;">
@@ -923,11 +923,17 @@
         hideCreateLicenseModal();
     };
 
-    window.revokeLicense = function(token) {
-        if (!confirm('Are you sure you want to revoke this license? This action cannot be undone.')) {
-            return;
-        }
+    window.revokeLicense = async function(token) {
+        const confirmed = await showConfirm({
+            title: 'Revoke License',
+            message: 'Are you sure you want to revoke this license? This action cannot be undone.',
+            confirmText: 'Revoke',
+            cancelText: 'Cancel',
+            type: 'danger',
+            icon: 'fa-triangle-exclamation'
+        });
 
+        if (!confirmed) return;
         send('revoke_license', { token });
     };
 
@@ -968,11 +974,17 @@
         });
     };
 
-    window.unsuspendServer = function(serverId) {
-        if (!confirm('Are you sure you want to unsuspend this server?')) {
-            return;
-        }
+    window.unsuspendServer = async function(serverId) {
+        const confirmed = await showConfirm({
+            title: 'Unsuspend Server',
+            message: 'Are you sure you want to unsuspend this server?',
+            confirmText: 'Unsuspend',
+            cancelText: 'Cancel',
+            type: 'default',
+            icon: 'fa-circle-question'
+        });
 
+        if (!confirmed) return;
         send('unsuspend_server', { serverId });
     };
 
@@ -1096,7 +1108,7 @@
         });
     };
 
-    window.sendEmergencyBroadcast = function() {
+    window.sendEmergencyBroadcast = async function() {
         const title = document.getElementById('emergencyTitle').value.trim();
         const message = document.getElementById('emergencyMessage').value.trim();
 
@@ -1105,9 +1117,16 @@
             return;
         }
 
-        if (!confirm('Are you sure you want to send this emergency broadcast? This cannot be dismissed by users.')) {
-            return;
-        }
+        const confirmed = await showConfirm({
+            title: 'Send Emergency Broadcast',
+            message: 'Are you sure you want to send this emergency broadcast? This cannot be dismissed by users.',
+            confirmText: 'Send',
+            cancelText: 'Cancel',
+            type: 'danger',
+            icon: 'fa-triangle-exclamation'
+        });
+
+        if (!confirmed) return;
 
         send('create_announcement', {
             title,
@@ -1120,14 +1139,32 @@
         hideEmergencyModal();
     };
 
-    window.deactivateAnnouncement = function(id) {
-        if (confirm('Deactivate this announcement?')) {
+    window.deactivateAnnouncement = async function(id) {
+        const confirmed = await showConfirm({
+            title: 'Deactivate Announcement',
+            message: 'Deactivate this announcement?',
+            confirmText: 'Deactivate',
+            cancelText: 'Cancel',
+            type: 'warning',
+            icon: 'fa-exclamation-circle'
+        });
+
+        if (confirmed) {
             send('deactivate_announcement', { id });
         }
     };
 
-    window.deleteAnnouncement = function(id) {
-        if (confirm('Delete this announcement permanently?')) {
+    window.deleteAnnouncement = async function(id) {
+        const confirmed = await showConfirm({
+            title: 'Delete Announcement',
+            message: 'Delete this announcement permanently?',
+            confirmText: 'Delete',
+            cancelText: 'Cancel',
+            type: 'danger',
+            icon: 'fa-triangle-exclamation'
+        });
+
+        if (confirmed) {
             send('delete_announcement', { id });
         }
     };
@@ -1139,8 +1176,17 @@
         send('generate_license_key', { duration, note });
     };
 
-    window.revokeKey = function(key) {
-        if (confirm('Revoke this license key?')) {
+    window.revokeKey = async function(key) {
+        const confirmed = await showConfirm({
+            title: 'Revoke License Key',
+            message: 'Revoke this license key?',
+            confirmText: 'Revoke',
+            cancelText: 'Cancel',
+            type: 'danger',
+            icon: 'fa-triangle-exclamation'
+        });
+
+        if (confirmed) {
             send('revoke_license_key', { key });
         }
     };
@@ -1186,6 +1232,79 @@
         const div = document.createElement('div');
         div.textContent = str;
         return div.innerHTML;
+    }
+
+    // ==================== Custom Modal System ====================
+
+    function ensureModalContainer() {
+        if (!document.getElementById('mxModalOverlay')) {
+            const overlay = document.createElement('div');
+            overlay.id = 'mxModalOverlay';
+            overlay.className = 'mx-modal-overlay';
+            overlay.addEventListener('click', (e) => {
+                if (e.target === overlay) hideModal();
+            });
+            document.body.appendChild(overlay);
+        }
+        return document.getElementById('mxModalOverlay');
+    }
+
+    function showConfirm(options) {
+        return new Promise((resolve) => {
+            const {
+                title = 'Confirm',
+                message = '',
+                confirmText = 'Confirm',
+                cancelText = 'Cancel',
+                type = 'default',
+                icon = 'fa-circle-question'
+            } = options;
+
+            const overlay = ensureModalContainer();
+
+            overlay.innerHTML = `
+                <div class="mx-modal">
+                    <div class="mx-modal-header ${type}">
+                        <i class="fa-solid ${icon}"></i>
+                        <div class="mx-modal-title">${escapeHtml(title)}</div>
+                    </div>
+                    <div class="mx-modal-body">${escapeHtml(message)}</div>
+                    <div class="mx-modal-footer">
+                        <button class="btn" id="modalCancel">${escapeHtml(cancelText)}</button>
+                        <button class="btn primary ${type === 'danger' ? 'danger' : ''}" id="modalConfirm">${escapeHtml(confirmText)}</button>
+                    </div>
+                </div>
+            `;
+
+            overlay.classList.add('show');
+
+            document.getElementById('modalConfirm').onclick = () => {
+                hideModal();
+                resolve(true);
+            };
+
+            document.getElementById('modalCancel').onclick = () => {
+                hideModal();
+                resolve(false);
+            };
+
+            const escHandler = (e) => {
+                if (e.key === 'Escape') {
+                    hideModal();
+                    resolve(false);
+                    document.removeEventListener('keydown', escHandler);
+                }
+            };
+            document.addEventListener('keydown', escHandler);
+        });
+    }
+
+    function hideModal() {
+        const overlay = document.getElementById('mxModalOverlay');
+        if (overlay) {
+            overlay.classList.remove('show');
+            setTimeout(() => overlay.innerHTML = '', 200);
+        }
     }
 
     function formatTime(timestamp) {

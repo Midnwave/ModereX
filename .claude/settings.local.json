@@ -52,7 +52,12 @@
       "Bash(node -c:*)",
       "Bash(xcopy /Y /S \"app\\\\src\\\\main\\\\resources\\\\panel\\\\js\\\\*\" \"gateway\\\\panel\\\\js\"\" && xcopy /Y /S \"appsrcmainresourcespaneljs*\" \"moderex-paneljs\"\")",
       "Bash(xcopy /Y \"app\\\\src\\\\main\\\\resources\\\\panel\\\\css\\\\styles.css\" \"gateway\\\\panel\\\\css\"\" && xcopy /Y \"appsrcmainresourcespanelcssstyles.css\" \"moderex-panelcss\"\")",
-      "Bash(xcopy /Y \"app\\\\src\\\\main\\\\resources\\\\panel\\\\index.html\" \"gateway\\\\panel\"\" && xcopy /Y \"appsrcmainresourcespanelindex.html\" \"moderex-panel\"\")"
+      "Bash(xcopy /Y \"app\\\\src\\\\main\\\\resources\\\\panel\\\\index.html\" \"gateway\\\\panel\"\" && xcopy /Y \"appsrcmainresourcespanelindex.html\" \"moderex-panel\"\")",
+      "Bash(wrangler secret put:*)",
+      "Bash(wrangler deploy:*)",
+      "Bash(curl:*)",
+      "Bash(netstat:*)",
+      "Bash(node gateway.js:*)"
     ]
   }
 }

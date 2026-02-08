@@ -12697,7 +12697,7 @@
    * Create test players via server
    * Server will add actual players to the database
    */
-  function startCreateTestPlayers() {
+  async function startCreateTestPlayers() {
     const count = Math.min(10000, Math.max(1, parseInt(document.getElementById('spoofPlayerCount')?.value || '100', 10)));
 
     if (!window.MX.ws?.isConnected()) {
@@ -12705,9 +12705,16 @@
       return;
     }
 
-    if (!confirm(`This will create ${count.toLocaleString()} TEST players in the database.\n\nThese players will have names like "TestPlayer_1234" and can be cleaned up later.\n\nContinue?`)) {
-      return;
-    }
+    const confirmed = await window.MX.ui.showConfirm({
+      title: 'Create Test Players',
+      message: `This will create ${count.toLocaleString()} TEST players in the database.\n\nThese players will have names like "TestPlayer_1234" and can be cleaned up later.\n\nContinue?`,
+      confirmText: 'Create',
+      cancelText: 'Cancel',
+      type: 'warning',
+      icon: 'fa-exclamation-circle'
+    });
+
+    if (!confirmed) return;
 
     const progressEl = document.getElementById('spoofPlayerProgress');
     const fillEl = document.getElementById('spoofPlayerFill');
@@ -12730,7 +12737,7 @@
    * Create test punishments via server
    * Server will add actual punishments to the database
    */
-  function startCreateTestPunishments() {
+  async function startCreateTestPunishments() {
     const count = Math.min(5000, Math.max(1, parseInt(document.getElementById('spoofPunishmentCount')?.value || '500', 10)));
 
     if (!window.MX.ws?.isConnected()) {
@@ -12738,9 +12745,16 @@
       return;
     }
 
-    if (!confirm(`This will create ${count.toLocaleString()} TEST punishments in the database.\n\nThese punishments will be marked as test data and can be cleaned up later.\n\nContinue?`)) {
-      return;
-    }
+    const confirmed = await window.MX.ui.showConfirm({
+      title: 'Create Test Punishments',
+      message: `This will create ${count.toLocaleString()} TEST punishments in the database.\n\nThese punishments will be marked as test data and can be cleaned up later.\n\nContinue?`,
+      confirmText: 'Create',
+      cancelText: 'Cancel',
+      type: 'warning',
+      icon: 'fa-exclamation-circle'
+    });
+
+    if (!confirmed) return;
 
     const progressEl = document.getElementById('spoofPunishmentProgress');
     const fillEl = document.getElementById('spoofPunishmentFill');
@@ -12762,15 +12776,22 @@
   /**
    * Request server to clean up all test data
    */
-  function cleanupTestData() {
+  async function cleanupTestData() {
     if (!window.MX.ws?.isConnected()) {
       toast('warn', 'Not Connected', 'Must be connected to server to clean up test data');
       return;
     }
 
-    if (!confirm('This will remove ALL test data created by stress tests from the database.\n\nThis includes test players, test punishments, and test tokens.\n\nContinue?')) {
-      return;
-    }
+    const confirmed = await window.MX.ui.showConfirm({
+      title: 'Cleanup Test Data',
+      message: 'This will remove ALL test data created by stress tests from the database.\n\nThis includes test players, test punishments, and test tokens.\n\nContinue?',
+      confirmText: 'Delete All',
+      cancelText: 'Cancel',
+      type: 'danger',
+      icon: 'fa-triangle-exclamation'
+    });
+
+    if (!confirmed) return;
 
     window.MX.ws.send('DEV_STRESS_CLEANUP', {
       timestamp: Date.now()
@@ -12953,7 +12974,7 @@
     toast('ok', 'Complete', `Created ${automodStressTestCreated.length} automod rules with ${triggersPerRule * automodStressTestCreated.length} total triggers.`);
   }
 
-  function cleanupAutomodStressTest() {
+  async function cleanupAutomodStressTest() {
     if (!window.MX?.ws?.isConnected()) {
       toast('warn', 'Not Connected', 'Must be connected to server');
       return;
@@ -12967,9 +12988,16 @@
       return;
     }
 
-    if (!confirm(`This will delete ${stressRules.length} stress test rules. Continue?`)) {
-      return;
-    }
+    const confirmed = await window.MX.ui.showConfirm({
+      title: 'Delete Stress Test Rules',
+      message: `This will delete ${stressRules.length} stress test rules. Continue?`,
+      confirmText: 'Delete',
+      cancelText: 'Cancel',
+      type: 'danger',
+      icon: 'fa-triangle-exclamation'
+    });
+
+    if (!confirmed) return;
 
     const logEl = document.getElementById('stressAutomodLog');
     if (logEl) logEl.innerHTML = `<div class="stress-log-entry">Deleting ${stressRules.length} stress test rules...</div>`;
@@ -13695,13 +13723,20 @@
   window.debugLoadAutomodAlerts = debugLoadAutomodAlerts;
 
   // ===== TOKEN STRESS TEST =====
-  function startTokenStressTest() {
+  async function startTokenStressTest() {
     const count = Math.min(50000, Math.max(100, parseInt(document.getElementById('tokenStressCount')?.value || '1000', 10)));
 
     // Show warning modal first
-    if (!confirm(`This will generate ${count.toLocaleString()} tokens and test authentication speed.\n\nYou will be LOGGED OUT after this test completes and must re-authenticate with your permanent token.\n\nDevice fingerprint bypass will be enabled - you MUST enter your token manually.\n\nContinue?`)) {
-      return;
-    }
+    const confirmed = await window.MX.ui.showConfirm({
+      title: 'Token Stress Test',
+      message: `This will generate ${count.toLocaleString()} tokens and test authentication speed.\n\nYou will be LOGGED OUT after this test completes and must re-authenticate with your permanent token.\n\nDevice fingerprint bypass will be enabled - you MUST enter your token manually.\n\nContinue?`,
+      confirmText: 'Start Test',
+      cancelText: 'Cancel',
+      type: 'danger',
+      icon: 'fa-triangle-exclamation'
+    });
+
+    if (!confirmed) return;
 
     toast('info', 'Token Stress Test', `Generating ${count.toLocaleString()} tokens...`);
 
@@ -14443,8 +14478,17 @@
       ws.send('CREATE_RANK', { name: name.toLowerCase().replace(/\s+/g, '_'), displayName: name, weight: (ranksData.length + 1) * 10 });
     });
 
-    document.getElementById('btnExportLP')?.addEventListener('click', () => {
-      if (confirm('Export all ranks and player assignments to LuckPerms? This will create/update LuckPerms groups.')) {
+    document.getElementById('btnExportLP')?.addEventListener('click', async () => {
+      const confirmed = await window.MX.ui.showConfirm({
+        title: 'Export to LuckPerms',
+        message: 'Export all ranks and player assignments to LuckPerms? This will create/update LuckPerms groups.',
+        confirmText: 'Export',
+        cancelText: 'Cancel',
+        type: 'warning',
+        icon: 'fa-exclamation-circle'
+      });
+
+      if (confirmed) {
         ws.send('EXPORT_TO_LUCKPERMS', {});
       }
     });
@@ -14461,10 +14505,20 @@
       });
     });
 
-    document.getElementById('btnDeleteRank')?.addEventListener('click', () => {
+    document.getElementById('btnDeleteRank')?.addEventListener('click', async () => {
       if (!selectedRankId) return;
       const rank = ranksData.find(r => r.id === selectedRankId);
-      if (confirm(`Delete rank "${rank?.displayName}"? Players will be reassigned to the default rank.`)) {
+
+      const confirmed = await window.MX.ui.showConfirm({
+        title: 'Delete Rank',
+        message: `Delete rank "${rank?.displayName}"? Players will be reassigned to the default rank.`,
+        confirmText: 'Delete',
+        cancelText: 'Cancel',
+        type: 'danger',
+        icon: 'fa-triangle-exclamation'
+      });
+
+      if (confirmed) {
         ws.send('DELETE_RANK', { id: selectedRankId });
       }
     });

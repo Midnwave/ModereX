@@ -114,13 +114,14 @@ async function main() {
 
     // Step 4: Run Gradle build with license token
     info('Step 4: Building licensed JAR with Gradle...');
-    const gradleCmd = process.platform === 'win32' ? 'gradlew.bat' : './gradlew';
+    const gradleCmd = process.platform === 'win32' ? '.\\gradlew.bat' : './gradlew';
     const buildCommand = `${gradleCmd} clean buildLicensed -PlicenseToken=${licenseToken}`;
 
     info(`Running: ${buildCommand}`);
     execSync(buildCommand, {
       cwd: BUILD_DIR,
       stdio: 'inherit',
+      shell: true,
     });
     success('JAR built successfully\n');
 

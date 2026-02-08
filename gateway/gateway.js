@@ -2963,9 +2963,25 @@ function sendLicensesList(ws) {
 
     try {
         const licenses = db.prepare('SELECT * FROM license_builds ORDER BY created_at DESC').all();
+
+        // Map snake_case to camelCase for frontend
+        const mappedLicenses = licenses.map(row => ({
+            token: row.token,
+            testerName: row.tester_name,
+            buildVersion: row.build_version,
+            buildTimestamp: row.build_timestamp,
+            jarFilename: row.jar_filename,
+            createdBy: row.created_by,
+            createdAt: row.created_at,
+            active: row.active,
+            expiresAt: row.expires_at || null,
+            lastHeartbeat: row.last_heartbeat || null,
+            note: row.note || null
+        }));
+
         ws.send(JSON.stringify({
             type: 'licenses_list',
-            licenses: licenses
+            licenses: mappedLicenses
         }));
     } catch (e) {
         console.error('[Licenses] Failed to fetch licenses:', e);
