@@ -1,0 +1,347 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ModereX Staff Panel</title>
+
+  <!-- Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+
+  <!-- Font Awesome -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+
+  <!-- Panel Stylesheet -->
+  <link rel="stylesheet" href="css/demo.css">
+
+  <!-- Favicon -->
+  <link rel="icon" type="image/png" href="../images/logo.png">
+</head>
+<body>
+  <!-- Background -->
+  <canvas id="bgCanvas"></canvas>
+  <div class="bg-aurora"></div>
+  <div class="bg-lines"></div>
+  <div class="bg-noise"></div>
+
+  <!-- Auth Overlay -->
+  <div class="authOverlay" id="authOverlay">
+    <div class="authBox">
+      <div class="logo logo-img"><img src="../images/logo.png" alt="ModereX logo" style="width:42px;height:42px;border-radius:10px;"></div>
+      <h2>ModereX Control Panel</h2>
+
+      <!-- Auth form -->
+      <div id="authForm">
+        <div class="auth-manual" style="text-align:left;">
+          <label style="font-size:13px;font-weight:600;color:var(--text-secondary);margin-bottom:8px;display:block;">Authentication Token</label>
+          <input type="text" id="authToken" class="input" placeholder="Paste your token here..." autocomplete="off" style="width:100%;font-family:'JetBrains Mono',monospace;font-size:12px;">
+          <div class="auth-status" style="margin-top:8px;font-size:12px;color:var(--muted);">Generate a token with <code>/mx token</code> in-game</div>
+        </div>
+        <button class="btn primary" onclick="simulateAuth()" style="margin-top:16px;width:100%;justify-content:center;">
+          <i class="fas fa-plug"></i> Connect
+        </button>
+      </div>
+
+      <!-- Status Display -->
+      <div class="auth-status-area" id="authStatusArea" style="display:none;">
+        <div class="auth-spinner-wrap" id="authSpinnerWrap">
+          <div class="spinner" id="authSpinner"></div>
+          <div class="auth-success-check" id="authSuccessCheck" style="display:none;">
+            <svg viewBox="0 0 52 52" class="checkmark-svg" style="width:52px;height:52px;">
+              <circle class="checkmark-circle" cx="26" cy="26" r="25" fill="none" stroke="#10b981" stroke-width="2"/>
+              <path class="checkmark-check" fill="none" stroke="#10b981" stroke-width="3" d="M14 27l7 7 16-16"/>
+            </svg>
+          </div>
+        </div>
+        <div class="auth-status-text" id="authStatusText">Connecting...</div>
+        <div class="auth-status-sub" id="authStatusSub">Establishing secure connection</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Main Layout -->
+  <div class="layout" id="mainLayout" style="display:none;">
+    <!-- Sidebar -->
+    <aside class="sidebar" id="sidebar">
+      <div class="sb-head">
+        <img src="../images/logo.png" class="logo" alt="ModereX" style="width:42px;height:42px;border-radius:10px;">
+        <div class="brand"><b>ModereX</b><span style="color:var(--muted);font-size:12px;">Staff Panel</span></div>
+      </div>
+
+      <div class="sb-scroll">
+        <!-- Overview -->
+        <div class="sb-group">
+          <div class="sb-label">Overview</div>
+          <div class="sb-item active" data-page="dashboard" onclick="go('dashboard')">
+            <i class="fas fa-home"></i><span>Dashboard</span>
+          </div>
+        </div>
+
+        <!-- Enforcement -->
+        <div class="sb-group">
+          <div class="sb-label">Enforcement</div>
+          <div class="sb-item" data-page="players" onclick="go('players')">
+            <i class="fas fa-users"></i><span>Players</span>
+          </div>
+          <div class="sb-item" data-page="punishments" onclick="go('punishments')">
+            <i class="fas fa-gavel"></i><span>Punishments</span>
+          </div>
+          <div class="sb-item" data-page="automod" onclick="go('automod')">
+            <i class="fas fa-robot"></i><span>AutoMod</span>
+          </div>
+          <div class="sb-item" data-page="watchlist" onclick="go('watchlist')">
+            <i class="fas fa-eye"></i><span>Watchlist</span>
+          </div>
+        </div>
+
+        <!-- Monitoring -->
+        <div class="sb-group">
+          <div class="sb-label">Monitoring</div>
+          <div class="sb-item" data-page="activity" onclick="go('activity')">
+            <i class="fas fa-chart-line"></i><span>Activity Log</span>
+          </div>
+          <div class="sb-item" data-page="chatlog" onclick="go('chatlog')">
+            <i class="fas fa-comments"></i><span>Chat Log</span>
+          </div>
+        </div>
+
+        <!-- Configuration -->
+        <div class="sb-group">
+          <div class="sb-label">Configuration</div>
+          <div class="sb-item" data-page="settings" onclick="go('settings')">
+            <i class="fas fa-cog"></i><span>Settings</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="sb-foot">
+        <div class="sb-version" style="padding:12px 20px;font-size:11px;color:var(--muted);">
+          <i class="fas fa-code-branch"></i>
+          <span>v2.0dev-278</span>
+        </div>
+      </div>
+    </aside>
+
+    <!-- Main Content -->
+    <main class="main">
+      <!-- Topbar -->
+      <div class="topbar">
+        <button class="sidebarToggle" onclick="toggleSidebar()">
+          <i class="fas fa-bars"></i>
+        </button>
+
+        <div class="gsearch-container">
+          <div class="gsearch">
+            <i class="fas fa-search" style="color:var(--muted);"></i>
+            <input type="text" placeholder="Search players, punishments..." id="globalSearch" oninput="handleSearch(this.value)" style="background:none;border:none;color:var(--text);outline:none;flex:1;font-size:14px;">
+          </div>
+        </div>
+
+        <div class="top-actions">
+          <div class="chip">
+            <i class="fas fa-clock"></i>
+            <span id="timeChip">12:00 PM</span>
+          </div>
+          <div class="chip" id="pingChip" style="color:var(--ok);">
+            <i class="fas fa-signal"></i>
+            <span id="pingValue">12ms</span>
+          </div>
+          <div class="chip online">
+            <span class="status-dot"></span>
+            <span id="onlineCount">0 Online</span>
+          </div>
+          <div class="top-profile" onclick="toast('info','Profile','Click your avatar to manage settings')">
+            <div class="top-avatar" style="width:32px;height:32px;border-radius:8px;background:linear-gradient(135deg,var(--primary),var(--accent));display:flex;align-items:center;justify-content:center;font-weight:700;font-size:13px;cursor:pointer;">S</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Content Area -->
+      <div class="content">
+        <!-- Dashboard Page -->
+        <section class="page active" id="page-dashboard">
+          <div class="page-head">
+            <div class="page-head-left">
+              <h1><i class="fas fa-home" style="margin-right:10px;opacity:0.5;"></i>Dashboard</h1>
+              <p>Server overview and recent activity</p>
+            </div>
+            <div class="page-head-right">
+              <button class="btn ghost" onclick="toast('ok','Refreshed','Dashboard data updated')">
+                <i class="fas fa-sync-alt"></i> Refresh
+              </button>
+            </div>
+          </div>
+
+          <div class="panel pad">
+            <div class="grid cols-4" id="dashboardStats">
+              <div class="stat"><div class="stat-icon online"><i class="fas fa-users"></i></div><b id="stat-online">0</b><span>Online Players</span></div>
+              <div class="stat"><div class="stat-icon bad"><i class="fas fa-ban"></i></div><b id="stat-bans">0</b><span>Active Bans</span></div>
+              <div class="stat"><div class="stat-icon warn"><i class="fas fa-exclamation-triangle"></i></div><b id="stat-warns">0</b><span>Warnings (24h)</span></div>
+              <div class="stat"><div class="stat-icon"><i class="fas fa-robot"></i></div><b id="stat-automod">0</b><span>AutoMod Blocks</span></div>
+            </div>
+
+            <div class="card" style="margin-top:24px;">
+              <div class="card-head"><h3><i class="fas fa-gavel" style="margin-right:8px;opacity:0.5;"></i>Recent Punishments</h3></div>
+              <div class="table-wrap">
+                <table>
+                  <thead><tr><th>Player</th><th>Type</th><th>Reason</th><th>Staff</th><th>Time</th></tr></thead>
+                  <tbody id="recentPunishmentsTable"></tbody>
+                </table>
+              </div>
+            </div>
+
+            <div class="card" style="margin-top:16px;">
+              <div class="card-head"><h3><i class="fas fa-comments" style="margin-right:8px;opacity:0.5;"></i>Recent Chat</h3></div>
+              <div class="table-wrap" style="max-height:300px;">
+                <table>
+                  <thead><tr><th>Time</th><th>Player</th><th>Message</th></tr></thead>
+                  <tbody id="recentChatTable"></tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- Players Page -->
+        <section class="page" id="page-players">
+          <div class="page-head">
+            <div class="page-head-left">
+              <h1><i class="fas fa-users" style="margin-right:10px;opacity:0.5;"></i>Player Management</h1>
+              <p>View and manage all known players</p>
+            </div>
+          </div>
+          <div class="panel pad">
+            <div class="table-wrap"><table>
+              <thead><tr><th>Player</th><th>Platform</th><th>Status</th><th>Last Seen</th><th>Flags</th><th>Actions</th></tr></thead>
+              <tbody id="playersTable"></tbody>
+            </table></div>
+            <div class="pagination" id="playersPagination"></div>
+          </div>
+        </section>
+
+        <!-- Punishments Page -->
+        <section class="page" id="page-punishments">
+          <div class="page-head">
+            <div class="page-head-left">
+              <h1><i class="fas fa-gavel" style="margin-right:10px;opacity:0.5;"></i>Punishments</h1>
+              <p>View and manage all issued punishments</p>
+            </div>
+          </div>
+          <div class="panel pad">
+            <div class="filter-row" style="margin-bottom:16px;display:flex;gap:8px;flex-wrap:wrap;">
+              <button class="chip-btn active" data-type="all" onclick="filterPunishments('all')">All</button>
+              <button class="chip-btn" data-type="BAN" onclick="filterPunishments('BAN')"><span class="badge red">BAN</span></button>
+              <button class="chip-btn" data-type="MUTE" onclick="filterPunishments('MUTE')"><span class="badge orange">MUTE</span></button>
+              <button class="chip-btn" data-type="WARN" onclick="filterPunishments('WARN')"><span class="badge yellow">WARN</span></button>
+              <button class="chip-btn" data-type="KICK" onclick="filterPunishments('KICK')"><span class="badge gray">KICK</span></button>
+            </div>
+            <div class="table-wrap"><table>
+              <thead><tr><th>Player</th><th>Case</th><th>Type</th><th>Reason</th><th>Staff</th><th>Duration</th><th>Date</th></tr></thead>
+              <tbody id="punishmentsTable"></tbody>
+            </table></div>
+            <div class="pagination" id="punishmentsPagination"></div>
+          </div>
+        </section>
+
+        <!-- AutoMod Page -->
+        <section class="page" id="page-automod">
+          <div class="page-head">
+            <div class="page-head-left">
+              <h1><i class="fas fa-robot" style="margin-right:10px;opacity:0.5;"></i>AutoMod</h1>
+              <p>Automated chat moderation events</p>
+            </div>
+          </div>
+          <div class="panel pad">
+            <div class="table-wrap"><table>
+              <thead><tr><th>Time</th><th>Player</th><th>Rule</th><th>Message</th><th>Action</th></tr></thead>
+              <tbody id="automodTable"></tbody>
+            </table></div>
+          </div>
+        </section>
+
+        <!-- Watchlist Page -->
+        <section class="page" id="page-watchlist">
+          <div class="page-head">
+            <div class="page-head-left">
+              <h1><i class="fas fa-eye" style="margin-right:10px;opacity:0.5;"></i>Watchlist</h1>
+              <p>Monitored players flagged for review</p>
+            </div>
+          </div>
+          <div class="panel pad">
+            <div class="table-wrap"><table>
+              <thead><tr><th>Player</th><th>Reason</th><th>Added By</th><th>Date Added</th><th>Priority</th></tr></thead>
+              <tbody id="watchlistTable"></tbody>
+            </table></div>
+          </div>
+        </section>
+
+        <!-- Activity Log Page -->
+        <section class="page" id="page-activity">
+          <div class="page-head">
+            <div class="page-head-left">
+              <h1><i class="fas fa-chart-line" style="margin-right:10px;opacity:0.5;"></i>Activity Log</h1>
+              <p>Staff and system actions</p>
+            </div>
+          </div>
+          <div class="panel pad">
+            <div class="table-wrap"><table>
+              <thead><tr><th>Time</th><th>Actor</th><th>Action</th><th>Target</th><th>Details</th></tr></thead>
+              <tbody id="activityTable"></tbody>
+            </table></div>
+          </div>
+        </section>
+
+        <!-- Chat Log Page -->
+        <section class="page" id="page-chatlog">
+          <div class="page-head">
+            <div class="page-head-left">
+              <h1><i class="fas fa-comments" style="margin-right:10px;opacity:0.5;"></i>Chat Log</h1>
+              <p>Complete server chat history</p>
+            </div>
+          </div>
+          <div class="panel pad">
+            <div class="table-wrap" style="max-height:600px;"><table>
+              <thead><tr><th>Time</th><th>Player</th><th>Message</th></tr></thead>
+              <tbody id="chatlogTable"></tbody>
+            </table></div>
+            <div class="pagination" id="chatlogPagination"></div>
+          </div>
+        </section>
+
+        <!-- Settings Page -->
+        <section class="page" id="page-settings">
+          <div class="page-head">
+            <div class="page-head-left">
+              <h1><i class="fas fa-cog" style="margin-right:10px;opacity:0.5;"></i>Settings</h1>
+              <p>Panel and server configuration</p>
+            </div>
+          </div>
+          <div class="panel pad">
+            <div class="card"><div class="card-head"><h3>General Settings</h3></div>
+              <div style="padding:16px;display:flex;flex-direction:column;gap:16px;">
+                <div><label style="font-size:13px;font-weight:600;display:block;margin-bottom:6px;">Server Name</label><input type="text" class="input" value="My Minecraft Server" style="width:100%;"></div>
+                <div><label style="font-size:13px;font-weight:600;display:block;margin-bottom:6px;">Max Players</label><input type="number" class="input" value="100" style="width:100%;"></div>
+                <div style="display:flex;gap:12px;"><button class="btn primary" onclick="toast('ok','Saved','Settings saved successfully')"><i class="fas fa-save"></i> Save Changes</button><button class="btn ghost" onclick="toast('info','Reset','Settings restored to defaults')"><i class="fas fa-undo"></i> Reset</button></div>
+              </div>
+            </div>
+          </div>
+        </section>
+      </div>
+    </main>
+  </div>
+
+  <!-- Player Drawer Overlay -->
+  <div class="overlay" id="drawerOverlay" onclick="if(event.target===this)closeDrawer()">
+    <div class="drawer" id="playerDrawer"></div>
+  </div>
+
+  <!-- Toast Container -->
+  <div id="toastContainer" style="position:fixed;bottom:20px;right:20px;z-index:9999;display:flex;flex-direction:column-reverse;gap:12px;max-width:400px;"></div>
+
+  <!-- Scripts -->
+  <script src="js/fake-data.js"></script>
+  <script src="js/demo.js"></script>
+</body>
+</html>

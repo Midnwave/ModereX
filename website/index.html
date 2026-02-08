@@ -3,10 +3,30 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>ModereX - Modern Minecraft Moderation Plugin</title>
-    <meta name="description" content="The most advanced, all-in-one moderation plugin for Minecraft 1.21+. Real-time web panel, evidence system, AutoMod, player portal, and gateway access. Free and open source.">
-    <meta name="keywords" content="minecraft, moderation, plugin, spigot, paper, web panel, automod, punishment, evidence">
+    <title>ModereX - Advanced Moderation for Minecraft</title>
+    <meta name="description" content="Next-generation Minecraft moderation plugin with real-time web panel, smart AutoMod, evidence system, activity logging, and gateway access. Built for Paper/Spigot 1.21+ servers.">
+    <meta name="keywords" content="minecraft, moderation, plugin, spigot, paper, web panel, automod, punishment, evidence, staff tools">
     <meta name="theme-color" content="#2d7aed">
+
+    <!-- Favicon -->
+    <link rel="icon" type="image/png" href="images/logo.png">
+    <link rel="apple-touch-icon" href="images/logo.png">
+
+    <!-- Open Graph / Discord Embed -->
+    <meta property="og:type" content="website">
+    <meta property="og:url" content="https://moderex.net/">
+    <meta property="og:title" content="ModereX - Advanced Moderation for Minecraft">
+    <meta property="og:description" content="Next-generation Minecraft moderation plugin with real-time web panel, smart AutoMod, evidence system, and more.">
+    <meta property="og:image" content="https://moderex.net/images/logo.png">
+    <meta property="og:site_name" content="ModereX">
+
+    <!-- Twitter Card -->
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:url" content="https://moderex.net/">
+    <meta name="twitter:title" content="ModereX - Advanced Moderation for Minecraft">
+    <meta name="twitter:description" content="Next-generation Minecraft moderation plugin with real-time web panel, smart AutoMod, evidence system, and more.">
+    <meta name="twitter:image" content="https://moderex.net/images/logo.png">
+
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
@@ -18,7 +38,7 @@
     <nav class="navbar">
         <div class="container nav-container">
             <a href="/" class="logo">
-                <span class="logo-icon">MX</span>
+                <img src="images/logo.png" alt="ModereX" class="logo-img">
                 <span class="logo-text">ModereX</span>
             </a>
             <div class="nav-links">
@@ -204,21 +224,23 @@
                         <div class="panel-dots">
                             <span></span><span></span><span></span>
                         </div>
-                        <span class="panel-title">ModereX Staff Panel - Real-time Dashboard</span>
+                        <span class="panel-title">ModereX Staff Panel - Interactive Demo</span>
                         <div class="panel-status">
                             <span class="status-dot"></span>
-                            <span>Live</span>
+                            <span>Live Demo</span>
                         </div>
                     </div>
                     <div class="panel-content">
-                        <div class="panel-mock">
+                        <iframe src="demo/index.html" class="demo-iframe" style="width:100%;height:600px;border:none;border-radius:0 0 12px 12px;"></iframe>
+                        <!-- Old mockup removed, replaced with functional demo -->
+                        <div class="panel-mock" style="display:none;">
                             <!-- Animated cursor -->
                             <div class="panel-cursor"></div>
 
                             <!-- Sidebar -->
                             <div class="panel-sidebar">
                                 <div class="panel-sidebar-header">
-                                    <div class="panel-sidebar-logo">MX</div>
+                                    <img src="images/logo.png" alt="ModereX" class="panel-sidebar-logo">
                                     <span class="panel-sidebar-title">ModereX</span>
                                 </div>
                                 <div class="panel-nav-item active">
@@ -333,6 +355,14 @@
                     </div>
                 </div>
             </div>
+
+            <div class="demo-cta" style="margin-top:32px;text-align:center;padding:24px;background:var(--bg-elevated);border-radius:var(--radius);border:1px solid var(--border);">
+                <p style="margin-bottom:16px;font-size:16px;">👆 <strong>This is a fully functional demo</strong> - click around and explore all the features!</p>
+                <a href="demo/index.html" target="_blank" class="btn btn-primary btn-lg">
+                    <i class="fas fa-expand"></i> Open Full Screen Demo
+                </a>
+            </div>
+
             <div class="panel-features-grid">
                 <div class="panel-feature">
                     <div class="panel-feature-icon"><i class="fas fa-bolt"></i></div>
@@ -595,7 +625,7 @@
             <div class="footer-content">
                 <div class="footer-brand">
                     <div class="logo">
-                        <span class="logo-icon">MX</span>
+                        <img src="images/logo.png" alt="ModereX" class="logo-img">
                         <span class="logo-text">ModereX</span>
                     </div>
                     <p>The future of Minecraft moderation</p>
