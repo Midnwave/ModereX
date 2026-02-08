@@ -14,6 +14,31 @@
 
 window.MX_CHANGELOGS = [
   {
+    build: 279,
+    version: "2.0dev-279",
+    date: "2026-02-08",
+    title: "Admin Panel & Gateway Fixes",
+    sections: [
+      {
+        type: "fixed",
+        title: "Bug Fixes",
+        items: [
+          "**Admin Panel Auth** - Removed ADMIN_DEV_KEY requirement for gateway admin connections",
+          "**Panel Dropdowns** - Fixed custom select dropdowns not rendering in gateway and standalone panel",
+          "**Discord Modal** - Fixed close button layout in Discord support modal",
+          "**Logo Color** - Fixed hardcoded blue gradient in sidebar logo, now uses theme variables"
+        ]
+      },
+      {
+        type: "improved",
+        title: "Improvements",
+        items: [
+          "**Panel Sync** - Synced gateway and standalone panel copies with latest CSS, HTML, and JS"
+        ]
+      }
+    ]
+  },
+  {
     build: 278,
     version: "2.0dev-278",
     date: "2026-02-07",

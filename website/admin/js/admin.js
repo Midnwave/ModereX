@@ -44,18 +44,14 @@
             <div style="background:#1e1e1e;padding:30px;border-radius:8px;max-width:500px;color:#fff;">
                 <h2 style="margin-top:0;color:#4CAF50;">Configure Gateway</h2>
                 <p>Enter your ModereX gateway tunnel URL:</p>
-                <input type="text" id="gateway-url-input" placeholder="wss://coaches-mainland-wall-morrison.trycloudflare.com"
+                <input type="text" id="gateway-url-input" placeholder="wss://geek-gotta-moon-wanna.trycloudflare.com"
                     value="${localStorage.getItem('moderex_gateway_url') || ''}"
                     style="width:100%;padding:10px;margin:10px 0;background:#2d2d2d;border:1px solid #444;color:#fff;border-radius:4px;">
-                <p style="margin-top:10px;">Admin Dev Key (from gateway .env):</p>
-                <input type="text" id="gateway-key-input" placeholder="ADMIN_DEV_KEY value"
-                    value="${localStorage.getItem('moderex_admin_key') || ''}"
-                    style="width:100%;padding:10px;margin:10px 0;background:#2d2d2d;border:1px solid #444;color:#fff;border-radius:4px;font-family:monospace;">
                 <button id="save-gateway-btn" style="background:#4CAF50;color:#fff;border:none;padding:10px 20px;border-radius:4px;cursor:pointer;">
                     Save & Connect
                 </button>
                 <p style="margin-top:15px;font-size:12px;color:#888;">
-                    Find your tunnel URL in the gateway startup output. The dev key is in your gateway .env file.
+                    Find your tunnel URL in the gateway startup output.
                 </p>
             </div>
         `;
@@ -63,24 +59,13 @@
 
         document.getElementById('save-gateway-btn').addEventListener('click', () => {
             const url = document.getElementById('gateway-url-input').value.trim();
-            const key = document.getElementById('gateway-key-input').value.trim();
             if (url) localStorage.setItem('moderex_gateway_url', url);
-            if (key) localStorage.setItem('moderex_admin_key', key);
             document.body.removeChild(modal);
             location.reload();
         });
     }
 
-    function getGatewayWsUrl() {
-        let url = getAdminGatewayUrl();
-        const devKey = localStorage.getItem('moderex_admin_key');
-        if (devKey) {
-            url += (url.includes('?') ? '&' : '?') + 'key=' + encodeURIComponent(devKey);
-        }
-        return url;
-    }
-
-    const GATEWAY_WS_URL = getGatewayWsUrl();
+    const GATEWAY_WS_URL = getAdminGatewayUrl();
 
     // State
     let ws = null;
@@ -322,9 +307,6 @@
             case 'error':
                 console.error('[Admin] Gateway error:', data.message || data.error);
                 toast('error', 'Error', data.message || data.error || 'Unknown error');
-                if (data.code === 'UNAUTHORIZED') {
-                    promptGatewayConfig();
-                }
                 break;
 
             default:

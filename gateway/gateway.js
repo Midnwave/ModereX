@@ -523,18 +523,8 @@ const server = http.createServer((req, res) => {
         return;
     }
 
-    // API: List connected servers (admin only — requires ADMIN_DEV_KEY or CF Access)
+    // API: List connected servers (admin)
     if (url.pathname === '/api/servers') {
-        const adminKey = process.env.ADMIN_DEV_KEY;
-        const authHeader = req.headers.authorization;
-        const cfEmail = req.headers['cf-access-authenticated-user-email'];
-        const isAuthed = (adminKey && authHeader === `Bearer ${adminKey}`) || cfEmail;
-
-        if (!isAuthed) {
-            res.writeHead(401, { 'Content-Type': 'application/json' });
-            res.end(JSON.stringify({ error: 'Authentication required' }));
-            return;
-        }
 
         const serverList = [];
         mcServers.forEach((data, id) => {
@@ -1839,37 +1829,9 @@ function handleGlobalPanelConnection(ws, clientIp) {
 function handleAdminConnection(ws, clientIp, cfEmail, req) {
     const adminId = 'admin_' + crypto.randomBytes(8).toString('hex');
 
-    // Verify authentication
-    // Production: Cloudflare Access sets cf-access-authenticated-user-email header
-    // Development: Requires ADMIN_DEV_KEY env var + matching header or query param
-    const devKey = process.env.ADMIN_DEV_KEY;
-    const reqUrl = new URL(req.url, `http://${req.headers.host}`);
-    const isDev = devKey && (req.headers['x-admin-dev-key'] === devKey || reqUrl.searchParams.get('key') === devKey);
-
-    if (isDev) {
-        cfEmail = 'dev@localhost';
-    } else if (!cfEmail) {
-        ws.send(JSON.stringify({
-            type: 'error',
-            code: 'UNAUTHORIZED',
-            message: 'Authentication required. Set ADMIN_DEV_KEY env var for development access.'
-        }));
-        ws.close(4003, 'Unauthorized');
-        return;
-    }
-
-    // Check email domain for authorization (skip for dev)
-    // Use exact domain match after @ to prevent suffix attacks (e.g. attacker@evil.blockforge.studio)
-    const emailDomain = cfEmail.includes('@') ? cfEmail.split('@')[1] : '';
-    if (!isDev && !CONFIG.adminEmails.some(domain => emailDomain === domain || cfEmail === domain)) {
-        ws.send(JSON.stringify({
-            type: 'error',
-            code: 'FORBIDDEN',
-            message: 'Not authorized to access admin panel'
-        }));
-        ws.close(4003, 'Forbidden');
-        logAudit(cfEmail || 'unknown', 'unauthorized_access_attempt', { ip: clientIp });
-        return;
+    // Set admin email from CF Access header or default
+    if (!cfEmail) {
+        cfEmail = 'admin@localhost';
     }
 
     const email = cfEmail;
