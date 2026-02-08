@@ -5,6 +5,7 @@ import com.blockforge.moderex.commands.BaseCommand;
 import com.blockforge.moderex.punishment.Punishment;
 import com.blockforge.moderex.punishment.PunishmentType;
 import com.blockforge.moderex.util.DurationParser;
+import com.blockforge.moderex.util.Msg;
 import com.blockforge.moderex.util.TextUtil;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.event.ClickEvent;
@@ -50,13 +51,13 @@ public class MuteListCommand extends BaseCommand {
                 int totalPages = Math.max(1, (int) Math.ceil((double) totalMutes / MUTES_PER_PAGE));
 
                 // Header with box-drawing
-                sender.sendMessage(TextUtil.parse(""));
-                sender.sendMessage(TextUtil.parse("<dark_gray>┌──────────────────┐"));
-                sender.sendMessage(TextUtil.parse("<dark_gray>│ <gold>Active Mutes <dark_gray>(<white>" + totalMutes + " total<dark_gray>)"));
-                sender.sendMessage(TextUtil.parse("<dark_gray>├──────────────────┤"));
+                Msg.send(sender, TextUtil.parse(""));
+                Msg.send(sender, TextUtil.parse("<dark_gray>┌──────────────────┐"));
+                Msg.send(sender, TextUtil.parse("<dark_gray>│ <gold>Active Mutes <dark_gray>(<white>" + totalMutes + " total<dark_gray>)"));
+                Msg.send(sender, TextUtil.parse("<dark_gray>├──────────────────┤"));
 
                 if (mutes.isEmpty()) {
-                    sender.sendMessage(TextUtil.parse("<dark_gray>│ <gray>No active mutes."));
+                    Msg.send(sender, TextUtil.parse("<dark_gray>│ <gray>No active mutes."));
                 } else {
                     for (Punishment mute : mutes) {
                         String duration = mute.isPermanent() ? "<dark_red>Permanent" :
@@ -71,23 +72,23 @@ public class MuteListCommand extends BaseCommand {
                                     "<gray>Reason: <white>" + (mute.getReason() != null ? mute.getReason() : "None") + "\n" +
                                     "<gray>Staff: <white>" + mute.getStaffName() + "\n" +
                                     "\n<yellow>Click to view details")));
-                            sender.sendMessage(entry);
+                            Msg.send(sender, entry);
                         } else {
-                            sender.sendMessage(TextUtil.parse("<dark_gray>│ <gold>" + mute.getPlayerName() +
+                            Msg.send(sender, TextUtil.parse("<dark_gray>│ <gold>" + mute.getPlayerName() +
                                     " <dark_gray>- " + duration + " <dark_gray>by <gray>" + mute.getStaffName()));
                         }
                     }
                 }
 
-                sender.sendMessage(TextUtil.parse("<dark_gray>└──────────────────┘"));
+                Msg.send(sender, TextUtil.parse("<dark_gray>└──────────────────┘"));
 
                 // Navigation footer
                 if (sender instanceof Player && totalPages > 1) {
-                    sender.sendMessage(buildNavigationFooter(finalPage, totalPages));
+                    Msg.send(sender, buildNavigationFooter(finalPage, totalPages));
                 } else if (totalPages > 1) {
                     sendMessage(sender, "<gray>Page " + finalPage + "/" + totalPages + " - Use /mutelist <page>");
                 }
-                sender.sendMessage(TextUtil.parse(""));
+                Msg.send(sender, TextUtil.parse(""));
             });
         });
     }

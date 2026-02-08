@@ -1,6 +1,7 @@
 package com.blockforge.moderex.vanish.api;
 
 import com.blockforge.moderex.ModereX;
+import com.blockforge.moderex.util.Msg;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
@@ -32,7 +33,7 @@ public class VanishEventFilter implements Listener {
         Player player = event.getPlayer();
 
         if (vanishAPI.isVanished(player)) {
-            event.joinMessage(null); // silence join
+            Msg.setJoinMessage(event, null); // silence join
             plugin.logDebug("[VanishAPI] Silenced join message for vanished player: " + player.getName());
         }
     }
@@ -46,7 +47,7 @@ public class VanishEventFilter implements Listener {
         Player player = event.getPlayer();
 
         if (vanishAPI.isVanished(player)) {
-            event.quitMessage(null); // silence quit
+            Msg.setQuitMessage(event, null); // silence quit
             plugin.logDebug("[VanishAPI] Silenced quit message for vanished player: " + player.getName());
         }
     }

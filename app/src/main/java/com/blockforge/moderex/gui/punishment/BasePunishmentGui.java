@@ -351,7 +351,7 @@ public abstract class BasePunishmentGui extends BaseGui {
                     isPermanent = true;
                     duration = "permanent";
                 } else {
-                    viewer.sendMessage(TextUtil.parse("<red>You don't have permission to issue permanent punishments."));
+                    Msg.send(viewer, TextUtil.parse("<red>You don't have permission to issue permanent punishments."));
                 }
             } else {
                 parseDuration(input);
@@ -366,9 +366,9 @@ public abstract class BasePunishmentGui extends BaseGui {
             OfflinePlayer added = plugin.getServer().getOfflinePlayer(input);
             if (added.hasPlayedBefore() || added.isOnline()) {
                 additionalTargets.add(added.getUniqueId());
-                viewer.sendMessage(TextUtil.parse("<green>Added " + input + " to the punishment."));
+                Msg.send(viewer, TextUtil.parse("<green>Added " + input + " to the punishment."));
             } else {
-                viewer.sendMessage(TextUtil.parse("<red>Player not found: " + input));
+                Msg.send(viewer, TextUtil.parse("<red>Player not found: " + input));
             }
             plugin.getGuiManager().open(viewer, this);
         });

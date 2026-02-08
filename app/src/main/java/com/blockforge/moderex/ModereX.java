@@ -774,10 +774,10 @@ public final class ModereX extends JavaPlugin {
         Component message = languageManager.get(messageKey, placeholders);
         for (org.bukkit.entity.Player player : getServer().getOnlinePlayers()) {
             if (player.hasPermission(permission)) {
-                player.sendMessage(message);
+                Msg.send(player, message);
             }
         }
         // Also send to console
-        getServer().getConsoleSender().sendMessage(message);
+        Msg.send(getServer().getConsoleSender(), message);
     }
 }

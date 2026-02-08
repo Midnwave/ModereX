@@ -104,7 +104,7 @@ public class RulesCommand extends BaseCommand {
                 )).clickEvent(ClickEvent.runCommand("/rules " + rule.getOrder()));
             }
 
-            sender.sendMessage(ruleComponent);
+            Msg.send(sender, ruleComponent);
         }
 
         // Footer with navigation
@@ -127,7 +127,7 @@ public class RulesCommand extends BaseCommand {
                     .hoverEvent(HoverEvent.showText(TextUtil.parse("<gray>Next page"))));
         }
 
-        sender.sendMessage(navComponent);
+        Msg.send(sender, navComponent);
         Msg.send(sender, TextUtil.parse(
                 "<dark_gray>╚══════════════════════════════════════════════════════════════╝"
         ));
@@ -174,7 +174,7 @@ public class RulesCommand extends BaseCommand {
         Component backBtn = TextUtil.parse("<dark_gray>║ <green>[◄ Back to Rules]")
                 .clickEvent(ClickEvent.runCommand("/rules"))
                 .hoverEvent(HoverEvent.showText(TextUtil.parse("<gray>Return to rules list")));
-        sender.sendMessage(backBtn);
+        Msg.send(sender, backBtn);
 
         Msg.send(sender, TextUtil.parse(
                 "<dark_gray>╚══════════════════════════════════════════════════════════════╝"
@@ -203,7 +203,7 @@ public class RulesCommand extends BaseCommand {
                 )).clickEvent(ClickEvent.runCommand("/rules " + rule.getOrder()));
             }
 
-            sender.sendMessage(ruleComponent);
+            Msg.send(sender, ruleComponent);
         }
 
         Msg.send(sender, TextUtil.parse(
@@ -213,7 +213,7 @@ public class RulesCommand extends BaseCommand {
         Component backBtn = TextUtil.parse("<dark_gray>║ <green>[◄ All Rules]")
                 .clickEvent(ClickEvent.runCommand("/rules"))
                 .hoverEvent(HoverEvent.showText(TextUtil.parse("<gray>Return to all rules")));
-        sender.sendMessage(backBtn);
+        Msg.send(sender, backBtn);
 
         Msg.send(sender, TextUtil.parse(
                 "<dark_gray>╚══════════════════════════════════════════════════════════════╝"

@@ -5,6 +5,7 @@ import com.blockforge.moderex.commands.BaseCommand;
 import com.blockforge.moderex.punishment.Punishment;
 import com.blockforge.moderex.punishment.PunishmentType;
 import com.blockforge.moderex.util.DurationParser;
+import com.blockforge.moderex.util.Msg;
 import com.blockforge.moderex.util.TextUtil;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.event.ClickEvent;
@@ -50,13 +51,13 @@ public class BanListCommand extends BaseCommand {
                 int totalPages = Math.max(1, (int) Math.ceil((double) totalBans / BANS_PER_PAGE));
 
                 // Header with box-drawing
-                sender.sendMessage(TextUtil.parse(""));
-                sender.sendMessage(TextUtil.parse("<dark_gray>┌──────────────────┐"));
-                sender.sendMessage(TextUtil.parse("<dark_gray>│ <red>Active Bans <dark_gray>(<white>" + totalBans + " total<dark_gray>)"));
-                sender.sendMessage(TextUtil.parse("<dark_gray>├──────────────────┤"));
+                Msg.send(sender, TextUtil.parse(""));
+                Msg.send(sender, TextUtil.parse("<dark_gray>┌──────────────────┐"));
+                Msg.send(sender, TextUtil.parse("<dark_gray>│ <red>Active Bans <dark_gray>(<white>" + totalBans + " total<dark_gray>)"));
+                Msg.send(sender, TextUtil.parse("<dark_gray>├──────────────────┤"));
 
                 if (bans.isEmpty()) {
-                    sender.sendMessage(TextUtil.parse("<dark_gray>│ <gray>No active bans."));
+                    Msg.send(sender, TextUtil.parse("<dark_gray>│ <gray>No active bans."));
                 } else {
                     for (Punishment ban : bans) {
                         String duration = ban.isPermanent() ? "<dark_red>Permanent" :
@@ -71,23 +72,23 @@ public class BanListCommand extends BaseCommand {
                                     "<gray>Reason: <white>" + (ban.getReason() != null ? ban.getReason() : "None") + "\n" +
                                     "<gray>Staff: <white>" + ban.getStaffName() + "\n" +
                                     "\n<yellow>Click to view details")));
-                            sender.sendMessage(entry);
+                            Msg.send(sender, entry);
                         } else {
-                            sender.sendMessage(TextUtil.parse("<dark_gray>│ <red>" + ban.getPlayerName() +
+                            Msg.send(sender, TextUtil.parse("<dark_gray>│ <red>" + ban.getPlayerName() +
                                     " <dark_gray>- " + duration + " <dark_gray>by <gray>" + ban.getStaffName()));
                         }
                     }
                 }
 
-                sender.sendMessage(TextUtil.parse("<dark_gray>└──────────────────┘"));
+                Msg.send(sender, TextUtil.parse("<dark_gray>└──────────────────┘"));
 
                 // Navigation footer
                 if (sender instanceof Player && totalPages > 1) {
-                    sender.sendMessage(buildNavigationFooter(finalPage, totalPages));
+                    Msg.send(sender, buildNavigationFooter(finalPage, totalPages));
                 } else if (totalPages > 1) {
                     sendMessage(sender, "<gray>Page " + finalPage + "/" + totalPages + " - Use /banlist <page>");
                 }
-                sender.sendMessage(TextUtil.parse(""));
+                Msg.send(sender, TextUtil.parse(""));
             });
         });
     }

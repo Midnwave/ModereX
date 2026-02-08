@@ -5,6 +5,7 @@ import com.blockforge.moderex.gui.PaginatedGui;
 import com.blockforge.moderex.punishment.Punishment;
 import com.blockforge.moderex.punishment.PunishmentType;
 import com.blockforge.moderex.util.DurationParser;
+import com.blockforge.moderex.util.Msg;
 import com.blockforge.moderex.util.TextUtil;
 import com.blockforge.moderex.util.TimeUtil;
 import org.bukkit.Material;
@@ -128,34 +129,34 @@ public class PlayerHistoryGui extends PaginatedGui<Punishment> {
     }
 
     private void showPunishmentDetails(Punishment punishment) {
-        viewer.sendMessage(TextUtil.parse(""));
-        viewer.sendMessage(TextUtil.parse("<gray>═══════════════════════════════════"));
-        viewer.sendMessage(TextUtil.parse("<yellow>Punishment Details: <white>" + punishment.getCaseId()));
-        viewer.sendMessage(TextUtil.parse("<gray>═══════════════════════════════════"));
-        viewer.sendMessage(TextUtil.parse("<gray>Type: <white>" + punishment.getType().name()));
-        viewer.sendMessage(TextUtil.parse("<gray>Player: <white>" + punishment.getPlayerName()));
-        viewer.sendMessage(TextUtil.parse("<gray>Reason: <white>" + punishment.getReason()));
-        viewer.sendMessage(TextUtil.parse("<gray>Staff: <white>" + punishment.getStaffName()));
-        viewer.sendMessage(TextUtil.parse("<gray>Date: <white>" + TimeUtil.formatDateTime(punishment.getCreatedAt())));
+        Msg.send(viewer, TextUtil.parse(""));
+        Msg.send(viewer, TextUtil.parse("<gray>═══════════════════════════════════"));
+        Msg.send(viewer, TextUtil.parse("<yellow>Punishment Details: <white>" + punishment.getCaseId()));
+        Msg.send(viewer, TextUtil.parse("<gray>═══════════════════════════════════"));
+        Msg.send(viewer, TextUtil.parse("<gray>Type: <white>" + punishment.getType().name()));
+        Msg.send(viewer, TextUtil.parse("<gray>Player: <white>" + punishment.getPlayerName()));
+        Msg.send(viewer, TextUtil.parse("<gray>Reason: <white>" + punishment.getReason()));
+        Msg.send(viewer, TextUtil.parse("<gray>Staff: <white>" + punishment.getStaffName()));
+        Msg.send(viewer, TextUtil.parse("<gray>Date: <white>" + TimeUtil.formatDateTime(punishment.getCreatedAt())));
 
         if (punishment.getExpiresAt() == -1) {
-            viewer.sendMessage(TextUtil.parse("<gray>Duration: <red>Permanent"));
+            Msg.send(viewer, TextUtil.parse("<gray>Duration: <red>Permanent"));
         } else {
-            viewer.sendMessage(TextUtil.parse("<gray>Duration: <white>" +
+            Msg.send(viewer, TextUtil.parse("<gray>Duration: <white>" +
                     DurationParser.format(punishment.getExpiresAt() - punishment.getCreatedAt())));
         }
 
         if (punishment.isActive() && !punishment.isExpired()) {
-            viewer.sendMessage(TextUtil.parse("<gray>Status: <green>Active"));
+            Msg.send(viewer, TextUtil.parse("<gray>Status: <green>Active"));
         } else if (punishment.isExpired()) {
-            viewer.sendMessage(TextUtil.parse("<gray>Status: <yellow>Expired"));
+            Msg.send(viewer, TextUtil.parse("<gray>Status: <yellow>Expired"));
         } else {
-            viewer.sendMessage(TextUtil.parse("<gray>Status: <red>Revoked"));
+            Msg.send(viewer, TextUtil.parse("<gray>Status: <red>Revoked"));
             if (punishment.getRemovedByName() != null) {
-                viewer.sendMessage(TextUtil.parse("<gray>Revoked by: <white>" + punishment.getRemovedByName()));
+                Msg.send(viewer, TextUtil.parse("<gray>Revoked by: <white>" + punishment.getRemovedByName()));
             }
         }
-        viewer.sendMessage(TextUtil.parse("<gray>═══════════════════════════════════"));
-        viewer.sendMessage(TextUtil.parse(""));
+        Msg.send(viewer, TextUtil.parse("<gray>═══════════════════════════════════"));
+        Msg.send(viewer, TextUtil.parse(""));
     }
 }

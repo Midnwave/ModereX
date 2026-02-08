@@ -2,6 +2,7 @@ package com.blockforge.moderex.listeners;
 
 import com.blockforge.moderex.ModereX;
 import com.blockforge.moderex.disguise.DisguiseGui;
+import com.blockforge.moderex.util.Msg;
 import net.kyori.adventure.text.Component;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
@@ -50,7 +51,7 @@ public class DisguiseListener implements Listener {
         // Replace join message if disguised
         Component disguisedMessage = plugin.getDisguiseManager().getDisguisedJoinMessage(player);
         if (disguisedMessage != null && plugin.getConfig().getBoolean("disguise.spoof-join-quit-messages", true)) {
-            event.joinMessage(disguisedMessage);
+            Msg.setJoinMessage(event, disguisedMessage);
         }
     }
 
@@ -61,7 +62,7 @@ public class DisguiseListener implements Listener {
         // Replace quit message if disguised
         Component disguisedMessage = plugin.getDisguiseManager().getDisguisedQuitMessage(player);
         if (disguisedMessage != null && plugin.getConfig().getBoolean("disguise.spoof-join-quit-messages", true)) {
-            event.quitMessage(disguisedMessage);
+            Msg.setQuitMessage(event, disguisedMessage);
         }
     }
 

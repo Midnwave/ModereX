@@ -1025,7 +1025,7 @@ public class ReplayPlayback {
 
         String progressBar = createProgressBar(percent, 20);
 
-        viewer.sendActionBar(TextUtil.parse(String.format(
+        Msg.sendActionBar(viewer, TextUtil.parse(String.format(
                 "<gray>%s <dark_gray>/ <gray>%s  %s  <white>%.0f%%  <gray>(%s)",
                 elapsedStr, totalStr, progressBar, percent,
                 paused ? "<yellow>PAUSED" : "<green>" + playbackSpeed + "x")));

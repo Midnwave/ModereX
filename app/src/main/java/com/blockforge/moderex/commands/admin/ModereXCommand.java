@@ -3,6 +3,7 @@ package com.blockforge.moderex.commands.admin;
 import com.blockforge.moderex.ModereX;
 import com.blockforge.moderex.commands.BaseCommand;
 import com.blockforge.moderex.config.lang.MessageKey;
+import com.blockforge.moderex.util.Msg;
 import com.blockforge.moderex.util.TargetResolver;
 import com.zaxxer.hikari.HikariPoolMXBean;
 import org.bukkit.command.CommandSender;
@@ -249,15 +250,14 @@ public class ModereXCommand extends BaseCommand {
         String message = String.join(" ", args);
         message = message.replace("\\n", "\n");
 
+        net.kyori.adventure.text.Component parsedMessage = net.kyori.adventure.text.minimessage.MiniMessage.miniMessage().deserialize(message);
         for (org.bukkit.entity.Player player : plugin.getServer().getOnlinePlayers()) {
             if (player.hasPermission("moderex.notify.broadcast")) {
-                player.sendMessage(net.kyori.adventure.text.minimessage.MiniMessage.miniMessage().deserialize(message));
+                Msg.send(player, parsedMessage);
             }
         }
 
-        plugin.getServer().getConsoleSender().sendMessage(
-            net.kyori.adventure.text.minimessage.MiniMessage.miniMessage().deserialize(message)
-        );
+        Msg.send(plugin.getServer().getConsoleSender(), parsedMessage);
 
         sendMessage(sender, "<green>Message broadcast to all staff with notification permission!");
     }

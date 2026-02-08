@@ -60,6 +60,16 @@ public final class Msg {
         }
     }
 
+    // --- Action Bar ---
+
+    public static void sendActionBar(Player player, Component message) {
+        if (paper) {
+            player.sendActionBar(message);
+        } else {
+            audiences.player(player).sendActionBar(message);
+        }
+    }
+
     // --- Player Kick ---
 
     public static void kick(Player player, Component reason) {

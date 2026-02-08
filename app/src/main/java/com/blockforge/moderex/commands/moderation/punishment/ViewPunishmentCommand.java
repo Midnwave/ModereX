@@ -114,48 +114,48 @@ public class ViewPunishmentCommand extends BaseCommand {
             case WARN -> "<aqua>";
         };
 
-        sender.sendMessage(TextUtil.parse(""));
-        sender.sendMessage(TextUtil.parse("<dark_gray>┌──────────────────┐"));
-        sender.sendMessage(TextUtil.parse("<dark_gray>│ <white>Punishment Details: <yellow>" + p.getCaseId() + " " + statusColor + "(" + statusText + ")"));
-        sender.sendMessage(TextUtil.parse("<dark_gray>├──────────────────┤"));
-        sender.sendMessage(TextUtil.parse("<dark_gray>│ <gray>Type: " + typeColor + p.getType().name()));
-        sender.sendMessage(TextUtil.parse("<dark_gray>│ <gray>Player: <white>" + p.getPlayerName() + " <dark_gray>(" + p.getPlayerUuid().toString().substring(0, 8) + "...)"));
-        sender.sendMessage(TextUtil.parse("<dark_gray>│ <gray>Moderator: <white>" + p.getStaffName()));
-        sender.sendMessage(TextUtil.parse("<dark_gray>│ <gray>Reason: <white>" + (p.getReason() != null ? p.getReason() : "No reason specified")));
-        sender.sendMessage(TextUtil.parse("<dark_gray>├──────────────────┤"));
-        sender.sendMessage(TextUtil.parse("<dark_gray>│ <gray>Date: <white>" + TimeUtil.formatDateTime(p.getCreatedAt())));
+        Msg.send(sender, TextUtil.parse(""));
+        Msg.send(sender, TextUtil.parse("<dark_gray>┌──────────────────┐"));
+        Msg.send(sender, TextUtil.parse("<dark_gray>│ <white>Punishment Details: <yellow>" + p.getCaseId() + " " + statusColor + "(" + statusText + ")"));
+        Msg.send(sender, TextUtil.parse("<dark_gray>├──────────────────┤"));
+        Msg.send(sender, TextUtil.parse("<dark_gray>│ <gray>Type: " + typeColor + p.getType().name()));
+        Msg.send(sender, TextUtil.parse("<dark_gray>│ <gray>Player: <white>" + p.getPlayerName() + " <dark_gray>(" + p.getPlayerUuid().toString().substring(0, 8) + "...)"));
+        Msg.send(sender, TextUtil.parse("<dark_gray>│ <gray>Moderator: <white>" + p.getStaffName()));
+        Msg.send(sender, TextUtil.parse("<dark_gray>│ <gray>Reason: <white>" + (p.getReason() != null ? p.getReason() : "No reason specified")));
+        Msg.send(sender, TextUtil.parse("<dark_gray>├──────────────────┤"));
+        Msg.send(sender, TextUtil.parse("<dark_gray>│ <gray>Date: <white>" + TimeUtil.formatDateTime(p.getCreatedAt())));
 
         if (p.isPermanent()) {
-            sender.sendMessage(TextUtil.parse("<dark_gray>│ <gray>Duration: <red>Permanent"));
+            Msg.send(sender, TextUtil.parse("<dark_gray>│ <gray>Duration: <red>Permanent"));
         } else {
             long duration = p.getExpiresAt() - p.getCreatedAt();
-            sender.sendMessage(TextUtil.parse("<dark_gray>│ <gray>Duration: <white>" + DurationParser.format(duration)));
+            Msg.send(sender, TextUtil.parse("<dark_gray>│ <gray>Duration: <white>" + DurationParser.format(duration)));
             if (p.isActive() && !p.isExpired()) {
-                sender.sendMessage(TextUtil.parse("<dark_gray>│ <gray>Remaining: <green>" + DurationParser.formatRemaining(p.getExpiresAt())));
+                Msg.send(sender, TextUtil.parse("<dark_gray>│ <gray>Remaining: <green>" + DurationParser.formatRemaining(p.getExpiresAt())));
             } else {
-                sender.sendMessage(TextUtil.parse("<dark_gray>│ <gray>Expired: <white>" + TimeUtil.formatDateTime(p.getExpiresAt())));
+                Msg.send(sender, TextUtil.parse("<dark_gray>│ <gray>Expired: <white>" + TimeUtil.formatDateTime(p.getExpiresAt())));
             }
         }
 
         if (p.getIpAddress() != null && !p.getIpAddress().isEmpty() &&
             sender.hasPermission("moderex.check.ip")) {
-            sender.sendMessage(TextUtil.parse("<dark_gray>│ <gray>IP Address: <white>" + p.getIpAddress()));
+            Msg.send(sender, TextUtil.parse("<dark_gray>│ <gray>IP Address: <white>" + p.getIpAddress()));
         }
 
         if (p.getServer() != null && !p.getServer().isEmpty()) {
-            sender.sendMessage(TextUtil.parse("<dark_gray>│ <gray>Server: <white>" + p.getServer()));
+            Msg.send(sender, TextUtil.parse("<dark_gray>│ <gray>Server: <white>" + p.getServer()));
         }
 
         if (p.isRemoved()) {
-            sender.sendMessage(TextUtil.parse("<dark_gray>├──────────────────┤"));
-            sender.sendMessage(TextUtil.parse("<dark_gray>│ <red>Revoked by: <white>" + p.getRemovedByName()));
-            sender.sendMessage(TextUtil.parse("<dark_gray>│ <red>Revoked at: <white>" + TimeUtil.formatDateTime(p.getRemovedAt())));
+            Msg.send(sender, TextUtil.parse("<dark_gray>├──────────────────┤"));
+            Msg.send(sender, TextUtil.parse("<dark_gray>│ <red>Revoked by: <white>" + p.getRemovedByName()));
+            Msg.send(sender, TextUtil.parse("<dark_gray>│ <red>Revoked at: <white>" + TimeUtil.formatDateTime(p.getRemovedAt())));
             if (p.getRemovedReason() != null && !p.getRemovedReason().isEmpty()) {
-                sender.sendMessage(TextUtil.parse("<dark_gray>│ <red>Reason: <white>" + p.getRemovedReason()));
+                Msg.send(sender, TextUtil.parse("<dark_gray>│ <red>Reason: <white>" + p.getRemovedReason()));
             }
         }
 
-        sender.sendMessage(TextUtil.parse("<dark_gray>└──────────────────┘"));
+        Msg.send(sender, TextUtil.parse("<dark_gray>└──────────────────┘"));
 
         // Add clickable action buttons for players
         if (sender instanceof Player && sender.hasPermission("moderex.history")) {
@@ -175,9 +175,9 @@ public class ViewPunishmentCommand extends BaseCommand {
                         .hoverEvent(HoverEvent.showText(TextUtil.parse("<gray>Click to revoke this punishment"))));
             }
 
-            sender.sendMessage(buttons);
+            Msg.send(sender, buttons);
         }
-        sender.sendMessage(TextUtil.parse(""));
+        Msg.send(sender, TextUtil.parse(""));
     }
 
     private boolean canRevoke(CommandSender sender, Punishment p) {
@@ -302,8 +302,8 @@ public class ViewPunishmentCommand extends BaseCommand {
                         click == org.bukkit.event.inventory.ClickType.SHIFT_RIGHT) {
                         viewer.performCommand(getRevokeCmdForType(punishment).trim() + "Revoked via GUI");
                     } else {
-                        viewer.sendMessage(TextUtil.parse("<yellow>Type the revoke command to confirm:"));
-                        viewer.sendMessage(TextUtil.parse("<gray>" + getRevokeCmdForType(punishment) + "<reason>"));
+                        Msg.send(viewer, TextUtil.parse("<yellow>Type the revoke command to confirm:"));
+                        Msg.send(viewer, TextUtil.parse("<gray>" + getRevokeCmdForType(punishment) + "<reason>"));
                     }
                 });
             }

@@ -123,7 +123,7 @@ public class StaffHistoryCommand extends BaseCommand {
                         .append(Component.text(" ━━━━━━━━━━━━━", NamedTextColor.DARK_GRAY)));
 
                 if (!finalType.equals("all")) {
-                    sender.sendMessage(TextUtil.parse("<gray>Filter: <white>" + finalType +
+                    Msg.send(sender, TextUtil.parse("<gray>Filter: <white>" + finalType +
                             " <dark_gray>(<white>" + history.size() + " total<dark_gray>)"));
                 }
 
@@ -131,15 +131,15 @@ public class StaffHistoryCommand extends BaseCommand {
                     sendMessage(sender, MessageKey.STAFFHISTORY_EMPTY, "staff", displayName);
                 } else {
                     for (Punishment p : pagedResults) {
-                        sender.sendMessage(formatEntry(p));
+                        Msg.send(sender, formatEntry(p));
                     }
                 }
 
                 // Clickable navigation footer
                 if (sender instanceof Player) {
-                    sender.sendMessage(buildNavigationFooter(displayName, finalType, currentPage, finalTotalPages));
+                    Msg.send(sender, buildNavigationFooter(displayName, finalType, currentPage, finalTotalPages));
                 } else {
-                    sender.sendMessage(TextUtil.parse("<gray>Page " + currentPage + "/" + finalTotalPages +
+                    Msg.send(sender, TextUtil.parse("<gray>Page " + currentPage + "/" + finalTotalPages +
                             " - Use /staffhistory " + displayName + " " + finalType + " <page>"));
                 }
             });

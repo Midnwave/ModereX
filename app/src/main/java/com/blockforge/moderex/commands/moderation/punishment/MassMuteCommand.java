@@ -3,6 +3,7 @@ package com.blockforge.moderex.commands.moderation.punishment;
 import com.blockforge.moderex.ModereX;
 import com.blockforge.moderex.commands.BaseCommand;
 import com.blockforge.moderex.util.DurationParser;
+import com.blockforge.moderex.util.Msg;
 import com.blockforge.moderex.util.TargetResolver;
 import com.blockforge.moderex.util.TextUtil;
 import org.bukkit.Bukkit;
@@ -109,7 +110,7 @@ public class MassMuteCommand extends BaseCommand {
 
                 for (Player staff : Bukkit.getOnlinePlayers()) {
                     if (staff.hasPermission("moderex.alerts.punishments")) {
-                        staff.sendMessage(TextUtil.parse("<gray>" + executorName +
+                        Msg.send(staff, TextUtil.parse("<gray>" + executorName +
                                 " mass muted " + targets.size() + " players. Reason: " + finalReasonText));
                     }
                 }

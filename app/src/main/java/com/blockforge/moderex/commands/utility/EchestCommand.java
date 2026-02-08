@@ -3,6 +3,7 @@ package com.blockforge.moderex.commands.utility;
 import com.blockforge.moderex.ModereX;
 import com.blockforge.moderex.commands.BaseCommand;
 import com.blockforge.moderex.config.lang.MessageKey;
+import com.blockforge.moderex.util.Msg;
 import org.bukkit.Bukkit;
 import org.bukkit.command.CommandSender;
 import org.bukkit.entity.Player;
@@ -30,7 +31,7 @@ public class EchestCommand extends BaseCommand {
         } else {
             // View another player's ender chest
             if (!staff.hasPermission("moderex.command.echest.others")) {
-                sender.sendMessage(plugin.getLanguageManager().get(MessageKey.NO_PERMISSION));
+                Msg.send(sender, plugin.getLanguageManager().get(MessageKey.NO_PERMISSION));
                 return;
             }
 

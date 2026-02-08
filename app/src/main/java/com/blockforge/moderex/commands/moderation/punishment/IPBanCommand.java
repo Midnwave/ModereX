@@ -6,6 +6,7 @@ import com.blockforge.moderex.commands.moderation.base.PunishmentContext;
 import com.blockforge.moderex.config.lang.MessageKey;
 import com.blockforge.moderex.util.DurationParser;
 import com.blockforge.moderex.util.FlagParser;
+import com.blockforge.moderex.util.Msg;
 import com.blockforge.moderex.util.TargetResolver;
 import org.bukkit.Bukkit;
 import org.bukkit.command.CommandSender;
@@ -144,7 +145,7 @@ public class IPBanCommand extends PunishmentCommandBase {
 
             for (org.bukkit.entity.Player player : org.bukkit.Bukkit.getOnlinePlayers()) {
                 if (player.hasPermission("moderex.notify.punishments")) {
-                    player.sendMessage(message);
+                    Msg.send(player, message);
                 }
             }
         });

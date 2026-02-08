@@ -3,6 +3,7 @@ package com.blockforge.moderex.commands.moderation.punishment;
 import com.blockforge.moderex.ModereX;
 import com.blockforge.moderex.commands.BaseCommand;
 import com.blockforge.moderex.punishment.PunishmentType;
+import com.blockforge.moderex.util.Msg;
 import com.blockforge.moderex.util.TextUtil;
 import org.bukkit.Bukkit;
 import org.bukkit.command.CommandSender;
@@ -110,7 +111,7 @@ public class MassUnwarnCommand extends BaseCommand {
 
                     for (Player staff : Bukkit.getOnlinePlayers()) {
                         if (staff.hasPermission("moderex.alerts.punishments")) {
-                            staff.sendMessage(TextUtil.parse("<gray>" + executorName +
+                            Msg.send(staff, TextUtil.parse("<gray>" + executorName +
                                     " mass unwarned " + successCount.get() + " players (Batch: " + batchId + ")"));
                         }
                     }

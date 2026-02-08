@@ -4,6 +4,7 @@ import com.blockforge.moderex.ModereX;
 import com.blockforge.moderex.commands.BaseCommand;
 import com.blockforge.moderex.config.lang.MessageKey;
 import com.blockforge.moderex.util.DurationParser;
+import com.blockforge.moderex.util.Msg;
 import com.blockforge.moderex.util.TargetResolver;
 import com.blockforge.moderex.util.TextUtil;
 import org.bukkit.Bukkit;
@@ -141,7 +142,7 @@ public class MassWarnCommand extends BaseCommand {
 
                 for (Player staff : Bukkit.getOnlinePlayers()) {
                     if (staff.hasPermission("moderex.alerts.punishments")) {
-                        staff.sendMessage(TextUtil.parse("<gray>" + executorName +
+                        Msg.send(staff, TextUtil.parse("<gray>" + executorName +
                                 " mass warned " + targets.size() + " players. Reason: " + finalReasonText));
                     }
                 }

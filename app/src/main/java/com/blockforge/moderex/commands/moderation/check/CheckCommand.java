@@ -6,6 +6,7 @@ import com.blockforge.moderex.config.lang.MessageKey;
 import com.blockforge.moderex.punishment.Punishment;
 import com.blockforge.moderex.punishment.PunishmentType;
 import com.blockforge.moderex.util.DurationParser;
+import com.blockforge.moderex.util.Msg;
 import com.blockforge.moderex.util.TargetResolver;
 import com.blockforge.moderex.util.TextUtil;
 import net.kyori.adventure.text.Component;
@@ -58,12 +59,12 @@ public class CheckCommand extends BaseCommand {
         boolean isWatched = plugin.getWatchlistManager().isWatched(playerUUID);
 
         // Header with box-drawing (compact)
-        sender.sendMessage(TextUtil.parse(""));
-        sender.sendMessage(TextUtil.parse("<dark_gray>┌──────────────────┐"));
+        Msg.send(sender, TextUtil.parse(""));
+        Msg.send(sender, TextUtil.parse("<dark_gray>┌──────────────────┐"));
 
         String statusTags = (isOnline ? "<green>●" : "<gray>○") + (isWatched ? " <red>⚑" : "");
-        sender.sendMessage(TextUtil.parse("<dark_gray>│ " + statusTags + " <yellow>" + playerName));
-        sender.sendMessage(TextUtil.parse("<dark_gray>├──────────────────┤"));
+        Msg.send(sender, TextUtil.parse("<dark_gray>│ " + statusTags + " <yellow>" + playerName));
+        Msg.send(sender, TextUtil.parse("<dark_gray>├──────────────────┤"));
 
         // UUID (clickable, shortened)
         String shortUuid = playerUUID.toString().substring(0, 8);
@@ -71,17 +72,16 @@ public class CheckCommand extends BaseCommand {
             Component uuidLine = TextUtil.parse("<dark_gray>│ <gray>ID: <white>" + shortUuid + "...")
                 .clickEvent(ClickEvent.copyToClipboard(playerUUID.toString()))
                 .hoverEvent(HoverEvent.showText(TextUtil.parse("<white>" + playerUUID + "\n<yellow>Click to copy")));
-            sender.sendMessage(uuidLine);
+            Msg.send(sender, uuidLine);
         } else {
-            sender.sendMessage(TextUtil.parse("<dark_gray>│ <gray>ID: <white>" + playerUUID));
+            Msg.send(sender, TextUtil.parse("<dark_gray>│ <gray>ID: <white>" + playerUUID));
         }
 
         // Nickname (if player has one different from their name)
         if (onlinePlayer != null) {
-            String displayName = net.kyori.adventure.text.serializer.plain.PlainTextComponentSerializer.plainText()
-                    .serialize(onlinePlayer.displayName());
+            String displayName = Msg.getDisplayName(onlinePlayer);
             if (!displayName.equals(onlinePlayer.getName())) {
-                sender.sendMessage(TextUtil.parse("<dark_gray>│ <gray>Nick: <light_purple>" + displayName));
+                Msg.send(sender, TextUtil.parse("<dark_gray>│ <gray>Nick: <light_purple>" + displayName));
             }
         }
 
@@ -104,12 +104,12 @@ public class CheckCommand extends BaseCommand {
                         "<gray>Reason: <white>" + ban.getReason() + "\n" +
                         "<gray>By: <white>" + ban.getStaffName() + "\n" +
                         "<yellow>Click for details")));
-                sender.sendMessage(banLine);
+                Msg.send(sender, banLine);
             } else {
-                sender.sendMessage(TextUtil.parse("<dark_gray>│ <red>✗ " + type + ": " + dur));
+                Msg.send(sender, TextUtil.parse("<dark_gray>│ <red>✗ " + type + ": " + dur));
             }
         } else {
-            sender.sendMessage(TextUtil.parse("<dark_gray>│ <green>✓ <gray>Not banned"));
+            Msg.send(sender, TextUtil.parse("<dark_gray>│ <green>✓ <gray>Not banned"));
         }
 
         // Mute status (compact)
@@ -126,21 +126,21 @@ public class CheckCommand extends BaseCommand {
                         "<gray>Reason: <white>" + mute.getReason() + "\n" +
                         "<gray>By: <white>" + mute.getStaffName() + "\n" +
                         "<yellow>Click for details")));
-                sender.sendMessage(muteLine);
+                Msg.send(sender, muteLine);
             } else {
-                sender.sendMessage(TextUtil.parse("<dark_gray>│ <gold>✗ " + type + ": " + dur));
+                Msg.send(sender, TextUtil.parse("<dark_gray>│ <gold>✗ " + type + ": " + dur));
             }
         } else {
-            sender.sendMessage(TextUtil.parse("<dark_gray>│ <green>✓ <gray>Not muted"));
+            Msg.send(sender, TextUtil.parse("<dark_gray>│ <green>✓ <gray>Not muted"));
         }
 
         // Warnings count (compact)
         plugin.getPunishmentManager().getActiveWarnings(playerUUID).thenAccept(activeWarnings -> {
             int warnCount = activeWarnings != null ? activeWarnings.size() : 0;
             if (warnCount > 0) {
-                sender.sendMessage(TextUtil.parse("<dark_gray>│ <aqua>⚠ <white>" + warnCount + " <gray>warning" + (warnCount > 1 ? "s" : "")));
+                Msg.send(sender, TextUtil.parse("<dark_gray>│ <aqua>⚠ <white>" + warnCount + " <gray>warning" + (warnCount > 1 ? "s" : "")));
             } else {
-                sender.sendMessage(TextUtil.parse("<dark_gray>│ <green>✓ <gray>No warnings"));
+                Msg.send(sender, TextUtil.parse("<dark_gray>│ <green>✓ <gray>No warnings"));
             }
         });
 
@@ -152,12 +152,12 @@ public class CheckCommand extends BaseCommand {
                     Component ipLine = TextUtil.parse("<dark_gray>│ <gray>IP: <white>" + ip)
                         .clickEvent(ClickEvent.copyToClipboard(ip))
                         .hoverEvent(HoverEvent.showText(TextUtil.parse("<yellow>Click to copy")));
-                    sender.sendMessage(ipLine);
+                    Msg.send(sender, ipLine);
                 } else {
-                    sender.sendMessage(TextUtil.parse("<dark_gray>│ <gray>IP: <white>" + ip));
+                    Msg.send(sender, TextUtil.parse("<dark_gray>│ <gray>IP: <white>" + ip));
                 }
             } else {
-                sender.sendMessage(TextUtil.parse("<dark_gray>│ <gray>IP: <dark_gray>-"));
+                Msg.send(sender, TextUtil.parse("<dark_gray>│ <gray>IP: <dark_gray>-"));
             }
         }
 
@@ -173,12 +173,12 @@ public class CheckCommand extends BaseCommand {
                         case KICK -> kicks++;
                     }
                 }
-                sender.sendMessage(TextUtil.parse("<dark_gray>│ <gray>Past: <red>" + bans + "<dark_gray>/<gold>" +
+                Msg.send(sender, TextUtil.parse("<dark_gray>│ <gray>Past: <red>" + bans + "<dark_gray>/<gold>" +
                         mutes + "<dark_gray>/<aqua>" + warns + "<dark_gray>/<gray>" + kicks));
             }
         });
 
-        sender.sendMessage(TextUtil.parse("<dark_gray>└──────────────────┘"));
+        Msg.send(sender, TextUtil.parse("<dark_gray>└──────────────────┘"));
 
         // Quick actions for players (with full names)
         if (sender instanceof Player) {
@@ -206,7 +206,7 @@ public class CheckCommand extends BaseCommand {
                         .hoverEvent(HoverEvent.showText(TextUtil.parse("<gray>Add to watchlist"))));
             }
 
-            sender.sendMessage(actions);
+            Msg.send(sender, actions);
         }
     }
 

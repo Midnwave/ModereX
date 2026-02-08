@@ -236,7 +236,7 @@ public class AlertManager {
 
         // Show action bar if enabled
         if (settings.isActionBarAlerts()) {
-            staff.sendActionBar(Component.text("[" + type.getDisplayName() + "] ")
+            Msg.sendActionBar(staff, Component.text("[" + type.getDisplayName() + "] ")
                     .color(type.getColor())
                     .append(Component.text(playerName + ": " + truncate(message, 40)).color(NamedTextColor.WHITE)));
         }

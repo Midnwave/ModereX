@@ -7,6 +7,7 @@ import com.blockforge.moderex.gui.punishment.PlayerHistoryGui;
 import com.blockforge.moderex.punishment.Punishment;
 import com.blockforge.moderex.punishment.PunishmentType;
 import com.blockforge.moderex.util.DurationParser;
+import com.blockforge.moderex.util.Msg;
 import com.blockforge.moderex.util.TargetResolver;
 import com.blockforge.moderex.util.TextUtil;
 import com.blockforge.moderex.util.TimeUtil;
@@ -150,14 +151,14 @@ public class HistoryCommand extends BaseCommand {
             int endIndex = Math.min(startIndex + ITEMS_PER_PAGE, totalItems);
 
             // Display header
-            sender.sendMessage(TextUtil.parse(""));
-            sender.sendMessage(TextUtil.parse("<dark_gray>┌──────────────────┐"));
-            sender.sendMessage(TextUtil.parse("<dark_gray>│ <white>Punishment History: <yellow>" + displayName +
+            Msg.send(sender, TextUtil.parse(""));
+            Msg.send(sender, TextUtil.parse("<dark_gray>┌──────────────────┐"));
+            Msg.send(sender, TextUtil.parse("<dark_gray>│ <white>Punishment History: <yellow>" + displayName +
                     " <dark_gray>(<white>" + totalItems + " total<dark_gray>)"));
             if (!finalType.equals("all")) {
-                sender.sendMessage(TextUtil.parse("<dark_gray>│ <gray>Filter: <white>" + finalType));
+                Msg.send(sender, TextUtil.parse("<dark_gray>│ <gray>Filter: <white>" + finalType));
             }
-            sender.sendMessage(TextUtil.parse("<dark_gray>├──────────────────┤"));
+            Msg.send(sender, TextUtil.parse("<dark_gray>├──────────────────┤"));
 
             // Display entries for current page
             for (int i = startIndex; i < endIndex; i++) {
@@ -181,15 +182,15 @@ public class HistoryCommand extends BaseCommand {
                             "<gray>Duration: " + duration + "\n" +
                             "<gray>Date: <white>" + TimeUtil.formatDateTime(p.getCreatedAt()) + "\n" +
                             "\n<yellow>Click to view details")));
-                    sender.sendMessage(entry);
+                    Msg.send(sender, entry);
                 } else {
-                    sender.sendMessage(TextUtil.parse("<dark_gray>│ " + typeColor + p.getType().name() +
+                    Msg.send(sender, TextUtil.parse("<dark_gray>│ " + typeColor + p.getType().name() +
                             " <dark_gray>- <white>" + p.getCaseId() + " " + statusColor + "[" + statusText + "]" +
                             " <dark_gray>- <gray>" + p.getStaffName()));
                 }
             }
 
-            sender.sendMessage(TextUtil.parse("<dark_gray>└──────────────────┘"));
+            Msg.send(sender, TextUtil.parse("<dark_gray>└──────────────────┘"));
 
             // Pagination footer with clickable navigation
             if (sender instanceof Player && totalPages > 1) {
@@ -221,11 +222,11 @@ public class HistoryCommand extends BaseCommand {
                         .clickEvent(ClickEvent.runCommand("/history " + displayName + " --gui"))
                         .hoverEvent(HoverEvent.showText(TextUtil.parse("<gray>View in GUI"))));
 
-                sender.sendMessage(pagination);
+                Msg.send(sender, pagination);
             } else if (totalPages > 1) {
                 sendMessage(sender, "<gray>Page " + currentPage + "/" + totalPages + " - Use /history " + displayName + " " + finalType + " <page>");
             }
-            sender.sendMessage(TextUtil.parse(""));
+            Msg.send(sender, TextUtil.parse(""));
         });
     }
 

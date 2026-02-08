@@ -4,6 +4,7 @@ import com.blockforge.moderex.ModereX;
 import com.blockforge.moderex.commands.BaseCommand;
 import com.blockforge.moderex.punishment.Punishment;
 import com.blockforge.moderex.punishment.PunishmentType;
+import com.blockforge.moderex.util.Msg;
 import com.blockforge.moderex.util.TextUtil;
 import com.blockforge.moderex.util.TimeUtil;
 import net.kyori.adventure.text.Component;
@@ -50,13 +51,13 @@ public class WarnListCommand extends BaseCommand {
                 int totalPages = Math.max(1, (int) Math.ceil((double) totalWarnings / WARNINGS_PER_PAGE));
 
                 // Header with box-drawing
-                sender.sendMessage(TextUtil.parse(""));
-                sender.sendMessage(TextUtil.parse("<dark_gray>┌──────────────────┐"));
-                sender.sendMessage(TextUtil.parse("<dark_gray>│ <aqua>Active Warnings <dark_gray>(<white>" + totalWarnings + " total<dark_gray>)"));
-                sender.sendMessage(TextUtil.parse("<dark_gray>├──────────────────┤"));
+                Msg.send(sender, TextUtil.parse(""));
+                Msg.send(sender, TextUtil.parse("<dark_gray>┌──────────────────┐"));
+                Msg.send(sender, TextUtil.parse("<dark_gray>│ <aqua>Active Warnings <dark_gray>(<white>" + totalWarnings + " total<dark_gray>)"));
+                Msg.send(sender, TextUtil.parse("<dark_gray>├──────────────────┤"));
 
                 if (warnings.isEmpty()) {
-                    sender.sendMessage(TextUtil.parse("<dark_gray>│ <gray>No active warnings."));
+                    Msg.send(sender, TextUtil.parse("<dark_gray>│ <gray>No active warnings."));
                 } else {
                     for (Punishment warning : warnings) {
                         String date = TimeUtil.formatDate(warning.getCreatedAt());
@@ -71,23 +72,23 @@ public class WarnListCommand extends BaseCommand {
                                     "<gray>Staff: <white>" + warning.getStaffName() + "\n" +
                                     "<gray>Date: <white>" + TimeUtil.formatDateTime(warning.getCreatedAt()) + "\n" +
                                     "\n<yellow>Click to view details")));
-                            sender.sendMessage(entry);
+                            Msg.send(sender, entry);
                         } else {
-                            sender.sendMessage(TextUtil.parse("<dark_gray>│ <aqua>" + warning.getPlayerName() +
+                            Msg.send(sender, TextUtil.parse("<dark_gray>│ <aqua>" + warning.getPlayerName() +
                                     " <dark_gray>- <gray>" + date + " <dark_gray>by <gray>" + warning.getStaffName()));
                         }
                     }
                 }
 
-                sender.sendMessage(TextUtil.parse("<dark_gray>└──────────────────┘"));
+                Msg.send(sender, TextUtil.parse("<dark_gray>└──────────────────┘"));
 
                 // Navigation footer
                 if (sender instanceof Player && totalPages > 1) {
-                    sender.sendMessage(buildNavigationFooter(finalPage, totalPages));
+                    Msg.send(sender, buildNavigationFooter(finalPage, totalPages));
                 } else if (totalPages > 1) {
                     sendMessage(sender, "<gray>Page " + finalPage + "/" + totalPages + " - Use /warnlist <page>");
                 }
-                sender.sendMessage(TextUtil.parse(""));
+                Msg.send(sender, TextUtil.parse(""));
             });
         });
     }

@@ -6,6 +6,7 @@ import com.blockforge.moderex.config.lang.MessageKey;
 import com.blockforge.moderex.gui.AutomodHistoryGui;
 import com.blockforge.moderex.log.ActivityLogEntry;
 import com.blockforge.moderex.log.ActivityLogEntry.ActivityType;
+import com.blockforge.moderex.util.Msg;
 import com.blockforge.moderex.util.TextUtil;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.event.ClickEvent;
@@ -73,7 +74,7 @@ public class AutomodHistoryCommand extends BaseCommand {
                 target.getUniqueId(), List.of(ActivityType.AUTOMOD_TRIGGER), 0, System.currentTimeMillis());
 
         if (totalCount == 0) {
-            sender.sendMessage(TextUtil.parse("<gray>No automod triggers found for <white>" + target.getName()));
+            Msg.send(sender, TextUtil.parse("<gray>No automod triggers found for <white>" + target.getName()));
             return;
         }
 
@@ -85,9 +86,9 @@ public class AutomodHistoryCommand extends BaseCommand {
                 target.getUniqueId(), List.of(ActivityType.AUTOMOD_TRIGGER), 0, System.currentTimeMillis(), page, perPage);
 
         // Header
-        sender.sendMessage(TextUtil.parse("<gold>━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"));
-        sender.sendMessage(TextUtil.parse("<gold>Automod History: <white>" + target.getName() + " <gray>(" + totalCount + " triggers)"));
-        sender.sendMessage(TextUtil.parse("<gold>━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"));
+        Msg.send(sender, TextUtil.parse("<gold>━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"));
+        Msg.send(sender, TextUtil.parse("<gold>Automod History: <white>" + target.getName() + " <gray>(" + totalCount + " triggers)"));
+        Msg.send(sender, TextUtil.parse("<gold>━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"));
 
         // Get timezone
         ZoneId timezone = getTimezone();
@@ -104,16 +105,16 @@ public class AutomodHistoryCommand extends BaseCommand {
                     TextUtil.parse("<gray>Full timestamp:\n<white>" + fullDate +
                             "\n\n<gray>Rule: <light_purple>" + extra +
                             "\n<gray>Message: <white>" + content)));
-            sender.sendMessage(component);
+            Msg.send(sender, component);
         }
 
         // Pagination
         Component paginator = buildPaginator(target.getName(), page, totalPages);
-        sender.sendMessage(paginator);
+        Msg.send(sender, paginator);
 
         // GUI hint
         if (sender instanceof Player) {
-            sender.sendMessage(TextUtil.parse("<gray>Use <yellow>/automodhistory " + target.getName() + " -gui<gray> to view in GUI"));
+            Msg.send(sender, TextUtil.parse("<gray>Use <yellow>/automodhistory " + target.getName() + " -gui<gray> to view in GUI"));
         }
     }
 

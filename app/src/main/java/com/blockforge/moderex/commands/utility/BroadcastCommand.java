@@ -2,6 +2,7 @@ package com.blockforge.moderex.commands.utility;
 
 import com.blockforge.moderex.ModereX;
 import com.blockforge.moderex.commands.BaseCommand;
+import com.blockforge.moderex.util.Msg;
 import com.blockforge.moderex.util.TextUtil;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
@@ -70,11 +71,11 @@ public class BroadcastCommand extends BaseCommand {
 
         // Send to all players
         for (Player player : Bukkit.getOnlinePlayers()) {
-            player.sendMessage(broadcastMessage);
+            Msg.send(player, broadcastMessage);
         }
 
         // Also log to console
-        Bukkit.getConsoleSender().sendMessage(broadcastMessage);
+        Msg.send(Bukkit.getConsoleSender(), broadcastMessage);
 
         // Confirmation to sender
         sendMessage(sender, "<green>Broadcast sent.");

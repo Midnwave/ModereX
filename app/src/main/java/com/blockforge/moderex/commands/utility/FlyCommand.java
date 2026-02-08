@@ -3,6 +3,7 @@ package com.blockforge.moderex.commands.utility;
 import com.blockforge.moderex.ModereX;
 import com.blockforge.moderex.commands.BaseCommand;
 import com.blockforge.moderex.config.lang.MessageKey;
+import com.blockforge.moderex.util.Msg;
 import org.bukkit.Bukkit;
 import org.bukkit.command.CommandSender;
 import org.bukkit.entity.Player;
@@ -26,7 +27,7 @@ public class FlyCommand extends BaseCommand {
         if (args.length > 0) {
             // Toggle for another player
             if (!sender.hasPermission("moderex.command.fly.others")) {
-                sender.sendMessage(plugin.getLanguageManager().get(MessageKey.NO_PERMISSION));
+                Msg.send(sender, plugin.getLanguageManager().get(MessageKey.NO_PERMISSION));
                 return;
             }
 
@@ -38,7 +39,7 @@ public class FlyCommand extends BaseCommand {
         } else {
             // Toggle for self
             if (!(sender instanceof Player)) {
-                sender.sendMessage(plugin.getLanguageManager().get(MessageKey.PLAYER_ONLY));
+                Msg.send(sender, plugin.getLanguageManager().get(MessageKey.PLAYER_ONLY));
                 return;
             }
             target = (Player) sender;

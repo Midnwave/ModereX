@@ -1,0 +1,571 @@
+# ModereX Messages - Espa\u00f1ol (Espa\u00f1a)
+# Puedes usar formato MiniMessage: https://docs.advntr.dev/minimessage/format.html
+# Los marcadores se envuelven en <> como <player>, <reason>, <duration>
+
+# ============================================
+# GENERAL
+# ============================================
+general:
+  prefix: "<gradient:#FF6B6B:#4ECDC4>[ModereX]</gradient> "
+  no-permission: "<red>No tienes permiso para hacer eso."
+  player-not-found: "<red>Jugador no encontrado: <white><player>"
+  player-only: "<red>Este comando solo puede ser usado por jugadores."
+  invalid-duration: "<red>Formato de duraci\u00f3n inv\u00e1lido. Usa: 1mo, 3d, 1h, 30m, 15s, o permanent"
+  invalid-arguments: "<red>Argumentos inv\u00e1lidos. Uso: <white><usage>"
+  reload-success: "<green>\u00a1Configuraci\u00f3n recargada exitosamente!"
+  plugin-info: "<gray>ModereX v<version> por BlockForge Studios & ADF Industries LLC."
+
+# ============================================
+# MUTE
+# ============================================
+mute:
+  success: "<green>Silenciado exitosamente <yellow><player></yellow> por <white><duration></white>."
+  broadcast: "<gradient:#FF6B6B:#4ECDC4>[ModereX]</gradient> <gray><staff></gray> <gold>silenci\u00f3</gold> <yellow><player></yellow> <gray>por</gray> <white><duration></white> <dark_gray>|</dark_gray> <gray>Caso:</gray> <yellow><case_id></yellow>\n<gray>Raz\u00f3n: <white><reason>"
+  message: "<red>Has sido silenciado por <white><duration></white>.\n<gray>Raz\u00f3n: <white><reason><evidence>"
+  already-muted: "<red><player> ya est\u00e1 silenciado."
+  chat-attempt: "<red>Est\u00e1s silenciado por <white><duration></white>.\n<gray>Raz\u00f3n: <white><reason>"
+
+unmute:
+  success: "<green>Desilenciado exitosamente <yellow><player></yellow>."
+  broadcast: "<gradient:#FF6B6B:#4ECDC4>[ModereX]</gradient> <gray><staff></gray> <green>desilenci\u00f3</green> <yellow><player></yellow> <dark_gray>|</dark_gray> <gray>Caso:</gray> <yellow><case_id></yellow>"
+  not-muted: "<red><player> no est\u00e1 silenciado."
+
+# ============================================
+# BAN
+# ============================================
+ban:
+  success: "<green>Baneado exitosamente <yellow><player></yellow> por <white><duration></white>."
+  broadcast: "<gradient:#FF6B6B:#4ECDC4>[ModereX]</gradient> <gray><staff></gray> <dark_red>bane\u00f3</dark_red> <yellow><player></yellow> <gray>por</gray> <white><duration></white> <dark_gray>|</dark_gray> <gray>Caso:</gray> <yellow><case_id></yellow>\n<gray>Raz\u00f3n: <white><reason>"
+  already-banned: "<red><player> ya est\u00e1 baneado."
+  disconnect: |
+    <gradient:#FF6B6B:#4ECDC4>[ModereX]</gradient>
+
+    <red><bold>\u00a1Has sido Baneado!</bold></red>
+
+    <gray>Baneado el: <white><date></white>
+    <gray>Baneado por: <white><staff></white>
+    <gray>Duraci\u00f3n: <white><duration></white>
+    <gray>Raz\u00f3n: <white><reason></white><evidence>
+
+    <yellow>Apela en: discord.gg/example
+
+unban:
+  success: "<green>Desbaneado exitosamente <yellow><player></yellow>."
+  broadcast: "<gradient:#FF6B6B:#4ECDC4>[ModereX]</gradient> <gray><staff></gray> <green>desbanep\u00f3</green> <yellow><player></yellow> <dark_gray>|</dark_gray> <gray>Caso:</gray> <yellow><case_id></yellow>"
+  not-banned: "<red><player> no est\u00e1 baneado."
+
+# ============================================
+# IP BAN
+# ============================================
+ipban:
+  success: "<green>IP baneado exitosamente <yellow><player></yellow> por <white><duration></white>."
+  broadcast: "<gradient:#FF6B6B:#4ECDC4>[ModereX]</gradient> <gray><staff></gray> <dark_red>IP bane\u00f3</dark_red> <yellow><player></yellow> <gray>por</gray> <white><duration></white> <dark_gray>|</dark_gray> <gray>Caso:</gray> <yellow><case_id></yellow>\n<gray>Raz\u00f3n: <white><reason>"
+  disconnect: |
+    <gradient:#FF6B6B:#4ECDC4>[ModereX]</gradient>
+
+    <red><bold>\u00a1Has sido IP Baneado!</bold></red>
+
+    <gray>Baneado el: <white><date></white>
+    <gray>Baneado por: <white><staff></white>
+    <gray>Duraci\u00f3n: <white><duration></white>
+    <gray>Raz\u00f3n: <white><reason></white><evidence>
+
+    <yellow>Apela en: discord.gg/example
+
+# ============================================
+# KICK
+# ============================================
+kick:
+  success: "<green>Expulsado exitosamente <yellow><player></yellow>."
+  broadcast: "<gradient:#FF6B6B:#4ECDC4>[ModereX]</gradient> <gray><staff></gray> <red>expuls\u00f3</red> <yellow><player></yellow> <dark_gray>|</dark_gray> <gray>Caso:</gray> <yellow><case_id></yellow>\n<gray>Raz\u00f3n: <white><reason>"
+  disconnect: |
+    <gradient:#FF6B6B:#4ECDC4>[ModereX]</gradient>
+
+    <red><bold>\u00a1Has sido Expulsado!</bold></red>
+
+    <gray>Expulsado por: <white><staff></white>
+    <gray>Raz\u00f3n: <white><reason></white><evidence>
+
+# ============================================
+# WARN
+# ============================================
+warn:
+  success: "<green>Advertido exitosamente <yellow><player></yellow>."
+  broadcast: "<gradient:#FF6B6B:#4ECDC4>[ModereX]</gradient> <gray><staff></gray> <gold>advirti\u00f3</gold> <yellow><player></yellow> <dark_gray>|</dark_gray> <gray>Caso:</gray> <yellow><case_id></yellow>\n<gray>Raz\u00f3n: <white><reason>"
+  message: "<red><bold>\u00a1ADVERTENCIA!</bold></red> <gray>Has sido advertido.\n<gray>Raz\u00f3n: <white><reason><evidence>"
+  cleared: "<green>Todas las advertencias de <yellow><player></yellow> han sido eliminadas."
+  cleared-broadcast: "<gradient:#FF6B6B:#4ECDC4>[ModereX]</gradient> <gray><staff></gray> <gray>elimin\u00f3 todas las advertencias de</gray> <yellow><player></yellow>"
+
+# ============================================
+# STAFF CHAT
+# ============================================
+staffchat:
+  format: "<light_purple><bold>Staff</bold></light_purple> <dark_gray>|</dark_gray> <#FF6B6B><underlined><player></underlined></#FF6B6B><gray>: <white><message>"
+  enabled: "<green>Chat de staff <bold>activado</bold>. Todos los mensajes ir\u00e1n al chat de staff."
+  disabled: "<red>Chat de staff <bold>desactivado</bold>."
+  help-request: "<red><bold>AYUDA STAFF</bold></red> <dark_gray>|</dark_gray> <yellow><player></yellow> <gray>necesita asistencia!"
+
+# ============================================
+# VANISH
+# ============================================
+vanish:
+  enabled: "<green>Ahora est\u00e1s <bold>invisible</bold>."
+  disabled: "<red>Ya no est\u00e1s <bold>invisible</bold>."
+
+# ============================================
+# CHAT
+# ============================================
+chat:
+  disabled: "<green>El chat ha sido <bold>desactivado</bold>."
+  enabled: "<green>El chat ha sido <bold>activado</bold>."
+  slowmode-set: "<green>Modo lento del chat establecido a <yellow><seconds></yellow> segundos."
+  slowmode-message: "<red>\u00a1Tranquilo! Espera <white><seconds></white> segundos antes de chatear de nuevo."
+  cleared: "<gray>El chat ha sido limpiado por <yellow><player></yellow>."
+  disabled-message: "<red>El chat est\u00e1 actualmente desactivado."
+
+# ============================================
+# COMMAND BLACKLIST
+# ============================================
+cmdblacklist:
+  success: "<green>Comando <yellow><command></yellow> bloqueado exitosamente para <white><player></white>."
+  removed: "<green>Bloqueo de comando eliminado de <yellow><player></yellow>."
+  blocked: "<red>No tienes permiso para usar este comando."
+
+# ============================================
+# MOD LOG
+# ============================================
+modlog:
+  header: "<gold><strikethrough>     </strikethrough> Registro de <yellow><player></yellow> <strikethrough>     </strikethrough>"
+  entry: "<gray>[<white><date></white>] <yellow><type></yellow>: <white><reason></white> <gray>(por <yellow><staff></yellow>) - <white><duration></white> [<status>]"
+  empty: "<gray>No se encontr\u00f3 historial de moderaci\u00f3n para <yellow><player></yellow>."
+  footer: "<gold><strikethrough>     </strikethrough> P\u00e1gina <yellow><page></yellow>/<yellow><total></yellow> <strikethrough>     </strikethrough>"
+
+# ============================================
+# AUTOMOD
+# ============================================
+automod:
+  blocked: "<red>Tu mensaje fue bloqueado por el automod."
+  alert: "<red>[Automod]</red> <yellow><player></yellow> <gray>activ\u00f3 la regla: <white><rule>"
+  spam-blocked: "<red>\u00a1Por favor no hagas spam!"
+
+# ============================================
+# AFK SYSTEM
+# ============================================
+afk:
+  kick-message: "<red>Fuiste expulsado por estar AFK."
+  kick-reason: "AFK - Inactivo por demasiado tiempo"
+  kick-broadcast: "<gray>[<red>AFK</red>] <yellow><player></yellow> <gray>fue expulsado por estar AFK."
+
+# ============================================
+# ANTICHEAT
+# ============================================
+anticheat:
+  alert: "<red>[AC]</red> <yellow><player></yellow> <gray>fall\u00f3 <white><check></white> <gray>x<white><count></white>"
+
+# ============================================
+# WATCHLIST
+# ============================================
+watchlist:
+  alert: "<gold>[Vigilancia]</gold> <yellow><player></yellow> <gray><action>"
+
+# ============================================
+# WEB PANEL
+# ============================================
+webpanel:
+  connected: "<green>Conectado al panel web."
+  disconnected: "<red>Desconectado del panel web."
+
+# ============================================
+# UPDATE
+# ============================================
+update:
+  available: "<green>Una nueva versi\u00f3n de ModereX est\u00e1 disponible: <yellow><version></yellow>\n<gray>Descarga en: <aqua><click:open_url:'https://modrinth.com/plugin/moderex'>modrinth.com/plugin/moderex</click>"
+  current: "<gray>Est\u00e1s ejecutando la \u00faltima versi\u00f3n de ModereX."
+
+# ============================================
+# GITHUB AUTO-UPDATE
+# ============================================
+github:
+  update_available: "<green>Actualizaci\u00f3n de GitHub disponible: <yellow><version></yellow> <gray>(actual: <current>)\n<gray>La descarga autom\u00e1tica est\u00e1 activada. La actualizaci\u00f3n se descargar\u00e1 autom\u00e1ticamente."
+  update_downloaded: "<green>\u00a1Actualizaci\u00f3n <yellow><version></yellow> descargada exitosamente!\n<gray>Reinicia el servidor para aplicar la actualizaci\u00f3n."
+  update_pending: "<yellow>La actualizaci\u00f3n <version> est\u00e1 pendiente. <gray>Reinicia el servidor para aplicarla."
+  update_downloading: "<gray>Descargando actualizaci\u00f3n <yellow><version></yellow>..."
+  update_failed: "<red>Error al descargar la actualizaci\u00f3n. Revisa la consola para m\u00e1s detalles."
+
+# ============================================
+# COMMAND HISTORY
+# ============================================
+cmdhistory:
+  header: "<gold><strikethrough>     </strikethrough> Historial de Comandos de <yellow><player></yellow> <strikethrough>     </strikethrough>"
+  entry: "<gray>[<white><date></white>] <white><command>"
+  empty: "<gray>No se encontr\u00f3 historial de comandos para <yellow><player></yellow>."
+  footer: "<gold><strikethrough>     </strikethrough> P\u00e1gina <yellow><page></yellow>/<yellow><total></yellow> <strikethrough>     </strikethrough>"
+
+# ============================================
+# ACTIVITY LOG (/log command)
+# ============================================
+log:
+  header: "<gold><strikethrough>     </strikethrough> Registro de Actividad de <yellow><player></yellow> <dark_gray>(<white><total></white> entradas) <strikethrough>     </strikethrough>"
+  entry: "<gray><time> <white>- <type_color>(<player>): <white><content>"
+  empty: "<gray>No se encontraron registros de actividad para <yellow><player></yellow>."
+  footer: "<gold><strikethrough>     </strikethrough> P\u00e1gina <yellow><page></yellow>/<yellow><total></yellow> <strikethrough>     </strikethrough>"
+  filter-info: "<gray>Filtros: <white><filters>"
+
+# ============================================
+# REPLAY
+# ============================================
+replay:
+  not-available: "<red>La reproducci\u00f3n requiere el plugin Citizens instalado."
+  started: "<green>Reproducci\u00f3n iniciada para <yellow><player></yellow>."
+  stopped: "<gray>Reproducci\u00f3n finalizada."
+  not-found: "<red>No se encontr\u00f3 reproducci\u00f3n para <yellow><player></yellow>."
+  paused: "<yellow>Reproducci\u00f3n pausada."
+  resumed: "<green>Reproducci\u00f3n reanudada."
+
+# ============================================
+# ANALYTICS
+# ============================================
+analytics:
+  header: "<gold><strikethrough>     </strikethrough> Anal\u00edticas de ModereX <strikethrough>     </strikethrough>"
+
+# ============================================
+# GUI TITLES
+# ============================================
+gui:
+  punish:
+    title: "<dark_gray>Castigar Jugador"
+    select-title: "<dark_gray>Seleccionar Jugador"
+  mute:
+    title: "<dark_gray>Silenciar <yellow><player>"
+  ban:
+    title: "<dark_gray>Banear <yellow><player>"
+  automod:
+    title: "<dark_gray>Configuraci\u00f3n de Automod"
+  settings:
+    title: "<dark_gray>Configuraci\u00f3n de ModereX"
+
+# ============================================
+# IP MUTE
+# ============================================
+ipmute:
+  success: "<green>IP silenciado exitosamente <yellow><player></yellow> por <white><duration></white>."
+  broadcast: "<gradient:#FF6B6B:#4ECDC4>[ModereX]</gradient> <gray><staff></gray> <gold>IP silenci\u00f3</gold> <yellow><player></yellow> <gray>por</gray> <white><duration></white> <dark_gray>|</dark_gray> <gray>Caso:</gray> <yellow><case_id></yellow>\n<gray>Raz\u00f3n: <white><reason>"
+  message: "<red>Has sido IP silenciado por <white><duration></white>.\n<gray>Raz\u00f3n: <white><reason>"
+  already-muted: "<red><player> ya est\u00e1 IP silenciado."
+
+# ============================================
+# TEMPORARY PUNISHMENTS
+# ============================================
+tempban:
+  success: "<green>Baneado temporalmente exitosamente <yellow><player></yellow> por <white><duration></white>."
+  broadcast: "<gradient:#FF6B6B:#4ECDC4>[ModereX]</gradient> <gray><staff></gray> <dark_red>bane\u00f3 temp.</dark_red> <yellow><player></yellow> <gray>por</gray> <white><duration></white> <dark_gray>|</dark_gray> <gray>Caso:</gray> <yellow><case_id></yellow>\n<gray>Raz\u00f3n: <white><reason>"
+  duration-required: "<red>Se requiere duraci\u00f3n para baneos temporales. Usa: /tempban <player> <duration> [raz\u00f3n]"
+
+tempmute:
+  success: "<green>Silenciado temporalmente exitosamente <yellow><player></yellow> por <white><duration></white>."
+  broadcast: "<gradient:#FF6B6B:#4ECDC4>[ModereX]</gradient> <gray><staff></gray> <gold>silenci\u00f3 temp.</gold> <yellow><player></yellow> <gray>por</gray> <white><duration></white> <dark_gray>|</dark_gray> <gray>Caso:</gray> <yellow><case_id></yellow>\n<gray>Raz\u00f3n: <white><reason>"
+  duration-required: "<red>Se requiere duraci\u00f3n para silenciamientos temporales. Usa: /tempmute <player> <duration> [raz\u00f3n]"
+
+# ============================================
+# UNWARN
+# ============================================
+unwarn:
+  success: "<green>Advertencia eliminada exitosamente de <yellow><player></yellow>."
+  broadcast: "<gradient:#FF6B6B:#4ECDC4>[ModereX]</gradient> <gray><staff></gray> <green>elimin\u00f3 una advertencia</green> <gray>de</gray> <yellow><player></yellow> <dark_gray>|</dark_gray> <gray>Caso:</gray> <yellow><case_id></yellow>"
+  not-warned: "<red><player> no tiene advertencias activas."
+  by-id: "<green>Advertencia con ID <yellow><id></yellow> eliminada exitosamente."
+
+# ============================================
+# CHECK COMMANDS
+# ============================================
+checkban:
+  header: "<gold><strikethrough>     </strikethrough> Estado de Ban de <yellow><player></yellow> <strikethrough>     </strikethrough>"
+  banned: "<red><player> est\u00e1 actualmente baneado."
+  not-banned: "<green><player> no est\u00e1 baneado."
+  details: |
+    <gray>Baneado por: <white><staff>
+    <gray>Baneado el: <white><date>
+    <gray>Duraci\u00f3n: <white><duration>
+    <gray>Raz\u00f3n: <white><reason>
+    <gray>Expira: <white><expiry>
+    <gray>ID de Caso: <white><case_id>
+
+checkmute:
+  header: "<gold><strikethrough>     </strikethrough> Estado de Silencio de <yellow><player></yellow> <strikethrough>     </strikethrough>"
+  muted: "<red><player> est\u00e1 actualmente silenciado."
+  not-muted: "<green><player> no est\u00e1 silenciado."
+  details: |
+    <gray>Silenciado por: <white><staff>
+    <gray>Silenciado el: <white><date>
+    <gray>Duraci\u00f3n: <white><duration>
+    <gray>Raz\u00f3n: <white><reason>
+    <gray>Expira: <white><expiry>
+    <gray>ID de Caso: <white><case_id>
+
+checkwarn:
+  header: "<gold><strikethrough>     </strikethrough> Estado de Advertencias de <yellow><player></yellow> <strikethrough>     </strikethrough>"
+  has-warnings: "<yellow><player> tiene <white><count></white> advertencia(s) activa(s)."
+  no-warnings: "<green><player> no tiene advertencias activas."
+  warning-entry: "<gray>[<white><date></white>] <white><reason></white> <gray>(por <yellow><staff></yellow>) - Expira: <white><expiry>"
+
+check:
+  header: "<gold><strikethrough>     </strikethrough> Info del Jugador: <yellow><player></yellow> <strikethrough>     </strikethrough>"
+  footer: "<gold><strikethrough>                                    </strikethrough>"
+  status: "<gray>Estado: <status>"
+  uuid: "<gray>UUID: <white><uuid>"
+  ban-active: "<red>\u26A0 BANEADO</red> <gray>- <white><duration></white> <gray>(<white><reason></white>) por <yellow><staff></yellow>"
+  ban-none: "<green>\u2713 No Baneado</green>"
+  mute-active: "<gold>\u26A0 SILENCIADO</gold> <gray>- <white><duration></white> <gray>(<white><reason></white>) por <yellow><staff></yellow>"
+  mute-none: "<green>\u2713 No Silenciado</green>"
+  warnings: "<yellow>\u26A0 Advertencias:</yellow> <white><count></white> activa(s)"
+  warnings-none: "<green>\u2713 Sin Advertencias Activas</green>"
+  ip: "<gray>Direcci\u00f3n IP: <white><ip>"
+  ip-offline: "<gray>Direcci\u00f3n IP: <dark_gray>No disponible (jugador desconectado)"
+  region: "<gray>Regi\u00f3n: <white><region>"
+  alts: "<gray>Cuentas Alt: <white><count>"
+  total-punishments: "<gray>Total de Castigos: <white><count>"
+
+# ============================================
+# HISTORY COMMANDS
+# ============================================
+history:
+  header: "<gold><strikethrough>     </strikethrough> Historial de Castigos de <yellow><player></yellow> <strikethrough>     </strikethrough>"
+  entry: "<gray>[<white><date></white>] <yellow><type></yellow>: <white><reason></white> <gray>por <yellow><staff></yellow> - <white><duration></white> [<status>]"
+  empty: "<gray>No se encontr\u00f3 historial de castigos para <yellow><player></yellow>."
+  footer: "<gold><strikethrough>     </strikethrough> P\u00e1gina <yellow><page></yellow>/<yellow><total></yellow> <strikethrough>     </strikethrough>"
+  type-filter: "<gray>Mostrando: castigos de tipo <white><type></white>"
+
+staffhistory:
+  header: "<gold><strikethrough>     </strikethrough> Historial de Staff de <yellow><staff></yellow> <strikethrough>     </strikethrough>"
+  entry: "<gray>[<white><date></white>] <yellow><type></yellow> a <yellow><player></yellow>: <white><reason></white> - <white><duration></white> [<status>]"
+  empty: "<gray>No se encontr\u00f3 historial de staff para <yellow><staff></yellow>."
+  footer: "<gold><strikethrough>     </strikethrough> P\u00e1gina <yellow><page></yellow>/<yellow><total></yellow> <strikethrough>     </strikethrough>"
+
+warnings:
+  header: "<gold><strikethrough>     </strikethrough> Advertencias Activas de <yellow><player></yellow> <strikethrough>     </strikethrough>"
+  entry: "<gray>[<white><date></white>] <white><reason></white> <gray>por <yellow><staff></yellow> <gray>- Expira: <white><expiry>"
+  empty: "<gray>No se encontraron advertencias activas."
+  self-empty: "<green>No tienes advertencias activas."
+  count: "<yellow>Total de advertencias: <white><count>"
+
+banlist:
+  header: "<gold><strikethrough>     </strikethrough> Baneos Activos <strikethrough>     </strikethrough>"
+  entry: "<gray><white><player></white> <gray>por <yellow><staff></yellow> <gray>- <white><reason></white> <gray>(<white><duration></white>)"
+  empty: "<gray>No se encontraron baneos activos."
+  footer: "<gold><strikethrough>     </strikethrough> P\u00e1gina <yellow><page></yellow>/<yellow><total></yellow> <strikethrough>     </strikethrough>"
+
+mutelist:
+  header: "<gold><strikethrough>     </strikethrough> Silenciamientos Activos <strikethrough>     </strikethrough>"
+  entry: "<gray><white><player></white> <gray>por <yellow><staff></yellow> <gray>- <white><reason></white> <gray>(<white><duration></white>)"
+  empty: "<gray>No se encontraron silenciamientos activos."
+  footer: "<gold><strikethrough>     </strikethrough> P\u00e1gina <yellow><page></yellow>/<yellow><total></yellow> <strikethrough>     </strikethrough>"
+
+warnlist:
+  header: "<gold><strikethrough>     </strikethrough> Advertencias Activas <strikethrough>     </strikethrough>"
+  entry: "<gray><white><player></white> <gray>por <yellow><staff></yellow> <gray>- <white><reason></white> <gray>(Expira: <white><expiry></white>)"
+  empty: "<gray>No se encontraron advertencias activas."
+  footer: "<gold><strikethrough>     </strikethrough> P\u00e1gina <yellow><page></yellow>/<yellow><total></yellow> <strikethrough>     </strikethrough>"
+
+# ============================================
+# ACCOUNT & IP COMMANDS
+# ============================================
+dupeip:
+  header: "<gold><strikethrough>     </strikethrough> Cuentas Alt de <yellow><target></yellow> <strikethrough>     </strikethrough>"
+  entry: "<gray>- <white><player></white> <gray>(<white><uuid></white>)"
+  ip-entry: "<gray>- <white><ip></white>"
+  empty: "<gray>No se encontraron cuentas alt."
+  count: "<yellow>Total de cuentas: <white><count>"
+  shared-ip: "<gray>IP compartida: <white><ip>"
+
+iphistory:
+  header: "<gold><strikethrough>     </strikethrough> Historial de IP de <yellow><player></yellow> <strikethrough>     </strikethrough>"
+  entry: "<gray>[<white><date></white>] <white><ip></white>"
+  empty: "<gray>No se encontr\u00f3 historial de IP para <yellow><player></yellow>."
+  count: "<yellow>Total de IPs: <white><count>"
+  console-only: "<red>Este comando solo puede ser ejecutado desde la consola por razones de privacidad."
+
+ipreport:
+  header: "<gold><strikethrough>     </strikethrough> Reporte de IPs Duplicadas <strikethrough>     </strikethrough>"
+  entry: "<gray>La IP <white><ip></white> <gray>es compartida por:"
+  player-entry: "<gray>  - <yellow><player></yellow>"
+  empty: "<green>No se detectaron IPs duplicadas entre los jugadores conectados."
+  count: "<yellow>Total de IPs duplicadas: <white><count>"
+
+geoip:
+  header: "<gold><strikethrough>     </strikethrough> GeoIP de <yellow><player></yellow> <strikethrough>     </strikethrough>"
+  country: "<gray>Pa\u00eds: <white><country></white> <flag>"
+  region: "<gray>Regi\u00f3n: <white><region>"
+  city: "<gray>Ciudad: <white><city>"
+  ip: "<gray>IP: <white><ip>"
+  not-available: "<red>Informaci\u00f3n GeoIP no disponible para <yellow><player></yellow>."
+  database-missing: "<red>Base de datos GeoIP no configurada. Por favor configura GeoIP en config.yml."
+
+lastuuid:
+  format: "<gray>UUID de <yellow><player></yellow>: <white><uuid>"
+  not-found: "<red>No se pudo encontrar el UUID de <yellow><player></yellow>."
+
+namehistory:
+  header: "<gold><strikethrough>     </strikethrough> Historial de Nombres de <yellow><player></yellow> <strikethrough>     </strikethrough>"
+  entry: "<gray>[<white><date></white>] <white><name>"
+  current: "<gray>[Actual] <white><name>"
+  empty: "<gray>No se encontr\u00f3 historial de nombres para <yellow><player></yellow>."
+  not-available: "<red>El servicio de historial de nombres no est\u00e1 disponible actualmente."
+
+# ============================================
+# ADMIN COMMANDS
+# ============================================
+lockdown:
+  enabled: "<red><bold>BLOQUEO ACTIVADO</bold></red> <gray>- El servidor est\u00e1 ahora en modo de bloqueo."
+  disabled: "<green><bold>BLOQUEO DESACTIVADO</bold></green> <gray>- El bloqueo del servidor ha sido levantado."
+  broadcast-enabled: "<red>[Bloqueo]</red> <gray><staff> activ\u00f3 el modo de bloqueo <gray>(<white><scope></white>)"
+  broadcast-disabled: "<green>[Bloqueo]</green> <gray><staff> desactiv\u00f3 el modo de bloqueo <gray>(<white><scope></white>)"
+  kick-message: |
+    <gradient:#FF6B6B:#4ECDC4>[ModereX]</gradient>
+
+    <red><bold>Servidor en Bloqueo</bold></red>
+
+    <gray>El servidor est\u00e1 temporalmente en modo de bloqueo.
+    <gray>Por favor int\u00e9ntalo m\u00e1s tarde.
+  already-enabled: "<red>El bloqueo ya est\u00e1 activado."
+  already-disabled: "<red>El bloqueo ya est\u00e1 desactivado."
+  status: "<gray>Estado del bloqueo: <status>"
+  scope-local: "<yellow>Local"
+  scope-global: "<gold>Global"
+
+prunehistory:
+  success: "<green>Eliminados exitosamente <white><count></white> castigo(s) inactivo(s) de <yellow><player></yellow>."
+  confirm: "<yellow>Esto eliminar\u00e1 <white><count></white> castigo(s) inactivo(s) de <yellow><player></yellow>. Usa --confirm para proceder."
+  empty: "<gray>No se encontraron castigos inactivos para <yellow><player></yellow>."
+  duration-info: "<gray>Eliminando castigos m\u00e1s antiguos que: <white><duration>"
+
+staffrollback:
+  success: "<green>Revertidos exitosamente <white><count></white> castigo(s) de <yellow><staff></yellow>."
+  confirm: "<yellow>Esto revertir\u00e1 <white><count></white> castigo(s) de <yellow><staff></yellow>. Usa --confirm para proceder."
+  empty: "<gray>No se encontraron castigos de <yellow><staff></yellow>."
+  duration-info: "<gray>Revirtiendo castigos de los \u00faltimos: <white><duration>"
+  broadcast: "<gray><executor> revirti\u00f3 <white><count></white> castigo(s) de <yellow><staff></yellow>."
+
+# ============================================
+# MODEREX SUBCOMMANDS
+# ============================================
+moderex:
+  help-header: "<gold><strikethrough>          </strikethrough> Comandos de ModereX <strikethrough>          </strikethrough>"
+  help-entry: "<yellow>/<command></yellow> <gray>- <white><description>"
+  help-footer: "<gold><strikethrough>                                    </strikethrough>"
+
+  allow:
+    added: "<green>Se agreg\u00f3 exitosamente <yellow><player></yellow> a la lista permitida."
+    removed: "<green>Se elimin\u00f3 exitosamente <yellow><player></yellow> de la lista permitida."
+    check-allowed: "<green><player> est\u00e1 en la lista permitida."
+    check-not-allowed: "<red><player> no est\u00e1 en la lista permitida."
+    list-header: "<gold><strikethrough>     </strikethrough> Jugadores Permitidos <strikethrough>     </strikethrough>"
+    list-entry: "<gray>- <yellow><player>"
+    list-empty: "<gray>No hay jugadores en la lista permitida."
+
+  unlink:
+    success: "<green>Asociaci\u00f3n de IP desvinculada exitosamente para <yellow><player></yellow>."
+    confirm: "<yellow>Esto desvincular\u00e1 todas las asociaciones de IP de <yellow><player></yellow>. Usa --confirm para proceder."
+    no-associations: "<gray>No se encontraron asociaciones de IP para <yellow><player></yellow>."
+
+  info:
+    header: "<gold><strikethrough>     </strikethrough> Informaci\u00f3n de Base de Datos <strikethrough>     </strikethrough>"
+    connection-pool: "<gray>Pool de Conexiones:"
+    active-connections: "<gray>  Activas: <white><active></white>/<white><max>"
+    idle-connections: "<gray>  Inactivas: <white><idle>"
+    total-punishments: "<gray>Total de Castigos: <white><total>"
+    active-bans: "<gray>Baneos Activos: <white><bans>"
+    active-mutes: "<gray>Silenciamientos Activos: <white><mutes>"
+    active-warnings: "<gray>Advertencias Activas: <white><warnings>"
+    database-type: "<gray>Tipo de Base de Datos: <white><type>"
+
+  servers:
+    header: "<gold><strikethrough>     </strikethrough> Servidores Conectados <strikethrough>     </strikethrough>"
+    entry: "<gray>- <yellow><server></yellow> <gray>(<white><players></white> jugadores)"
+    empty: "<gray>No hay otros servidores conectados."
+    local: "<green>\u2605 <server></green> <gray>(Actual)"
+
+  reveal:
+    format: "<gray>ID de castigo para <yellow><case_id></yellow>: <white><id>"
+    not-found: "<red>No se encontr\u00f3 castigo con ID de caso: <yellow><case_id></yellow>"
+
+  broadcast:
+    sent: "<green>Transmisi\u00f3n enviada a <white><count></white> servidor(es)."
+    format: "<red><bold>TRANSMISI\u00d3N</bold></red> <gray>| <white><message>"
+    received: "<gray>[<yellow><server></yellow>] <red><bold>TRANSMISI\u00d3N</bold></red> <gray>de <yellow><staff></yellow>: <white><message>"
+
+  timezone:
+    current: "<gray>Zona horaria actual: <white><timezone>"
+    set: "<green>Zona horaria establecida a <white><timezone></white>."
+    invalid: "<red>Zona horaria inv\u00e1lida: <white><timezone></white>"
+    list-header: "<gold><strikethrough>     </strikethrough> Zonas Horarias Disponibles <strikethrough>     </strikethrough>"
+    list-entry: "<gray>- <white><timezone>"
+
+  reset-database:
+    success: "<green>Base de datos reiniciada exitosamente. Todos los castigos han sido eliminados."
+    confirm: "<red><bold>ADVERTENCIA:</bold></red> <yellow>\u00a1Esto eliminar\u00e1 permanentemente TODOS los castigos! Usa --confirm para proceder."
+    console-only: "<red>Este comando solo puede ser ejecutado desde la consola por seguridad."
+
+  reset-templates:
+    success: "<green>Progresi\u00f3n de plantilla reiniciada exitosamente para <yellow><player></yellow>."
+    success-all: "<green>Todas las progresiones de plantilla reiniciadas exitosamente."
+    confirm: "<yellow>Esto reiniciar\u00e1 la progresi\u00f3n de plantilla de <yellow><player></yellow>. Usa --confirm para proceder."
+    confirm-all: "<red><bold>ADVERTENCIA:</bold></red> <yellow>\u00a1Esto reiniciar\u00e1 TODAS las progresiones de plantilla! Usa --confirm para proceder."
+
+  add-login:
+    success: "<green>Registro de inicio de sesi\u00f3n agregado exitosamente para <yellow><player></yellow> con IP <white><ip></white>."
+    console-only: "<red>Este comando solo puede ser ejecutado desde la consola."
+
+  accept:
+    success: "<green>Descargo de responsabilidad aceptado. ModereX est\u00e1 ahora completamente habilitado."
+    already-accepted: "<yellow>El descargo de responsabilidad ya ha sido aceptado."
+    console-only: "<red>Este comando solo puede ser ejecutado desde la consola."
+
+  license:
+    header: "<gold><strikethrough>     </strikethrough> Licencia de ModereX <strikethrough>     </strikethrough>"
+    license-type: "<gray>Licencia: <white><type>"
+    version: "<gray>Versi\u00f3n: <white><version>"
+    author: "<gray>Autor: <white><author>"
+    website: "<gray>Sitio web: <aqua><click:open_url:'<website>'><website></click>"
+
+  upgrade:
+    success: "<green>Base de datos actualizada exitosamente a la versi\u00f3n <white><version></white>."
+    already-latest: "<yellow>La base de datos ya est\u00e1 en la \u00faltima versi\u00f3n (<white><version></white>)."
+    console-only: "<red>Este comando solo puede ser ejecutado desde la consola."
+    in-progress: "<yellow>Actualizaci\u00f3n de base de datos en progreso..."
+
+# ============================================
+# PUNISHMENT FLAGS
+# ============================================
+flags:
+  delete-success: "<green>Castigo con ID <yellow><id></yellow> eliminado exitosamente."
+  delete-reverted-template: "<gray>La progresi\u00f3n de plantilla ha sido revertida para <yellow><player></yellow>."
+  modify-success: "<green>Castigo con ID <yellow><id></yellow> modificado exitosamente."
+  no-override: "<yellow>No se sobrescribi\u00f3 el castigo existente de <yellow><player></yellow> (usa sin -N para sobrescribir)."
+  global: "<gray>(Global)"
+  silent: "<gray>(Silencioso)"
+  extra-silent: "<gray>(Extra Silencioso)"
+  hidden: "<gray>(Oculto)"
+
+# ============================================
+# TARGET RESOLUTION
+# ============================================
+target:
+  invalid: "<red>Formato de objetivo inv\u00e1lido. Usa nombre de jugador, UUID, direcci\u00f3n IP o ID de castigo."
+  not-found: "<red>No se pudo encontrar el objetivo: <white><target>"
+  offline-no-ip: "<red><player> no est\u00e1 conectado. No se puede resolver la direcci\u00f3n IP."
+  multiple-found: "<yellow>Se encontraron m\u00faltiples jugadores que coinciden con <white><target></white>. Por favor s\u00e9 m\u00e1s espec\u00edfico."
+
+# ============================================
+# ERRORS
+# ============================================
+error:
+  database: "<red>Ocurri\u00f3 un error de base de datos. Por favor contacta a un administrador."
+  internal: "<red>Ocurri\u00f3 un error interno. Por favor contacta a un administrador."
+  no-permission-flag: "<red>No tienes permiso para usar la bandera: <white><flag>"
+  console-only-flag: "<red>La bandera <white><flag></white> solo puede ser usada desde la consola."
+  invalid-page: "<red>N\u00famero de p\u00e1gina inv\u00e1lido. Usa un n\u00famero entre 1 y <white><max></white>."
+  player-not-online: "<red>El jugador <yellow><player></yellow> no est\u00e1 conectado."
+  invalid-ip: "<red>Formato de direcci\u00f3n IP inv\u00e1lido."
+  invalid-uuid: "<red>Formato de UUID inv\u00e1lido."
+  punishment-not-found: "<red>Castigo no encontrado con ID: <white><id>"
+  no-active-punishment: "<red><player> no tiene un castigo <type> activo."

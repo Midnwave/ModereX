@@ -4,6 +4,7 @@ import com.blockforge.moderex.ModereX;
 import com.blockforge.moderex.config.lang.MessageKey;
 import com.blockforge.moderex.webpanel.debug.WebPanelDebugger;
 import com.blockforge.moderex.staff.hooks.VanishPluginHookManager;
+import com.blockforge.moderex.util.Msg;
 import com.blockforge.moderex.util.TextUtil;
 import com.blockforge.moderex.vanish.packet.PacketVanishInjector;
 import net.kyori.adventure.text.Component;
@@ -129,7 +130,7 @@ public class VanishManager {
         }
 
         // Send message
-        player.sendMessage(plugin.getLanguageManager().getPrefixed(MessageKey.VANISH_ENABLED));
+        Msg.send(player, plugin.getLanguageManager().getPrefixed(MessageKey.VANISH_ENABLED));
 
         notifyStaffOfVanish(player, true);
 
@@ -194,7 +195,7 @@ public class VanishManager {
             updateVanishStateInDatabase(uuid, false);
         }
 
-        player.sendMessage(plugin.getLanguageManager().getPrefixed(MessageKey.VANISH_DISABLED));
+        Msg.send(player, plugin.getLanguageManager().getPrefixed(MessageKey.VANISH_DISABLED));
 
         notifyStaffOfVanish(player, false);
 
@@ -309,7 +310,7 @@ public class VanishManager {
     private void notifyStaff(String message) {
         for (Player player : Bukkit.getOnlinePlayers()) {
             if (player.hasPermission("moderex.command.vanish")) {
-                player.sendMessage(plugin.getLanguageManager().getPrefix()
+                Msg.send(player, plugin.getLanguageManager().getPrefix()
                         .append(net.kyori.adventure.text.Component.text(message)));
             }
         }
@@ -622,14 +623,14 @@ public class VanishManager {
             player.setGameMode(previousMode);
             previousGameModes.remove(uuid);
 
-            player.sendMessage(plugin.getLanguageManager().getPrefix()
+            Msg.send(player, plugin.getLanguageManager().getPrefix()
                     .append(Component.text("§aExited spectator mode")));
         } else {
             // Enter spectator mode
             previousGameModes.put(uuid, player.getGameMode());
             player.setGameMode(GameMode.SPECTATOR);
 
-            player.sendMessage(plugin.getLanguageManager().getPrefix()
+            Msg.send(player, plugin.getLanguageManager().getPrefix()
                     .append(Component.text("§aEntered spectator mode")));
         }
     }

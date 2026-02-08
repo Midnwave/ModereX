@@ -2,6 +2,7 @@ package com.blockforge.moderex.gui.punishment;
 
 import com.blockforge.moderex.ModereX;
 import com.blockforge.moderex.punishment.PunishmentType;
+import com.blockforge.moderex.util.Msg;
 import com.blockforge.moderex.util.TextUtil;
 import org.bukkit.Material;
 import org.bukkit.OfflinePlayer;
@@ -37,7 +38,7 @@ public class KickGui extends BasePunishmentGui {
     @Override
     protected void executePunishment() {
         if (!target.isOnline()) {
-            viewer.sendMessage(TextUtil.parse(
+            Msg.send(viewer, TextUtil.parse(
                     "<red>Player " + target.getName() + " is not online!"));
             close();
             return;

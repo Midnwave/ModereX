@@ -30,7 +30,7 @@ public class StaffInspectGui {
         this.plugin = plugin;
         this.staff = staff;
         this.target = target;
-        this.inventory = Bukkit.createInventory(null, 54, Component.text("Inspect: " + target.getName()));
+        this.inventory = Msg.createInventory(null, 54, Component.text("Inspect: " + target.getName()));
     }
 
     /**
@@ -96,7 +96,8 @@ public class StaffInspectGui {
             List<Component> lore = new ArrayList<>();
             lore.add(Component.text("IP: " + target.getAddress().getAddress().getHostAddress()).color(NamedTextColor.GRAY));
             lore.add(Component.text("Ping: " + target.getPing() + "ms").color(NamedTextColor.GRAY));
-            lore.add(Component.text("Client: " + target.getClientBrandName()).color(NamedTextColor.GRAY));
+            String clientBrand = Msg.getClientBrand(target);
+            lore.add(Component.text("Client: " + (clientBrand != null ? clientBrand : "Unknown")).color(NamedTextColor.GRAY));
             Msg.lore(meta, lore);
             item.setItemMeta(meta);
         }

@@ -3,6 +3,7 @@ package com.blockforge.moderex.staff;
 import com.blockforge.moderex.ModereX;
 import com.blockforge.moderex.config.lang.MessageKey;
 import com.blockforge.moderex.hooks.LuckPermsHook;
+import com.blockforge.moderex.util.Msg;
 import com.blockforge.moderex.util.TextUtil;
 import net.kyori.adventure.text.Component;
 import org.bukkit.Bukkit;
@@ -39,7 +40,7 @@ public class StaffChatManager {
         // Send to all staff members
         for (Player player : Bukkit.getOnlinePlayers()) {
             if (player.hasPermission("moderex.notify.staffchat")) {
-                player.sendMessage(formattedMessage);
+                Msg.send(player, formattedMessage);
 
                 // Play sound if enabled
                 if (plugin.getConfigManager().getSettings().isStaffChatSoundEnabled()) {
@@ -76,7 +77,7 @@ public class StaffChatManager {
         // Send to all staff members
         for (Player player : Bukkit.getOnlinePlayers()) {
             if (player.hasPermission("moderex.notify.staffchat")) {
-                player.sendMessage(formattedMessage);
+                Msg.send(player, formattedMessage);
 
                 // Play sound if enabled
                 if (plugin.getConfigManager().getSettings().isStaffChatSoundEnabled()) {
@@ -107,7 +108,7 @@ public class StaffChatManager {
         // Send to all staff members
         for (Player player : Bukkit.getOnlinePlayers()) {
             if (player.hasPermission("moderex.notify.staffchat")) {
-                player.sendMessage(message);
+                Msg.send(player, message);
 
                 // Play urgent sound
                 player.playSound(player.getLocation(), Sound.BLOCK_NOTE_BLOCK_PLING, 1.0f, 1.0f);
@@ -116,7 +117,7 @@ public class StaffChatManager {
         }
 
         // Confirm to requester
-        requester.sendMessage(TextUtil.parse("<green>Your help request has been sent to staff."));
+        Msg.send(requester, TextUtil.parse("<green>Your help request has been sent to staff."));
 
         // Log
         plugin.getLogger().info("[StaffHelp] " + requester.getName() + " requested help");
@@ -131,21 +132,21 @@ public class StaffChatManager {
         UUID uuid = player.getUniqueId();
         if (staffChatToggled.contains(uuid)) {
             staffChatToggled.remove(uuid);
-            player.sendMessage(plugin.getLanguageManager().getPrefixed(MessageKey.STAFFCHAT_DISABLED));
+            Msg.send(player, plugin.getLanguageManager().getPrefixed(MessageKey.STAFFCHAT_DISABLED));
         } else {
             staffChatToggled.add(uuid);
-            player.sendMessage(plugin.getLanguageManager().getPrefixed(MessageKey.STAFFCHAT_ENABLED));
+            Msg.send(player, plugin.getLanguageManager().getPrefixed(MessageKey.STAFFCHAT_ENABLED));
         }
     }
 
     public void enableStaffChat(Player player) {
         staffChatToggled.add(player.getUniqueId());
-        player.sendMessage(plugin.getLanguageManager().getPrefixed(MessageKey.STAFFCHAT_ENABLED));
+        Msg.send(player, plugin.getLanguageManager().getPrefixed(MessageKey.STAFFCHAT_ENABLED));
     }
 
     public void disableStaffChat(Player player) {
         staffChatToggled.remove(player.getUniqueId());
-        player.sendMessage(plugin.getLanguageManager().getPrefixed(MessageKey.STAFFCHAT_DISABLED));
+        Msg.send(player, plugin.getLanguageManager().getPrefixed(MessageKey.STAFFCHAT_DISABLED));
     }
 
     public boolean hasStaffChatToggled(Player player) {

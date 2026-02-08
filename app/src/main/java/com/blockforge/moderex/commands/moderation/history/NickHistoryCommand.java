@@ -6,6 +6,7 @@ import com.blockforge.moderex.config.lang.MessageKey;
 import com.blockforge.moderex.gui.NickHistoryGui;
 import com.blockforge.moderex.log.ActivityLogEntry;
 import com.blockforge.moderex.log.ActivityLogEntry.ActivityType;
+import com.blockforge.moderex.util.Msg;
 import com.blockforge.moderex.util.TextUtil;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.event.HoverEvent;
@@ -72,7 +73,7 @@ public class NickHistoryCommand extends BaseCommand {
                 target.getUniqueId(), List.of(ActivityType.NICKNAME_CHANGE), 0, System.currentTimeMillis());
 
         if (totalCount == 0) {
-            sender.sendMessage(TextUtil.parse("<gray>No nickname changes found for <white>" + target.getName()));
+            Msg.send(sender, TextUtil.parse("<gray>No nickname changes found for <white>" + target.getName()));
             return;
         }
 
@@ -84,9 +85,9 @@ public class NickHistoryCommand extends BaseCommand {
                 target.getUniqueId(), List.of(ActivityType.NICKNAME_CHANGE), 0, System.currentTimeMillis(), page, perPage);
 
         // Header
-        sender.sendMessage(TextUtil.parse("<gold>━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"));
-        sender.sendMessage(TextUtil.parse("<gold>Nickname History: <white>" + target.getName() + " <gray>(" + totalCount + " changes)"));
-        sender.sendMessage(TextUtil.parse("<gold>━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"));
+        Msg.send(sender, TextUtil.parse("<gold>━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"));
+        Msg.send(sender, TextUtil.parse("<gold>Nickname History: <white>" + target.getName() + " <gray>(" + totalCount + " changes)"));
+        Msg.send(sender, TextUtil.parse("<gold>━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"));
 
         // Get timezone
         ZoneId timezone = getTimezone();
@@ -114,16 +115,16 @@ public class NickHistoryCommand extends BaseCommand {
                     TextUtil.parse("<gray>Full timestamp:\n<white>" + fullDate +
                             "\n\n<gray>New nickname: <gold>" + newNick +
                             "\n<gray>Old nickname: <gold>" + oldNick)));
-            sender.sendMessage(component);
+            Msg.send(sender, component);
         }
 
         // Pagination
         Component paginator = buildPaginator(target.getName(), page, totalPages);
-        sender.sendMessage(paginator);
+        Msg.send(sender, paginator);
 
         // GUI hint
         if (sender instanceof Player) {
-            sender.sendMessage(TextUtil.parse("<gray>Use <yellow>/nickhistory " + target.getName() + " -gui<gray> to view in GUI"));
+            Msg.send(sender, TextUtil.parse("<gray>Use <yellow>/nickhistory " + target.getName() + " -gui<gray> to view in GUI"));
         }
     }
 

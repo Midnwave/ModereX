@@ -42,7 +42,7 @@ public class DisguiseGui {
      * Open the disguise GUI.
      */
     public void open() {
-        Inventory inv = Bukkit.createInventory(null, 54, Component.text("Select Disguise Rank"));
+        Inventory inv = Msg.createInventory(null, 54, Component.text("Select Disguise Rank"));
 
         // Add rank options
         int slot = 10;
