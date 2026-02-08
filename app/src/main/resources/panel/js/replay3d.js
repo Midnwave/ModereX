@@ -14,6 +14,475 @@
     return;
   }
 
+  // ===== REPLAY SOUND MANAGER =====
+  // Synthesized sound effects for the 3D replay viewer using Web Audio API.
+  // All sounds are generated procedurally - no external audio files needed.
+
+  class ReplaySoundManager {
+    constructor() {
+      this._ctx = null;
+      this._masterGain = null;
+      this._volume = 0.35;
+      this._muted = false;
+      this._enabled = true;
+      this._playbackSpeed = 1;
+
+      // Footstep state
+      this._lastFootstepTime = 0;
+      this._footstepInterval = 380; // ms between footsteps at normal walk speed
+
+      // Ambient state
+      this._ambientOsc = null;
+      this._ambientGain = null;
+      this._ambientRunning = false;
+
+      // Throttle: prevent sound spam
+      this._lastSoundTimes = {};
+      this._minInterval = 60; // ms minimum between same sound type
+
+      // Load settings from localStorage
+      this._loadSettings();
+    }
+
+    // --- Initialization ---
+
+    /**
+     * Initialize the AudioContext. Must be called after a user gesture.
+     */
+    init() {
+      if (this._ctx) return;
+      try {
+        this._ctx = new (window.AudioContext || window.webkitAudioContext)();
+        this._masterGain = this._ctx.createGain();
+        this._masterGain.gain.setValueAtTime(this._muted ? 0 : this._volume, this._ctx.currentTime);
+        this._masterGain.connect(this._ctx.destination);
+      } catch (e) {
+        console.warn('[ReplaySounds] Web Audio API not available:', e.message);
+      }
+    }
+
+    /**
+     * Resume AudioContext if suspended (browser autoplay policy).
+     */
+    _resume() {
+      if (this._ctx && this._ctx.state === 'suspended') {
+        this._ctx.resume();
+      }
+    }
+
+    // --- Settings persistence ---
+
+    _loadSettings() {
+      try {
+        const saved = localStorage.getItem('mx_replay_sound_settings');
+        if (saved) {
+          const parsed = JSON.parse(saved);
+          if (typeof parsed.volume === 'number') this._volume = parsed.volume;
+          if (typeof parsed.muted === 'boolean') this._muted = parsed.muted;
+        }
+      } catch (e) { /* ignore */ }
+    }
+
+    _saveSettings() {
+      try {
+        localStorage.setItem('mx_replay_sound_settings', JSON.stringify({
+          volume: this._volume,
+          muted: this._muted
+        }));
+      } catch (e) { /* ignore */ }
+    }
+
+    // --- Controls ---
+
+    setVolume(vol) {
+      this._volume = Math.max(0, Math.min(1, vol));
+      if (this._masterGain && !this._muted) {
+        this._masterGain.gain.setTargetAtTime(this._volume, this._ctx.currentTime, 0.02);
+      }
+      if (this._ambientGain && !this._muted) {
+        this._ambientGain.gain.setTargetAtTime(this._volume * 0.02, this._ctx.currentTime, 0.05);
+      }
+      this._saveSettings();
+    }
+
+    getVolume() {
+      return this._volume;
+    }
+
+    setMuted(muted) {
+      this._muted = muted;
+      if (this._masterGain) {
+        this._masterGain.gain.setTargetAtTime(muted ? 0 : this._volume, this._ctx.currentTime, 0.02);
+      }
+      if (this._ambientGain) {
+        this._ambientGain.gain.setTargetAtTime(muted ? 0 : this._volume * 0.02, this._ctx.currentTime, 0.05);
+      }
+      this._saveSettings();
+    }
+
+    isMuted() {
+      return this._muted;
+    }
+
+    toggleMute() {
+      this.setMuted(!this._muted);
+      return this._muted;
+    }
+
+    setPlaybackSpeed(speed) {
+      this._playbackSpeed = speed;
+    }
+
+    // --- Throttle helper ---
+
+    _canPlay(type) {
+      if (!this._ctx || !this._enabled || this._muted) return false;
+      const now = performance.now();
+      const last = this._lastSoundTimes[type] || 0;
+      if (now - last < this._minInterval) return false;
+      this._lastSoundTimes[type] = now;
+      return true;
+    }
+
+    // --- Sound generators ---
+
+    /**
+     * Block break: crunchy noise burst with pitch variation.
+     */
+    playBlockBreak() {
+      if (!this._canPlay('block_break')) return;
+      this._resume();
+      const ctx = this._ctx;
+      const t = ctx.currentTime;
+      const dur = 0.1 / Math.max(this._playbackSpeed, 0.5);
+
+      // Noise via short square wave with rapid frequency sweep
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = 'square';
+      osc.frequency.setValueAtTime(180 + Math.random() * 120, t);
+      osc.frequency.exponentialRampToValueAtTime(40, t + dur);
+      gain.gain.setValueAtTime(0.12, t);
+      gain.gain.exponentialRampToValueAtTime(0.001, t + dur);
+      osc.connect(gain).connect(this._masterGain);
+      osc.start(t);
+      osc.stop(t + dur);
+
+      // Add a bit of higher noise crunch
+      const osc2 = ctx.createOscillator();
+      const gain2 = ctx.createGain();
+      osc2.type = 'sawtooth';
+      osc2.frequency.setValueAtTime(400 + Math.random() * 200, t);
+      osc2.frequency.exponentialRampToValueAtTime(80, t + dur * 0.8);
+      gain2.gain.setValueAtTime(0.04, t);
+      gain2.gain.exponentialRampToValueAtTime(0.001, t + dur * 0.8);
+      osc2.connect(gain2).connect(this._masterGain);
+      osc2.start(t);
+      osc2.stop(t + dur);
+    }
+
+    /**
+     * Block place: short thud/click.
+     */
+    playBlockPlace() {
+      if (!this._canPlay('block_place')) return;
+      this._resume();
+      const ctx = this._ctx;
+      const t = ctx.currentTime;
+      const dur = 0.07 / Math.max(this._playbackSpeed, 0.5);
+
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = 'triangle';
+      osc.frequency.setValueAtTime(300 + Math.random() * 60, t);
+      osc.frequency.exponentialRampToValueAtTime(150, t + dur);
+      gain.gain.setValueAtTime(0.1, t);
+      gain.gain.exponentialRampToValueAtTime(0.001, t + dur);
+      osc.connect(gain).connect(this._masterGain);
+      osc.start(t);
+      osc.stop(t + dur);
+    }
+
+    /**
+     * Footstep: soft thump. Call periodically based on player movement speed.
+     * Returns true if a footstep was played (for external tracking).
+     */
+    playFootstep(currentTimeMs) {
+      const interval = this._footstepInterval / Math.max(this._playbackSpeed, 0.25);
+      if (currentTimeMs - this._lastFootstepTime < interval) return false;
+      if (!this._canPlay('footstep')) return false;
+      this._resume();
+      this._lastFootstepTime = currentTimeMs;
+
+      const ctx = this._ctx;
+      const t = ctx.currentTime;
+      const dur = 0.06;
+
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = 'sine';
+      // Alternate pitch slightly for left/right foot
+      const foot = (Math.floor(currentTimeMs / interval) % 2 === 0);
+      osc.frequency.setValueAtTime(foot ? 90 : 100, t);
+      osc.frequency.exponentialRampToValueAtTime(50, t + dur);
+      gain.gain.setValueAtTime(0.06, t);
+      gain.gain.exponentialRampToValueAtTime(0.001, t + dur);
+      osc.connect(gain).connect(this._masterGain);
+      osc.start(t);
+      osc.stop(t + dur);
+      return true;
+    }
+
+    /**
+     * Hit/Attack: quick impact with a punch.
+     */
+    playAttack() {
+      if (!this._canPlay('attack')) return;
+      this._resume();
+      const ctx = this._ctx;
+      const t = ctx.currentTime;
+      const dur = 0.12 / Math.max(this._playbackSpeed, 0.5);
+
+      // Main punch thud
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(200, t);
+      osc.frequency.exponentialRampToValueAtTime(60, t + dur);
+      gain.gain.setValueAtTime(0.15, t);
+      gain.gain.exponentialRampToValueAtTime(0.001, t + dur);
+      osc.connect(gain).connect(this._masterGain);
+      osc.start(t);
+      osc.stop(t + dur);
+
+      // Snap/crack overlay
+      const osc2 = ctx.createOscillator();
+      const gain2 = ctx.createGain();
+      osc2.type = 'square';
+      osc2.frequency.setValueAtTime(600 + Math.random() * 200, t);
+      osc2.frequency.exponentialRampToValueAtTime(100, t + dur * 0.6);
+      gain2.gain.setValueAtTime(0.05, t);
+      gain2.gain.exponentialRampToValueAtTime(0.001, t + dur * 0.6);
+      osc2.connect(gain2).connect(this._masterGain);
+      osc2.start(t);
+      osc2.stop(t + dur);
+    }
+
+    /**
+     * Damage received: lower-pitched hit with wobble.
+     */
+    playDamage() {
+      if (!this._canPlay('damage')) return;
+      this._resume();
+      const ctx = this._ctx;
+      const t = ctx.currentTime;
+      const dur = 0.15;
+
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = 'sawtooth';
+      osc.frequency.setValueAtTime(160, t);
+      osc.frequency.exponentialRampToValueAtTime(50, t + dur);
+      gain.gain.setValueAtTime(0.08, t);
+      gain.gain.exponentialRampToValueAtTime(0.001, t + dur);
+      osc.connect(gain).connect(this._masterGain);
+      osc.start(t);
+      osc.stop(t + dur);
+    }
+
+    /**
+     * Bow shoot: quick rising whistle.
+     */
+    playBowShoot() {
+      if (!this._canPlay('bow')) return;
+      this._resume();
+      const ctx = this._ctx;
+      const t = ctx.currentTime;
+      const dur = 0.15;
+
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(300, t);
+      osc.frequency.exponentialRampToValueAtTime(800, t + dur * 0.4);
+      osc.frequency.exponentialRampToValueAtTime(600, t + dur);
+      gain.gain.setValueAtTime(0.08, t);
+      gain.gain.linearRampToValueAtTime(0.06, t + dur * 0.4);
+      gain.gain.exponentialRampToValueAtTime(0.001, t + dur);
+      osc.connect(gain).connect(this._masterGain);
+      osc.start(t);
+      osc.stop(t + dur);
+    }
+
+    /**
+     * Death: descending tone sequence.
+     */
+    playDeath() {
+      if (!this._canPlay('death')) return;
+      this._resume();
+      const ctx = this._ctx;
+      const t = ctx.currentTime;
+
+      const notes = [350, 280, 200];
+      notes.forEach((freq, i) => {
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.type = 'triangle';
+        const start = t + i * 0.12;
+        osc.frequency.setValueAtTime(freq, start);
+        osc.frequency.exponentialRampToValueAtTime(freq * 0.6, start + 0.15);
+        gain.gain.setValueAtTime(0.1, start);
+        gain.gain.exponentialRampToValueAtTime(0.001, start + 0.2);
+        osc.connect(gain).connect(this._masterGain);
+        osc.start(start);
+        osc.stop(start + 0.2);
+      });
+    }
+
+    /**
+     * Item pickup: quick rising blip.
+     */
+    playItemPickup() {
+      if (!this._canPlay('pickup')) return;
+      this._resume();
+      const ctx = this._ctx;
+      const t = ctx.currentTime;
+
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(600, t);
+      osc.frequency.exponentialRampToValueAtTime(900, t + 0.06);
+      gain.gain.setValueAtTime(0.06, t);
+      gain.gain.exponentialRampToValueAtTime(0.001, t + 0.08);
+      osc.connect(gain).connect(this._masterGain);
+      osc.start(t);
+      osc.stop(t + 0.08);
+    }
+
+    /**
+     * Start ambient background wind/hum. Very subtle.
+     */
+    startAmbient() {
+      if (!this._ctx || this._ambientRunning) return;
+      this._resume();
+      const ctx = this._ctx;
+
+      // Very low, subtle wind-like noise using detuned oscillators
+      this._ambientGain = ctx.createGain();
+      this._ambientGain.gain.setValueAtTime(0, ctx.currentTime);
+      this._ambientGain.gain.linearRampToValueAtTime(
+        this._muted ? 0 : this._volume * 0.02,
+        ctx.currentTime + 2
+      );
+      this._ambientGain.connect(ctx.destination); // Bypass master for independent control
+
+      const osc1 = ctx.createOscillator();
+      osc1.type = 'sine';
+      osc1.frequency.setValueAtTime(55, ctx.currentTime);
+      osc1.connect(this._ambientGain);
+      osc1.start();
+
+      const osc2 = ctx.createOscillator();
+      osc2.type = 'sine';
+      osc2.frequency.setValueAtTime(58, ctx.currentTime); // Slight detune for beating
+      osc2.connect(this._ambientGain);
+      osc2.start();
+
+      // Slow LFO modulation for natural wind feel
+      const lfo = ctx.createOscillator();
+      const lfoGain = ctx.createGain();
+      lfo.type = 'sine';
+      lfo.frequency.setValueAtTime(0.15, ctx.currentTime);
+      lfoGain.gain.setValueAtTime(this._volume * 0.008, ctx.currentTime);
+      lfo.connect(lfoGain);
+      lfoGain.connect(this._ambientGain.gain);
+      lfo.start();
+
+      this._ambientOsc = [osc1, osc2, lfo];
+      this._ambientRunning = true;
+    }
+
+    /**
+     * Stop ambient sound.
+     */
+    stopAmbient() {
+      if (!this._ambientRunning) return;
+      if (this._ambientGain) {
+        try {
+          this._ambientGain.gain.setTargetAtTime(0, this._ctx.currentTime, 0.3);
+        } catch (e) { /* ignore */ }
+      }
+      // Stop oscillators after fade
+      setTimeout(() => {
+        if (this._ambientOsc) {
+          this._ambientOsc.forEach(o => { try { o.stop(); } catch (e) {} });
+          this._ambientOsc = null;
+        }
+        if (this._ambientGain) {
+          try { this._ambientGain.disconnect(); } catch (e) {}
+          this._ambientGain = null;
+        }
+      }, 600);
+      this._ambientRunning = false;
+    }
+
+    // --- Event dispatcher ---
+
+    /**
+     * Process an action event from the replay and play the corresponding sound.
+     * @param {string} action - The ActionType string (e.g. 'ATTACK', 'BREAK_BLOCK')
+     */
+    playActionSound(action) {
+      switch (action) {
+        case 'ATTACK':
+        case 'DAMAGE_DEALT':
+        case 'SWING_ARM':
+        case 'SPEAR_JAB':
+        case 'SPEAR_CHARGE':
+          this.playAttack();
+          break;
+        case 'DAMAGE_RECEIVED':
+          this.playDamage();
+          break;
+        case 'BREAK_BLOCK':
+          this.playBlockBreak();
+          break;
+        case 'PLACE_BLOCK':
+          this.playBlockPlace();
+          break;
+        case 'BOW_SHOOT':
+        case 'CROSSBOW_SHOOT':
+          this.playBowShoot();
+          break;
+        case 'DEATH':
+          this.playDeath();
+          break;
+        case 'ITEM_PICKUP':
+          this.playItemPickup();
+          break;
+        case 'DROP_ITEM':
+          this.playItemPickup(); // Reuse blip
+          break;
+        // Silently ignore non-sound actions
+        default:
+          break;
+      }
+    }
+
+    // --- Cleanup ---
+
+    dispose() {
+      this.stopAmbient();
+      if (this._ctx) {
+        try { this._ctx.close(); } catch (e) {}
+        this._ctx = null;
+      }
+      this._masterGain = null;
+    }
+  }
+
+
   const PLAYER_SCALE = 1.8;
 
   // ===== SKIN TEXTURE CACHE =====
@@ -165,6 +634,10 @@
       // Frustum for culling
       this._frustum = new THREE.Frustum();
       this._frustumMatrix = new THREE.Matrix4();
+
+      // Sound manager
+      this.soundManager = new ReplaySoundManager();
+      this._lastSoundActionTime = 0;
 
       this._init();
     }
@@ -536,6 +1009,8 @@
       if (this.blockApplicator) {
         this.blockApplicator.seekTo(this.startTime + this.currentTime);
       }
+      // Reset sound action tracking to avoid replaying old events
+      this._lastSoundActionTime = this.currentTime;
       this._needsRender = true;
     }
 
@@ -545,6 +1020,9 @@
 
     setSpeed(speed) {
       this.playbackSpeed = speed;
+      if (this.soundManager) {
+        this.soundManager.setPlaybackSpeed(speed);
+      }
     }
 
     getCurrentTime() {
@@ -829,6 +1307,7 @@
     _updatePlayersAtTime(timeMs) {
       const absoluteTime = this.startTime + timeMs;
       const activeUuids = new Set();
+      let movingCount = 0;
 
       for (const [uuid, snaps] of this._playerSnapshots) {
         const idx = this._binarySearch(snaps, absoluteTime);
@@ -880,6 +1359,7 @@
           const speed = Math.sqrt(dx * dx + dz * dz) / Math.max(dt, 0.01);
 
           const isMoving = speed > 0.5;
+          if (isMoving) movingCount++;
           const animTime = absoluteTime * 0.006;
           const swingFreq = Math.min(speed * 0.8, 4);
           const swing = isMoving ? Math.sin(animTime * swingFreq) * Math.min(speed * 0.15, 0.7) : 0;
@@ -927,6 +1407,9 @@
           this._updateOrbitCamera();
         }
       }
+
+      // Track moving player count for footstep sounds
+      this._movingPlayerCount = movingCount;
     }
 
     // ===== FALLBACK GROUND =====
@@ -997,6 +1480,23 @@
         // Time update callback
         if (this._onTimeUpdate) {
           this._onTimeUpdate(this.currentTime, this.totalDuration);
+        }
+
+        // Sound: process action events since last sound check
+        if (this.soundManager && this.currentTime > this._lastSoundActionTime) {
+          const actions = this.getActionsInRange(this._lastSoundActionTime, this.currentTime);
+          for (const a of actions) {
+            const act = a.action || a.actionType;
+            if (act && act !== 'NONE') {
+              this.soundManager.playActionSound(act);
+            }
+          }
+          this._lastSoundActionTime = this.currentTime;
+        }
+
+        // Sound: footsteps for moving players
+        if (this.soundManager && this._movingPlayerCount > 0) {
+          this.soundManager.playFootstep(this.currentTime);
         }
 
         this._needsRender = true;
@@ -1076,6 +1576,12 @@
       if (this.freeCamera) this.freeCamera.dispose();
       if (this.chunkManager) this.chunkManager.dispose();
 
+      // Dispose sound manager
+      if (this.soundManager) {
+        this.soundManager.dispose();
+        this.soundManager = null;
+      }
+
       // Dispose BlueMap tiles
       if (this.blueMapTiles) {
         this.scene.remove(this.blueMapTiles);
@@ -1122,6 +1628,7 @@
   // Expose
   window.MX = window.MX || {};
   window.MX.Replay3DViewer = Replay3DViewer;
+  window.MX.ReplaySoundManager = ReplaySoundManager;
 
   console.log('[Replay3D] Module loaded');
 })();
