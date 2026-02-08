@@ -88,6 +88,7 @@ public class MxCommand extends BaseCommand {
 
             case "staffchat", "sc" -> handleStaffChat(sender, subArgs);
             case "vanish", "v" -> handleVanish(sender);
+            case "version", "ver" -> handleVersion(sender);
             case "update", "checkupdate" -> handleUpdate(sender);
             case "debug" -> handleDebug(sender, subArgs);
             case "panel" -> handlePanel(sender);
@@ -105,6 +106,59 @@ public class MxCommand extends BaseCommand {
 
         plugin.reload();
         sendMessage(sender, MessageKey.RELOAD_SUCCESS);
+    }
+
+    private void handleVersion(CommandSender sender) {
+        String version = plugin.getDescription().getVersion();
+
+        // Parse build number from version string (e.g. "2.0dev-280" -> "280")
+        String build = version;
+        if (version.contains("-")) {
+            String[] parts = version.split("-");
+            build = parts[parts.length - 1];
+        }
+
+        // Server software and version
+        String serverVersion = Bukkit.getName() + " " + Bukkit.getMinecraftVersion();
+
+        // Java version
+        String javaVersion = System.getProperty("java.version");
+
+        // Web panel status
+        var settings = plugin.getConfigManager().getSettings();
+        String panelStatus;
+        if (settings.isWebPanelEnabled() && plugin.getWebPanelServer() != null) {
+            panelStatus = "<green>Active <gray>(port " + settings.getWebPanelPort() + ")";
+        } else if (settings.isWebPanelEnabled()) {
+            panelStatus = "<yellow>Enabled <gray>(not started)";
+        } else {
+            panelStatus = "<red>Disabled";
+        }
+
+        // Gateway status
+        var gateway = plugin.getGatewayClient();
+        String gatewayStatus;
+        if (gateway != null && gateway.isConnected()) {
+            gatewayStatus = "<green>Connected";
+        } else if (settings.isGatewayEnabled()) {
+            gatewayStatus = "<yellow>Disconnected";
+        } else {
+            gatewayStatus = "<red>Disabled";
+        }
+
+        sendMessage(sender, "");
+        sendMessage(sender, "<gradient:#a855f7:#ec4899>━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━</gradient>");
+        sendMessage(sender, "<white>      <bold>ModereX Version</bold>");
+        sendMessage(sender, "");
+        sendMessage(sender, "<gray>Version: <white>" + version);
+        sendMessage(sender, "<gray>Build: <white>" + build);
+        sendMessage(sender, "<gray>Server: <white>" + serverVersion);
+        sendMessage(sender, "<gray>Java: <white>" + javaVersion);
+        sendMessage(sender, "<gray>Web Panel: " + panelStatus);
+        sendMessage(sender, "<gray>Gateway: " + gatewayStatus);
+        sendMessage(sender, "");
+        sendMessage(sender, "<gradient:#a855f7:#ec4899>━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━</gradient>");
+        sendMessage(sender, "");
     }
 
     private void handleUpdate(CommandSender sender) {
@@ -1738,6 +1792,7 @@ public class MxCommand extends BaseCommand {
         sendMessage(sender, "<yellow>/mx chat <enable|disable|slowmode|clear> <gray>- Chat control");
         sendMessage(sender, "<yellow>/mx automod <gray>- Open automod settings");
         sendMessage(sender, "<yellow>/mx anticheat <gray>- Configure anticheat alerts");
+        sendMessage(sender, "<yellow>/mx version <gray>- Show plugin version info");
         sendMessage(sender, "");
         sendMessage(sender, "<gradient:#a855f7:#ec4899>━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━</gradient>");
     }
@@ -1801,6 +1856,7 @@ public class MxCommand extends BaseCommand {
                 completions.add("revoketoken");
                 completions.add("sessions");
             }
+            completions.add("version");
             completions.add("help");
 
             return filterCompletions(completions, args[0]);
