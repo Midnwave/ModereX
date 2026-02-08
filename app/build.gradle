@@ -4,12 +4,13 @@ plugins {
 }
 
 group = 'com.blockforge'
-version = '2.0dev-280'
 
-// ── Derived version properties (single source of truth: version above) ──
+// ── Read version from panel-version.properties (single source of truth) ──
+def versionProps = new Properties()
+file("src/main/resources/panel-version.properties").withInputStream { versionProps.load(it) }
+version = versionProps.getProperty('version', '2.0dev-0')
 ext {
-    buildNumber = version.toString().split('-').last()
-    buildDate = java.time.LocalDate.now().toString()
+    buildNumber = versionProps.getProperty('buildNumber', '0')
 }
 
 repositories {
@@ -94,89 +95,33 @@ tasks.named('test') {
     useJUnitPlatform()
 }
 
-// ── Generate version files from the single source of truth ──────────────
-tasks.register('generateVersionFiles') {
-    description = 'Auto-generates panel-version.properties and releases/build-info.txt from build.gradle version'
-    group = 'build'
-
-    // Declare inputs so Gradle can cache / skip when nothing changed
-    inputs.property('version', version)
-    inputs.property('buildNumber', buildNumber)
-
-    // Capture paths at configuration time (configuration cache compatible)
-    def panelVersionFile = file("src/main/resources/panel-version.properties")
-    def buildInfoFile = rootProject.file("releases/build-info.txt")
-    def rootDir = rootProject.projectDir
-    outputs.file(panelVersionFile)
-    outputs.file(buildInfoFile)
-
-    doLast {
-        def versionStr = inputs.properties.get('version')
-        def buildNum = inputs.properties.get('buildNumber')
-
-        // Get the current git commit hash
-        def gitHash = 'unknown'
-        try {
-            def proc = ['git', 'rev-parse', '--short', 'HEAD'].execute(null, rootDir)
-            proc.waitFor()
-            if (proc.exitValue() == 0) {
-                gitHash = proc.text.trim()
-            }
-        } catch (Exception ignored) {}
-
-        def now = java.time.Instant.now().toString()
-        def buildDateStr = java.time.LocalDate.now().toString()
-
-        panelVersionFile.text = """\
-version=${versionStr}
-buildDate=${buildDateStr}
-buildNumber=${buildNum}
-notes=Auto-generated from build
-"""
-        buildInfoFile.parentFile.mkdirs()
-        buildInfoFile.text = """\
-${now}
-Version: ${versionStr}
-Build: ${buildNum}
-Commit: ${gitHash}
-"""
-    }
-}
-
-// Make processResources depend on generateVersionFiles so they are always fresh
-tasks.named('processResources') {
-    dependsOn 'generateVersionFiles'
-}
-
 // ── Bump the build number ───────────────────────────────────────────────
+// Usage: ./gradlew bumpVersion
+// Updates panel-version.properties (the single source of truth)
 tasks.register('bumpVersion') {
-    description = 'Increments the build number in build.gradle (e.g. 2.0dev-280 → 2.0dev-281)'
+    description = 'Increments the build number in panel-version.properties'
     group = 'versioning'
 
+    def propsFile = file('src/main/resources/panel-version.properties')
+
     doLast {
-        def buildFile = file('build.gradle')
-        def content = buildFile.text
-        def pattern = ~/version\s*=\s*'([^']+)'/
-        def matcher = pattern.matcher(content)
+        def props = new Properties()
+        propsFile.withInputStream { props.load(it) }
 
-        if (!matcher.find()) {
-            throw new GradleException('Could not find version string in build.gradle')
-        }
-
-        def currentVersion = matcher.group(1)
-        def parts = currentVersion.split('-')
-        if (parts.length < 2) {
-            throw new GradleException("Version '${currentVersion}' does not contain a hyphen-separated build number")
-        }
-
-        def prefix = parts[0..-2].join('-')
-        def currentBuild = parts[-1] as int
+        def currentVersion = props.getProperty('version')
+        def currentBuild = Integer.parseInt(props.getProperty('buildNumber', '0'))
         def newBuild = currentBuild + 1
+
+        def prefix = currentVersion.split('-')[0..-2].join('-')
         def newVersion = "${prefix}-${newBuild}"
 
-        def updatedContent = content.replace("version = '${currentVersion}'", "version = '${newVersion}'")
-        buildFile.text = updatedContent
-
+        propsFile.text = """\
+# ModereX Version - Edit this file to update the version everywhere.
+# Gradle reads this at build time. Plugin reads this at runtime.
+version=${newVersion}
+buildNumber=${newBuild}
+buildDate=${java.time.LocalDate.now().toString()}
+"""
         logger.lifecycle("Version bumped: ${currentVersion} → ${newVersion}")
     }
 }

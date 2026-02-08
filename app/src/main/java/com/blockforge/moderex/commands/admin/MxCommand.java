@@ -109,13 +109,21 @@ public class MxCommand extends BaseCommand {
     }
 
     private void handleVersion(CommandSender sender) {
+        // Read version from panel-version.properties (single source of truth)
         String version = plugin.getDescription().getVersion();
-
-        // Parse build number from version string (e.g. "2.0dev-280" -> "280")
-        String build = version;
-        if (version.contains("-")) {
-            String[] parts = version.split("-");
-            build = parts[parts.length - 1];
+        String build = "0";
+        try (var in = plugin.getClass().getClassLoader().getResourceAsStream("panel-version.properties")) {
+            if (in != null) {
+                var props = new java.util.Properties();
+                props.load(in);
+                version = props.getProperty("version", version);
+                build = props.getProperty("buildNumber", "0");
+            }
+        } catch (Exception ignored) {
+            // Fallback: parse build from plugin.yml version
+            if (version.contains("-")) {
+                build = version.split("-")[version.split("-").length - 1];
+            }
         }
 
         // Server software and version
