@@ -150,6 +150,42 @@
   window.lockSection = lockSection;
 
   /**
+   * Gate configuration page cards behind their permissions.
+   * Cards remain visible but disabled with a lock overlay when user lacks permission.
+   */
+  function gateConfigPermissions() {
+    const gates = [
+      { id: 'warningSettingsCard', perm: 'moderex.admin.warnings' },
+      { id: 'muteSettingsCard', perm: 'moderex.admin.mutes' },
+      { id: 'serverLockdownCard', perm: 'moderex.admin.lockdown' },
+      { id: 'notificationConfigCard', perm: 'moderex.admin.notifications' },
+      { id: 'commandBlacklistCard', perm: 'moderex.cmdblacklist' },
+      { id: 'activityLogConfigCard', perm: 'moderex.admin.activitylog' },
+      { id: 'evidenceConfigCard', perm: 'moderex.admin.evidence' },
+      { id: 'anticheatIntegrationCard', perm: 'moderex.anticheat.configure' }
+    ];
+    gates.forEach(({ id, perm }) => {
+      const card = document.getElementById(id);
+      if (!card) return;
+      // Remove previous lock overlay if re-visiting page
+      const existing = card.querySelector('.config-perm-overlay');
+      if (existing) existing.remove();
+      card.style.opacity = '';
+      card.style.pointerEvents = '';
+      if (!hasPermission(perm)) {
+        card.style.opacity = '0.5';
+        card.style.pointerEvents = 'none';
+        const overlay = document.createElement('div');
+        overlay.className = 'config-perm-overlay';
+        overlay.style.cssText = 'position:absolute;top:8px;right:12px;font-size:11px;color:var(--muted);display:flex;align-items:center;gap:4px';
+        overlay.innerHTML = '<i class="fa-solid fa-lock"></i> No Permission';
+        card.style.position = 'relative';
+        card.appendChild(overlay);
+      }
+    });
+  }
+
+  /**
    * Check if user can issue a specific punishment type.
    * @param {string} type - Punishment type (BAN, MUTE, WARN, KICK)
    * @returns {boolean} true if user can issue this punishment type
@@ -1001,6 +1037,7 @@
     if (page === 'templates') ui.renderTemplates();
     if (page === 'messages') ui.renderMessages();
     if (page === 'settings') ui.renderChatToggles();
+    if (page === 'actions') gateConfigPermissions();
     if (page === 'mysettings') {
       // Refresh user settings from server when opening My Settings page
       const ws = window.MX?.ws;
@@ -1064,7 +1101,7 @@
   }
 
   // Create truncated reason HTML - no click interaction, just displays truncated text with tooltip
-  window.expandableReason = function(text, maxLen = 15) {
+  window.expandableReason = function(text, maxLen = 40) {
     if (!text) return '<span class="reason-text">No reason</span>';
     text = String(text);
     if (text.length <= maxLen) {
@@ -1077,6 +1114,159 @@
 
   // Keep toggleReason for backwards compatibility but it's no longer used
   window.toggleReason = function(id) {};
+
+  // ===== DURATION PICKER =====
+  // Syncs duration picker inputs to the hidden input field
+  window.syncDurationPicker = function(hiddenInputId) {
+    const hidden = document.getElementById(hiddenInputId);
+    if (!hidden) return;
+    const picker = hidden.nextElementSibling;
+    if (!picker || !picker.classList.contains('duration-picker')) return;
+
+    // Check permanent toggle
+    const permToggle = picker.querySelector('.check-toggle.on');
+    if (permToggle) {
+      hidden.value = 'perm';
+      return;
+    }
+
+    // Build duration string from fields
+    const parts = [];
+    picker.querySelectorAll('.duration-input').forEach(input => {
+      const val = parseInt(input.value, 10) || 0;
+      if (val > 0) parts.push(val + input.dataset.unit);
+    });
+    hidden.value = parts.join('') || '';
+  };
+
+  // Set duration picker from a duration string (e.g. "7d", "1h30m", "perm")
+  window.setDurationPicker = function(hiddenInputId, durationStr) {
+    const hidden = document.getElementById(hiddenInputId);
+    if (!hidden) return;
+    const picker = hidden.nextElementSibling;
+    if (!picker || !picker.classList.contains('duration-picker')) return;
+
+    // Reset all fields
+    picker.querySelectorAll('.duration-input').forEach(input => { input.value = 0; });
+    const permToggle = picker.querySelector('.check-toggle');
+    if (permToggle) permToggle.classList.remove('on');
+
+    if (!durationStr) { hidden.value = ''; return; }
+
+    if (durationStr.toLowerCase() === 'perm' || durationStr.toLowerCase() === 'permanent') {
+      if (permToggle) permToggle.classList.add('on');
+      hidden.value = 'perm';
+      return;
+    }
+
+    // Parse duration string: "1y2mo3w4d5h6m"
+    const regex = /(\d+)(y|mo|w|d|h|m|s)/gi;
+    let match;
+    while ((match = regex.exec(durationStr)) !== null) {
+      const val = parseInt(match[1], 10);
+      const unit = match[2].toLowerCase();
+      const input = picker.querySelector(`.duration-input[data-unit="${unit}"]`);
+      if (input) input.value = val;
+    }
+
+    hidden.value = durationStr;
+  };
+
+  // Initialize duration picker event listeners
+  window.initDurationPickers = function() {
+    document.querySelectorAll('.duration-picker').forEach(picker => {
+      const hidden = picker.previousElementSibling;
+      if (!hidden || hidden.type !== 'hidden') return;
+      picker.querySelectorAll('.duration-input').forEach(input => {
+        input.addEventListener('input', () => syncDurationPicker(hidden.id));
+      });
+    });
+
+    // Show permanent toggle if user has permission
+    if (window.hasPermission && window.hasPermission('moderex.punish.permanent')) {
+      document.querySelectorAll('.duration-perm').forEach(el => { el.style.display = 'flex'; });
+    }
+  };
+
+  // ===== CUSTOM SELECT DROPDOWN =====
+  // Converts a native <select> into a styled custom dropdown
+  // The original <select> is hidden but keeps its value synced for form compatibility
+  window.initCustomSelect = function(selectEl) {
+    if (!selectEl || selectEl.dataset.mxInit) return;
+    selectEl.dataset.mxInit = '1';
+    selectEl.style.display = 'none';
+
+    const wrapper = document.createElement('div');
+    wrapper.className = 'mx-select';
+    if (selectEl.style.width) wrapper.style.width = selectEl.style.width;
+
+    const label = document.createElement('span');
+    label.className = 'mx-select-label';
+    const menu = document.createElement('div');
+    menu.className = 'mx-select-menu';
+
+    wrapper.appendChild(label);
+    wrapper.appendChild(menu);
+    selectEl.parentNode.insertBefore(wrapper, selectEl.nextSibling);
+
+    function buildOptions() {
+      menu.innerHTML = '';
+      const opts = selectEl.querySelectorAll('option');
+      opts.forEach(opt => {
+        const item = document.createElement('div');
+        item.className = 'mx-select-option' + (opt.selected ? ' active' : '') + (opt.disabled ? ' disabled' : '');
+        item.textContent = opt.textContent;
+        item.dataset.value = opt.value;
+        item.onclick = (e) => {
+          e.stopPropagation();
+          if (opt.disabled) return;
+          selectEl.value = opt.value;
+          selectEl.dispatchEvent(new Event('change'));
+          if (selectEl.onchange) selectEl.onchange();
+          updateLabel();
+          wrapper.classList.remove('open');
+        };
+        menu.appendChild(item);
+      });
+      updateLabel();
+    }
+
+    function updateLabel() {
+      const selected = selectEl.options[selectEl.selectedIndex];
+      label.textContent = selected ? selected.textContent : '';
+      menu.querySelectorAll('.mx-select-option').forEach(item => {
+        item.classList.toggle('active', item.dataset.value === selectEl.value);
+      });
+    }
+
+    wrapper.onclick = (e) => {
+      e.stopPropagation();
+      // Close other open custom selects
+      document.querySelectorAll('.mx-select.open').forEach(el => {
+        if (el !== wrapper) el.classList.remove('open');
+      });
+      wrapper.classList.toggle('open');
+    };
+
+    // Close on outside click
+    document.addEventListener('click', () => wrapper.classList.remove('open'));
+
+    // Build initial options
+    buildOptions();
+
+    // Watch for dynamic option changes via MutationObserver
+    const observer = new MutationObserver(buildOptions);
+    observer.observe(selectEl, { childList: true, subtree: true });
+
+    return wrapper;
+  };
+
+  // Initialize all select.input elements after DOM is ready
+  window.initAllCustomSelects = function() {
+    document.querySelectorAll('select.input').forEach(sel => {
+      initCustomSelect(sel);
+    });
+  };
 
   // ===== CHARACTER COUNT =====
   window.updateCharCount = function(textarea, counterId, maxLen) {
@@ -2476,6 +2666,9 @@
     updatePunishTitle(dom().punishTitle, state.pendingPunishType, state.selectedPlayerId);
     // Re-filter template dropdown by selected type
     updateTemplateDropdown(dom().punishTemplate, type);
+    // Hide duration picker for KICK/WARN (instant actions)
+    const dw = document.getElementById('punishDurationWrap');
+    if (dw) dw.style.display = (type === 'KICK' || type === 'WARN') ? 'none' : '';
   };
 
   /**
@@ -2557,12 +2750,16 @@
     );
     dom().punishCreateTemplate.innerHTML = tplOptions.join('');
     dom().punishCreateTemplate.value = 'none';
-    dom().punishCreateDuration.value = '';
+    setDurationPicker('punishCreateDuration', '');
     dom().punishCreateReason.value = '';
 
     // Update reason character count
     const reasonCountEl = document.getElementById('punishCreateReasonCount');
     if (reasonCountEl) reasonCountEl.textContent = '0/100';
+
+    // Show/hide duration based on type
+    const dw = document.getElementById('punishCreateDurationWrap');
+    if (dw) dw.style.display = (selectedType === 'KICK' || selectedType === 'WARN') ? 'none' : '';
 
     // Close the dropdown initially
     const combo = dom().punishCreateList?.closest('.combo');
@@ -2783,7 +2980,7 @@
   window.applyTemplateToPunishCreate = function(templateId) {
     if (!templateId || templateId === 'none') {
       dom().punishCreateReason.value = '';
-      dom().punishCreateDuration.value = '';
+      setDurationPicker('punishCreateDuration', '');
       return;
     }
     const t = state.templates.find(x => x.id === templateId);
@@ -2791,7 +2988,7 @@
     dom().punishCreateType.value = t.type || dom().punishCreateType.value;
     state.pendingPunishType = dom().punishCreateType.value;
     dom().punishCreateReason.value = t.reason;
-    dom().punishCreateDuration.value = t.duration || '';
+    setDurationPicker('punishCreateDuration', t.duration || '');
     updatePunishCreateTitle();
   };
 
@@ -3775,7 +3972,7 @@
   window.applyTemplateToPunish = function(templateId) {
     if (!templateId || templateId === 'none') {
       dom().punishReason.value = '';
-      dom().punishDuration.value = '';
+      setDurationPicker('punishDuration', '');
       return;
     }
     const t = state.templates.find(x => x.id === templateId);
@@ -3784,7 +3981,7 @@
     dom().punishTypeSelect.value = state.pendingPunishType;
     updatePunishTitle(dom().punishTitle, state.pendingPunishType, state.selectedPlayerId);
     dom().punishReason.value = t.reason;
-    dom().punishDuration.value = t.duration || '';
+    setDurationPicker('punishDuration', t.duration || '');
   };
 
   window.updateEvidencePreview = function() {
@@ -4290,7 +4487,8 @@
       const name = r.name || r.primaryName || 'Unnamed Replay';
       const players = r.playerNames || [r.primaryName] || [];
       const playerCount = r.playerCount || players.length || 1;
-      const duration = r.duration ? formatDuration(r.duration) : (r.formattedDuration || '0:00');
+      const durationSec = r.duration || (r.endTime && r.startTime ? Math.floor((r.endTime - r.startTime) / 1000) : 0);
+      const duration = durationSec > 0 ? formatDuration(durationSec) : (r.formattedDuration || '0:00');
       const status = r.status || (r.endTime ? 'COMPLETE' : 'RECORDING');
       const createdAt = r.createdAt || r.startTime;
       const statusClass = status === 'RECORDING' ? 'bad' : status === 'COMPLETE' ? 'ok' : 'gray';
@@ -4367,6 +4565,21 @@
     if (maxConcurrentEl) maxConcurrentEl.value = data.maxConcurrent || 10;
     if (triggerAcEl) triggerAcEl.checked = !!data.triggerOnAnticheat;
     if (triggerPunEl) triggerPunEl.checked = !!data.triggerOnPunishment;
+
+    // Update Citizens note
+    const citizensNote = document.getElementById('replayCitizensNote');
+    if (citizensNote) {
+      if (data.citizensAvailable) {
+        citizensNote.innerHTML = '<i class="fa-solid fa-check-circle" style="color:var(--ok)"></i> ' +
+          'Citizens ' + (data.citizensVersion ? 'v' + data.citizensVersion + ' ' : '') + 'detected \u2014 NPC playback available.';
+        citizensNote.style.color = 'var(--ok)';
+      } else {
+        citizensNote.innerHTML = '<i class="fa-solid fa-triangle-exclamation" style="color:var(--warn)"></i> ' +
+          'Citizens plugin not detected. <a href="https://www.spigotmc.org/resources/citizens.13811/" target="_blank" ' +
+          'style="color:var(--primary)">Download Citizens</a> for NPC-based replay playback.';
+        citizensNote.style.color = 'var(--warn)';
+      }
+    }
   }
 
   window.refreshReplays = function() {
@@ -4988,6 +5201,7 @@
     `;
     document.body.appendChild(overlay);
     genericModalEl = overlay;
+    overlay.onclick = () => closeOverlayAnimated(overlay);
     $('#gmClose', overlay).onclick = () => closeOverlayAnimated(overlay);
     $('#gmCancel', overlay).onclick = () => closeOverlayAnimated(overlay);
     $('#gmSubmit', overlay).onclick = () => { if (onSubmit()) closeOverlayAnimated(overlay); };
@@ -5021,6 +5235,7 @@
     `;
     document.body.appendChild(overlay);
     genericModalEl = overlay;
+    overlay.onclick = () => closeOverlayAnimated(overlay);
     $('#cpClose', overlay).onclick = () => closeOverlayAnimated(overlay);
     $('#cpCancel', overlay).onclick = () => closeOverlayAnimated(overlay);
     $('#cpConfirm', overlay).onclick = () => { onConfirm(); closeOverlayAnimated(overlay); };
@@ -5074,6 +5289,7 @@
     `;
     document.body.appendChild(overlay);
     genericModalEl = overlay;
+    overlay.onclick = () => closeOverlayAnimated(overlay);
 
     const close = () => closeOverlayAnimated(overlay);
     const listEl = $('#cmdList', overlay);
@@ -5193,6 +5409,7 @@
     `;
     document.body.appendChild(overlay);
     genericModalEl = overlay;
+    overlay.onclick = () => closeOverlayAnimated(overlay);
     $('#chatClose', overlay).onclick = () => closeOverlayAnimated(overlay);
     $('#chatCloseBtn', overlay).onclick = () => closeOverlayAnimated(overlay);
     const listEl = $('#chatList', overlay);
@@ -5276,6 +5493,7 @@
     `;
     document.body.appendChild(overlay);
     genericModalEl = overlay;
+    overlay.onclick = () => closeOverlayAnimated(overlay);
 
     const close = () => closeOverlayAnimated(overlay);
     const listEl = $('#autoList', overlay);
@@ -7699,6 +7917,8 @@
   };
 
   window.saveIntegrations = function() {
+    const linkEl = document.getElementById('discordLink');
+    if (linkEl) state.settings.discordLink = linkEl.value;
     state.settings.discordWebhook = dom().discordWebhook.value;
     ui.markUnsaved('integrations', true);
     toast('ok', 'Saved', 'Integration settings saved.');
@@ -8412,6 +8632,9 @@
     dom().punishCreateType?.addEventListener('change', (e) => {
       state.pendingPunishType = e.target.value;
       updatePunishCreateTitle();
+      // Hide duration picker for KICK/WARN (instant actions)
+      const dw = document.getElementById('punishCreateDurationWrap');
+      if (dw) dw.style.display = (e.target.value === 'KICK' || e.target.value === 'WARN') ? 'none' : '';
     });
     dom().punishCreateTemplate?.addEventListener('change', (e) => applyTemplateToPunishCreate(e.target.value));
     dom().punishCreateEvidencePick?.addEventListener('change', () => updateEvidencePreviewFor(dom().punishCreateEvidencePick, dom().punishCreateEvidencePreview));
@@ -9073,6 +9296,9 @@
       // Start permission auto-refresh (15 second interval)
       startPermissionRefresh();
 
+      // Initialize duration pickers (needs permissions to be loaded)
+      initDurationPickers();
+
       // Show "Servers" dropdown button if in gateway mode
       if (ws.isGatewayMode()) {
         const serversBtn = document.getElementById('serversDropdownItem');
@@ -9322,6 +9548,22 @@
       state.replays = data.replays || [];
       renderReplayList();
       updateReplayStats();
+      // Update Citizens note from replay list data
+      if (data.citizensAvailable !== undefined) {
+        const citizensNote = document.getElementById('replayCitizensNote');
+        if (citizensNote) {
+          if (data.citizensAvailable) {
+            citizensNote.innerHTML = '<i class="fa-solid fa-check-circle" style="color:var(--ok)"></i> ' +
+              'Citizens ' + (data.citizensVersion ? 'v' + data.citizensVersion + ' ' : '') + 'detected \u2014 NPC playback available.';
+            citizensNote.style.color = 'var(--ok)';
+          } else {
+            citizensNote.innerHTML = '<i class="fa-solid fa-triangle-exclamation" style="color:var(--warn)"></i> ' +
+              'Citizens plugin not detected. <a href="https://www.spigotmc.org/resources/citizens.13811/" target="_blank" ' +
+              'style="color:var(--primary)">Download Citizens</a> for NPC-based replay playback.';
+            citizensNote.style.color = 'var(--warn)';
+          }
+        }
+      }
     });
 
     // Handle single replay data (opens 3D viewer modal)
@@ -10285,12 +10527,22 @@
     executePunishment = function(opts) {
       if (isLiveMode && ws.isConnected()) {
         const p = state.players.find(x => x.id === opts.playerId);
+
+        // Collect evidence IDs from uploaded files and selected activity logs
+        const evidenceIds = [];
+        if (state.punishEvidence?.uploadedFiles) {
+          for (const f of state.punishEvidence.uploadedFiles) {
+            if (f.id) evidenceIds.push(f.id);
+          }
+        }
+
         ws.createPunishment({
           playerUuid: p?.uuid || opts.playerId,
           playerName: p?.name,
           type: opts.type,
           reason: opts.reason,
-          duration: opts.duration
+          duration: opts.duration,
+          evidenceIds: evidenceIds.length > 0 ? evidenceIds : undefined
         });
         toast('info', 'Sending', `Creating ${opts.type.toLowerCase()}...`);
       } else {
@@ -12681,10 +12933,30 @@
     if (data.buildNumber) {
       currentBuildNumber = parseInt(data.buildNumber, 10);
     }
+    // Also use as plugin version for update checking (same version source)
+    if (data.version && data.version !== 'gateway') {
+      currentPluginVersion = data.version;
+      console.log('[Update] Plugin version from panel data:', currentPluginVersion, 'build:', currentBuildNumber);
+      // Start checking GitHub for updates
+      checkGitHubForUpdates();
+      if (!updateCheckInterval) {
+        updateCheckInterval = setInterval(checkGitHubForUpdates, 10000);
+      }
+    }
   }
 
   function loadCurrentPluginVersion() {
-    // Get current plugin version from server
+    // In gateway mode, use WebSocket since HTTP fetch goes to gateway server, not MC server
+    if (window.MX?.ws?.isGatewayMode && window.MX.ws.isGatewayMode()) {
+      // Version data comes from PANEL_VERSION response which is handled by handlePanelVersionData
+      // Just request the panel version which includes plugin version info
+      if (window.MX.ws.isConnected()) {
+        window.MX.ws.send('GET_PANEL_VERSION');
+      }
+      return;
+    }
+
+    // Direct mode: Get current plugin version from server via HTTP
     fetch('/api/plugin-version?_=' + Date.now())
       .then(res => res.json())
       .then(data => {
@@ -13156,6 +13428,7 @@
     applyMySettingsUI();
     applyThemeFromState();
     applyDevModeUI();
+    initAllCustomSelects();
     setInterval(saveState, 4000);
     window.addEventListener('beforeunload', saveState);
 
@@ -13200,16 +13473,16 @@
 
     // Permission categories for the editor
     const PERM_CATEGORIES = [
-      { name: 'General', permissions: ['moderex.webpanel', 'moderex.staff', 'moderex.admin', 'moderex.info.basic', 'moderex.info.ip', 'moderex.info.nick', 'moderex.info.alts'] },
-      { name: 'Moderation', permissions: ['moderex.command.ban', 'moderex.command.tempban', 'moderex.command.mute', 'moderex.command.tempmute', 'moderex.command.warn', 'moderex.command.kick', 'moderex.command.unban', 'moderex.command.unmute', 'moderex.command.unwarn'] },
-      { name: 'History', permissions: ['moderex.history.view', 'moderex.history.chat', 'moderex.history.commands', 'moderex.history.nick', 'moderex.history.sessions', 'moderex.history.items', 'moderex.history.signs'] },
-      { name: 'Automod', permissions: ['moderex.automod.*', 'moderex.automod.manage', 'moderex.automod.toggle', 'moderex.automod.bypass'] },
-      { name: 'Anticheat', permissions: ['moderex.anticheat.*', 'moderex.anticheat.alerts', 'moderex.anticheat.manage'] },
-      { name: 'Staff Tools', permissions: ['moderex.staffchat', 'moderex.vanish', 'moderex.disguise', 'moderex.staffmode', 'moderex.watchlist', 'moderex.replays.view', 'moderex.replays.configure'] },
-      { name: 'Admin', permissions: ['moderex.*', 'moderex.command.*', 'moderex.admin.*', 'moderex.admin.permissions', 'moderex.admin.reload', 'moderex.admin.gateway'] },
-      { name: 'Monitoring', permissions: ['moderex.monitoring.*', 'moderex.monitoring.tps', 'moderex.monitoring.memory', 'moderex.monitoring.entities'] },
-      { name: 'Bypass', permissions: ['moderex.bypass.automod', 'moderex.bypass.mute', 'moderex.bypass.lockdown', 'moderex.bypass.slowmode', 'moderex.bypass.chatdisable'] },
-      { name: 'Alerts', permissions: ['moderex.alerts.*', 'moderex.alerts.punishments', 'moderex.alerts.automod', 'moderex.alerts.anticheat', 'moderex.alerts.staffchat'] }
+      { name: 'General', icon: 'fa-shield-halved', permissions: ['moderex.webpanel', 'moderex.staff', 'moderex.admin', 'moderex.info.basic', 'moderex.info.ip', 'moderex.info.nick', 'moderex.info.alts'] },
+      { name: 'Moderation', icon: 'fa-gavel', permissions: ['moderex.command.ban', 'moderex.command.tempban', 'moderex.command.mute', 'moderex.command.tempmute', 'moderex.command.warn', 'moderex.command.kick', 'moderex.command.unban', 'moderex.command.unmute', 'moderex.command.unwarn'] },
+      { name: 'History', icon: 'fa-clock-rotate-left', permissions: ['moderex.history.view', 'moderex.history.chat', 'moderex.history.commands', 'moderex.history.nick', 'moderex.history.sessions', 'moderex.history.items', 'moderex.history.signs'] },
+      { name: 'Automod', icon: 'fa-robot', permissions: ['moderex.automod.*', 'moderex.automod.manage', 'moderex.automod.toggle', 'moderex.automod.bypass'] },
+      { name: 'Anticheat', icon: 'fa-bug-slash', permissions: ['moderex.anticheat.*', 'moderex.anticheat.alerts', 'moderex.anticheat.manage'] },
+      { name: 'Staff Tools', icon: 'fa-screwdriver-wrench', permissions: ['moderex.staffchat', 'moderex.vanish', 'moderex.disguise', 'moderex.staffmode', 'moderex.watchlist', 'moderex.replays.view', 'moderex.replays.configure'] },
+      { name: 'Admin', icon: 'fa-crown', permissions: ['moderex.*', 'moderex.command.*', 'moderex.admin.*', 'moderex.admin.permissions', 'moderex.admin.reload', 'moderex.admin.gateway'] },
+      { name: 'Monitoring', icon: 'fa-chart-line', permissions: ['moderex.monitoring.*', 'moderex.monitoring.tps', 'moderex.monitoring.memory', 'moderex.monitoring.entities'] },
+      { name: 'Bypass', icon: 'fa-forward', permissions: ['moderex.bypass.automod', 'moderex.bypass.mute', 'moderex.bypass.lockdown', 'moderex.bypass.slowmode', 'moderex.bypass.chatdisable'] },
+      { name: 'Alerts', icon: 'fa-bell', permissions: ['moderex.alerts.*', 'moderex.alerts.punishments', 'moderex.alerts.automod', 'moderex.alerts.anticheat', 'moderex.alerts.staffchat'] }
     ];
 
     ws.on('RANKS', (data) => {
@@ -13426,29 +13699,51 @@
       if (!container) return;
       const perms = rank.permissions || {};
 
-      container.innerHTML = PERM_CATEGORIES.map(cat => `
-        <div class="perm-category">
+      // Count allowed/denied per category for badges
+      function countSet(cat) {
+        let allow = 0, deny = 0;
+        cat.permissions.forEach(p => { if (perms[p] === true) allow++; else if (perms[p] === false) deny++; });
+        return { allow, deny };
+      }
+
+      container.innerHTML = `
+        <div class="perm-search-bar">
+          <i class="fa-solid fa-magnifying-glass"></i>
+          <input type="text" id="permSearchInput" class="input" placeholder="Filter permissions..." />
+        </div>
+      ` + PERM_CATEGORIES.map((cat, ci) => {
+        const counts = countSet(cat);
+        const badges = (counts.allow ? `<span class="perm-badge perm-badge-allow">${counts.allow}</span>` : '') +
+                       (counts.deny ? `<span class="perm-badge perm-badge-deny">${counts.deny}</span>` : '');
+        return `
+        <div class="perm-category" data-cat="${ci}">
           <div class="perm-category-header" onclick="this.parentElement.classList.toggle('collapsed')">
-            ${cat.name}
-            <i class="fa-solid fa-chevron-down"></i>
+            <span class="perm-cat-left"><i class="fa-solid ${cat.icon}"></i> ${cat.name} ${badges}</span>
+            <span class="perm-cat-right">
+              <button class="perm-cat-action" data-cat="${ci}" data-bulk="allow" title="Allow all" onclick="event.stopPropagation()"><i class="fa-solid fa-check"></i></button>
+              <button class="perm-cat-action" data-cat="${ci}" data-bulk="reset" title="Reset all" onclick="event.stopPropagation()"><i class="fa-solid fa-rotate-left"></i></button>
+              <i class="fa-solid fa-chevron-down perm-chevron"></i>
+            </span>
           </div>
           <div class="perm-category-items">
             ${cat.permissions.map(p => {
               const state = perms[p] === true ? 'allow' : perms[p] === false ? 'deny' : 'inherit';
+              const shortName = p.replace('moderex.', '');
               return `
-                <div class="perm-item">
-                  <span class="perm-item-name">${p}</span>
+                <div class="perm-item" data-perm-name="${p}">
+                  <span class="perm-item-name" title="${p}">${shortName}</span>
                   <div class="perm-toggle-group">
-                    <button class="perm-toggle-btn ${state === 'allow' ? 'active-allow' : ''}" data-perm="${p}" data-action="allow">Allow</button>
-                    <button class="perm-toggle-btn ${state === 'inherit' ? 'active-inherit' : ''}" data-perm="${p}" data-action="inherit">Inherit</button>
-                    <button class="perm-toggle-btn ${state === 'deny' ? 'active-deny' : ''}" data-perm="${p}" data-action="deny">Deny</button>
+                    <button class="perm-toggle-btn ${state === 'allow' ? 'active-allow' : ''}" data-perm="${p}" data-action="allow"><i class="fa-solid fa-check"></i></button>
+                    <button class="perm-toggle-btn ${state === 'inherit' ? 'active-inherit' : ''}" data-perm="${p}" data-action="inherit"><i class="fa-solid fa-minus"></i></button>
+                    <button class="perm-toggle-btn ${state === 'deny' ? 'active-deny' : ''}" data-perm="${p}" data-action="deny"><i class="fa-solid fa-xmark"></i></button>
                   </div>
                 </div>`;
             }).join('')}
           </div>
-        </div>
-      `).join('');
+        </div>`;
+      }).join('');
 
+      // Permission toggle click handlers
       container.querySelectorAll('.perm-toggle-btn').forEach(btn => {
         btn.addEventListener('click', () => {
           const perm = btn.dataset.perm;
@@ -13460,6 +13755,41 @@
           }
         });
       });
+
+      // Bulk category actions
+      container.querySelectorAll('.perm-cat-action').forEach(btn => {
+        btn.addEventListener('click', () => {
+          const ci = parseInt(btn.dataset.cat, 10);
+          const action = btn.dataset.bulk;
+          const cat = PERM_CATEGORIES[ci];
+          if (!cat) return;
+          cat.permissions.forEach(p => {
+            if (action === 'reset') {
+              ws.send('REMOVE_RANK_PERMISSION', { rankId: rank.id, permission: p });
+            } else {
+              ws.send('SET_RANK_PERMISSION', { rankId: rank.id, permission: p, granted: true });
+            }
+          });
+        });
+      });
+
+      // Permission search filter
+      const searchInput = document.getElementById('permSearchInput');
+      if (searchInput) {
+        searchInput.addEventListener('input', () => {
+          const q = searchInput.value.toLowerCase();
+          container.querySelectorAll('.perm-item').forEach(item => {
+            const name = item.dataset.permName || '';
+            item.style.display = !q || name.includes(q) ? '' : 'none';
+          });
+          // Show/hide categories based on visible children
+          container.querySelectorAll('.perm-category').forEach(cat => {
+            const visible = cat.querySelectorAll('.perm-item:not([style*="display: none"])').length;
+            cat.style.display = !q || visible > 0 ? '' : 'none';
+            if (q && visible > 0) cat.classList.remove('collapsed');
+          });
+        });
+      }
     }
 
     function renderPlayerSearchResults(players) {
