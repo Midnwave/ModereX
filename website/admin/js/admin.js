@@ -27,10 +27,9 @@
             return 'wss://gateway.moderex.net/admin';
         }
 
-        // Cloudflare Pages staging - need gateway URL configured
+        // Cloudflare Pages (moderex.pages.dev) → gateway.moderex.net
         if (hostname.endsWith('.pages.dev')) {
-            promptGatewayConfig();
-            return null;
+            return 'wss://gateway.moderex.net/admin';
         }
 
         // Default fallback for localhost/direct hosting
@@ -45,7 +44,7 @@
             <div style="background:#1e1e1e;padding:30px;border-radius:8px;max-width:500px;color:#fff;">
                 <h2 style="margin-top:0;color:#4CAF50;">Configure Gateway</h2>
                 <p>Enter your ModereX gateway tunnel URL:</p>
-                <input type="text" id="gateway-url-input" placeholder="wss://your-tunnel.trycloudflare.com"
+                <input type="text" id="gateway-url-input" placeholder="wss://spent-whereas-halloween-arrive.trycloudflare.com"
                     style="width:100%;padding:10px;margin:10px 0;background:#2d2d2d;border:1px solid #444;color:#fff;border-radius:4px;">
                 <button id="save-gateway-btn" style="background:#4CAF50;color:#fff;border:none;padding:10px 20px;border-radius:4px;cursor:pointer;">
                     Save & Connect
