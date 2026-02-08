@@ -14,6 +14,31 @@
 
 window.MX_CHANGELOGS = [
   {
+    build: 286,
+    version: "2.0dev-286",
+    date: "2026-02-08",
+    title: "Permissions Tab Overhaul & LuckPerms Auto-Sync",
+    sections: [
+      { type: "new", title: "New Features", items: [
+        "**LuckPerms Auto-Sync** - Permission changes, rank assignments, and player group changes now automatically sync to LuckPerms in real-time",
+        "**Enhanced Player Search** - Player assignment search now shows larger avatars, UUIDs, and smooth hover animations with chevron indicators",
+        "**Click Animations** - All permission toggle buttons now have smooth click animations and visual feedback"
+      ]},
+      { type: "improved", title: "Improvements", items: [
+        "**Red Deny Button** - Deny permission (X) button is now properly colored red with red glow when active for better visibility",
+        "**Permission Button Styling** - Added glow effects to active allow/deny buttons, hover transforms, and ripple-like click animations",
+        "**Player Rank Display** - Player rank assignment header now has gradient background, larger avatar with border, and shows full UUID",
+        "**Rank Chip Interactions** - Player rank chips now have hover lift effect, smooth remove button rotation, and better visual hierarchy",
+        "**Search Results UI** - Improved player search dropdown with borders, hover indicators, avatar scaling, and left accent bar"
+      ]},
+      { type: "technical", title: "Technical Changes", items: [
+        "**syncRankToLuckPerms()** - New method automatically syncs rank permissions, display name, prefix, suffix, and weight to LuckPerms groups",
+        "**syncPlayerRankToLuckPerms()** - New method automatically adds/removes LuckPerms group inheritance nodes when players are assigned/removed from ranks",
+        "**Real-Time Sync** - setRankPermission(), setPlayerRank(), and removePlayerRank() now trigger auto-sync if LuckPerms is detected"
+      ]}
+    ]
+  },
+  {
     build: 285,
     version: "2.0dev-285",
     date: "2026-02-08",

@@ -11436,7 +11436,9 @@ body.has-update-banner .announcementBanner.show {
   color: var(--text-muted);
   font-size: 0.7rem;
   cursor: pointer;
-  transition: all 0.15s;
+  transition: all 0.2s ease;
+  position: relative;
+  overflow: hidden;
 }
 
 .perm-toggle-btn:first-child { border-radius: 6px 0 0 6px; }
@@ -11445,18 +11447,25 @@ body.has-update-banner .announcementBanner.show {
 
 .perm-toggle-btn:hover {
   background: var(--surface-hover);
+  transform: translateY(-1px);
+}
+
+.perm-toggle-btn:active {
+  transform: scale(0.95);
 }
 
 .perm-toggle-btn.active-allow {
   background: var(--ok);
   color: #fff;
   border-color: var(--ok);
+  box-shadow: 0 0 8px rgba(var(--ok-rgb, 34, 197, 94), 0.3);
 }
 
 .perm-toggle-btn.active-deny {
-  background: var(--danger);
+  background: var(--bad);
   color: #fff;
-  border-color: var(--danger);
+  border-color: var(--bad);
+  box-shadow: 0 0 8px rgba(var(--bad-rgb, 239, 68, 68), 0.3);
 }
 
 .perm-toggle-btn.active-inherit {
@@ -11465,58 +11474,141 @@ body.has-update-banner .announcementBanner.show {
   border-color: var(--border);
 }
 
+/* Deny button specifically red */
+.perm-toggle-btn[data-action="deny"]:not(.active-deny) {
+  color: var(--bad);
+}
+
+.perm-toggle-btn[data-action="deny"]:not(.active-deny):hover {
+  background: rgba(var(--bad-rgb, 239, 68, 68), 0.1);
+  border-color: var(--bad);
+  color: var(--bad);
+}
+
+/* Click animation */
+@keyframes permClick {
+  0% { transform: scale(1); }
+  50% { transform: scale(0.9); }
+  100% { transform: scale(1); }
+}
+
+.perm-toggle-btn.clicking {
+  animation: permClick 0.2s ease;
+}
+
 .player-search-results {
-  max-height: 200px;
+  max-height: 300px;
   overflow-y: auto;
   margin-top: 8px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--bg1);
 }
 
 .player-search-item {
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 8px;
+  gap: 10px;
+  padding: 10px 12px;
   cursor: pointer;
-  border-radius: var(--radius);
-  transition: background 0.15s;
+  border-bottom: 1px solid var(--border);
+  transition: all 0.2s ease;
+  position: relative;
+}
+
+.player-search-item:last-child {
+  border-bottom: none;
 }
 
 .player-search-item:hover {
   background: var(--surface-hover);
+  padding-left: 16px;
+}
+
+.player-search-item:hover::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 3px;
+  background: var(--primary);
+  border-radius: 0 4px 4px 0;
 }
 
 .player-search-item img {
-  width: 24px;
-  height: 24px;
-  border-radius: 4px;
+  width: 32px;
+  height: 32px;
+  border-radius: 6px;
+  border: 2px solid var(--border);
+  transition: transform 0.2s ease;
+}
+
+.player-search-item:hover img {
+  transform: scale(1.1);
+  border-color: var(--primary);
+}
+
+.player-search-item span {
+  font-weight: 500;
+  color: var(--text-primary);
 }
 
 .player-rank-header {
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 8px 0;
+  gap: 10px;
+  padding: 12px;
   font-weight: 600;
-  border-bottom: 1px solid var(--border);
-  margin-bottom: 8px;
+  border: 2px solid var(--primary);
+  border-radius: var(--radius);
+  margin-bottom: 12px;
+  background: linear-gradient(135deg, rgba(var(--primary-rgb, 139, 92, 246), 0.05) 0%, transparent 100%);
+}
+
+.player-rank-header img {
+  border: 2px solid var(--primary);
 }
 
 .player-rank-chip {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  padding: 4px 10px;
+  padding: 6px 12px;
   border-radius: 20px;
   background: var(--surface-hover);
   border: 1px solid var(--border);
-  font-size: 0.8rem;
-  margin: 2px;
+  font-size: 0.85rem;
+  margin: 4px;
+  transition: all 0.2s ease;
+}
+
+.player-rank-chip:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+  border-color: var(--primary);
 }
 
 .player-rank-chip .remove-rank {
   cursor: pointer;
-  color: var(--danger);
-  font-size: 0.9rem;
+  color: var(--bad);
+  font-size: 1rem;
+  padding: 2px;
+  border-radius: 50%;
+  transition: all 0.2s ease;
+}
+
+.player-rank-chip .remove-rank:hover {
+  background: rgba(var(--bad-rgb, 239, 68, 68), 0.2);
+  transform: rotate(90deg);
+}
+
+#playerCurrentRanks {
+  min-height: 40px;
+  padding: 8px;
+  border-radius: var(--radius);
+  background: var(--bg1);
+  border: 1px dashed var(--border);
 }
 
 /* ===== LICENSE ACCEPTANCE MODAL ===== */

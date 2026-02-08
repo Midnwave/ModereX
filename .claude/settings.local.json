@@ -38,7 +38,21 @@
       "Bash(gradlew.bat build:*)",
       "Bash(copy:*)",
       "Bash(copy /Y \"app\\\\src\\\\main\\\\resources\\\\panel\\\\css\\\\styles.css\" \"moderex-panel\\\\css\\\\styles.css\")",
-      "Bash(copy /Y \"app\\\\src\\\\main\\\\resources\\\\panel\\\\css\\\\styles.css\" \"gateway\\\\panel\\\\css\\\\styles.css\")"
+      "Bash(copy /Y \"app\\\\src\\\\main\\\\resources\\\\panel\\\\css\\\\styles.css\" \"gateway\\\\panel\\\\css\\\\styles.css\")",
+      "Bash(cmd.exe /c copy:*)",
+      "Bash(cmd.exe /c \"copy \"\"c:\\\\projects\\\\ModereX\\\\ModereX\\\\app\\\\src\\\\main\\\\resources\\\\panel\\\\js\\\\websocket.js\"\" \"\"c:\\\\projects\\\\ModereX\\\\gateway\\\\panel\\\\js\\\\websocket.js\"\"\")",
+      "Bash(cmd.exe /c \"copy \"\"c:\\\\projects\\\\ModereX\\\\ModereX\\\\app\\\\src\\\\main\\\\resources\\\\panel\\\\js\\\\websocket.js\"\" \"\"c:\\\\projects\\\\ModereX\\\\moderex-panel\\\\js\\\\websocket.js\"\"\")",
+      "Bash(npx wrangler pages deployment list:*)",
+      "Bash(npx wrangler:*)",
+      "Bash(pkill:*)",
+      "WebFetch(domain:moderex.net)",
+      "WebFetch(domain:panel.moderex.net)",
+      "Bash(./gradlew generateVersionFiles:*)",
+      "Bash(./gradlew clean build:*)",
+      "Bash(node -c:*)",
+      "Bash(xcopy /Y /S \"app\\\\src\\\\main\\\\resources\\\\panel\\\\js\\\\*\" \"gateway\\\\panel\\\\js\"\" && xcopy /Y /S \"appsrcmainresourcespaneljs*\" \"moderex-paneljs\"\")",
+      "Bash(xcopy /Y \"app\\\\src\\\\main\\\\resources\\\\panel\\\\css\\\\styles.css\" \"gateway\\\\panel\\\\css\"\" && xcopy /Y \"appsrcmainresourcespanelcssstyles.css\" \"moderex-panelcss\"\")",
+      "Bash(xcopy /Y \"app\\\\src\\\\main\\\\resources\\\\panel\\\\index.html\" \"gateway\\\\panel\"\" && xcopy /Y \"appsrcmainresourcespanelindex.html\" \"moderex-panel\"\")"
     ]
   }
 }

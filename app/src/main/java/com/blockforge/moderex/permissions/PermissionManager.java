@@ -203,6 +203,9 @@ public class PermissionManager {
             rank.setPermission(permission, granted);
         }
 
+        // Auto-sync to LuckPerms if available
+        syncRankToLuckPerms(rankId);
+
         invalidateAllPlayerCaches();
     }
 
@@ -313,6 +316,9 @@ public class PermissionManager {
         // Invalidate cache
         playerRankCache.remove(uuid);
         resolvedPermissionCache.remove(uuid);
+
+        // Auto-sync to LuckPerms if available
+        syncPlayerRankToLuckPerms(playerUuid, rankId, true);
     }
 
     /**
@@ -323,6 +329,9 @@ public class PermissionManager {
         db.update("DELETE FROM moderex_player_ranks WHERE player_uuid = ? AND rank_id = ?", uuid, rankId);
         playerRankCache.remove(uuid);
         resolvedPermissionCache.remove(uuid);
+
+        // Auto-sync to LuckPerms if available
+        syncPlayerRankToLuckPerms(playerUuid, rankId, false);
     }
 
     // ==================== Permission Resolution ====================
@@ -627,6 +636,84 @@ public class PermissionManager {
     }
 
     // ==================== LuckPerms Export ====================
+
+    /**
+     * Sync a single rank to LuckPerms (auto-sync on permission changes).
+     */
+    private void syncRankToLuckPerms(int rankId) {
+        if (!isLuckPermsAvailable()) return;
+
+        try {
+            Rank rank = rankCache.get(rankId);
+            if (rank == null) return;
+
+            net.luckperms.api.LuckPerms lp = net.luckperms.api.LuckPermsProvider.get();
+
+            // Create or get group
+            net.luckperms.api.model.group.Group group = lp.getGroupManager().getGroup(rank.getName());
+            if (group == null) {
+                lp.getGroupManager().createAndLoadGroup(rank.getName()).join();
+                group = lp.getGroupManager().getGroup(rank.getName());
+            }
+
+            if (group != null) {
+                // Clear old permissions and add new ones
+                group.data().clear(net.luckperms.api.node.NodeType.PERMISSION.predicate());
+                for (Map.Entry<String, Boolean> perm : rank.getPermissions().entrySet()) {
+                    group.data().add(net.luckperms.api.node.types.PermissionNode.builder(perm.getKey()).value(perm.getValue()).build());
+                }
+
+                // Update meta
+                group.data().clear(net.luckperms.api.node.NodeType.META.predicate(n -> n.getMetaKey().equals("displayname")));
+                group.data().add(net.luckperms.api.node.types.MetaNode.builder("displayname", rank.getDisplayName()).build());
+
+                // Update prefix/suffix
+                if (rank.getPrefix() != null && !rank.getPrefix().isEmpty()) {
+                    group.data().clear(net.luckperms.api.node.NodeType.PREFIX.predicate());
+                    group.data().add(net.luckperms.api.node.types.PrefixNode.builder(rank.getPrefix(), rank.getWeight()).build());
+                }
+                if (rank.getSuffix() != null && !rank.getSuffix().isEmpty()) {
+                    group.data().clear(net.luckperms.api.node.NodeType.SUFFIX.predicate());
+                    group.data().add(net.luckperms.api.node.types.SuffixNode.builder(rank.getSuffix(), rank.getWeight()).build());
+                }
+
+                lp.getGroupManager().saveGroup(group).join();
+                plugin.logDebug("[Permissions] Auto-synced rank '" + rank.getName() + "' to LuckPerms");
+            }
+        } catch (Exception e) {
+            plugin.logError("[Permissions] Failed to auto-sync rank to LuckPerms", e);
+        }
+    }
+
+    /**
+     * Sync a player's rank assignment to LuckPerms (auto-sync on player rank changes).
+     */
+    private void syncPlayerRankToLuckPerms(UUID playerUuid, int rankId, boolean add) {
+        if (!isLuckPermsAvailable()) return;
+
+        try {
+            Rank rank = rankCache.get(rankId);
+            if (rank == null) return;
+
+            net.luckperms.api.LuckPerms lp = net.luckperms.api.LuckPermsProvider.get();
+            net.luckperms.api.model.user.User user = lp.getUserManager().loadUser(playerUuid).join();
+
+            if (user != null) {
+                if (add) {
+                    // Add the group to the user
+                    user.data().add(net.luckperms.api.node.types.InheritanceNode.builder(rank.getName()).build());
+                    plugin.logDebug("[Permissions] Auto-added LuckPerms group '" + rank.getName() + "' to " + playerUuid);
+                } else {
+                    // Remove the group from the user
+                    user.data().remove(net.luckperms.api.node.types.InheritanceNode.builder(rank.getName()).build());
+                    plugin.logDebug("[Permissions] Auto-removed LuckPerms group '" + rank.getName() + "' from " + playerUuid);
+                }
+                lp.getUserManager().saveUser(user).join();
+            }
+        } catch (Exception e) {
+            plugin.logError("[Permissions] Failed to auto-sync player rank to LuckPerms", e);
+        }
+    }
 
     /**
      * Export all ranks and player assignments to LuckPerms.

@@ -14031,6 +14031,10 @@
       // Permission toggle click handlers
       container.querySelectorAll('.perm-toggle-btn').forEach(btn => {
         btn.addEventListener('click', () => {
+          // Add click animation
+          btn.classList.add('clicking');
+          setTimeout(() => btn.classList.remove('clicking'), 200);
+
           const perm = btn.dataset.perm;
           const action = btn.dataset.action;
           if (action === 'inherit') {
@@ -14081,15 +14085,19 @@
       const container = document.getElementById('playerSearchResults');
       if (!container) return;
       if (players.length === 0) {
-        container.innerHTML = '<div style="padding:8px;color:var(--text-muted);font-size:0.85rem">No players found</div>';
+        container.innerHTML = '<div style="padding:12px;color:var(--text-muted);font-size:0.9rem;text-align:center"><i class="fa-solid fa-magnifying-glass" style="margin-right:6px"></i>No players found</div>';
         container.style.display = '';
         return;
       }
       container.style.display = '';
       container.innerHTML = players.map(p => `
         <div class="player-search-item" data-uuid="${p.uuid}" data-name="${escHtml(p.name)}">
-          <img src="https://mc-heads.net/avatar/${p.uuid}/24" alt="">
-          <span>${escHtml(p.name)}</span>
+          <img src="https://mc-heads.net/avatar/${p.uuid}/32" alt="${escHtml(p.name)}">
+          <div style="flex:1">
+            <div style="font-weight:600;color:var(--text-primary)">${escHtml(p.name)}</div>
+            <div style="font-size:0.75rem;color:var(--text-muted);font-family:var(--font-mono)">${p.uuid}</div>
+          </div>
+          <i class="fa-solid fa-chevron-right" style="color:var(--text-muted);font-size:0.8rem"></i>
         </div>
       `).join('');
 
@@ -14103,7 +14111,13 @@
           assignment.style.display = '';
           assignment.dataset.uuid = uuid;
           assignment.dataset.playerName = name;
-          document.getElementById('playerRankHeader').innerHTML = `<img src="https://mc-heads.net/avatar/${uuid}/24" style="border-radius:4px"> ${escHtml(name)}`;
+          document.getElementById('playerRankHeader').innerHTML = `
+            <img src="https://mc-heads.net/avatar/${uuid}/32" style="border-radius:6px">
+            <div>
+              <div style="font-weight:600">${escHtml(name)}</div>
+              <div style="font-size:0.7rem;color:var(--text-muted);font-family:var(--font-mono)">${uuid}</div>
+            </div>
+          `;
           // Populate rank select
           const sel = document.getElementById('assignRankSelect');
           sel.innerHTML = ranksData.map(r => `<option value="${r.id}">${escHtml(r.displayName)}</option>`).join('');
