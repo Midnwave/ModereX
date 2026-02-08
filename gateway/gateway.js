@@ -635,7 +635,7 @@ const server = http.createServer((req, res) => {
 });
 
 // Create WebSocket server
-const wss = new WebSocketServer({ server, maxPayload: 2 * 1024 * 1024 }); // 2MB max message size
+const wss = new WebSocketServer({ server, maxPayload: 100 * 1024 * 1024 }); // 100MB max message size (for evidence uploads)
 
 // Track failed server registration attempts per IP for rate limiting
 const failedServerAuthAttempts = new Map(); // IP → { count, firstAttempt }
@@ -1596,7 +1596,31 @@ function handleGlobalPanelConnection(ws, clientIp) {
 
             const message = JSON.parse(data.toString());
 
+            // Normalize message format: gateway panel sends UPPERCASE types
+            // with data nested in a 'data' field, but handlers expect lowercase
+            // types with properties at top level
+            if (message.type) {
+                message.type = message.type.toLowerCase();
+            }
+            if (message.data && typeof message.data === 'object') {
+                Object.assign(message, message.data);
+            }
+            // Map field name differences
+            if (message.deviceFingerprint && !message.fingerprintHash) {
+                message.fingerprintHash = message.deviceFingerprint;
+            }
+
             switch (message.type) {
+                case 'ping': {
+                    ws.send(JSON.stringify({ type: 'PONG', timestamp: Date.now() }));
+                    break;
+                }
+
+                case 'heartbeat': {
+                    // Keep-alive acknowledgement, no response needed
+                    break;
+                }
+
                 case 'global_auth': {
                     // Fix 7: Rate limit failed token auth attempts per IP
                     const authAttempts = failedTokenAuthAttempts.get(clientIp);
@@ -1779,8 +1803,16 @@ function handleGlobalPanelConnection(ws, clientIp) {
                     break;
                 }
 
+                case 'get_panel_version': {
+                    // In global mode, no MC server to query - return gateway info
+                    ws.send(JSON.stringify({ type: 'PANEL_VERSION', version: 'gateway', buildNumber: 0 }));
+                    break;
+                }
+
                 default:
-                    ws.send(JSON.stringify({ type: 'error', code: 'UNKNOWN_TYPE', message: `Unknown message type: ${message.type}` }));
+                    // Only log unknown types that aren't common keep-alive messages
+                    console.warn(`[Global] Unknown message type: ${message.type}`);
+                    break;
             }
         } catch (err) {
             console.error('[Global] Error processing message:', err.message);
