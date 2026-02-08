@@ -27,6 +27,9 @@ const CONFIG = {
     adminEmails: ['@blockforge.studio'], // Cloudflare Access allowed email domains
 };
 
+// Cloudflare Admin Secret for license API
+const CLOUDFLARE_ADMIN_SECRET = process.env.CLOUDFLARE_ADMIN_SECRET || '16a72a240d6934b3ddc1730e16bc83cafbb01912ac2a435b05f95e0e0ac0727d';
+
 // Message types that browsers are NOT allowed to send (server-internal only)
 const BLOCKED_BROWSER_TYPES = new Set([
     'register', 'heartbeat', 'panel_response', 'broadcast',
@@ -2973,7 +2976,7 @@ function sendLicensesList(ws) {
     }
 }
 
-function createDevLicense(ws, email, data) {
+async function createDevLicense(ws, email, data) {
     const { testerName, maxServers = 1, expiresAt, note, createdBy } = data;
 
     if (!testerName) {
@@ -2988,6 +2991,44 @@ function createDevLicense(ws, email, data) {
     const token = crypto.randomUUID();
     const now = Date.now();
 
+    // Create license in Cloudflare Workers KV
+    try {
+        const response = await fetch('https://license.moderex.net/admin/create', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-Admin-Secret': CLOUDFLARE_ADMIN_SECRET
+            },
+            body: JSON.stringify({
+                token,
+                maxServers,
+                expiresAt,
+                note,
+                createdBy: createdBy || email
+            })
+        });
+
+        if (!response.ok) {
+            const error = await response.text();
+            console.error('[Licenses] Cloudflare API error:', error);
+            ws.send(JSON.stringify({
+                type: 'error',
+                message: `Failed to create license: ${error}`
+            }));
+            return;
+        }
+
+        console.log('[Licenses] License created in Cloudflare KV:', token.substring(0, 8) + '...');
+    } catch (e) {
+        console.error('[Licenses] Failed to create license in Cloudflare:', e.message);
+        ws.send(JSON.stringify({
+            type: 'error',
+            message: 'Failed to create license. Is Cloudflare Worker deployed?'
+        }));
+        return;
+    }
+
+    // Store in local gateway database for tracking
     if (db) {
         try {
             db.prepare(`
@@ -3008,7 +3049,7 @@ function createDevLicense(ws, email, data) {
     logAudit(email, `Generated dev license for ${testerName}`);
 }
 
-function revokeDevLicense(ws, email, data) {
+async function revokeDevLicense(ws, email, data) {
     const { token } = data;
 
     if (!token) {
@@ -3019,6 +3060,33 @@ function revokeDevLicense(ws, email, data) {
         return;
     }
 
+    // Revoke in Cloudflare Workers KV
+    try {
+        const response = await fetch('https://license.moderex.net/admin/revoke', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-Admin-Secret': CLOUDFLARE_ADMIN_SECRET
+            },
+            body: JSON.stringify({ token })
+        });
+
+        if (!response.ok) {
+            const error = await response.text();
+            console.error('[Licenses] Cloudflare API error:', error);
+            ws.send(JSON.stringify({
+                type: 'error',
+                message: `Failed to revoke license: ${error}`
+            }));
+            return;
+        }
+
+        console.log('[Licenses] License revoked in Cloudflare KV:', token.substring(0, 8) + '...');
+    } catch (e) {
+        console.error('[Licenses] Failed to revoke license in Cloudflare:', e.message);
+    }
+
+    // Update local gateway database
     if (db) {
         try {
             db.prepare('UPDATE license_builds SET active = 0 WHERE token = ?').run(token);
