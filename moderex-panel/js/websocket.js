@@ -48,7 +48,7 @@
     }
 
     // Fallback for Cloudflare Pages staging or other hosted deployments
-    // Users can set this via: localStorage.setItem('moderex_gateway_url', 'wss://your-tunnel.trycloudflare.com')
+    // Users can set this via: localStorage.setItem('moderex_gateway_url', 'wss://spent-whereas-halloween-arrive.trycloudflare.com')
     return `wss://${hostname}/panel`;
   }
 
