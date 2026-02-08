@@ -6,7 +6,7 @@
 # GENERAL
 # ============================================
 general:
-  prefix: "<gradient:#FF6B6B:#4ECDC4>[ModereX]</gradient> "
+  prefix: "<gradient:#0500FF:#00FFE0>[ModereX]</gradient> "
   no-permission: "<red>No tienes permiso para hacer eso."
   player-not-found: "<red>Jugador no encontrado: <white><player>"
   player-only: "<red>Este comando solo puede ser usado por jugadores."
@@ -38,7 +38,9 @@ ban:
   broadcast: "<gradient:#FF6B6B:#4ECDC4>[ModereX]</gradient> <gray><staff></gray> <dark_red>bane\u00f3</dark_red> <yellow><player></yellow> <gray>por</gray> <white><duration></white> <dark_gray>|</dark_gray> <gray>Caso:</gray> <yellow><case_id></yellow>\n<gray>Raz\u00f3n: <white><reason>"
   already-banned: "<red><player> ya est\u00e1 baneado."
   disconnect: |
+
     <gradient:#FF6B6B:#4ECDC4>[ModereX]</gradient>
+    <dark_gray><strikethrough>                                                  </strikethrough></dark_gray>
 
     <red><bold>\u00a1Has sido Baneado!</bold></red>
 
@@ -47,6 +49,7 @@ ban:
     <gray>Duraci\u00f3n: <white><duration></white>
     <gray>Raz\u00f3n: <white><reason></white><evidence>
 
+    <dark_gray><strikethrough>                                                  </strikethrough></dark_gray>
     <yellow>Apela en: discord.gg/example
 
 unban:
@@ -61,7 +64,9 @@ ipban:
   success: "<green>IP baneado exitosamente <yellow><player></yellow> por <white><duration></white>."
   broadcast: "<gradient:#FF6B6B:#4ECDC4>[ModereX]</gradient> <gray><staff></gray> <dark_red>IP bane\u00f3</dark_red> <yellow><player></yellow> <gray>por</gray> <white><duration></white> <dark_gray>|</dark_gray> <gray>Caso:</gray> <yellow><case_id></yellow>\n<gray>Raz\u00f3n: <white><reason>"
   disconnect: |
+
     <gradient:#FF6B6B:#4ECDC4>[ModereX]</gradient>
+    <dark_gray><strikethrough>                                                  </strikethrough></dark_gray>
 
     <red><bold>\u00a1Has sido IP Baneado!</bold></red>
 
@@ -70,6 +75,7 @@ ipban:
     <gray>Duraci\u00f3n: <white><duration></white>
     <gray>Raz\u00f3n: <white><reason></white><evidence>
 
+    <dark_gray><strikethrough>                                                  </strikethrough></dark_gray>
     <yellow>Apela en: discord.gg/example
 
 # ============================================
@@ -79,12 +85,16 @@ kick:
   success: "<green>Expulsado exitosamente <yellow><player></yellow>."
   broadcast: "<gradient:#FF6B6B:#4ECDC4>[ModereX]</gradient> <gray><staff></gray> <red>expuls\u00f3</red> <yellow><player></yellow> <dark_gray>|</dark_gray> <gray>Caso:</gray> <yellow><case_id></yellow>\n<gray>Raz\u00f3n: <white><reason>"
   disconnect: |
+
     <gradient:#FF6B6B:#4ECDC4>[ModereX]</gradient>
+    <dark_gray><strikethrough>                                                  </strikethrough></dark_gray>
 
     <red><bold>\u00a1Has sido Expulsado!</bold></red>
 
     <gray>Expulsado por: <white><staff></white>
     <gray>Raz\u00f3n: <white><reason></white><evidence>
+
+    <dark_gray><strikethrough>                                                  </strikethrough></dark_gray>
 
 # ============================================
 # WARN

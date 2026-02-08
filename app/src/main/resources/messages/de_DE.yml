@@ -6,7 +6,7 @@
 # ALLGEMEIN
 # ============================================
 general:
-  prefix: "<gradient:#FF6B6B:#4ECDC4>[ModereX]</gradient> "
+  prefix: "<gradient:#0500FF:#00FFE0>[ModereX]</gradient> "
   no-permission: "<red>Du hast keine Berechtigung dies zu tun."
   player-not-found: "<red>Spieler nicht gefunden: <white><player>"
   player-only: "<red>Dieser Befehl kann nur von Spielern verwendet werden."
@@ -38,7 +38,9 @@ ban:
   broadcast: "<gradient:#FF6B6B:#4ECDC4>[ModereX]</gradient> <gray><staff></gray> hat <yellow><player></yellow> <dark_red>gebannt</dark_red> <gray>f\u00fcr</gray> <white><duration></white> <dark_gray>|</dark_gray> <gray>Fall:</gray> <yellow><case_id></yellow>\n<gray>Grund: <white><reason>"
   already-banned: "<red><player> ist bereits gebannt."
   disconnect: |
+
     <gradient:#FF6B6B:#4ECDC4>[ModereX]</gradient>
+    <dark_gray><strikethrough>                                                  </strikethrough></dark_gray>
 
     <red><bold>Du wurdest gebannt!</bold></red>
 
@@ -47,6 +49,7 @@ ban:
     <gray>Dauer: <white><duration></white>
     <gray>Grund: <white><reason></white><evidence>
 
+    <dark_gray><strikethrough>                                                  </strikethrough></dark_gray>
     <yellow>Einspruch unter: discord.gg/example
 
 unban:
@@ -61,7 +64,9 @@ ipban:
   success: "<green><yellow><player></yellow> erfolgreich f\u00fcr <white><duration></white> IP-gebannt."
   broadcast: "<gradient:#FF6B6B:#4ECDC4>[ModereX]</gradient> <gray><staff></gray> hat <yellow><player></yellow> <dark_red>IP-gebannt</dark_red> <gray>f\u00fcr</gray> <white><duration></white> <dark_gray>|</dark_gray> <gray>Fall:</gray> <yellow><case_id></yellow>\n<gray>Grund: <white><reason>"
   disconnect: |
+
     <gradient:#FF6B6B:#4ECDC4>[ModereX]</gradient>
+    <dark_gray><strikethrough>                                                  </strikethrough></dark_gray>
 
     <red><bold>Du wurdest IP-gebannt!</bold></red>
 
@@ -70,6 +75,7 @@ ipban:
     <gray>Dauer: <white><duration></white>
     <gray>Grund: <white><reason></white><evidence>
 
+    <dark_gray><strikethrough>                                                  </strikethrough></dark_gray>
     <yellow>Einspruch unter: discord.gg/example
 
 # ============================================
@@ -79,12 +85,16 @@ kick:
   success: "<green><yellow><player></yellow> erfolgreich gekickt."
   broadcast: "<gradient:#FF6B6B:#4ECDC4>[ModereX]</gradient> <gray><staff></gray> hat <yellow><player></yellow> <red>gekickt</red> <dark_gray>|</dark_gray> <gray>Fall:</gray> <yellow><case_id></yellow>\n<gray>Grund: <white><reason>"
   disconnect: |
+
     <gradient:#FF6B6B:#4ECDC4>[ModereX]</gradient>
+    <dark_gray><strikethrough>                                                  </strikethrough></dark_gray>
 
     <red><bold>Du wurdest gekickt!</bold></red>
 
     <gray>Gekickt von: <white><staff></white>
     <gray>Grund: <white><reason></white><evidence>
+
+    <dark_gray><strikethrough>                                                  </strikethrough></dark_gray>
 
 # ============================================
 # VERWARNUNG

@@ -76,6 +76,38 @@ dependencies:
       load: BEFORE
       required: false
       join-classpath: true
+    Geyser-Spigot:
+      load: BEFORE
+      required: false
+      join-classpath: true
+    floodgate:
+      load: BEFORE
+      required: false
+      join-classpath: true
+    voicechat:
+      load: BEFORE
+      required: false
+      join-classpath: true
+    spark:
+      load: BEFORE
+      required: false
+      join-classpath: true
+    Citizens:
+      load: BEFORE
+      required: false
+      join-classpath: true
+    CoreProtect:
+      load: BEFORE
+      required: false
+      join-classpath: true
+    CustomJoinMessages:
+      load: BEFORE
+      required: false
+      join-classpath: true
+    AlonsoJoin:
+      load: BEFORE
+      required: false
+      join-classpath: true
 
 permissions:
   # ==================== WILDCARD PERMISSIONS ====================
@@ -90,6 +122,15 @@ permissions:
       - moderex.history.*
       - moderex.flag.*
       - moderex.automod.*
+      - moderex.template.*
+      - moderex.mass.*
+      - moderex.monitoring.*
+      - moderex.notify.*
+      - moderex.punish.*
+      - moderex.replay.*
+      - moderex.status.*
+      - moderex.staff
+      - moderex.admin
 
   moderex.command.*:
     description: Access to all ModereX commands
@@ -106,49 +147,77 @@ permissions:
       - moderex.unban
       - moderex.unmute
       - moderex.unwarn
-      - moderex.clearwarnings
       - moderex.punish
+      - moderex.history
+      - moderex.staffhistory
+      - moderex.checkban
+      - moderex.checkmute
+      - moderex.checkwarn
+      - moderex.banlist
+      - moderex.mutelist
+      - moderex.warnlist
+      - moderex.command.viewpunishment
       - moderex.command.seen
       - moderex.command.lastuuid
-      - moderex.command.viewpunishment
       - moderex.command.staffchat
       - moderex.command.watchlist
+      - moderex.command.fly
+      - moderex.command.fly.others
+      - moderex.command.broadcast
+      - moderex.command.invsee
+      - moderex.command.echest
+      - moderex.command.echest.others
+      - moderex.dupeip
+      - moderex.ipreport
+      - moderex.geoip
+      - moderex.log
+      - moderex.log.teleport
       - moderex.cmdblacklist
       - moderex.cmdunblacklist
       - moderex.vanish
+      - moderex.vanish.others
       - moderex.disguise
-      - moderex.log
+      - moderex.lockdown
+      - moderex.prunehistory
+      - moderex.staffrollback
       - moderex.reload
+      - moderex.rules
 
   moderex.bypass.*:
     description: Bypass all restrictions
     default: op
     children:
       - moderex.bypass.automod
+      - moderex.bypass.automod.nickname
       - moderex.bypass.lockdown
       - moderex.bypass.chatdisable
       - moderex.bypass.chatslowmode
+      - moderex.bypass.clearchat
       - moderex.bypass.mute
       - moderex.bypass.afk
+      - moderex.bypass.slowmode
 
   # ==================== PUNISHMENT PERMISSIONS ====================
   moderex.ban:
-    description: Ban players permanently and temporarily
+    description: Ban players
     default: op
   moderex.tempban:
-    description: Only temp ban players
+    description: Temporarily ban players
     default: op
   moderex.ipban:
-    description: Ban players by IP address
+    description: IP ban players
     default: op
   moderex.mute:
-    description: Mute players permanently and temporarily
+    description: Mute players
     default: op
   moderex.tempmute:
-    description: Only temp mute players
+    description: Temporarily mute players
     default: op
   moderex.ipmute:
-    description: Mute players by IP address
+    description: IP mute players
+    default: op
+  moderex.ipwarn:
+    description: IP warn players
     default: op
   moderex.warn:
     description: Warn players
@@ -157,26 +226,23 @@ permissions:
     description: Kick players
     default: op
   moderex.punish:
-    description: Open the punishment GUI
+    description: Open punishment GUI
     default: op
 
   # ==================== UNPUNISHMENT PERMISSIONS ====================
   moderex.unban:
-    description: Remove an active ban
+    description: Unban players
     default: op
   moderex.unmute:
-    description: Remove an active mute
+    description: Unmute players
     default: op
   moderex.unwarn:
-    description: Remove an active warning
-    default: op
-  moderex.clearwarnings:
-    description: Clear all warnings for a player
+    description: Remove warnings
     default: op
 
   # ==================== PUNISHMENT MODIFIER PERMISSIONS ====================
   moderex.punish.delete:
-    description: Delete punishments from database
+    description: Delete punishments from database and player history
     default: op
   moderex.punish.modify:
     description: Edit punishments via case ID
@@ -246,13 +312,14 @@ permissions:
 
   # ==================== HISTORY PERMISSIONS ====================
   moderex.history.*:
-    description: View all history
+    description: View all punishment and log history
     default: op
     children:
       - moderex.history.warns
       - moderex.history.kicks
       - moderex.history.bans
       - moderex.history.mutes
+      - moderex.history.pardons
       - moderex.history.nick
       - moderex.history.automod
       - moderex.history.commands
@@ -271,6 +338,9 @@ permissions:
   moderex.history.mutes:
     description: View mute history
     default: op
+  moderex.history.pardons:
+    description: View pardon history
+    default: op
   moderex.history.nick:
     description: View nickname history
     default: op
@@ -284,7 +354,7 @@ permissions:
     description: View chat history
     default: op
   moderex.history.sessions:
-    description: View player session history (join/leave activity)
+    description: View player session history
     default: op
 
   # ==================== WATCHLIST HISTORY ====================
@@ -299,6 +369,28 @@ permissions:
       - moderex.history.watchlist.automod
       - moderex.history.watchlist.commands
       - moderex.history.watchlist.chat
+
+  moderex.history.watchlist.warns:
+    description: View watchlist player warning history
+    default: op
+  moderex.history.watchlist.kicks:
+    description: View watchlist player kick history
+    default: op
+  moderex.history.watchlist.bans:
+    description: View watchlist player ban history
+    default: op
+  moderex.history.watchlist.mutes:
+    description: View watchlist player mute history
+    default: op
+  moderex.history.watchlist.automod:
+    description: View watchlist player automod history
+    default: op
+  moderex.history.watchlist.commands:
+    description: View watchlist player command history
+    default: op
+  moderex.history.watchlist.chat:
+    description: View watchlist player chat history
+    default: op
 
   # ==================== AUTOMOD PERMISSIONS ====================
   moderex.automod.*:
@@ -323,9 +415,49 @@ permissions:
     description: Delete automod rules
     default: op
 
+  # ==================== CHECK PERMISSIONS ====================
+  moderex.check:
+    description: Check comprehensive player information
+    default: op
+  moderex.check.ip:
+    description: View IP addresses in check command
+    default: op
+  moderex.checkban:
+    description: Check if players are banned
+    default: op
+  moderex.checkmute:
+    description: Check if players are muted
+    default: op
+  moderex.checkwarn:
+    description: Check player warnings
+    default: op
+
+  # ==================== HISTORY COMMAND PERMISSIONS ====================
+  moderex.history:
+    description: View punishment history
+    default: op
+  moderex.staffhistory:
+    description: View staff action history
+    default: op
+  moderex.warnings:
+    description: View active warnings
+    default: true
+  moderex.banlist:
+    description: View ban list
+    default: op
+  moderex.mutelist:
+    description: View mute list
+    default: op
+  moderex.warnlist:
+    description: View warning list
+    default: op
+
   # ==================== COMMAND PERMISSIONS ====================
   moderex.command.seen:
     description: Use /seen command
+    default: op
+  moderex.command.seen.ip:
+    description: View IP address in /seen command
     default: op
   moderex.command.lastuuid:
     description: Display player UUID
@@ -339,6 +471,39 @@ permissions:
   moderex.command.watchlist:
     description: Manage watchlist
     default: op
+    children:
+      - moderex.watchlist.add
+      - moderex.watchlist.remove
+  moderex.command.fly:
+    description: Toggle flight mode
+    default: op
+  moderex.command.fly.others:
+    description: Toggle flight for other players
+    default: op
+  moderex.command.broadcast:
+    description: Send server broadcast
+    default: op
+  moderex.command.invsee:
+    description: View player inventory
+    default: op
+  moderex.command.echest:
+    description: View player ender chest
+    default: op
+  moderex.command.echest.others:
+    description: View other player ender chests
+    default: op
+  moderex.command.disguise:
+    description: Use disguise commands
+    default: op
+  moderex.command.staffmode:
+    description: Toggle staff mode
+    default: op
+  moderex.command.vanish:
+    description: Toggle vanish mode
+    default: op
+  moderex.command.admin:
+    description: Use /mx admin subcommands
+    default: op
 
   # ==================== WATCHLIST PERMISSIONS ====================
   moderex.watchlist.add:
@@ -348,32 +513,55 @@ permissions:
     description: Remove players from watchlist
     default: op
 
-  # ==================== OTHER PERMISSIONS ====================
-  moderex.cmdblacklist:
-    description: Blacklist commands for players
+  # ==================== ACCOUNT & IP PERMISSIONS ====================
+  moderex.dupeip:
+    description: Check for alt accounts
     default: op
-  moderex.cmdunblacklist:
-    description: Remove command blacklists
+  moderex.iphistory:
+    description: View IP history
     default: op
-  moderex.log:
-    description: View activity log
+  moderex.ipreport:
+    description: View duplicate IP report
     default: op
-  moderex.log.teleport:
-    description: Teleport from activity log
+  moderex.geoip:
+    description: View GeoIP information
     default: op
-  moderex.vanish:
-    description: Toggle vanish
+  moderex.lastuuid:
+    description: View player UUIDs
     default: op
-  moderex.disguise:
-    description: Use disguise command
+  moderex.namehistory:
+    description: View name history
     default: op
-  moderex.staffhistory:
-    description: View staff history
+
+  # ==================== ADMIN PERMISSIONS ====================
+  moderex.lockdown:
+    description: Use lockdown command
+    default: op
+  moderex.lockdown.bypass:
+    description: Bypass lockdown restrictions
+    default: op
+  moderex.prunehistory:
+    description: Prune punishment history
+    default: op
+  moderex.staffrollback:
+    description: Rollback staff actions
+    default: op
+  moderex.reload:
+    description: Reload the plugin
+    default: op
+  moderex.admin:
+    description: Full admin access
+    default: op
+  moderex.admin.permissions:
+    description: Manage ranks and permissions via web panel
     default: op
 
   # ==================== BYPASS PERMISSIONS ====================
   moderex.bypass.automod:
     description: Bypass automod
+    default: op
+  moderex.bypass.automod.nickname:
+    description: Bypass nickname automod checks
     default: op
   moderex.bypass.lockdown:
     description: Bypass lockdown
@@ -384,11 +572,17 @@ permissions:
   moderex.bypass.chatslowmode:
     description: Bypass slowmode
     default: op
+  moderex.bypass.clearchat:
+    description: Not affected by /clearchat
+    default: op
   moderex.bypass.mute:
-    description: Bypass mute
+    description: Bypass mute restrictions
     default: false
   moderex.bypass.afk:
     description: Bypass AFK detection
+    default: op
+  moderex.bypass.slowmode:
+    description: Bypass chat slowmode
     default: op
 
   # ==================== ALERT PERMISSIONS ====================
@@ -406,6 +600,11 @@ permissions:
       - moderex.alerts.lag
       - moderex.alerts.nickname
       - moderex.alerts.commands
+      - moderex.alerts.ban
+      - moderex.alerts.kick
+      - moderex.alerts.mute
+      - moderex.alerts.warn
+      - moderex.alerts.pardon
 
   moderex.alerts.punishments:
     description: See punishment broadcasts
@@ -437,13 +636,368 @@ permissions:
   moderex.alerts.commands:
     description: See command alerts
     default: op
-
-  # ==================== ADMINISTRATION ====================
-  moderex.reload:
-    description: Reload the plugin
+  moderex.alerts.ban:
+    description: See ban-specific alerts
     default: op
+  moderex.alerts.kick:
+    description: See kick-specific alerts
+    default: op
+  moderex.alerts.mute:
+    description: See mute-specific alerts
+    default: op
+  moderex.alerts.warn:
+    description: See warn-specific alerts
+    default: op
+  moderex.alerts.pardon:
+    description: See pardon/unban/unmute alerts
+    default: op
+
+  # ==================== STAFF PERMISSIONS ====================
+  moderex.staff:
+    description: General staff permission
+    default: op
+  moderex.staffmode:
+    description: Toggle staff mode
+    default: op
+  moderex.staff.inspect:
+    description: Inspect player inventories (read-only)
+    default: op
+  moderex.staff.inspect.modify:
+    description: Modify player inventories through inspection GUI
+    default: op
+
+  # ==================== TEMPLATE PERMISSIONS ====================
+  moderex.template.*:
+    description: Full access to punishment templates
+    default: op
+    children:
+      - moderex.template.create
+      - moderex.template.edit
+      - moderex.template.delete
+
+  moderex.template.create:
+    description: Create punishment templates
+    default: op
+  moderex.template.edit:
+    description: Edit punishment templates
+    default: op
+  moderex.template.delete:
+    description: Delete punishment templates
+    default: op
+
+  # ==================== MASS PUNISHMENT PERMISSIONS ====================
+  moderex.mass.*:
+    description: Full access to mass punishments
+    default: op
+    children:
+      - moderex.masswarn
+      - moderex.massmute
+      - moderex.masskick
+      - moderex.massban
+      - moderex.massunwarn
+      - moderex.massunmute
+      - moderex.massunban
+
+  moderex.masswarn:
+    description: Warn multiple players at once
+    default: op
+  moderex.massmute:
+    description: Mute multiple players at once
+    default: op
+  moderex.masskick:
+    description: Kick multiple players at once
+    default: op
+  moderex.massban:
+    description: Ban multiple players at once
+    default: op
+  moderex.massunwarn:
+    description: Remove mass warnings by case ID
+    default: op
+  moderex.massunmute:
+    description: Remove mass mutes by case ID
+    default: op
+  moderex.massunban:
+    description: Remove mass bans by case ID
+    default: op
+
+  # ==================== SERVER MONITORING PERMISSIONS ====================
+  moderex.monitoring.*:
+    description: Full access to server monitoring
+    default: op
+    children:
+      - moderex.monitoring.view.*
+      - moderex.monitoring.configure.*
+
+  moderex.monitoring.view.*:
+    description: View all monitoring tabs
+    default: op
+    children:
+      - moderex.monitoring.view.health
+      - moderex.monitoring.view.alerts
+      - moderex.monitoring.view.resources
+      - moderex.monitoring.view.diagnostics
+
+  moderex.monitoring.view.health:
+    description: View Server Health tab
+    default: op
+  moderex.monitoring.view.alerts:
+    description: View Performance Alerts tab
+    default: op
+  moderex.monitoring.view.resources:
+    description: View Resource Monitor tab
+    default: op
+  moderex.monitoring.view.diagnostics:
+    description: View Diagnostics tab
+    default: op
+
+  moderex.monitoring.configure.*:
+    description: Configure all monitoring settings
+    default: op
+    children:
+      - moderex.monitoring.configure.health
+      - moderex.monitoring.configure.alerts
+      - moderex.monitoring.configure.resources
+      - moderex.monitoring.configure.diagnostics
+
+  moderex.monitoring.configure.health:
+    description: Configure health score weights
+    default: op
+  moderex.monitoring.configure.alerts:
+    description: Configure alert thresholds
+    default: op
+  moderex.monitoring.configure.resources:
+    description: Configure resource monitoring
+    default: op
+  moderex.monitoring.configure.diagnostics:
+    description: Run Spark commands
+    default: op
+
+  # ==================== NOTIFY PERMISSIONS ====================
+  moderex.notify.*:
+    description: Receive all staff notifications
+    default: op
+    children:
+      - moderex.notify.punishments
+      - moderex.notify.automod
+      - moderex.notify.anticheat
+      - moderex.notify.staffchat
+      - moderex.notify.broadcast
+      - moderex.notify.joinleave
+      - moderex.notify.lockdown
+      - moderex.notify.afk
+      - moderex.notify.status
+      - moderex.notify.pm
+      - moderex.notify.staffrollback
+
+  moderex.notify.punishments:
+    description: Receive punishment notifications
+    default: op
+  moderex.notify.automod:
+    description: Receive automod trigger notifications
+    default: op
+  moderex.notify.anticheat:
+    description: Receive anticheat violations
+    default: op
+  moderex.notify.staffchat:
+    description: Receive staff chat messages
+    default: op
+  moderex.notify.broadcast:
+    description: Receive broadcast notifications
+    default: op
+  moderex.notify.joinleave:
+    description: Receive player join/leave notifications
+    default: op
+  moderex.notify.lockdown:
+    description: Receive lockdown notifications
+    default: op
+  moderex.notify.afk:
+    description: Receive AFK warnings
+    default: op
+  moderex.notify.status:
+    description: Receive server status updates
+    default: op
+  moderex.notify.pm:
+    description: Receive private messages
+    default: op
+  moderex.notify.staffrollback:
+    description: Receive staff rollback notifications
+    default: op
+
+  # ==================== PUNISHMENT GUI PERMISSIONS ====================
+  moderex.punish.*:
+    description: Full access to punishment GUI
+    default: op
+    children:
+      - moderex.punish.ban
+      - moderex.punish.mute
+      - moderex.punish.warn
+      - moderex.punish.kick
+      - moderex.punish.delete
+      - moderex.punish.modify
+
+  moderex.punish.ban:
+    description: Ban from punishment GUI
+    default: op
+  moderex.punish.mute:
+    description: Mute from punishment GUI
+    default: op
+  moderex.punish.warn:
+    description: Warn from punishment GUI
+    default: op
+  moderex.punish.kick:
+    description: Kick from punishment GUI
+    default: op
+
+  # ==================== SERVER STATUS PERMISSIONS ====================
+  moderex.status.*:
+    description: Full access to server status page
+    default: op
+    children:
+      - moderex.status.view
+      - moderex.status.restart
+      - moderex.status.reload
+      - moderex.status.broadcast
+
+  moderex.status.view:
+    description: View server status
+    default: op
+  moderex.status.restart:
+    description: Restart server from web panel
+    default: op
+  moderex.status.reload:
+    description: Reload plugins from web panel
+    default: op
+  moderex.status.broadcast:
+    description: Send broadcasts from web panel
+    default: op
+
+  # ==================== REPLAY PERMISSIONS ====================
+  moderex.replay.*:
+    description: Full access to replay system
+    default: op
+    children:
+      - moderex.replay.view
+      - moderex.replay.manage
+
+  moderex.replay.view:
+    description: View replay recordings
+    default: op
+  moderex.replay.manage:
+    description: Start, stop, and delete replays
+    default: op
+
+  # ==================== VANISH PERMISSIONS ====================
+  moderex.vanish:
+    description: Toggle vanish for yourself
+    default: op
+  moderex.vanish.others:
+    description: Toggle vanish for other players
+    default: op
+  moderex.vanish.level.*:
+    description: Vanish level permissions
+    default: false
+  moderex.vanish.see.level.*:
+    description: See vanished players up to a level
+    default: false
+  moderex.vanish.pickup:
+    description: Pick up items while vanished
+    default: false
+  moderex.vanish.chat:
+    description: Chat while vanished
+    default: false
+  moderex.vanish.place:
+    description: Place blocks while vanished
+    default: false
+  moderex.vanish.break:
+    description: Break blocks while vanished
+    default: false
+  moderex.vanish.attack:
+    description: Attack entities while vanished
+    default: false
+  moderex.vanish.mobattack:
+    description: Be attacked by mobs while vanished
+    default: false
+  moderex.vanish.flight:
+    description: Enable flight when vanishing
+    default: op
+  moderex.vanish.keepfly:
+    description: Keep flight after unvanishing
+    default: op
+  moderex.vanish.spectator:
+    description: Double-sneak spectator mode toggle
+    default: op
+
+  # ==================== DISGUISE PERMISSIONS ====================
+  moderex.disguise:
+    description: Use disguise command
+    default: op
+  moderex.disguise.rank.*:
+    description: Disguise as any rank
+    default: false
+
+  # ==================== OTHER COMMAND PERMISSIONS ====================
+  moderex.log:
+    description: View activity log
+    default: op
+  moderex.log.view:
+    description: View activity logs (alias)
+    default: op
+  moderex.log.teleport:
+    description: Teleport from activity log
+    default: op
+  moderex.log.automod:
+    description: View automod trigger history
+    default: op
+  moderex.log.nicknames:
+    description: View nickname change history
+    default: op
+  moderex.cmdblacklist:
+    description: Blacklist commands
+    default: op
+  moderex.cmdunblacklist:
+    description: Remove command blacklists
+    default: op
+  moderex.cmdhistory:
+    description: View command history
+    default: op
+  moderex.modlog:
+    description: View moderation logs
+    default: op
+  moderex.staffchat:
+    description: Use staff chat
+    default: op
+  moderex.staffhelp:
+    description: Request staff help
+    default: true
+  moderex.rules:
+    description: View server rules
+    default: true
+
+  # ==================== EXEMPT PERMISSIONS ====================
+  moderex.exempt.invsee:
+    description: Exempt from /invsee
+    default: false
+  moderex.exempt.echest:
+    description: Exempt from /echest
+    default: false
+  moderex.exempt.bypass:
+    description: Bypass exemptions
+    default: op
+
+  # ==================== STAFF WEIGHT SYSTEM ====================
+  moderex.weight.*:
+    description: Staff weight for rank hierarchy
+    default: false
 
   # ==================== WEB PANEL (PROTECTED) ====================
   moderex.webpanel:
-    description: Access web panel (protected)
+    description: Access web panel (protected - must be explicitly granted)
+    default: op
+
+  # ==================== DEBUG PERMISSIONS ====================
+  moderex.admin.debug:
+    description: Use /mx debug to view player permission reports
+    default: op
+  moderex.admin.debug.simulate:
+    description: Use /mx debug simulate to simulate player access
     default: op

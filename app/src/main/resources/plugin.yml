@@ -221,12 +221,6 @@ commands:
     usage: /<command> <staff> [duration]
     permission: moderex.staffrollback
 
-  # Legacy/Existing Commands
-  clearwarnings:
-    description: Clear all warnings for a player
-    usage: /<command> <player>
-    permission: moderex.clearwarnings
-
   punish:
     description: Open punishment GUI
     usage: /<command> [player]
@@ -424,7 +418,12 @@ permissions:
       moderex.template.*: true
       moderex.mass.*: true
       moderex.monitoring.*: true
+      moderex.notify.*: true
+      moderex.punish.*: true
+      moderex.replay.*: true
+      moderex.status.*: true
       moderex.staff: true
+      moderex.admin: true
 
   moderex.command.*:
     description: Access to all ModereX commands
@@ -441,7 +440,6 @@ permissions:
       moderex.unban: true
       moderex.unmute: true
       moderex.unwarn: true
-      moderex.clearwarnings: true
       moderex.punish: true
       moderex.history: true
       moderex.staffhistory: true
@@ -483,11 +481,14 @@ permissions:
     default: op
     children:
       moderex.bypass.automod: true
+      moderex.bypass.automod.nickname: true
       moderex.bypass.lockdown: true
       moderex.bypass.chatdisable: true
       moderex.bypass.chatslowmode: true
+      moderex.bypass.clearchat: true
       moderex.bypass.mute: true
       moderex.bypass.afk: true
+      moderex.bypass.slowmode: true
 
   # Core Punishment Permissions
   moderex.ban:
@@ -737,11 +738,6 @@ permissions:
 
   moderex.reset-templates:
     description: Reset template progression
-    default: op
-
-  # Legacy/Existing Permissions
-  moderex.clearwarnings:
-    description: Clear player warnings
     default: op
 
   moderex.punish:
@@ -1098,6 +1094,11 @@ permissions:
       moderex.alerts.lag: true
       moderex.alerts.nickname: true
       moderex.alerts.commands: true
+      moderex.alerts.ban: true
+      moderex.alerts.kick: true
+      moderex.alerts.mute: true
+      moderex.alerts.warn: true
+      moderex.alerts.pardon: true
 
   moderex.alerts.punishments:
     description: See punishment broadcasts
@@ -1277,4 +1278,196 @@ permissions:
   # ==================== ADMIN PERMISSIONS ====================
   moderex.admin.permissions:
     description: Manage ranks and permissions via web panel
+    default: op
+
+  # ==================== STAFF WEIGHT SYSTEM ====================
+  moderex.weight.*:
+    description: Staff weight for rank hierarchy (moderex.weight.1, moderex.weight.50, etc.)
+    default: false
+
+  # ==================== SERVER STATUS PERMISSIONS ====================
+  moderex.status.*:
+    description: Full access to server status page
+    default: op
+    children:
+      moderex.status.view: true
+      moderex.status.restart: true
+      moderex.status.reload: true
+      moderex.status.broadcast: true
+
+  moderex.status.view:
+    description: View server status (TPS, memory, players, uptime)
+    default: op
+
+  moderex.status.restart:
+    description: Restart the server from web panel
+    default: op
+
+  moderex.status.reload:
+    description: Reload plugins from web panel
+    default: op
+
+  moderex.status.broadcast:
+    description: Send broadcasts from web panel
+    default: op
+
+  # ==================== REPLAY PERMISSIONS ====================
+  moderex.replay.*:
+    description: Full access to replay system
+    default: op
+    children:
+      moderex.replay.view: true
+      moderex.replay.manage: true
+
+  moderex.replay.view:
+    description: View replay recordings
+    default: op
+
+  moderex.replay.manage:
+    description: Start, stop, and delete replays
+    default: op
+
+  # ==================== PUNISHMENT GUI PERMISSIONS ====================
+  moderex.punish.*:
+    description: Full access to punishment GUI
+    default: op
+    children:
+      moderex.punish.ban: true
+      moderex.punish.mute: true
+      moderex.punish.warn: true
+      moderex.punish.kick: true
+      moderex.punish.delete: true
+      moderex.punish.modify: true
+
+  moderex.punish.ban:
+    description: Ban players from punishment GUI
+    default: op
+
+  moderex.punish.mute:
+    description: Mute players from punishment GUI
+    default: op
+
+  moderex.punish.warn:
+    description: Warn players from punishment GUI
+    default: op
+
+  moderex.punish.kick:
+    description: Kick players from punishment GUI
+    default: op
+
+  # ==================== NOTIFY PERMISSIONS ====================
+  moderex.notify.*:
+    description: Receive all staff notifications
+    default: op
+    children:
+      moderex.notify.punishments: true
+      moderex.notify.automod: true
+      moderex.notify.anticheat: true
+      moderex.notify.staffchat: true
+      moderex.notify.broadcast: true
+      moderex.notify.joinleave: true
+      moderex.notify.lockdown: true
+      moderex.notify.afk: true
+      moderex.notify.status: true
+      moderex.notify.pm: true
+      moderex.notify.staffrollback: true
+
+  moderex.notify.punishments:
+    description: Receive punishment notifications
+    default: op
+
+  moderex.notify.automod:
+    description: Receive automod trigger notifications
+    default: op
+
+  moderex.notify.anticheat:
+    description: Receive anticheat violation notifications
+    default: op
+
+  moderex.notify.staffchat:
+    description: Receive staff chat messages
+    default: op
+
+  moderex.notify.broadcast:
+    description: Receive broadcast notifications
+    default: op
+
+  moderex.notify.joinleave:
+    description: Receive player join/leave notifications
+    default: op
+
+  moderex.notify.lockdown:
+    description: Receive lockdown status notifications
+    default: op
+
+  moderex.notify.afk:
+    description: Receive AFK warnings
+    default: op
+
+  moderex.notify.status:
+    description: Receive server status updates
+    default: op
+
+  moderex.notify.pm:
+    description: Receive private messages
+    default: op
+
+  moderex.notify.staffrollback:
+    description: Receive staff rollback notifications
+    default: op
+
+  # ==================== STAFF TOOLS ====================
+  moderex.staffmode:
+    description: Toggle staff mode
+    default: op
+
+  moderex.staff.inspect:
+    description: Inspect player inventories (read-only)
+    default: op
+
+  moderex.staff.inspect.modify:
+    description: Modify player inventories through inspection GUI
+    default: op
+
+  # ==================== DEBUG PERMISSIONS ====================
+  moderex.admin.debug:
+    description: Use /mx debug to view player permission reports
+    default: op
+
+  moderex.admin.debug.simulate:
+    description: Use /mx debug simulate to simulate player permission access
+    default: op
+
+  # ==================== INDIVIDUAL ALERT PERMISSIONS ====================
+  moderex.alerts.ban:
+    description: See ban-specific alerts
+    default: op
+
+  moderex.alerts.kick:
+    description: See kick-specific alerts
+    default: op
+
+  moderex.alerts.mute:
+    description: See mute-specific alerts
+    default: op
+
+  moderex.alerts.warn:
+    description: See warn-specific alerts
+    default: op
+
+  moderex.alerts.pardon:
+    description: See pardon/unban/unmute alerts
+    default: op
+
+  # ==================== ADDITIONAL BYPASS PERMISSIONS ====================
+  moderex.bypass.automod.nickname:
+    description: Bypass nickname automod checks
+    default: op
+
+  moderex.bypass.clearchat:
+    description: Not affected by /clearchat
+    default: op
+
+  moderex.bypass.slowmode:
+    description: Bypass chat slowmode
     default: op
