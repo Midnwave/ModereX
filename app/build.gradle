@@ -4,7 +4,7 @@ plugins {
 }
 
 group = 'com.blockforge'
-version = '2.0dev-279'
+version = '2.0dev-280'
 
 repositories {
     mavenCentral()

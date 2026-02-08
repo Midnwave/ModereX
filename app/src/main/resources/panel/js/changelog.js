@@ -14,26 +14,46 @@
 
 window.MX_CHANGELOGS = [
   {
-    build: 279,
-    version: "2.0dev-279",
+    build: 280,
+    version: "2.0dev-280",
     date: "2026-02-08",
-    title: "Admin Panel & Gateway Fixes",
+    title: "Replay Viewer Overhaul & Config Permission Gates",
     sections: [
       {
-        type: "fixed",
-        title: "Bug Fixes",
+        type: "new",
+        title: "New Features",
         items: [
-          "**Admin Panel Auth** - Removed ADMIN_DEV_KEY requirement for gateway admin connections",
-          "**Panel Dropdowns** - Fixed custom select dropdowns not rendering in gateway and standalone panel",
-          "**Discord Modal** - Fixed close button layout in Discord support modal",
-          "**Logo Color** - Fixed hardcoded blue gradient in sidebar logo, now uses theme variables"
+          "**Config Permission Gates** - Each config section is now gated behind its permission with visual lock overlay and backend enforcement",
+          "**Skin Loading** - Replay viewer now loads real Minecraft player skins via multi-proxy fallback (Crafatar, mc-heads, Visage)"
         ]
       },
       {
         type: "improved",
         title: "Improvements",
         items: [
-          "**Panel Sync** - Synced gateway and standalone panel copies with latest CSS, HTML, and JS"
+          "**Replay Performance** - Added dirty-flag rendering, frustum culling, batched terrain loading, and O(1) block lookups",
+          "**Walk Animation** - Arms and legs now rotate from shoulder/hip pivot points for more realistic movement",
+          "**Skin Cache** - Loaded skins are cached globally so revisiting players no longer re-fetches textures",
+          "**Admin Panel** - Removed ADMIN_DEV_KEY requirement for gateway admin connections"
+        ]
+      },
+      {
+        type: "fixed",
+        title: "Bug Fixes",
+        items: [
+          "**Memory Leaks** - Fixed missing disposal of fallback ground, player textures, and renderer WebGL context on viewer cleanup",
+          "**Panel Dropdowns** - Fixed custom select dropdowns not rendering in gateway and standalone panel",
+          "**Discord Modal** - Fixed close button layout in Discord support modal",
+          "**Logo Color** - Fixed hardcoded blue gradient in sidebar logo, now uses theme variables"
+        ]
+      },
+      {
+        type: "permissions",
+        title: "New Permissions",
+        items: [
+          "**moderex.admin.chat** - Required to configure chat management settings",
+          "**moderex.admin.kickall** - Required to use kick all functionality",
+          "**moderex.admin.discord** - Required to configure Discord integration"
         ]
       }
     ]
