@@ -19,6 +19,7 @@ Complete reference for all ModereX permissions. This document covers command per
 - [Bypass Permissions](#bypass-permissions)
 - [Notification Permissions](#notification-permissions)
 - [Web Panel Permissions](#web-panel-permissions)
+  - [Web Panel Configuration Permissions](#web-panel-configuration-permissions)
 - [Planned Permissions (Future)](#planned-permissions-future)
 
 ---
@@ -361,6 +362,30 @@ Command alerts have additional configuration:
 |------------|-------------|---------|
 | `moderex.webpanel` | Connect to and use the web panel | op |
 
+### Web Panel Configuration Permissions
+
+These permissions control which configuration sections a staff member can view and modify in the web panel Settings/Configuration page. Without the required permission, the backend will not send the config data and will reject save attempts.
+
+| Permission | Description | Config Section | Default |
+|------------|-------------|----------------|---------|
+| `moderex.admin.*` | Access to all admin configuration sections | All | op |
+| `moderex.admin.warnings` | View and modify warning settings (escalation, categories, tiers) | Warning Settings | op |
+| `moderex.admin.mutes` | View and modify mute settings (blocked channels, staff visibility) | Mute Settings | op |
+| `moderex.admin.lockdown` | View and modify lockdown settings (MOTD, kick message) | Server Lockdown | op |
+| `moderex.admin.notifications` | View and modify notification settings (join/leave visibility) | Notification Config | op |
+| `moderex.admin.activitylog` | View and modify activity log settings (log types, retention) | Activity Log Config | op |
+| `moderex.admin.evidence` | View and modify evidence settings (file size, requirements) | Evidence Config | op |
+| `moderex.admin.commandblacklist` | View and modify command blacklist configuration | Command Blacklist | op |
+| `moderex.admin.permissions` | Manage ranks and permissions from web panel | Permission System | op |
+| `moderex.anticheat.configure` | View and modify anticheat integration settings | Anticheat Integration | op |
+
+**Backend Enforcement:**
+- **GET_SERVER_SETTINGS**: Each config section is only included in the response if the user has the corresponding permission. Users without permission receive server info and database stats but not the restricted config data.
+- **UPDATE_* handlers**: Each save handler checks the required permission before applying changes. If denied, a `PERMISSION_DENIED` error is returned.
+
+**Frontend Enforcement:**
+- The `gateConfigPermissions()` function in `app.js` disables configuration cards with a lock overlay when the user lacks the corresponding permission.
+
 ---
 
 ## Planned Permissions (Future)
@@ -520,5 +545,5 @@ permissions:
 
 ---
 
-*Last updated: 2026-01-29*
-*ModereX Version: 2.0-dev (Build 169)*
+*Last updated: 2026-02-07*
+*ModereX Version: 2.0-dev (Build 265)*

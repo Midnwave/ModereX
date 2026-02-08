@@ -2556,7 +2556,7 @@ public class HybridPanelServer implements com.blockforge.moderex.gateway.Gateway
             case "SPARK_HEAP_DUMP" -> sparkHeapDump(conn, session);
             case "SPARK_GC" -> sparkTriggerGC(conn, session);
 
-            case "GET_SERVER_SETTINGS" -> sendServerSettings(conn);
+            case "GET_SERVER_SETTINGS" -> sendServerSettings(conn, session);
             case "UPDATE_MUTE_SETTINGS" -> updateMuteSettings(conn, data, session);
             case "UPDATE_WARN_SETTINGS" -> updateWarnSettings(conn, data, session);
             case "UPDATE_ANTICHEAT_SETTINGS" -> updateAnticheatSettings(conn, data, session);
@@ -6345,101 +6345,118 @@ public class HybridPanelServer implements com.blockforge.moderex.gateway.Gateway
     }
 
     private void sendServerSettings(WebSocketConnection conn) {
+        sendServerSettings(conn, null);
+    }
+
+    private void sendServerSettings(WebSocketConnection conn, WebPanelSession session) {
         var settings = plugin.getConfigManager().getSettings();
         JsonObject response = new JsonObject();
         response.addProperty("type", "SERVER_SETTINGS");
         JsonObject data = new JsonObject();
 
-        // Server info
+        // Server info (always visible)
         data.addProperty("serverName", settings.getWebPanelServerName());
         data.addProperty("pluginVersion", plugin.getDescription().getVersion());
         data.addProperty("onlinePlayers", plugin.getServer().getOnlinePlayers().size());
         data.addProperty("maxPlayers", plugin.getServer().getMaxPlayers());
 
-        // Chat settings
+        // Chat settings (always visible - basic info)
         data.addProperty("chatEnabled", settings.isChatEnabled());
         data.addProperty("slowmodeSeconds", settings.getDefaultSlowmodeSeconds());
 
-        // Mute settings
-        JsonObject muteSettings = new JsonObject();
-        muteSettings.addProperty("chat", settings.isMuteBlocksChat());
-        muteSettings.addProperty("msg", settings.isMuteBlocksMsg());
-        muteSettings.addProperty("signs", settings.isMuteBlocksSigns());
-        muteSettings.addProperty("books", settings.isMuteBlocksBooks());
-        muteSettings.addProperty("broadcast", settings.isMuteBlocksBroadcast());
-        muteSettings.addProperty("voice", settings.isMuteBlocksVoice());
-        muteSettings.addProperty("voiceJoin", settings.isMuteBlocksVoiceJoin());
-        muteSettings.addProperty("staffCanSee", settings.isMuteStaffCanSee());
-        data.add("muteSettings", muteSettings);
+        // Resolve permissions for this session's user
+        UUID uuid = session != null ? session.playerUuid : null;
 
-        // Warn settings
-        JsonObject warnSettings = new JsonObject();
-        warnSettings.addProperty("notify", settings.isWarnNotifyStaff());
-        warnSettings.addProperty("autoEscalate", settings.isWarnAutoEscalate());
-        warnSettings.addProperty("escalationEnabled", settings.isWarnEscalationEnabled());
-        warnSettings.addProperty("escalationWindowDays", settings.getWarnEscalationWindowDays());
-        warnSettings.addProperty("resetDays", settings.getWarnResetDays());
-
-        // Warning categories
-        JsonArray categoriesArray = new JsonArray();
-        for (com.blockforge.moderex.config.Settings.WarnCategory cat : settings.getWarnCategories()) {
-            JsonObject catObj = new JsonObject();
-            catObj.addProperty("id", cat.getId());
-            catObj.addProperty("name", cat.getName());
-            catObj.addProperty("points", cat.getPoints());
-            categoriesArray.add(catObj);
+        // Mute settings - requires moderex.admin.mutes
+        if (uuid != null && hasViewPermission(uuid, "moderex.admin.mutes")) {
+            JsonObject muteSettings = new JsonObject();
+            muteSettings.addProperty("chat", settings.isMuteBlocksChat());
+            muteSettings.addProperty("msg", settings.isMuteBlocksMsg());
+            muteSettings.addProperty("signs", settings.isMuteBlocksSigns());
+            muteSettings.addProperty("books", settings.isMuteBlocksBooks());
+            muteSettings.addProperty("broadcast", settings.isMuteBlocksBroadcast());
+            muteSettings.addProperty("voice", settings.isMuteBlocksVoice());
+            muteSettings.addProperty("voiceJoin", settings.isMuteBlocksVoiceJoin());
+            muteSettings.addProperty("staffCanSee", settings.isMuteStaffCanSee());
+            data.add("muteSettings", muteSettings);
         }
-        warnSettings.add("categories", categoriesArray);
 
-        // Warning escalation tiers
-        JsonArray tiersArray = new JsonArray();
-        for (com.blockforge.moderex.config.Settings.WarnEscalationTier tier : settings.getWarnEscalationTiers()) {
-            JsonObject tierObj = new JsonObject();
-            tierObj.addProperty("pointThreshold", tier.getPointThreshold());
-            tierObj.addProperty("punishmentType", tier.getPunishmentType());
-            tierObj.addProperty("duration", tier.getDuration());
-            tierObj.addProperty("reason", tier.getReason());
-            tiersArray.add(tierObj);
+        // Warn settings - requires moderex.admin.warnings
+        if (uuid != null && hasViewPermission(uuid, "moderex.admin.warnings")) {
+            JsonObject warnSettings = new JsonObject();
+            warnSettings.addProperty("notify", settings.isWarnNotifyStaff());
+            warnSettings.addProperty("autoEscalate", settings.isWarnAutoEscalate());
+            warnSettings.addProperty("escalationEnabled", settings.isWarnEscalationEnabled());
+            warnSettings.addProperty("escalationWindowDays", settings.getWarnEscalationWindowDays());
+            warnSettings.addProperty("resetDays", settings.getWarnResetDays());
+
+            // Warning categories
+            JsonArray categoriesArray = new JsonArray();
+            for (com.blockforge.moderex.config.Settings.WarnCategory cat : settings.getWarnCategories()) {
+                JsonObject catObj = new JsonObject();
+                catObj.addProperty("id", cat.getId());
+                catObj.addProperty("name", cat.getName());
+                catObj.addProperty("points", cat.getPoints());
+                categoriesArray.add(catObj);
+            }
+            warnSettings.add("categories", categoriesArray);
+
+            // Warning escalation tiers
+            JsonArray tiersArray = new JsonArray();
+            for (com.blockforge.moderex.config.Settings.WarnEscalationTier tier : settings.getWarnEscalationTiers()) {
+                JsonObject tierObj = new JsonObject();
+                tierObj.addProperty("pointThreshold", tier.getPointThreshold());
+                tierObj.addProperty("punishmentType", tier.getPunishmentType());
+                tierObj.addProperty("duration", tier.getDuration());
+                tierObj.addProperty("reason", tier.getReason());
+                tiersArray.add(tierObj);
+            }
+            warnSettings.add("escalationTiers", tiersArray);
+
+            data.add("warnSettings", warnSettings);
         }
-        warnSettings.add("escalationTiers", tiersArray);
 
-        data.add("warnSettings", warnSettings);
+        // Anticheat settings - requires moderex.anticheat.configure
+        if (uuid != null && hasViewPermission(uuid, "moderex.anticheat.configure")) {
+            JsonObject acSettings = new JsonObject();
+            acSettings.addProperty("rebrandAlerts", settings.isAnticheatRebrandAlerts());
+            acSettings.addProperty("blockOriginalMessages", settings.isAnticheatBlockOriginalMessages());
+            data.add("anticheatSettings", acSettings);
+        }
 
-        // Anticheat settings
-        JsonObject acSettings = new JsonObject();
-        acSettings.addProperty("rebrandAlerts", settings.isAnticheatRebrandAlerts());
-        acSettings.addProperty("blockOriginalMessages", settings.isAnticheatBlockOriginalMessages());
-        data.add("anticheatSettings", acSettings);
+        // Activity log settings - requires moderex.admin.activitylog
+        if (uuid != null && hasViewPermission(uuid, "moderex.admin.activitylog")) {
+            JsonObject activityLogSettings = new JsonObject();
+            activityLogSettings.addProperty("enabled", settings.isActivityLogEnabled());
+            activityLogSettings.addProperty("logChat", settings.isActivityLogChat());
+            activityLogSettings.addProperty("logCommands", settings.isActivityLogCommands());
+            activityLogSettings.addProperty("logSigns", settings.isActivityLogSigns());
+            activityLogSettings.addProperty("logItems", settings.isActivityLogItems());
+            activityLogSettings.addProperty("logAnvils", settings.isActivityLogAnvils());
+            activityLogSettings.addProperty("logSessions", settings.isActivityLogSessions());
+            activityLogSettings.addProperty("logUsernames", settings.isActivityLogUsernames());
+            activityLogSettings.addProperty("retentionChat", settings.getRetentionChat());
+            activityLogSettings.addProperty("retentionCommands", settings.getRetentionCommands());
+            activityLogSettings.addProperty("retentionSigns", settings.getRetentionSigns());
+            activityLogSettings.addProperty("retentionSessions", settings.getRetentionSessions());
+            activityLogSettings.addProperty("retentionItems", settings.getRetentionItems());
+            activityLogSettings.addProperty("retentionAnvils", settings.getRetentionAnvils());
+            activityLogSettings.addProperty("retentionUsernames", settings.getRetentionUsernames());
+            activityLogSettings.addProperty("retentionAutomod", settings.getRetentionAutomod());
+            activityLogSettings.addProperty("retentionAnticheat", settings.getRetentionAnticheat());
+            data.add("activityLogSettings", activityLogSettings);
+        }
 
-        // Activity log settings
-        JsonObject activityLogSettings = new JsonObject();
-        activityLogSettings.addProperty("enabled", settings.isActivityLogEnabled());
-        activityLogSettings.addProperty("logChat", settings.isActivityLogChat());
-        activityLogSettings.addProperty("logCommands", settings.isActivityLogCommands());
-        activityLogSettings.addProperty("logSigns", settings.isActivityLogSigns());
-        activityLogSettings.addProperty("logItems", settings.isActivityLogItems());
-        activityLogSettings.addProperty("logAnvils", settings.isActivityLogAnvils());
-        activityLogSettings.addProperty("logSessions", settings.isActivityLogSessions());
-        activityLogSettings.addProperty("logUsernames", settings.isActivityLogUsernames());
-        activityLogSettings.addProperty("retentionChat", settings.getRetentionChat());
-        activityLogSettings.addProperty("retentionCommands", settings.getRetentionCommands());
-        activityLogSettings.addProperty("retentionSigns", settings.getRetentionSigns());
-        activityLogSettings.addProperty("retentionSessions", settings.getRetentionSessions());
-        activityLogSettings.addProperty("retentionItems", settings.getRetentionItems());
-        activityLogSettings.addProperty("retentionAnvils", settings.getRetentionAnvils());
-        activityLogSettings.addProperty("retentionUsernames", settings.getRetentionUsernames());
-        activityLogSettings.addProperty("retentionAutomod", settings.getRetentionAutomod());
-        activityLogSettings.addProperty("retentionAnticheat", settings.getRetentionAnticheat());
-        data.add("activityLogSettings", activityLogSettings);
+        // Evidence settings - requires moderex.admin.evidence
+        if (uuid != null && hasViewPermission(uuid, "moderex.admin.evidence")) {
+            JsonObject evidenceSettings = new JsonObject();
+            evidenceSettings.addProperty("maxFileSizeMb", settings.getEvidenceMaxFileSizeMb());
+            evidenceSettings.addProperty("maxActivityLogEntries", settings.getEvidenceMaxActivityLogEntries());
+            evidenceSettings.addProperty("requireEvidence", settings.isEvidenceRequireEvidence());
+            data.add("evidenceSettings", evidenceSettings);
+        }
 
-        // Evidence settings
-        JsonObject evidenceSettings = new JsonObject();
-        evidenceSettings.addProperty("maxFileSizeMb", settings.getEvidenceMaxFileSizeMb());
-        evidenceSettings.addProperty("maxActivityLogEntries", settings.getEvidenceMaxActivityLogEntries());
-        evidenceSettings.addProperty("requireEvidence", settings.isEvidenceRequireEvidence());
-        data.add("evidenceSettings", evidenceSettings);
-
-        // Database usage info (for limit tracking)
+        // Database usage info (for limit tracking - always visible)
         var dbManager = plugin.getDatabaseManager();
         var identity = plugin.getServerIdentity();
         data.addProperty("premium", identity != null && identity.isPremium());
@@ -6546,11 +6563,18 @@ public class HybridPanelServer implements com.blockforge.moderex.gateway.Gateway
     }
 
     private void updateAnticheatSettings(WebSocketConnection conn, JsonObject data, WebPanelSession session) {
+        // Permission check
+        if (!hasViewPermission(session.playerUuid, "moderex.anticheat.configure")) {
+            sendError(conn, "PERMISSION_DENIED", "You do not have permission to configure anticheat settings.");
+            return;
+        }
+
         var settings = plugin.getConfigManager().getSettings();
 
         if (data.has("rebrandAlerts")) settings.setAnticheatRebrandAlerts(data.get("rebrandAlerts").getAsBoolean());
         if (data.has("blockOriginalMessages")) settings.setAnticheatBlockOriginalMessages(data.get("blockOriginalMessages").getAsBoolean());
 
+        plugin.saveConfig();
         sendSuccess(conn, "Anticheat settings updated");
         broadcastServerSettings();
         plugin.getLogger().info("[WebPanel] " + session.playerName + " updated anticheat settings");
@@ -6614,8 +6638,8 @@ public class HybridPanelServer implements com.blockforge.moderex.gateway.Gateway
     }
 
     private void broadcastServerSettings() {
-        for (WebSocketConnection conn : sessions.keySet()) {
-            sendServerSettings(conn);
+        for (Map.Entry<WebSocketConnection, WebPanelSession> entry : sessions.entrySet()) {
+            sendServerSettings(entry.getKey(), entry.getValue());
         }
     }
 
@@ -10093,7 +10117,7 @@ public class HybridPanelServer implements com.blockforge.moderex.gateway.Gateway
                 case "GET_USER_SETTINGS" -> sendUserSettingsForGateway(wrapper, session);
                 case "UPDATE_USER_SETTINGS" -> updateUserSettings(wrapper, data, session);
                 case "GET_SETTINGS" -> sendSettings(wrapper);
-                case "GET_SERVER_SETTINGS" -> sendServerSettings(wrapper);
+                case "GET_SERVER_SETTINGS" -> sendServerSettings(wrapper, session);
                 case "UPDATE_MUTE_SETTINGS" -> updateMuteSettings(wrapper, data, session);
                 case "UPDATE_WARN_SETTINGS" -> updateWarnSettings(wrapper, data, session);
                 case "UPDATE_ANTICHEAT_SETTINGS" -> updateAnticheatSettings(wrapper, data, session);
