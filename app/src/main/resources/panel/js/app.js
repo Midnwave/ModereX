@@ -2391,20 +2391,147 @@
     if (!cmdEl) return;
 
     // Check permission first
-    const canViewCommands = window.hasPermission ? window.hasPermission('moderex.alerts.commands') : true;
+    const canViewCommands = window.hasPermission ? window.hasPermission('moderex.history.commands') : true;
     if (!canViewCommands) {
       cmdEl.innerHTML = `<div class="drawer-row"><div class="meta"><small><i class="fa-solid fa-lock"></i> No permission to view commands</small></div></div>`;
       return;
     }
 
-    const recentCmds = (p.recentCommands || []).slice(-10).reverse();
+    const recentCmds = (p.recentCommands || []).slice(0, 10);
     cmdEl.innerHTML = recentCmds.length ? `
-      ${recentCmds.map(item => `<div class="drawer-row"><div class="meta"><b>${escapeHtml(item.cmd || item)}</b></div></div>`).join('')}
+      ${recentCmds.map(item => {
+        const cmdText = item.cmd || item.command || (typeof item === 'string' ? item : '');
+        const timeText = item.t ? escapeHtml(fmtShort(item.t)) : '';
+        const serverText = item.server ? ' | ' + escapeHtml(item.server) : '';
+        return `<div class="drawer-row"><div class="meta"><b style="font-family:var(--font-mono);font-size:13px">${escapeHtml(cmdText)}</b><small>${timeText}${serverText}</small></div></div>`;
+      }).join('')}
       <div class="drawer-row">
-        <div class="meta"><small>${p.recentCommands.length} total commands</small></div>
+        <div class="meta"><small>${(p.recentCommands || []).length} total commands</small></div>
         <button class="mini" onclick="openCommandHistory('${escapeHtml(p.id)}')"><i class="fa-solid fa-up-right-from-square"></i> Expand</button>
       </div>
     ` : `<div class="drawer-row"><div class="meta"><small>No commands.</small></div></div>`;
+  }
+
+  function refreshDrawerAutomod(p) {
+    const el = dom().drawerAutomod;
+    if (!el) return;
+
+    const canViewAutomod = window.hasPermission ? window.hasPermission('moderex.history.automod') : true;
+    if (!canViewAutomod) {
+      el.innerHTML = `<div class="drawer-row"><div class="meta"><small><i class="fa-solid fa-lock"></i> No permission to view automod logs</small></div></div>`;
+      return;
+    }
+
+    const fetchedAutomod = (p.automodLogs || []).slice(0, 6);
+    const liveAutomod = state.logs.filter(l => l.kind === 'automod' && l.playerId === p.id).slice(-6).reverse();
+    const automodLogs = fetchedAutomod.length > 0 ? fetchedAutomod : liveAutomod;
+    el.innerHTML = automodLogs.length ? `
+      ${automodLogs.map(l => {
+        const title = l.rule ? `Automod | ${l.rule}` : (l.title || 'Automod');
+        const detail = l.content || l.detail || '';
+        return `<div class="drawer-row"><div class="meta"><b>${escapeHtml(title)}</b><small>${escapeHtml(fmtShort(l.t))} | ${escapeHtml(detail)}</small></div></div>`;
+      }).join('')}
+      <div class="drawer-row">
+        <div class="meta"><small>${automodLogs.length} recent events</small></div>
+        <button class="mini" onclick="openAutomodLogs('${escapeHtml(p.id)}')"><i class="fa-solid fa-up-right-from-square"></i> Expand</button>
+      </div>
+    ` : `<div class="drawer-row"><div class="meta"><small>No automod logs.</small></div></div>`;
+  }
+
+  function refreshDrawerNicknames(p) {
+    const nickSection = document.getElementById('drawerNickSection');
+    const nickContainer = document.getElementById('drawerNicks');
+    if (!nickSection || !nickContainer) return;
+
+    nickSection.style.display = '';
+    if (!canView('nicknames')) {
+      nickContainer.innerHTML = `<div class="drawer-row"><div class="meta"><small style="color:var(--muted)"><i class="fa-solid fa-lock"></i> No permission to view nicknames</small></div></div>`;
+      return;
+    }
+
+    const nickHistory = (p.nicknameHistory || []).slice(0, 5);
+    if (nickHistory.length > 0) {
+      nickContainer.innerHTML = nickHistory.map(entry => `
+        <div class="drawer-row">
+          <div class="meta">
+            <b style="color:var(--primary-light)">${escapeHtml(entry.nick || 'Unknown')}</b>
+            <small>from ${escapeHtml(entry.oldNick || 'none')} | ${escapeHtml(fmtShort(entry.t))}</small>
+          </div>
+        </div>
+      `).join('') + ((p.nicknameHistory || []).length > 5 ? `<div class="drawer-row"><div class="meta"><small>${(p.nicknameHistory || []).length - 5} more nicknames...</small></div></div>` : '');
+    } else {
+      nickContainer.innerHTML = `<div class="drawer-row"><div class="meta"><small>No nickname changes recorded.</small></div></div>`;
+    }
+  }
+
+  function refreshDrawerIpHistory(p) {
+    const ipSection = document.getElementById('drawerIpSection');
+    const ipContainer = dom().drawerIps;
+    if (!ipSection || !ipContainer) return;
+
+    if (canView('ip') && (p.ip || (p.ipHistory && p.ipHistory.length > 0))) {
+      ipSection.style.display = '';
+      const ipHistory = (p.ipHistory || []).slice(0, 5);
+      const currentIp = p.ip || (ipHistory.length > 0 ? ipHistory[0].ip : 'Unknown');
+      ipContainer.innerHTML = `
+        <div class="drawer-row"><div class="meta"><b>Current IP</b><small><span class="ip-blur">${escapeHtml(currentIp)}</span></small></div></div>
+        ${ipHistory.length > 1 ? ipHistory.slice(1).map(entry => `
+          <div class="drawer-row"><div class="meta"><b>Previous</b><small><span class="ip-blur">${escapeHtml(entry.ip)}</span> | ${escapeHtml(fmtShort(entry.t))}</small></div></div>
+        `).join('') : ''}
+        ${ipHistory.length > 5 ? `<div class="drawer-row"><div class="meta"><small>${ipHistory.length - 5} more IPs...</small></div></div>` : ''}
+      `;
+    } else if (!canView('ip')) {
+      ipSection.style.display = '';
+      ipContainer.innerHTML = `<div class="drawer-row"><div class="meta"><small style="color:var(--muted)"><i class="fa-solid fa-lock"></i> No permission to view IP</small></div></div>`;
+    } else {
+      ipSection.style.display = '';
+      ipContainer.innerHTML = `<div class="drawer-row"><div class="meta"><small>No IP data available.</small></div></div>`;
+    }
+  }
+
+  function refreshDrawerSessions(p) {
+    const sessionSection = document.getElementById('drawerSessionSection');
+    const sessionContainer = dom().drawerSessions;
+    if (!sessionSection || !sessionContainer) return;
+
+    const canViewSessions = window.hasPermission ? window.hasPermission('moderex.history.sessions') : true;
+    if (!canViewSessions) {
+      sessionSection.style.display = '';
+      sessionContainer.innerHTML = `<div class="drawer-row"><div class="meta"><small style="color:var(--muted)"><i class="fa-solid fa-lock"></i> No permission to view sessions</small></div></div>`;
+      return;
+    }
+
+    sessionSection.style.display = '';
+    const sessions = (p.sessionHistory || []).slice(0, 8);
+    if (sessions.length > 0) {
+      sessionContainer.innerHTML = sessions.map(s => {
+        const joinTime = escapeHtml(fmtShort(s.joinTime || s.t));
+        const leaveTime = s.leaveTime ? escapeHtml(fmtShort(s.leaveTime)) : '<span style="color:var(--good)">Online</span>';
+        const duration = s.duration ? escapeHtml(s.duration) : (s.leaveTime ? formatSessionDuration(s.leaveTime - (s.joinTime || s.t)) : 'Active');
+        const serverInfo = s.server ? ' | ' + escapeHtml(s.server) : '';
+        return `<div class="drawer-row">
+          <div class="meta">
+            <b><i class="fa-solid fa-right-to-bracket" style="color:var(--good);margin-right:4px"></i>${joinTime}</b>
+            <small><i class="fa-solid fa-right-from-bracket" style="margin-right:4px"></i>${leaveTime} | ${duration}${serverInfo}</small>
+          </div>
+        </div>`;
+      }).join('') + ((p.sessionHistory || []).length > 8 ? `<div class="drawer-row"><div class="meta"><small>${(p.sessionHistory || []).length - 8} more sessions...</small></div></div>` : '');
+    } else {
+      sessionContainer.innerHTML = `<div class="drawer-row"><div class="meta"><small>No session history.</small></div></div>`;
+    }
+  }
+
+  // Helper to format session duration from milliseconds to human-readable string
+  function formatSessionDuration(ms) {
+    if (!ms || ms < 0) return '0s';
+    const seconds = Math.floor(ms / 1000);
+    if (seconds < 60) return seconds + 's';
+    const minutes = Math.floor(seconds / 60);
+    if (minutes < 60) return minutes + 'm ' + (seconds % 60) + 's';
+    const hours = Math.floor(minutes / 60);
+    if (hours < 24) return hours + 'h ' + (minutes % 60) + 'm';
+    const days = Math.floor(hours / 24);
+    return days + 'd ' + (hours % 24) + 'h';
   }
 
   window.openDrawer = function(playerId, highlightPunId = null) {
@@ -2415,6 +2542,7 @@
 
     // Request player details (command history, automod flags) from server
     const ws = window.MX?.ws;
+    const needsDetailsLoad = !p._detailsLoaded;
     if (ws && ws.isConnected()) {
       ws.send('GET_PLAYER_DETAILS', { uuid: p.uuid });
     }
@@ -2565,10 +2693,24 @@
       `).join('') : `<div class="drawer-row"><div class="meta"><small>No pardons.</small></div></div>`;
     }
 
+    // Loading indicator for async sections
+    const loadingHtml = `<div class="drawer-row"><div class="meta"><small><i class="fa-solid fa-spinner fa-spin" style="margin-right:6px"></i>Loading...</small></div></div>`;
+
     // IP History section - show current IP and historical IPs (with permission check)
     const ipSection = document.getElementById('drawerIpSection');
     const ipContainer = dom().drawerIps;
-    if (canView('ip') && (p.ip || (p.ipHistory && p.ipHistory.length > 0))) {
+    if (!canView('ip')) {
+      if (ipSection) ipSection.style.display = '';
+      ipContainer.innerHTML = `<div class="drawer-row"><div class="meta"><small style="color:var(--muted)"><i class="fa-solid fa-lock"></i> No permission to view IP</small></div></div>`;
+    } else if (needsDetailsLoad && !p.ipHistory) {
+      // Show loading while waiting for details
+      if (ipSection) ipSection.style.display = '';
+      if (p.ip) {
+        ipContainer.innerHTML = `<div class="drawer-row"><div class="meta"><b>Current IP</b><small><span class="ip-blur">${escapeHtml(p.ip)}</span></small></div></div>` + loadingHtml;
+      } else {
+        ipContainer.innerHTML = loadingHtml;
+      }
+    } else if (p.ip || (p.ipHistory && p.ipHistory.length > 0)) {
       if (ipSection) ipSection.style.display = '';
       const ipHistory = (p.ipHistory || []).slice(0, 5);
       const currentIp = p.ip || (ipHistory.length > 0 ? ipHistory[0].ip : 'Unknown');
@@ -2580,65 +2722,81 @@
         ${ipHistory.length > 5 ? `<div class="drawer-row"><div class="meta"><small>${ipHistory.length - 5} more IPs...</small></div></div>` : ''}
       `;
     } else if (ipSection) {
-      // No permission or no IP data
-      if (!canView('ip')) {
-        ipSection.style.display = '';
-        ipContainer.innerHTML = `<div class="drawer-row"><div class="meta"><small style="color:var(--muted)"><i class="fa-solid fa-lock"></i> No permission to view IP</small></div></div>`;
-      } else {
-        ipSection.style.display = '';
-        ipContainer.innerHTML = `<div class="drawer-row"><div class="meta"><small>No IP data available.</small></div></div>`;
-      }
+      ipSection.style.display = '';
+      ipContainer.innerHTML = `<div class="drawer-row"><div class="meta"><small>No IP data available.</small></div></div>`;
     }
 
     // Nickname History section - always show (with permission check)
-    const nickHistory = (p.nicknameHistory || []).slice(0, 5);
     const nickSection = document.getElementById('drawerNickSection');
     const nickContainer = document.getElementById('drawerNicks');
     if (nickSection) {
       nickSection.style.display = ''; // Always show the section
       if (!canView('nicknames')) {
-        // No permission
         nickContainer.innerHTML = `<div class="drawer-row"><div class="meta"><small style="color:var(--muted)"><i class="fa-solid fa-lock"></i> No permission to view nicknames</small></div></div>`;
-      } else if (nickHistory.length > 0) {
-        // Has nickname history
-        nickContainer.innerHTML = nickHistory.map(entry => `
-          <div class="drawer-row">
-            <div class="meta">
-              <b style="color:var(--primary-light)">${escapeHtml(entry.nick || 'Unknown')}</b>
-              <small>from ${escapeHtml(entry.oldNick || 'none')} | ${escapeHtml(fmtShort(entry.t))}</small>
-            </div>
-          </div>
-        `).join('') + (nickHistory.length > 5 ? `<div class="drawer-row"><div class="meta"><small>${(p.nicknameHistory || []).length - 5} more nicknames...</small></div></div>` : '');
+      } else if (needsDetailsLoad && !p.nicknameHistory) {
+        // Show loading while waiting for details
+        nickContainer.innerHTML = loadingHtml;
       } else {
-        // No nickname history
-        nickContainer.innerHTML = `<div class="drawer-row"><div class="meta"><small>No nickname changes recorded.</small></div></div>`;
+        const nickHistory = (p.nicknameHistory || []).slice(0, 5);
+        if (nickHistory.length > 0) {
+          nickContainer.innerHTML = nickHistory.map(entry => `
+            <div class="drawer-row">
+              <div class="meta">
+                <b style="color:var(--primary-light)">${escapeHtml(entry.nick || 'Unknown')}</b>
+                <small>from ${escapeHtml(entry.oldNick || 'none')} | ${escapeHtml(fmtShort(entry.t))}</small>
+              </div>
+            </div>
+          `).join('') + ((p.nicknameHistory || []).length > 5 ? `<div class="drawer-row"><div class="meta"><small>${(p.nicknameHistory || []).length - 5} more nicknames...</small></div></div>` : '');
+        } else {
+          nickContainer.innerHTML = `<div class="drawer-row"><div class="meta"><small>No nickname changes recorded.</small></div></div>`;
+        }
       }
     }
 
-    // Recent Commands section - requires moderex.alerts.commands permission
-    const canViewCommands = window.hasPermission ? window.hasPermission('moderex.alerts.commands') : true;
-    if (canViewCommands) {
+    // Recent Commands section - requires moderex.history.commands permission
+    const canViewCommands = window.hasPermission ? window.hasPermission('moderex.history.commands') : true;
+    if (!canViewCommands) {
+      dom().drawerRecent.innerHTML = `<div class="drawer-row"><div class="meta"><small><i class="fa-solid fa-lock"></i> No permission to view commands</small></div></div>`;
+    } else if (needsDetailsLoad && !p.recentCommands?.length) {
+      // Show loading while waiting for details
+      dom().drawerRecent.innerHTML = loadingHtml;
+    } else {
       const recentCmds = (p.recentCommands || []).slice(0, 10);
       dom().drawerRecent.innerHTML = recentCmds.length ? `
-        ${recentCmds.map(item => `<div class="drawer-row"><div class="meta"><b>${escapeHtml(item.cmd || item.command || item)}</b><small>${item.t ? escapeHtml(fmtShort(item.t)) : ''}</small></div></div>`).join('')}
+        ${recentCmds.map(item => {
+          const cmdText = item.cmd || item.command || (typeof item === 'string' ? item : '');
+          const timeText = item.t ? escapeHtml(fmtShort(item.t)) : '';
+          const serverText = item.server ? ' | ' + escapeHtml(item.server) : '';
+          return `<div class="drawer-row"><div class="meta"><b style="font-family:var(--font-mono);font-size:13px">${escapeHtml(cmdText)}</b><small>${timeText}${serverText}</small></div></div>`;
+        }).join('')}
         <div class="drawer-row">
           <div class="meta"><small>${(p.recentCommands || []).length} total commands</small></div>
           <button class="mini" onclick="openCommandHistory('${escapeHtml(p.id)}')"><i class="fa-solid fa-up-right-from-square"></i> Expand</button>
         </div>
       ` : `<div class="drawer-row"><div class="meta"><small>No commands.</small></div></div>`;
-    } else {
-      dom().drawerRecent.innerHTML = `<div class="drawer-row"><div class="meta"><small><i class="fa-solid fa-lock"></i> No permission to view commands</small></div></div>`;
     }
 
     // Automod Logs section - requires moderex.history.automod permission
     const canViewAutomod = window.hasPermission ? window.hasPermission('moderex.history.automod') : true;
-    if (canViewAutomod) {
+    if (!canViewAutomod) {
+      dom().drawerAutomod.innerHTML = `<div class="drawer-row"><div class="meta"><small><i class="fa-solid fa-lock"></i> No permission to view automod logs</small></div></div>`;
+    } else if (needsDetailsLoad && !p.automodLogs) {
+      // Show loading while waiting for details, but also check live logs
+      const liveAutomod = state.logs.filter(l => l.kind === 'automod' && l.playerId === p.id).slice(-6).reverse();
+      dom().drawerAutomod.innerHTML = liveAutomod.length ? `
+        ${liveAutomod.map(l => {
+          const title = l.rule ? `Automod | ${l.rule}` : (l.title || 'Automod');
+          const detail = l.content || l.detail || '';
+          return `<div class="drawer-row"><div class="meta"><b>${escapeHtml(title)}</b><small>${escapeHtml(fmtShort(l.t))} | ${escapeHtml(detail)}</small></div></div>`;
+        }).join('')}
+        ${loadingHtml}
+      ` : loadingHtml;
+    } else {
       const fetchedAutomod = (p.automodLogs || []).slice(0, 6);
       const liveAutomod = state.logs.filter(l => l.kind === 'automod' && l.playerId === p.id).slice(-6).reverse();
       const automodLogs = fetchedAutomod.length > 0 ? fetchedAutomod : liveAutomod;
       dom().drawerAutomod.innerHTML = automodLogs.length ? `
         ${automodLogs.map(l => {
-          // Handle both fetched format and live format
           const title = l.rule ? `Automod | ${l.rule}` : (l.title || 'Automod');
           const detail = l.content || l.detail || '';
           return `<div class="drawer-row"><div class="meta"><b>${escapeHtml(title)}</b><small>${escapeHtml(fmtShort(l.t))} | ${escapeHtml(detail)}</small></div></div>`;
@@ -2648,8 +2806,21 @@
           <button class="mini" onclick="openAutomodLogs('${p.id}')"><i class="fa-solid fa-up-right-from-square"></i> Expand</button>
         </div>
       ` : `<div class="drawer-row"><div class="meta"><small>No automod logs.</small></div></div>`;
-    } else {
-      dom().drawerAutomod.innerHTML = `<div class="drawer-row"><div class="meta"><small><i class="fa-solid fa-lock"></i> No permission to view automod logs</small></div></div>`;
+    }
+
+    // Session History section - requires moderex.history.sessions permission
+    const canViewSessions = window.hasPermission ? window.hasPermission('moderex.history.sessions') : true;
+    const sessionSection = document.getElementById('drawerSessionSection');
+    if (sessionSection) {
+      if (!canViewSessions) {
+        sessionSection.style.display = '';
+        dom().drawerSessions.innerHTML = `<div class="drawer-row"><div class="meta"><small style="color:var(--muted)"><i class="fa-solid fa-lock"></i> No permission to view sessions</small></div></div>`;
+      } else if (needsDetailsLoad && !p.sessionHistory) {
+        sessionSection.style.display = '';
+        dom().drawerSessions.innerHTML = loadingHtml;
+      } else {
+        refreshDrawerSessions(p);
+      }
     }
 
     dom().drawerOverlay.classList.add('show');
@@ -4904,6 +5075,12 @@
               <button class="replay-speed-pill" data-speed="2">2x</button>
               <button class="replay-speed-pill" data-speed="4">4x</button>
             </div>
+            <div class="replay-sound-controls">
+              <button class="replay-btn replay-sound-btn" id="r3dSoundToggle" title="Toggle Sound (M)">
+                <i class="fa-solid fa-volume-high"></i>
+              </button>
+              <input type="range" class="replay-volume-slider" id="r3dVolumeSlider" min="0" max="100" value="35" title="Volume">
+            </div>
           </div>
         </div>
       </div>
@@ -5016,6 +5193,23 @@
         case '3': setSpeed(1); break;
         case '4': setSpeed(2); break;
         case '5': setSpeed(4); break;
+        case 'm':
+        case 'M':
+          if (activeReplay3DViewer?.soundManager) {
+            activeReplay3DViewer.soundManager.toggleMute();
+            const sb = document.getElementById('r3dSoundToggle');
+            if (sb) {
+              const muted = activeReplay3DViewer.soundManager.isMuted();
+              const vol = activeReplay3DViewer.soundManager.getVolume();
+              let icon = 'fa-volume-high';
+              if (muted || vol === 0) icon = 'fa-volume-xmark';
+              else if (vol < 0.35) icon = 'fa-volume-low';
+              else if (vol < 0.7) icon = 'fa-volume-low';
+              sb.innerHTML = `<i class="fa-solid ${icon}"></i>`;
+              sb.classList.toggle('muted', muted);
+            }
+          }
+          break;
       }
     };
     document.addEventListener('keydown', keyHandler);
@@ -5105,6 +5299,49 @@
               setSpeed(parseFloat(pill.dataset.speed));
             };
           });
+
+          // Sound controls
+          if (viewer.soundManager) {
+            const sm = viewer.soundManager;
+            sm.init();
+            sm.startAmbient();
+
+            const soundBtn = document.getElementById('r3dSoundToggle');
+            const volumeSlider = document.getElementById('r3dVolumeSlider');
+
+            // Sync UI with saved settings
+            if (volumeSlider) volumeSlider.value = Math.round(sm.getVolume() * 100);
+            const updateSoundIcon = () => {
+              if (!soundBtn) return;
+              const muted = sm.isMuted();
+              const vol = sm.getVolume();
+              let icon = 'fa-volume-high';
+              if (muted || vol === 0) icon = 'fa-volume-xmark';
+              else if (vol < 0.35) icon = 'fa-volume-low';
+              else if (vol < 0.7) icon = 'fa-volume-low';
+              soundBtn.innerHTML = `<i class="fa-solid ${icon}"></i>`;
+              soundBtn.classList.toggle('muted', muted);
+            };
+            updateSoundIcon();
+
+            if (soundBtn) {
+              soundBtn.onclick = () => {
+                sm.toggleMute();
+                updateSoundIcon();
+              };
+            }
+
+            if (volumeSlider) {
+              volumeSlider.addEventListener('input', (e) => {
+                const vol = parseInt(e.target.value) / 100;
+                sm.setVolume(vol);
+                if (vol > 0 && sm.isMuted()) {
+                  sm.setMuted(false);
+                }
+                updateSoundIcon();
+              });
+            }
+          }
 
           // Hide loading
           const loadingEl = document.getElementById('r3dLoading');
@@ -5288,7 +5525,7 @@
 
   window.openCommandHistory = function(playerId) {
     // Check permission first
-    if (window.hasPermission && !window.hasPermission('moderex.alerts.commands')) {
+    if (window.hasPermission && !window.hasPermission('moderex.history.commands')) {
       toast('error', 'Permission Denied', 'You do not have permission to view command history.');
       return;
     }
@@ -5599,7 +5836,7 @@
 
     // Handle WebSocket response - ws.on receives data directly (not event)
     const handleResponse = (data) => {
-      if (data) {
+      if (data && (!data.uuid || data.uuid === p.id)) {
         renderLogs(data);
       }
     };
@@ -9449,17 +9686,40 @@
       if (!isLiveMode) return;
       const player = state.players.find(p => p.uuid === data.uuid || p.id === data.uuid);
       if (player) {
+        // Mark details as loaded so drawer shows real data instead of loading
+        player._detailsLoaded = true;
+
         // Update recent commands if provided
-        if (data.recentCommands && data.recentCommands.length > 0) {
+        if (data.recentCommands) {
           player.recentCommands = data.recentCommands;
         }
-        // Store automod flags for this player
-        if (data.automodFlags) {
-          player.automodFlags = data.automodFlags;
+        // Store automod logs for this player
+        if (data.automodLogs) {
+          player.automodLogs = data.automodLogs;
         }
-        // Re-render drawer if it's currently showing this player
+        // Store nickname history for this player
+        if (data.nicknameHistory) {
+          player.nicknameHistory = data.nicknameHistory;
+        }
+        // Store IP history for this player
+        if (data.ipHistory) {
+          player.ipHistory = data.ipHistory;
+        }
+        // Store chat logs for this player
+        if (data.chatLogs) {
+          player.chatLogs = data.chatLogs;
+        }
+        // Store session history for this player
+        if (data.sessionHistory) {
+          player.sessionHistory = data.sessionHistory;
+        }
+        // Re-render drawer sections if it's currently showing this player
         if (state.selectedPlayerId === player.id) {
           refreshDrawerCommands(player);
+          refreshDrawerAutomod(player);
+          refreshDrawerNicknames(player);
+          refreshDrawerIpHistory(player);
+          refreshDrawerSessions(player);
         }
       }
     });
@@ -9478,6 +9738,8 @@
         expiresAt: p.expiresAt,
         active: p.active,
         revoked: !!p.removedAt,
+        revokedBy: p.removedBy || '',
+        revokedAt: p.removedAt || null,
         evidence: p.evidence || []
       }));
       ui.renderPunishments();
@@ -12955,7 +13217,7 @@
       return;
     }
 
-    // Direct mode: Fetch version from server API (reads from panel-version.properties)
+    // Direct mode: Fetch version from server API (plugin version + build date)
     fetch('/api/panel-version?_=' + Date.now())
       .then(res => res.json())
       .then(data => {
@@ -12966,22 +13228,23 @@
       });
   }
 
-  // Handle panel version data (used by both HTTP and WebSocket responses)
+  // Handle unified version data from the plugin (HTTP /api/panel-version, /api/plugin-version, or WebSocket PANEL_VERSION).
+  // Response shape: { version, name, buildNumber, buildDate }
   function handlePanelVersionData(data) {
     panelVersionInfo = data;
-    // Update sidebar version display
+    // Update sidebar version display with the plugin version string (e.g. "2.0dev-280")
     const versionEl = document.getElementById('panelVersion');
     if (versionEl && data.version) {
       versionEl.textContent = data.version;
     }
-    // Store build number for comparison
+    // Store build number for changelog tracking and update comparison
     if (data.buildNumber) {
       currentBuildNumber = parseInt(data.buildNumber, 10);
     }
-    // Also use as plugin version for update checking (same version source)
+    // Store plugin version for update checking
     if (data.version && data.version !== 'gateway') {
       currentPluginVersion = data.version;
-      console.log('[Update] Plugin version from panel data:', currentPluginVersion, 'build:', currentBuildNumber);
+      console.log('[Version] Plugin:', currentPluginVersion, 'Build:', currentBuildNumber, 'Date:', data.buildDate || 'N/A');
       // Start checking GitHub for updates
       checkGitHubForUpdates();
       if (!updateCheckInterval) {
@@ -12991,39 +13254,9 @@
   }
 
   function loadCurrentPluginVersion() {
-    // In gateway mode, use WebSocket since HTTP fetch goes to gateway server, not MC server
-    if (window.MX?.ws?.isGatewayMode && window.MX.ws.isGatewayMode()) {
-      // Version data comes from PANEL_VERSION response which is handled by handlePanelVersionData
-      // Just request the panel version which includes plugin version info
-      if (window.MX.ws.isConnected()) {
-        window.MX.ws.send('GET_PANEL_VERSION');
-      }
-      return;
-    }
-
-    // Direct mode: Get current plugin version from server via HTTP
-    fetch('/api/plugin-version?_=' + Date.now())
-      .then(res => res.json())
-      .then(data => {
-        console.log('[Update] Plugin version response:', data);
-        if (data.version) {
-          currentPluginVersion = data.version;
-          // Store build number from plugin version
-          if (data.buildNumber) {
-            currentBuildNumber = parseInt(data.buildNumber, 10);
-          }
-          console.log('[Update] Current plugin version:', currentPluginVersion, 'build:', currentBuildNumber);
-          // Start checking GitHub for updates
-          checkGitHubForUpdates();
-          // Check every 10 seconds
-          if (!updateCheckInterval) {
-            updateCheckInterval = setInterval(checkGitHubForUpdates, 10000);
-          }
-        }
-      })
-      .catch(err => {
-        console.log('[Update] Failed to get plugin version:', err.message);
-      });
+    // Plugin version is now included in the panel version response (same endpoint).
+    // Just re-trigger loadPanelVersion which handles everything via handlePanelVersionData.
+    loadPanelVersion();
   }
 
   function checkGitHubForUpdates() {

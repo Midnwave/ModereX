@@ -251,6 +251,7 @@
       drawerIps: $('#drawerIps'),
       drawerRecent: $('#drawerRecent'),
       drawerAutomod: $('#drawerAutomod'),
+      drawerSessions: $('#drawerSessions'),
       drawerViolations: $('#drawerViolations'),
       drawerPardons: $('#drawerPardons'),
       drawerActionBar: $('#drawerActionBar'),
