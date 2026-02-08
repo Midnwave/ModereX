@@ -1841,9 +1841,10 @@ function handleAdminConnection(ws, clientIp, cfEmail, req) {
 
     // Verify authentication
     // Production: Cloudflare Access sets cf-access-authenticated-user-email header
-    // Development: Requires ADMIN_DEV_KEY env var + matching x-admin-dev-key header
+    // Development: Requires ADMIN_DEV_KEY env var + matching header or query param
     const devKey = process.env.ADMIN_DEV_KEY;
-    const isDev = devKey && req.headers['x-admin-dev-key'] === devKey;
+    const reqUrl = new URL(req.url, `http://${req.headers.host}`);
+    const isDev = devKey && (req.headers['x-admin-dev-key'] === devKey || reqUrl.searchParams.get('key') === devKey);
 
     if (isDev) {
         cfEmail = 'dev@localhost';

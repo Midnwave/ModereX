@@ -594,7 +594,7 @@ body {
   width: 42px;
   height: 42px;
   border-radius: var(--radius);
-  background: linear-gradient(135deg, #1f6bff, #35b5ff);
+  background: linear-gradient(135deg, var(--primary), var(--primary-light));
   display: grid;
   place-items: center;
   box-shadow: 0 8px 24px var(--primary-glow);
@@ -2539,7 +2539,8 @@ textarea.input {
   }
 }
 
-.modal-top {
+.modal-top,
+.modal-header {
   padding: 16px 20px;
   border-bottom: 1px solid var(--border);
   display: flex;
@@ -2549,9 +2550,13 @@ textarea.input {
   background: rgba(0, 0, 0, 0.2);
 }
 
-.modal-top b {
+.modal-top b,
+.modal-header .modal-title {
   font-size: 14px;
   font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
 
 .modal-body {

@@ -47,8 +47,12 @@
       return 'wss://gateway.moderex.net/panel';
     }
 
-    // Fallback for Cloudflare Pages staging or other hosted deployments
-    // Users can set this via: localStorage.setItem('moderex_gateway_url', 'wss://spent-whereas-halloween-arrive.trycloudflare.com')
+    // Cloudflare Pages (moderex.pages.dev) → gateway.moderex.net
+    if (hostname.endsWith('.pages.dev')) {
+      return 'wss://gateway.moderex.net/panel';
+    }
+
+    // Fallback for localhost/direct hosting
     return `wss://${hostname}/panel`;
   }
 

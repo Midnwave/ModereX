@@ -150,6 +150,42 @@
   window.lockSection = lockSection;
 
   /**
+   * Gate configuration page cards behind their permissions.
+   * Cards remain visible but disabled with a lock overlay when user lacks permission.
+   */
+  function gateConfigPermissions() {
+    const gates = [
+      { id: 'warningSettingsCard', perm: 'moderex.admin.warnings' },
+      { id: 'muteSettingsCard', perm: 'moderex.admin.mutes' },
+      { id: 'serverLockdownCard', perm: 'moderex.admin.lockdown' },
+      { id: 'notificationConfigCard', perm: 'moderex.admin.notifications' },
+      { id: 'commandBlacklistCard', perm: 'moderex.cmdblacklist' },
+      { id: 'activityLogConfigCard', perm: 'moderex.admin.activitylog' },
+      { id: 'evidenceConfigCard', perm: 'moderex.admin.evidence' },
+      { id: 'anticheatIntegrationCard', perm: 'moderex.anticheat.configure' }
+    ];
+    gates.forEach(({ id, perm }) => {
+      const card = document.getElementById(id);
+      if (!card) return;
+      // Remove previous lock overlay if re-visiting page
+      const existing = card.querySelector('.config-perm-overlay');
+      if (existing) existing.remove();
+      card.style.opacity = '';
+      card.style.pointerEvents = '';
+      if (!hasPermission(perm)) {
+        card.style.opacity = '0.5';
+        card.style.pointerEvents = 'none';
+        const overlay = document.createElement('div');
+        overlay.className = 'config-perm-overlay';
+        overlay.style.cssText = 'position:absolute;top:8px;right:12px;font-size:11px;color:var(--muted);display:flex;align-items:center;gap:4px';
+        overlay.innerHTML = '<i class="fa-solid fa-lock"></i> No Permission';
+        card.style.position = 'relative';
+        card.appendChild(overlay);
+      }
+    });
+  }
+
+  /**
    * Check if user can issue a specific punishment type.
    * @param {string} type - Punishment type (BAN, MUTE, WARN, KICK)
    * @returns {boolean} true if user can issue this punishment type
@@ -1001,6 +1037,7 @@
     if (page === 'templates') ui.renderTemplates();
     if (page === 'messages') ui.renderMessages();
     if (page === 'settings') ui.renderChatToggles();
+    if (page === 'actions') gateConfigPermissions();
     if (page === 'mysettings') {
       // Refresh user settings from server when opening My Settings page
       const ws = window.MX?.ws;
@@ -4529,6 +4566,7 @@
     if (triggerAcEl) triggerAcEl.checked = !!data.triggerOnAnticheat;
     if (triggerPunEl) triggerPunEl.checked = !!data.triggerOnPunishment;
 
+    // Update Citizens note
     const citizensNote = document.getElementById('replayCitizensNote');
     if (citizensNote) {
       if (data.citizensAvailable) {
@@ -7879,6 +7917,8 @@
   };
 
   window.saveIntegrations = function() {
+    const linkEl = document.getElementById('discordLink');
+    if (linkEl) state.settings.discordLink = linkEl.value;
     state.settings.discordWebhook = dom().discordWebhook.value;
     ui.markUnsaved('integrations', true);
     toast('ok', 'Saved', 'Integration settings saved.');
@@ -9508,6 +9548,7 @@
       state.replays = data.replays || [];
       renderReplayList();
       updateReplayStats();
+      // Update Citizens note from replay list data
       if (data.citizensAvailable !== undefined) {
         const citizensNote = document.getElementById('replayCitizensNote');
         if (citizensNote) {
@@ -10486,12 +10527,22 @@
     executePunishment = function(opts) {
       if (isLiveMode && ws.isConnected()) {
         const p = state.players.find(x => x.id === opts.playerId);
+
+        // Collect evidence IDs from uploaded files and selected activity logs
+        const evidenceIds = [];
+        if (state.punishEvidence?.uploadedFiles) {
+          for (const f of state.punishEvidence.uploadedFiles) {
+            if (f.id) evidenceIds.push(f.id);
+          }
+        }
+
         ws.createPunishment({
           playerUuid: p?.uuid || opts.playerId,
           playerName: p?.name,
           type: opts.type,
           reason: opts.reason,
-          duration: opts.duration
+          duration: opts.duration,
+          evidenceIds: evidenceIds.length > 0 ? evidenceIds : undefined
         });
         toast('info', 'Sending', `Creating ${opts.type.toLowerCase()}...`);
       } else {
@@ -13648,6 +13699,7 @@
       if (!container) return;
       const perms = rank.permissions || {};
 
+      // Count allowed/denied per category for badges
       function countSet(cat) {
         let allow = 0, deny = 0;
         cat.permissions.forEach(p => { if (perms[p] === true) allow++; else if (perms[p] === false) deny++; });
@@ -13691,6 +13743,7 @@
         </div>`;
       }).join('');
 
+      // Permission toggle click handlers
       container.querySelectorAll('.perm-toggle-btn').forEach(btn => {
         btn.addEventListener('click', () => {
           const perm = btn.dataset.perm;
@@ -13703,6 +13756,7 @@
         });
       });
 
+      // Bulk category actions
       container.querySelectorAll('.perm-cat-action').forEach(btn => {
         btn.addEventListener('click', () => {
           const ci = parseInt(btn.dataset.cat, 10);
@@ -13719,6 +13773,7 @@
         });
       });
 
+      // Permission search filter
       const searchInput = document.getElementById('permSearchInput');
       if (searchInput) {
         searchInput.addEventListener('input', () => {
@@ -13727,6 +13782,7 @@
             const name = item.dataset.permName || '';
             item.style.display = !q || name.includes(q) ? '' : 'none';
           });
+          // Show/hide categories based on visible children
           container.querySelectorAll('.perm-category').forEach(cat => {
             const visible = cat.querySelectorAll('.perm-item:not([style*="display: none"])').length;
             cat.style.display = !q || visible > 0 ? '' : 'none';

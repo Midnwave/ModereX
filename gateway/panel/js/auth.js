@@ -214,14 +214,32 @@
     const isGateway = ws.isGatewayDomain();
 
     if (isGateway) {
-      // Gateway mode: connect directly to gateway without config fetch
+      // Check if this is global mode (no server ID - server list page)
+      if (ws.isGlobalPanelPath()) {
+        console.log('[Auth] Global panel mode - connecting to gateway for server list');
+        updateStatus('Connecting...', 'Connecting to ModereX gateway');
+
+        try {
+          await connectGlobalPanelWebSocket();
+        } catch (err) {
+          console.error('[Auth] Global panel connection failed:', err);
+          authState.connectionPhase = 'idle';
+          authState.status = AuthStatus.UNAUTHENTICATED;
+          authState.lastError = err.message || 'Gateway connection failed';
+          showConnectionToast('bad', 'Connection Failed', authState.lastError);
+          showGatewayErrorPage('Connection Failed', authState.lastError);
+        }
+        return;
+      }
+
+      // Gateway mode with server ID: connect directly to gateway
       const serverId = ws.getServerIdFromPath();
       if (!serverId) {
         authState.connectionPhase = 'idle';
         authState.status = AuthStatus.UNAUTHENTICATED;
         authState.lastError = 'No server ID found in URL. Expected format: /serverid/';
         showConnectionToast('bad', 'Invalid URL', authState.lastError);
-        showGatewayError('Invalid Server URL', 'Please check the URL and try again.');
+        showGatewayErrorPage('Invalid Server URL', 'Please check the URL and try again.');
         return;
       }
 
@@ -237,7 +255,7 @@
         authState.lastError = err.message || 'Gateway connection failed';
 
         showConnectionToast('bad', 'Connection Failed', authState.lastError);
-        showGatewayError('Connection Failed', authState.lastError);
+        showGatewayErrorPage('Connection Failed', authState.lastError);
       }
       return;
     }
@@ -322,14 +340,20 @@
         if (resolved) return;
         resolved = true;
         cleanup();
-        reject(new Error('Server not found. It may be offline or the ID is incorrect.'));
+        showServerNotFound(serverId);
+        resolve(); // Don't reject — we've shown the full page
       };
 
       const onGatewayError = (data) => {
         if (resolved) return;
         resolved = true;
         cleanup();
-        reject(new Error(data.message || 'Gateway error'));
+        if (data.code === 'SERVER_NOT_FOUND') {
+          showServerNotFound(serverId);
+          resolve();
+        } else {
+          reject(new Error(data.message || 'Gateway error'));
+        }
       };
 
       const onError = (err) => {
@@ -359,37 +383,129 @@
   }
 
   /**
-   * Show gateway-specific error screen
+   * Connect to gateway in global panel mode (no server selected)
    */
-  function showGatewayError(title, message) {
+  function connectGlobalPanelWebSocket() {
+    return new Promise((resolve, reject) => {
+      let connectionTimeout = null;
+      let resolved = false;
+
+      const cleanup = () => {
+        if (connectionTimeout) clearTimeout(connectionTimeout);
+        ws.off('connected', onConnected);
+        ws.off('error', onError);
+      };
+
+      const onConnected = () => {
+        if (resolved) return;
+        resolved = true;
+        cleanup();
+        authState.connected = true;
+        console.log('[Auth] Connected to gateway in global mode');
+        resolve();
+
+        // Try to authenticate globally
+        tryGlobalAuthenticate();
+      };
+
+      const onError = (err) => {
+        if (resolved) return;
+        resolved = true;
+        cleanup();
+        reject(new Error('WebSocket connection failed'));
+      };
+
+      ws.on('connected', onConnected);
+      ws.on('error', onError);
+
+      connectionTimeout = setTimeout(() => {
+        if (resolved) return;
+        resolved = true;
+        cleanup();
+        reject(new Error('Connection timed out'));
+      }, 15000);
+
+      ws.connectGlobalPanel();
+    });
+  }
+
+  /**
+   * Try to authenticate globally (for server list page)
+   * Priority: Saved token > Device trust
+   */
+  async function tryGlobalAuthenticate() {
+    authState.connectionPhase = 'authenticating';
+    authState.status = AuthStatus.PENDING_VERIFICATION;
+    updateStatus('Authenticating...', 'Verifying global token');
+
+    const savedToken = await loadEncryptedToken(authState.deviceFingerprint);
+    const savedDeviceFingerprint = localStorage.getItem('mx_token_device');
+
+    if (savedToken && savedDeviceFingerprint === authState.deviceFingerprint) {
+      console.log('[Auth] Global auth with saved token');
+      ws.globalAuthWithToken(savedToken);
+    } else {
+      // No saved token — show auth overlay
+      console.log('[Auth] No saved global token - showing auth screen');
+      showManualAuth('Enter your token to access your servers');
+    }
+
+    // Auth timeout
+    setTimeout(() => {
+      if (authState.connectionPhase === 'authenticating' && !authState.authenticated) {
+        console.log('[Auth] Global auth timeout - showing manual auth');
+        showManualAuth('Authentication timed out');
+      }
+    }, 10000);
+  }
+
+  /**
+   * Show the Cloudflare-style "Server Not Found" full page.
+   */
+  function showServerNotFound(serverId) {
     authState.connectionPhase = 'idle';
     authState.status = AuthStatus.UNAUTHENTICATED;
 
-    if (dom.authStatusArea) {
-      dom.authStatusArea.innerHTML = `
-        <div class="auth-error">
-          <div class="auth-error-icon">
-            <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <circle cx="12" cy="12" r="10"/>
-              <line x1="12" y1="8" x2="12" y2="12"/>
-              <line x1="12" y1="16" x2="12.01" y2="16"/>
-            </svg>
-          </div>
-          <h2>${title}</h2>
-          <p>${message}</p>
-          <p class="auth-error-hint">
-            Check that the server is online and connected to the gateway.<br>
-            You can also try accessing the panel directly via the server's IP and port.
-          </p>
-          <button class="btn btn-primary" onclick="location.reload()">Try Again</button>
-        </div>
-      `;
-      dom.authStatusArea.style.display = 'block';
+    const page = document.getElementById('serverNotFoundPage');
+    if (page) {
+      const serverIdEl = document.getElementById('notFoundServerId');
+      if (serverIdEl) serverIdEl.textContent = serverId || 'unknown';
+
+      const timestampEl = document.getElementById('notFoundTimestamp');
+      if (timestampEl) timestampEl.textContent = new Date().toUTCString();
+
+      page.classList.add('show');
     }
 
-    if (dom.authManualSection) {
-      dom.authManualSection.style.display = 'none';
+    // Hide auth overlay since we're showing a full page
+    const authOverlay = document.getElementById('authOverlay');
+    if (authOverlay) authOverlay.style.display = 'none';
+  }
+
+  /**
+   * Show the Cloudflare-style "Gateway Error" full page.
+   */
+  function showGatewayErrorPage(title, message) {
+    authState.connectionPhase = 'idle';
+    authState.status = AuthStatus.UNAUTHENTICATED;
+
+    const page = document.getElementById('gatewayErrorPage');
+    if (page) {
+      const titleEl = document.getElementById('gatewayErrorTitle');
+      if (titleEl) titleEl.textContent = title || 'Gateway Error';
+
+      const msgEl = document.getElementById('gatewayErrorMessage');
+      if (msgEl) msgEl.textContent = message || 'The ModereX gateway encountered an error.';
+
+      const timestampEl = document.getElementById('gatewayErrorTimestamp');
+      if (timestampEl) timestampEl.textContent = new Date().toUTCString();
+
+      page.classList.add('show');
     }
+
+    // Hide auth overlay since we're showing a full page
+    const authOverlay = document.getElementById('authOverlay');
+    if (authOverlay) authOverlay.style.display = 'none';
   }
 
   /**
@@ -602,6 +718,13 @@
       console.log('[Auth] Disconnected:', data.code, data.reason);
       if (window.devtoolsLog) window.devtoolsLog('WS', `Disconnected (code: ${data.code}, reason: ${data.reason || 'none'})`, 'warn');
 
+      // If gateway WS drops while server offline overlay is showing, use fixed 5s retry
+      if (ws.isGatewayMode() && document.getElementById('serverOfflineOverlay')?.classList.contains('show')) {
+        console.log('[Auth] Gateway WS disconnected while server offline - retrying in 5s');
+        ws.scheduleServerOfflineRetry();
+        return;
+      }
+
       // Handle access denied - don't reconnect
       if (data.code === 4001 || data.code === 4003) {
         authState.status = AuthStatus.UNAUTHENTICATED;
@@ -781,6 +904,64 @@
       }
     });
 
+    // Global panel auth events (server list page)
+    ws.on('global_auth_result', (data) => {
+      if (data.success) {
+        console.log('[Auth] Global auth success:', data.username);
+        authState.authenticated = true;
+        authState.status = AuthStatus.VERIFIED;
+        authState.connectionPhase = 'connected';
+        authState.reconnectAttempts = 0;
+
+        hideAuthOverlay();
+        showServerListPage(data);
+      } else {
+        console.log('[Auth] Global auth failed:', data.error);
+        showManualAuth(data.error || 'Authentication failed');
+
+        if (data.error === 'Token expired' || data.error === 'Invalid token') {
+          removeEncryptedToken();
+          localStorage.removeItem('mx_token_device');
+        }
+      }
+    });
+
+    ws.on('global_device_auth_result', (data) => {
+      if (data.success) {
+        console.log('[Auth] Global device auth success:', data.username);
+        authState.authenticated = true;
+        authState.status = AuthStatus.VERIFIED;
+        authState.connectionPhase = 'connected';
+
+        hideAuthOverlay();
+        showServerListPage(data);
+      } else {
+        showManualAuth('Device not recognized. Please enter your token.');
+      }
+    });
+
+    ws.on('servers_list', (data) => {
+      // Update server list UI
+      if (window.MX.renderServerList) {
+        window.MX.renderServerList(data.servers || data);
+      }
+    });
+
+    ws.on('server_switched', (data) => {
+      console.log('[Auth] Server switched, session:', data.sessionId);
+      // Hide server list, show normal panel
+      hideServerListPage();
+      // Auth with the pre-auth session from gateway
+      if (data.sessionId) {
+        ws.authWithSession(data.sessionId);
+      }
+    });
+
+    ws.on('switch_server_error', (data) => {
+      console.error('[Auth] Server switch failed:', data.error || data.message);
+      showConnectionToast('bad', 'Switch Failed', data.error || data.message || 'Could not connect to server');
+    });
+
     // Gateway-specific events (when connected via panel.moderex.net)
     ws.on('server_offline', (data) => {
       console.log('[Auth] Server went offline via gateway');
@@ -791,7 +972,7 @@
       authState.tokenValid = false;
       stopTokenValidation();
 
-      // Show server offline overlay
+      // Show server offline overlay (no reconnecting text, silent wait)
       showServerOffline(data?.lastSeen);
     });
 
@@ -799,13 +980,34 @@
       console.log('[Auth] Server came back online via gateway');
       if (window.devtoolsLog) window.devtoolsLog('GATEWAY', 'Minecraft server reconnected to gateway', 'success');
 
-      // Hide offline overlay and attempt reconnect
+      // Hide offline overlay
       hideServerOffline();
 
-      // Try to re-authenticate if we have a saved token
+      // Re-establish connection state
+      authState.connected = true;
+      authState.connectionPhase = 'authenticating';
+
+      // Try to re-authenticate with saved token
       if (authState.token) {
-        console.log('[Auth] Attempting re-authentication after server reconnect');
-        authenticate();
+        console.log('[Auth] Auto-authenticating after server reconnect');
+        tryAuthenticate();
+      } else {
+        // Try loading encrypted token
+        loadEncryptedToken(authState.deviceFingerprint).then(token => {
+          if (token) {
+            authState.token = token;
+            console.log('[Auth] Loaded encrypted token, auto-authenticating');
+            tryAuthenticate();
+          } else {
+            // No saved token — show auth screen
+            console.log('[Auth] No saved token, showing auth screen');
+            showAuthOverlay();
+            showManualAuth('Server reconnected. Please authenticate.');
+          }
+        }).catch(() => {
+          showAuthOverlay();
+          showManualAuth('Server reconnected. Please authenticate.');
+        });
       }
     });
 
@@ -814,11 +1016,11 @@
       if (window.devtoolsLog) window.devtoolsLog('GATEWAY', `Error: ${data?.message || data?.code}`, 'error');
 
       if (data?.code === 'SERVER_NOT_FOUND') {
-        showGatewayError('Server Not Found', 'The server ID in the URL is invalid or the server has never connected to the gateway.');
+        showServerNotFound(ws.getServerId?.() || ws.getServerIdFromPath?.() || '');
       } else if (data?.code === 'SERVER_OFFLINE') {
         showServerOffline(data?.lastSeen);
       } else {
-        showGatewayError('Gateway Error', data?.message || 'An error occurred connecting to the server.');
+        showGatewayErrorPage('Gateway Error', data?.message || 'An error occurred connecting to the server.');
       }
     });
   }
@@ -1084,6 +1286,20 @@
       authState.connectionPhase = 'authenticating';
       authState.status = AuthStatus.PENDING_VERIFICATION;
 
+      // Global mode: use global auth
+      if (ws.isGlobalMode()) {
+        updateStatus('Authenticating...', 'Verifying global token');
+        ws.globalAuthWithToken(token);
+
+        setTimeout(() => {
+          if (!authState.authenticated) {
+            setLoading(false);
+            showError('Authentication timed out');
+          }
+        }, 8000);
+        return;
+      }
+
       if (isDevUuidAuth) {
         updateStatus('Authenticating...', 'Dev UUID authentication');
         ws.send('AUTH_DEV_UUID_LOGIN', {
@@ -1172,80 +1388,33 @@
   }
 
   /**
-   * Gateway-specific UI functions
+   * Gateway-specific UI functions — use static HTML overlays from index.html
    */
   function showServerOffline(lastSeen) {
-    // Create or show the server offline overlay
-    let overlay = document.getElementById('serverOfflineOverlay');
-    if (!overlay) {
-      overlay = document.createElement('div');
-      overlay.id = 'serverOfflineOverlay';
-      overlay.className = 'auth-overlay show';
-      overlay.innerHTML = `
-        <div class="auth-modal" style="text-align: center;">
-          <div class="status-icon" style="color: var(--warning); margin-bottom: 1rem;">
-            <i class="fa-solid fa-plug-circle-xmark fa-3x"></i>
-          </div>
-          <h2 style="margin-bottom: 0.5rem;">Server Offline</h2>
-          <p style="color: var(--text-secondary); margin-bottom: 1rem;">
-            The Minecraft server has disconnected from the gateway.
-          </p>
-          <p id="serverOfflineLastSeen" style="color: var(--text-muted); font-size: 0.9rem;">
-            ${lastSeen ? `Last seen: ${formatLastSeen(lastSeen)}` : 'Waiting for server to reconnect...'}
-          </p>
-          <div class="spinner" style="margin: 1.5rem auto; width: 32px; height: 32px;"></div>
-          <p style="color: var(--text-muted); font-size: 0.85rem;">
-            The panel will automatically reconnect when the server comes back online.
-          </p>
-        </div>
-      `;
-      document.body.appendChild(overlay);
-    } else {
+    const overlay = document.getElementById('serverOfflineOverlay');
+    if (overlay) {
       overlay.classList.add('show');
-      const lastSeenEl = overlay.querySelector('#serverOfflineLastSeen');
-      if (lastSeenEl && lastSeen) {
-        lastSeenEl.textContent = `Last seen: ${formatLastSeen(lastSeen)}`;
+
+      const statusEl = document.getElementById('offlineReconnectStatus');
+      if (statusEl) {
+        statusEl.textContent = lastSeen
+          ? `Last seen: ${formatLastSeen(lastSeen)}`
+          : 'Waiting for server...';
       }
     }
+
+    // Hide other overlays
+    const disconnectOverlay = document.getElementById('disconnectOverlay');
+    if (disconnectOverlay) disconnectOverlay.classList.remove('show');
+
+    // Hide auth overlay
+    const authOverlay = document.getElementById('authOverlay');
+    if (authOverlay) authOverlay.style.display = 'none';
   }
 
   function hideServerOffline() {
     const overlay = document.getElementById('serverOfflineOverlay');
-    if (overlay) {
-      overlay.classList.remove('show');
-      setTimeout(() => overlay.remove(), 300);
-    }
-  }
-
-  function showGatewayError(title, message) {
-    // Create or show the gateway error overlay
-    let overlay = document.getElementById('gatewayErrorOverlay');
-    if (!overlay) {
-      overlay = document.createElement('div');
-      overlay.id = 'gatewayErrorOverlay';
-      overlay.className = 'auth-overlay show';
-      overlay.innerHTML = `
-        <div class="auth-modal" style="text-align: center;">
-          <div class="status-icon" style="color: var(--danger); margin-bottom: 1rem;">
-            <i class="fa-solid fa-triangle-exclamation fa-3x"></i>
-          </div>
-          <h2 id="gatewayErrorTitle" style="margin-bottom: 0.5rem;">${escapeHtml(title)}</h2>
-          <p id="gatewayErrorMessage" style="color: var(--text-secondary); margin-bottom: 1.5rem;">
-            ${escapeHtml(message)}
-          </p>
-          <a href="/" class="btn btn-primary">
-            <i class="fa-solid fa-home"></i> Return Home
-          </a>
-        </div>
-      `;
-      document.body.appendChild(overlay);
-    } else {
-      overlay.classList.add('show');
-      const titleEl = overlay.querySelector('#gatewayErrorTitle');
-      const msgEl = overlay.querySelector('#gatewayErrorMessage');
-      if (titleEl) titleEl.textContent = title;
-      if (msgEl) msgEl.textContent = message;
-    }
+    if (overlay) overlay.classList.remove('show');
   }
 
   function formatLastSeen(timestamp) {
@@ -1404,6 +1573,152 @@
 
     ws.send('AUTH_CHALLENGE_RESPONSE', { answer });
   }
+
+  // ========== Server List Page (Global Mode) ==========
+
+  /**
+   * Show the server list page after global authentication
+   */
+  function showServerListPage(authData) {
+    const page = document.getElementById('serverListPage');
+    if (!page) return;
+
+    // Show user info
+    const userEl = document.getElementById('serverListUser');
+    const avatarEl = document.getElementById('serverListAvatar');
+    const usernameEl = document.getElementById('serverListUsername');
+
+    if (userEl && authData.username) {
+      userEl.style.display = '';
+      if (avatarEl && authData.uuid) {
+        avatarEl.src = `https://mc-heads.net/avatar/${authData.uuid}/28`;
+      }
+      if (usernameEl) usernameEl.textContent = authData.username;
+    }
+
+    // Show server list page
+    page.classList.add('show');
+
+    // Hide the main app and auth overlay
+    const app = document.querySelector('.app');
+    if (app) app.style.display = 'none';
+
+    // Render servers if included in auth response
+    if (authData.servers) {
+      renderServerList(authData.servers);
+    } else {
+      // Request servers separately
+      ws.requestServers();
+    }
+  }
+
+  /**
+   * Hide server list page and show normal panel
+   */
+  function hideServerListPage() {
+    const page = document.getElementById('serverListPage');
+    if (page) page.classList.remove('show');
+
+    const app = document.querySelector('.app');
+    if (app) app.style.display = '';
+  }
+
+  /**
+   * Render the server list grid
+   */
+  function renderServerList(servers) {
+    const grid = document.getElementById('serverListGrid');
+    if (!grid) return;
+
+    if (!servers || servers.length === 0) {
+      grid.innerHTML = `
+        <div class="serverListEmpty">
+          <i class="fa-solid fa-server"></i>
+          <p>No servers found</p>
+          <p style="font-size:12px">You don't have access to any servers, or no servers are connected to the gateway.</p>
+        </div>
+      `;
+      return;
+    }
+
+    grid.innerHTML = servers.map(server => {
+      const isOnline = server.online !== false;
+      const statusClass = isOnline ? 'online' : 'offline';
+      const statusText = isOnline
+        ? `${server.playerCount || 0} player${(server.playerCount || 0) !== 1 ? 's' : ''}`
+        : 'Offline';
+      const rank = server.rank || server.primaryGroup || 'Member';
+
+      return `
+        <div class="serverCard" onclick="window.MX.switchToServer('${escapeHtml(server.serverId)}')" title="Connect to ${escapeHtml(server.serverName || server.serverId)}">
+          <div class="serverCard-header">
+            <span class="serverCard-name">${escapeHtml(server.serverName || server.serverId)}</span>
+            <div class="serverCard-status">
+              <span class="status-dot ${statusClass}"></span>
+              <span class="status-text">${statusText}</span>
+            </div>
+          </div>
+          <div class="serverCard-meta">
+            <div class="serverCard-meta-row">
+              <i class="fa-solid fa-id-badge"></i>
+              <span class="serverCard-id" onclick="event.stopPropagation(); toggleServerId(this)" title="Click to reveal">${escapeHtml(server.serverId)}</span>
+            </div>
+            <div class="serverCard-meta-row">
+              <i class="fa-solid fa-crown"></i>
+              <span>${escapeHtml(rank)}</span>
+            </div>
+          </div>
+          <i class="fa-solid fa-chevron-right serverCard-arrow"></i>
+        </div>
+      `;
+    }).join('');
+  }
+
+  // Expose render function for external updates
+  window.MX = window.MX || {};
+  window.MX.renderServerList = renderServerList;
+
+  /**
+   * Switch to a specific server from the server list
+   */
+  window.MX.switchToServer = function(serverId) {
+    console.log('[Auth] Switching to server:', serverId);
+    showConnectionToast('info', 'Connecting', 'Connecting to server...');
+    ws.switchServer(serverId);
+  };
+
+  /**
+   * Toggle server ID visibility (blur/reveal)
+   */
+  window.toggleServerId = function(el) {
+    el.classList.toggle('revealed');
+    if (el.classList.contains('revealed')) {
+      // Copy to clipboard
+      if (navigator.clipboard) {
+        navigator.clipboard.writeText(el.textContent).then(() => {
+          if (window.MX?.toast) {
+            window.MX.toast('ok', 'Copied', 'Server ID copied to clipboard', { ttl: 2000 });
+          }
+        }).catch(() => {});
+      }
+    }
+  };
+
+  /**
+   * Navigate back to server list (from within a server panel)
+   */
+  window.goToServerList = function() {
+    if (ws.isGlobalMode()) {
+      // Already in global mode — just show the page
+      const page = document.getElementById('serverListPage');
+      if (page) page.classList.add('show');
+      const app = document.querySelector('.app');
+      if (app) app.style.display = 'none';
+    } else if (ws.isGatewayMode()) {
+      // In server mode via gateway — navigate to root
+      window.location.href = '/';
+    }
+  };
 
   /**
    * Public API

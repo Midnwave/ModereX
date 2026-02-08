@@ -15,6 +15,7 @@
 
   <!-- Main Stylesheet -->
   <link rel="stylesheet" href="css/styles.css">
+  <link rel="stylesheet" href="css/themes.css">
 
   <!-- Favicon -->
   <link rel="icon" type="image/png" href="537154108207028818e303ef9465c1f66717660d_96.png">
@@ -1400,9 +1401,9 @@
               <div class="grid cols-2" style="margin-top:16px;gap:20px">
                 <div>
                   <div class="hintline">Enable Replay System</div>
-                  <label class="switch">
+                  <label class="toggle-switch-label">
                     <input type="checkbox" id="replayEnabled" onchange="updateReplaySettings()">
-                    <span class="slider"></span>
+                    <div class="toggle-switch"></div>
                   </label>
                 </div>
                 <div>
@@ -1421,16 +1422,16 @@
               <div class="grid cols-2" style="margin-top:16px;gap:20px">
                 <div>
                   <div class="hintline">Auto-Record on Anticheat Flag</div>
-                  <label class="switch">
+                  <label class="toggle-switch-label">
                     <input type="checkbox" id="replayTriggerAnticheat" onchange="updateReplaySettings()">
-                    <span class="slider"></span>
+                    <div class="toggle-switch"></div>
                   </label>
                 </div>
                 <div>
                   <div class="hintline">Auto-Record on Punishment</div>
-                  <label class="switch">
+                  <label class="toggle-switch-label">
                     <input type="checkbox" id="replayTriggerPunishment" onchange="updateReplaySettings()">
-                    <span class="slider"></span>
+                    <div class="toggle-switch"></div>
                   </label>
                 </div>
               </div>
@@ -1600,7 +1601,7 @@
                 </div>
               </div>
               <div class="card stat-card">
-                <div class="stat-icon" style="background:linear-gradient(135deg, rgba(139, 92, 246, 0.2), rgba(139, 92, 246, 0.05));color:#a78bfa;border:1px solid rgba(139, 92, 246, 0.3)">
+                <div class="stat-icon" style="background:linear-gradient(135deg, rgba(var(--dev-rgb), 0.2), rgba(var(--dev-rgb), 0.05));color:var(--dev-light);border:1px solid rgba(var(--dev-rgb), 0.3)">
                   <i class="fa-solid fa-database"></i>
                 </div>
                 <div class="stat-info">
@@ -2012,7 +2013,37 @@
             <!-- Appearance & Theme -->
             <div class="card">
               <h3><i class="fa-solid fa-palette" style="color:var(--primary-light)"></i> Appearance</h3>
-              <p>Customize the panel's colors and background pattern to your preference.</p>
+              <p>Customize the panel's theme, colors, and background pattern to your preference.</p>
+
+              <!-- Panel Theme -->
+              <div class="settings-section" id="themePicker">
+                <div class="settings-row-text" style="margin-bottom:12px">
+                  <div class="settings-row-title"><i class="fa-solid fa-swatchbook" style="color:var(--accent);margin-right:8px"></i>Panel Theme</div>
+                  <div class="settings-row-sub">Choose a visual theme for the entire panel</div>
+                </div>
+                <div class="theme-picker-grid" id="themePickerGrid">
+                  <div class="theme-card active" data-theme-id="default" onclick="setTheme('default')">
+                    <div class="theme-card-preview preview-default"></div>
+                    <div class="theme-card-label">Default</div>
+                  </div>
+                  <div class="theme-card" data-theme-id="apple-light" onclick="setTheme('apple-light')">
+                    <div class="theme-card-preview preview-apple-light"></div>
+                    <div class="theme-card-label">Apple Light</div>
+                  </div>
+                  <div class="theme-card" data-theme-id="apple-dark" onclick="setTheme('apple-dark')">
+                    <div class="theme-card-preview preview-apple-dark"></div>
+                    <div class="theme-card-label">Apple Dark</div>
+                  </div>
+                  <div class="theme-card" data-theme-id="operagx" onclick="setTheme('operagx')">
+                    <div class="theme-card-preview preview-operagx"></div>
+                    <div class="theme-card-label">Opera GX</div>
+                  </div>
+                  <div class="theme-card" data-theme-id="oldschool" onclick="setTheme('oldschool')">
+                    <div class="theme-card-preview preview-oldschool"></div>
+                    <div class="theme-card-label">Oldschool</div>
+                  </div>
+                </div>
+              </div>
 
               <!-- Theme Color -->
               <div class="settings-section" style="margin-top:18px">
@@ -2134,16 +2165,6 @@
                   </div>
                 </div>
                 <button class="toggle" id="deviceTrustEnabled" onclick="toggleDeviceTrust()"><span class="toggle-thumb"></span></button>
-              </div>
-            </div>
-
-            <!-- Panel Notifications -->
-            <div class="card">
-              <h3><i class="fa-solid fa-bell-concierge" style="color:var(--accent-light)"></i> Panel Notifications</h3>
-              <p>Configure on-screen notification alerts that appear at the bottom of the panel.</p>
-              <div class="info-box" style="margin-top:14px">
-                <i class="fa-solid fa-info-circle" style="color:var(--warn)"></i>
-                <span>System messages (plugin updates, status checks) are always shown regardless of this setting.</span>
               </div>
             </div>
 
@@ -2846,7 +2867,7 @@
 
             <!-- Essentials Integration -->
             <div class="card">
-              <h3><i class="fa-solid fa-feather" style="color:#4ade80"></i> Essentials</h3>
+              <h3><i class="fa-solid fa-feather" style="color:var(--green-light)"></i> Essentials</h3>
               <p>Nickname management and player information integration.</p>
               <div style="margin-top:14px">
                 <div class="hintline">Status: <span class="badge" id="essentialsStatus">Loading...</span></div>
@@ -2885,10 +2906,15 @@
               <div id="moderationPluginsList" style="margin-top:14px"></div>
             </div>
 
-            <!-- Discord Webhook -->
+            <!-- Discord Integration -->
             <div class="card">
-              <h3><i class="fa-brands fa-discord" style="color:#5865F2"></i> Discord Webhook</h3>
-              <p>Send moderation notifications to a Discord channel.</p>
+              <h3><i class="fa-brands fa-discord" style="color:#5865F2"></i> Discord Integration</h3>
+              <p>Discord invite link and webhook notifications.</p>
+              <div style="margin-top:14px">
+                <div class="hintline" style="margin-top:0">Discord Invite Link</div>
+                <input type="text" class="input" id="discordLink" placeholder="https://discord.gg/your-invite">
+                <div class="hintline" style="font-size:11px;color:var(--muted)">Shown in ban/kick messages so players can appeal</div>
+              </div>
               <div style="margin-top:14px">
                 <div class="hintline" style="margin-top:0">Webhook URL</div>
                 <input type="text" class="input" id="discordWebhook" placeholder="https://discord.com/api/webhooks/...">
@@ -2958,7 +2984,7 @@
               </div>
 
               <div class="card" style="margin:0">
-                <h3><i class="fa-solid fa-fire-flame-curved" style="color:#f97316"></i> Spark</h3>
+                <h3><i class="fa-solid fa-fire-flame-curved" style="color:var(--orange)"></i> Spark</h3>
                 <p>Performance profiler for diagnostics.</p>
                 <div class="hintline">Status: <span class="badge gray" id="sparkStatus">Not detected</span></div>
                 <div id="sparkDetails" style="margin-top:4px;font-size:12px;color:var(--text-secondary)"></div>
@@ -3075,7 +3101,7 @@
         <section class="page" id="page-devtools">
           <div class="page-head">
             <div class="page-title">
-              <h1><i class="fa-solid fa-code" style="color:#a78bfa;margin-right:12px"></i>Developer Tools</h1>
+              <h1><i class="fa-solid fa-code" style="color:var(--dev-light);margin-right:12px"></i>Developer Tools</h1>
               <p>Development utilities, stress testing, and debugging tools.</p>
             </div>
           </div>
@@ -3084,7 +3110,7 @@
             <!-- Development Checklist -->
             <div class="card" id="devChecklist" style="margin:0">
               <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px">
-                <h3 style="margin:0"><i class="fa-solid fa-list-check" style="color:#a78bfa;margin-right:10px"></i>Development Checklist</h3>
+                <h3 style="margin:0"><i class="fa-solid fa-list-check" style="color:var(--dev-light);margin-right:10px"></i>Development Checklist</h3>
                 <div style="display:flex;gap:8px">
                   <button class="mini" onclick="addChecklistItem()"><i class="fa-solid fa-plus"></i> Add Item</button>
                   <button class="mini" onclick="resetChecklist()"><i class="fa-solid fa-rotate-right"></i> Reset</button>
@@ -3096,7 +3122,7 @@
 
             <!-- Stress Testing -->
             <div class="card" id="devStressPlayers">
-              <h3><i class="fa-solid fa-bolt" style="color:#f59e0b;margin-right:10px"></i>Stress Testing</h3>
+              <h3><i class="fa-solid fa-bolt" style="color:var(--warn);margin-right:10px"></i>Stress Testing</h3>
               <p style="margin-bottom:16px">Generate fake data to test panel performance and UI.</p>
 
               <div class="grid cols-2" style="gap:16px">
@@ -3104,7 +3130,7 @@
                 <div class="stress-test-card" style="padding:16px;background:rgba(0,0,0,0.2);border-radius:var(--radius);border:1px solid var(--border)">
                   <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px">
                     <div style="width:36px;height:36px;background:rgba(59,130,246,0.15);border-radius:var(--radius);display:flex;align-items:center;justify-content:center">
-                      <i class="fa-solid fa-users" style="color:#3b82f6"></i>
+                      <i class="fa-solid fa-users" style="color:var(--blue)"></i>
                     </div>
                     <div>
                       <div style="font-weight:600">Spoof Players</div>
@@ -3125,7 +3151,7 @@
                 <div class="stress-test-card" style="padding:16px;background:rgba(0,0,0,0.2);border-radius:var(--radius);border:1px solid var(--border)">
                   <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px">
                     <div style="width:36px;height:36px;background:rgba(139,92,246,0.15);border-radius:var(--radius);display:flex;align-items:center;justify-content:center">
-                      <i class="fa-solid fa-user-shield" style="color:#8b5cf6"></i>
+                      <i class="fa-solid fa-user-shield" style="color:var(--dev)"></i>
                     </div>
                     <div>
                       <div style="font-weight:600">Spoof Staff</div>
@@ -3146,7 +3172,7 @@
                 <div class="stress-test-card" id="devStressPunishments" style="padding:16px;background:rgba(0,0,0,0.2);border-radius:var(--radius);border:1px solid var(--border)">
                   <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px">
                     <div style="width:36px;height:36px;background:rgba(239,68,68,0.15);border-radius:var(--radius);display:flex;align-items:center;justify-content:center">
-                      <i class="fa-solid fa-gavel" style="color:#ef4444"></i>
+                      <i class="fa-solid fa-gavel" style="color:var(--bad)"></i>
                     </div>
                     <div>
                       <div style="font-weight:600">Spoof Punishments</div>
@@ -3167,7 +3193,7 @@
                 <div class="stress-test-card" id="devStressAutomod" style="padding:16px;background:rgba(0,0,0,0.2);border-radius:var(--radius);border:1px solid var(--border)">
                   <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px">
                     <div style="width:36px;height:36px;background:rgba(16,185,129,0.15);border-radius:var(--radius);display:flex;align-items:center;justify-content:center">
-                      <i class="fa-solid fa-robot" style="color:#10b981"></i>
+                      <i class="fa-solid fa-robot" style="color:var(--ok)"></i>
                     </div>
                     <div>
                       <div style="font-weight:600">Automod Rules Stress Test</div>
@@ -3214,7 +3240,7 @@
                 <div class="stress-test-card" id="devUuidAuth" style="padding:16px;background:rgba(0,0,0,0.2);border-radius:var(--radius);border:1px solid var(--border)">
                   <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px">
                     <div style="width:36px;height:36px;background:rgba(168,85,247,0.15);border-radius:var(--radius);display:flex;align-items:center;justify-content:center">
-                      <i class="fa-solid fa-fingerprint" style="color:#a855f7"></i>
+                      <i class="fa-solid fa-fingerprint" style="color:var(--purple)"></i>
                     </div>
                     <div>
                       <div style="font-weight:600">UUID Dev Authentication</div>
@@ -3226,7 +3252,7 @@
                     <button class="btn primary" onclick="devUuidAuth()"><i class="fa-solid fa-sign-in-alt"></i> Auth</button>
                   </div>
                   <div style="padding:8px;background:rgba(168,85,247,0.1);border-radius:var(--radius);border:1px solid rgba(168,85,247,0.2);font-size:11px;color:var(--text-secondary)">
-                    <i class="fa-solid fa-info-circle" style="color:#a855f7;margin-right:6px"></i>
+                    <i class="fa-solid fa-info-circle" style="color:var(--purple);margin-right:6px"></i>
                     Creates a temp token for this UUID. Token revoked on disconnect.
                   </div>
                 </div>
@@ -3234,7 +3260,7 @@
 
               <!-- Debug Permissions -->
               <div class="card" id="devDebugPermissions" style="margin-top:16px">
-                <h3><i class="fa-solid fa-key" style="color:#ef4444;margin-right:10px"></i>Debug Permissions</h3>
+                <h3><i class="fa-solid fa-key" style="color:var(--bad);margin-right:10px"></i>Debug Permissions</h3>
                 <p style="margin-bottom:16px">Check your current permissions and debug permission issues.</p>
                 <div class="grid cols-2" style="gap:12px">
                   <button class="btn" onclick="debugCheckPermissions()"><i class="fa-solid fa-search"></i> Check Permissions</button>
@@ -3246,7 +3272,7 @@
 
               <!-- Database Debug -->
               <div class="card" id="devDatabaseDebug" style="margin-top:16px">
-                <h3><i class="fa-solid fa-database" style="color:#3b82f6;margin-right:10px"></i>Database Debug</h3>
+                <h3><i class="fa-solid fa-database" style="color:var(--blue);margin-right:10px"></i>Database Debug</h3>
                 <p style="margin-bottom:16px">Inspect database contents and table statistics.</p>
                 <div class="grid cols-3" style="gap:12px">
                   <button class="btn" onclick="debugLoadDatabaseStats()"><i class="fa-solid fa-chart-bar"></i> Load Stats</button>
@@ -3267,7 +3293,7 @@
 
               <!-- Notification Test -->
               <div class="card" id="devNotificationTest" style="margin-top:16px">
-                <h3><i class="fa-solid fa-bell" style="color:#06b6d4;margin-right:10px"></i>Notification Test</h3>
+                <h3><i class="fa-solid fa-bell" style="color:var(--cyan);margin-right:10px"></i>Notification Test</h3>
                 <p style="margin-bottom:16px">Test different notification modes for each category.</p>
                 <div class="grid cols-2" style="gap:12px">
                   <button class="btn" onclick="testNotification('punishments')"><i class="fa-solid fa-gavel"></i> Punishments</button>
@@ -3278,14 +3304,14 @@
                   <button class="btn" onclick="requestBrowserPermission()"><i class="fa-solid fa-desktop"></i> Request Browser Permission</button>
                 </div>
                 <div style="margin-top:12px;padding:8px;background:rgba(6,182,212,0.1);border-radius:var(--radius);border:1px solid rgba(6,182,212,0.2);font-size:12px;color:var(--text-secondary)">
-                  <i class="fa-solid fa-info-circle" style="color:#06b6d4;margin-right:6px"></i>
+                  <i class="fa-solid fa-info-circle" style="color:var(--cyan);margin-right:6px"></i>
                   Tests use your current notification settings from the Staff Settings page.
                 </div>
               </div>
 
               <div style="margin-top:16px;padding:12px;background:rgba(245,158,11,0.1);border-radius:var(--radius);border:1px solid rgba(245,158,11,0.2)">
                 <div style="display:flex;align-items:center;gap:10px">
-                  <i class="fa-solid fa-triangle-exclamation" style="color:#f59e0b"></i>
+                  <i class="fa-solid fa-triangle-exclamation" style="color:var(--warn)"></i>
                   <div>
                     <div style="font-weight:600;color:#f59e0b">Auto-Cleanup</div>
                     <div style="font-size:12px;color:var(--text-secondary)">Spoofed data is automatically removed after 10 minutes to prevent pollution.</div>
@@ -3301,7 +3327,7 @@
 
             <!-- Debug Logs -->
             <div class="card" id="devDebugConsole">
-              <h3><i class="fa-solid fa-bug" style="color:#22c55e;margin-right:10px"></i>Debug Console</h3>
+              <h3><i class="fa-solid fa-bug" style="color:var(--green);margin-right:10px"></i>Debug Console</h3>
               <p style="margin-bottom:12px">Real-time debug output and WebSocket messages.</p>
               <div id="devDebugLogs" style="height:250px;overflow-y:auto;font-family:var(--font-mono);font-size:12px;padding:12px;background:rgba(0,0,0,0.3);border-radius:var(--radius);border:1px solid var(--border)">
                 <div style="color:var(--muted)">[Debug console ready]</div>
@@ -3407,9 +3433,43 @@
             <div class="hintline" style="margin-top:0">Template</div>
             <select class="input" id="punishTemplate"></select>
           </div>
-          <div>
+          <div id="punishDurationWrap">
             <div class="hintline" style="margin-top:0">Duration</div>
-            <input type="text" class="input" id="punishDuration" placeholder="e.g. 7d, 1h, perm">
+            <input type="hidden" id="punishDuration">
+            <div class="duration-picker" id="punishDurationPicker">
+              <div class="duration-fields">
+                <div class="duration-field">
+                  <input type="number" class="input duration-input" data-unit="y" min="0" max="10" value="0" placeholder="0">
+                  <span class="duration-label">Years</span>
+                </div>
+                <div class="duration-field">
+                  <input type="number" class="input duration-input" data-unit="mo" min="0" max="11" value="0" placeholder="0">
+                  <span class="duration-label">Months</span>
+                </div>
+                <div class="duration-field">
+                  <input type="number" class="input duration-input" data-unit="w" min="0" max="52" value="0" placeholder="0">
+                  <span class="duration-label">Weeks</span>
+                </div>
+                <div class="duration-field">
+                  <input type="number" class="input duration-input" data-unit="d" min="0" max="30" value="0" placeholder="0">
+                  <span class="duration-label">Days</span>
+                </div>
+                <div class="duration-field">
+                  <input type="number" class="input duration-input" data-unit="h" min="0" max="23" value="0" placeholder="0">
+                  <span class="duration-label">Hours</span>
+                </div>
+                <div class="duration-field">
+                  <input type="number" class="input duration-input" data-unit="m" min="0" max="59" value="0" placeholder="0">
+                  <span class="duration-label">Minutes</span>
+                </div>
+              </div>
+              <div class="duration-perm" id="punishPermToggle" style="display:none">
+                <label class="check-toggle" onclick="this.classList.toggle('on'); syncDurationPicker('punishDuration')">
+                  <div class="check-icon"><i class="fa-solid fa-check"></i></div>
+                  <span>Permanent</span>
+                </label>
+              </div>
+            </div>
           </div>
         </div>
         
@@ -3465,9 +3525,43 @@
           </div>
         </div>
 
-        <div style="margin-top:12px">
+        <div id="punishCreateDurationWrap" style="margin-top:12px">
           <div class="hintline" style="margin-top:0">Duration</div>
-          <input type="text" class="input" id="punishCreateDuration" placeholder="e.g. 7d, 1h, perm">
+          <input type="hidden" id="punishCreateDuration">
+          <div class="duration-picker" id="punishCreateDurationPicker">
+            <div class="duration-fields">
+              <div class="duration-field">
+                <input type="number" class="input duration-input" data-unit="y" min="0" max="10" value="0" placeholder="0">
+                <span class="duration-label">Years</span>
+              </div>
+              <div class="duration-field">
+                <input type="number" class="input duration-input" data-unit="mo" min="0" max="11" value="0" placeholder="0">
+                <span class="duration-label">Months</span>
+              </div>
+              <div class="duration-field">
+                <input type="number" class="input duration-input" data-unit="w" min="0" max="52" value="0" placeholder="0">
+                <span class="duration-label">Weeks</span>
+              </div>
+              <div class="duration-field">
+                <input type="number" class="input duration-input" data-unit="d" min="0" max="30" value="0" placeholder="0">
+                <span class="duration-label">Days</span>
+              </div>
+              <div class="duration-field">
+                <input type="number" class="input duration-input" data-unit="h" min="0" max="23" value="0" placeholder="0">
+                <span class="duration-label">Hours</span>
+              </div>
+              <div class="duration-field">
+                <input type="number" class="input duration-input" data-unit="m" min="0" max="59" value="0" placeholder="0">
+                <span class="duration-label">Minutes</span>
+              </div>
+            </div>
+            <div class="duration-perm" id="punishCreatePermToggle" style="display:none">
+              <label class="check-toggle" onclick="this.classList.toggle('on'); syncDurationPicker('punishCreateDuration')">
+                <div class="check-icon"><i class="fa-solid fa-check"></i></div>
+                <span>Permanent</span>
+              </label>
+            </div>
+          </div>
         </div>
 
         <div style="margin-top:16px">
