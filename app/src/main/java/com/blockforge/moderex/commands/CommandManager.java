@@ -21,6 +21,7 @@ public class CommandManager {
 
     private final ModereX plugin;
     private final boolean isPaper;
+    private MxCommand mxCommand;
 
     public CommandManager(ModereX plugin) {
         this.plugin = plugin;
@@ -55,7 +56,8 @@ public class CommandManager {
             return;
         }
 
-        registerPaperCommand(commandMap, "moderex", new MxCommand(plugin), "Main ModereX command", List.of("mx"));
+        this.mxCommand = new MxCommand(plugin);
+        registerPaperCommand(commandMap, "moderex", mxCommand, "Main ModereX command", List.of("mx"));
 
         registerPaperCommand(commandMap, "ban", new BanCommand(plugin), "Ban a player", List.of());
         registerPaperCommand(commandMap, "mute", new MuteCommand(plugin), "Mute a player", List.of());
@@ -169,7 +171,8 @@ public class CommandManager {
     }
 
     private void registerSpigotCommands() {
-        registerSpigotCommand("moderex", new MxCommand(plugin));
+        this.mxCommand = new MxCommand(plugin);
+        registerSpigotCommand("moderex", mxCommand);
 
         registerSpigotCommand("ban", new BanCommand(plugin));
         registerSpigotCommand("mute", new MuteCommand(plugin));
@@ -286,5 +289,9 @@ public class CommandManager {
             e.printStackTrace();
             return null;
         }
+    }
+
+    public MxCommand getMxCommand() {
+        return mxCommand;
     }
 }

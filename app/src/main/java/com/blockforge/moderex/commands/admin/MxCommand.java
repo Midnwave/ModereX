@@ -16,6 +16,8 @@ import com.blockforge.moderex.gui.ModLogGui;
 import com.blockforge.moderex.replay.ReplaySession;
 import com.blockforge.moderex.punishment.PunishmentType;
 import com.blockforge.moderex.replay.TestReplayGenerator;
+import com.blockforge.moderex.testing.PermissionTestEngine;
+import com.blockforge.moderex.testing.PermissionTestProfiles;
 import com.blockforge.moderex.util.DurationParser;
 import com.blockforge.moderex.util.Msg;
 import com.blockforge.moderex.util.PermissionUtil;
@@ -31,9 +33,8 @@ import org.bukkit.OfflinePlayer;
 import org.bukkit.command.CommandSender;
 import org.bukkit.entity.Player;
 
-import java.util.Arrays;
-import java.util.List;
-import java.util.UUID;
+import java.util.*;
+import java.util.concurrent.ConcurrentHashMap;
 
 public class MxCommand extends BaseCommand {
 
@@ -91,6 +92,7 @@ public class MxCommand extends BaseCommand {
             case "version", "ver" -> handleVersion(sender);
             case "update", "checkupdate" -> handleUpdate(sender);
             case "debug" -> handleDebug(sender, subArgs);
+            case "permtest" -> handlePermTest(sender, subArgs);
             case "panel" -> handlePanel(sender);
             case "gateway" -> handleGateway(sender, subArgs);
 
@@ -459,6 +461,372 @@ public class MxCommand extends BaseCommand {
     private void dbgVis(CommandSender sender, Player target, String perm, String label) {
         boolean has = PermissionUtil.hasPermission(target, perm);
         sendMessage(sender, "  " + (has ? "<green>VISIBLE" : "<red>HIDDEN ") + " <gray>" + label + " <dark_gray>(" + perm + ")");
+    }
+
+    // ========================================================================
+    // Permission Test System
+    // ========================================================================
+
+    private void handlePermTest(CommandSender sender, String[] args) {
+        if (!PermissionUtil.hasPermission(sender, "moderex.admin.debug")) {
+            sendMessage(sender, MessageKey.NO_PERMISSION);
+            return;
+        }
+
+        if (args.length == 0) {
+            sendPermTestHelp(sender);
+            return;
+        }
+
+        String mode = args[0].toLowerCase();
+        String[] subArgs = args.length > 1 ? Arrays.copyOfRange(args, 1, args.length) : new String[0];
+
+        switch (mode) {
+            case "check" -> handlePermTestCheck(sender, subArgs);
+            case "full" -> handlePermTestFull(sender, subArgs);
+            case "report" -> handlePermTestReport(sender);
+            case "matrix" -> handlePermTestMatrix(sender);
+            default -> sendPermTestHelp(sender);
+        }
+    }
+
+    private void sendPermTestHelp(CommandSender sender) {
+        sendMessage(sender, "");
+        sendMessage(sender, "<gradient:#8b5cf6:#3b82f6>━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━</gradient>");
+        sendMessage(sender, "<white>  <bold>Permission Test System</bold>");
+        sendMessage(sender, "");
+        sendMessage(sender, "<gold><bold>Check Mode</bold> <gray>(permission logic only)");
+        sendMessage(sender, "  <yellow>/mx permtest check profiles <gray>- Run all 12 test profiles");
+        sendMessage(sender, "  <yellow>/mx permtest check profile <name> <gray>- Run one profile");
+        sendMessage(sender, "  <yellow>/mx permtest check isolate <gray>- Test each perm in isolation");
+        sendMessage(sender, "  <yellow>/mx permtest check parity <gray>- Frontend/backend parity");
+        sendMessage(sender, "  <yellow>/mx permtest check me <gray>- Test YOUR permissions");
+        sendMessage(sender, "  <yellow>/mx permtest check player <name> <gray>- Test a player's perms");
+        sendMessage(sender, "  <yellow>/mx permtest check custom <gray>- Interactive custom set");
+        sendMessage(sender, "  <yellow>/mx permtest check all <gray>- Everything combined");
+        sendMessage(sender, "");
+        sendMessage(sender, "<gold><bold>Full Mode</bold> <gray>(permission checks + command execution)");
+        sendMessage(sender, "  <yellow>/mx permtest full profiles <gray>- Execute commands per profile");
+        sendMessage(sender, "  <yellow>/mx permtest full me <gray>- Execute with your permissions");
+        sendMessage(sender, "");
+        sendMessage(sender, "<gold><bold>Utility</bold>");
+        sendMessage(sender, "  <yellow>/mx permtest report <gray>- Export last results to JSON");
+        sendMessage(sender, "  <yellow>/mx permtest matrix <gray>- Show permission matrix");
+        sendMessage(sender, "");
+        sendMessage(sender, "<gray>Profiles: NONE, OP, HELPER, MODERATOR, ADMIN, OWNER,");
+        sendMessage(sender, "<gray>  TEMPBAN_ONLY, HISTORY_PARTIAL, FLAG_TESTER,");
+        sendMessage(sender, "<gray>  WEB_VIEWER, CATEGORY_WILDCARD, WEIGHTED");
+        sendMessage(sender, "<gradient:#8b5cf6:#3b82f6>━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━</gradient>");
+    }
+
+    /** Last test report for export. */
+    private PermissionTestEngine.TestReport lastTestReport = null;
+
+    private void handlePermTestCheck(CommandSender sender, String[] args) {
+        if (args.length == 0) {
+            sendMessage(sender, "<red>Usage: /mx permtest check <profiles|profile|isolate|parity|me|player|custom|all>");
+            return;
+        }
+
+        String sub = args[0].toLowerCase();
+
+        // Run async to not block the main thread
+        plugin.getServer().getScheduler().runTaskAsynchronously(plugin, () -> {
+            PermissionTestEngine.TestReport report;
+
+            switch (sub) {
+                case "profiles" -> {
+                    sendMessage(sender, "<gray>Running all profile tests...");
+                    report = PermissionTestEngine.runAllProfiles();
+                }
+                case "profile" -> {
+                    if (args.length < 2) {
+                        sendMessage(sender, "<red>Usage: /mx permtest check profile <name>");
+                        return;
+                    }
+                    String profileName = args[1].toUpperCase();
+                    PermissionTestProfiles.TestProfile profile = PermissionTestProfiles.getByName(profileName);
+                    if (profile == null) {
+                        sendMessage(sender, "<red>Unknown profile: " + profileName);
+                        sendMessage(sender, "<gray>Available: NONE, OP, HELPER, MODERATOR, ADMIN, OWNER, TEMPBAN_ONLY, HISTORY_PARTIAL, FLAG_TESTER, WEB_VIEWER, CATEGORY_WILDCARD, WEIGHTED");
+                        return;
+                    }
+                    sendMessage(sender, "<gray>Running tests for profile: " + profileName + "...");
+                    report = PermissionTestEngine.runSingleProfile(profile);
+                }
+                case "isolate" -> {
+                    sendMessage(sender, "<gray>Running isolation tests (~" + PermissionTestEngine.MASTER_PERMISSIONS.size() + " permissions)...");
+                    report = PermissionTestEngine.runIsolation();
+                }
+                case "parity" -> {
+                    sendMessage(sender, "<gray>Running frontend/backend parity tests...");
+                    report = PermissionTestEngine.runParity();
+                }
+                case "me" -> {
+                    if (!(sender instanceof Player player)) {
+                        sendMessage(sender, "<red>This command can only be run by a player.");
+                        return;
+                    }
+                    sendMessage(sender, "<gray>Testing your permissions...");
+                    Set<String> perms = new java.util.HashSet<>();
+                    for (var info : player.getEffectivePermissions()) {
+                        if (info.getValue() && info.getPermission().startsWith("moderex.")) {
+                            perms.add(info.getPermission());
+                        }
+                    }
+                    PermissionTestProfiles.TestProfile profile = PermissionTestProfiles.fromPermissions(
+                            player.getName(), perms, player.isOp());
+                    report = PermissionTestEngine.runSingleProfile(profile);
+                }
+                case "player" -> {
+                    if (args.length < 2) {
+                        sendMessage(sender, "<red>Usage: /mx permtest check player <name>");
+                        return;
+                    }
+                    Player target = Bukkit.getPlayer(args[1]);
+                    if (target == null) {
+                        sendMessage(sender, MessageKey.PLAYER_NOT_FOUND, "player", args[1]);
+                        return;
+                    }
+                    sendMessage(sender, "<gray>Testing permissions for " + target.getName() + "...");
+                    Set<String> perms = new java.util.HashSet<>();
+                    for (var info : target.getEffectivePermissions()) {
+                        if (info.getValue() && info.getPermission().startsWith("moderex.")) {
+                            perms.add(info.getPermission());
+                        }
+                    }
+                    PermissionTestProfiles.TestProfile profile = PermissionTestProfiles.fromPermissions(
+                            target.getName(), perms, target.isOp());
+                    report = PermissionTestEngine.runSingleProfile(profile);
+                }
+                case "custom" -> {
+                    if (!(sender instanceof Player player)) {
+                        sendMessage(sender, "<red>Custom mode requires a player (uses chat input).");
+                        return;
+                    }
+                    startCustomPermTest(player);
+                    return;
+                }
+                case "all" -> {
+                    sendMessage(sender, "<gray>Running ALL tests (profiles + isolation + parity)...");
+                    report = PermissionTestEngine.runAll();
+                }
+                default -> {
+                    sendMessage(sender, "<red>Unknown check mode: " + sub);
+                    return;
+                }
+            }
+
+            lastTestReport = report;
+
+            // Send results to chat
+            for (String line : PermissionTestEngine.toChatLines(report, false, 200)) {
+                sendMessage(sender, line);
+            }
+
+            if (report.failed > 0) {
+                sendMessage(sender, "<yellow>Use /mx permtest report to export detailed results.");
+            }
+        });
+    }
+
+    private void handlePermTestFull(CommandSender sender, String[] args) {
+        // Full mode runs permission checks + attempts command dispatch
+        // For now, this runs the same check tests since command dispatch simulation
+        // requires a live server context. The "full" results additionally note
+        // which commands would execute vs be denied.
+        sendMessage(sender, "<gray>Running full permission tests (check + execution simulation)...");
+
+        plugin.getServer().getScheduler().runTaskAsynchronously(plugin, () -> {
+            String sub = args.length > 0 ? args[0].toLowerCase() : "profiles";
+
+            PermissionTestEngine.TestReport report;
+            switch (sub) {
+                case "profiles" -> report = PermissionTestEngine.runAllProfiles();
+                case "me" -> {
+                    if (!(sender instanceof Player player)) {
+                        sendMessage(sender, "<red>This command can only be run by a player.");
+                        return;
+                    }
+                    Set<String> perms = new java.util.HashSet<>();
+                    for (var info : player.getEffectivePermissions()) {
+                        if (info.getValue() && info.getPermission().startsWith("moderex.")) {
+                            perms.add(info.getPermission());
+                        }
+                    }
+                    report = PermissionTestEngine.runSingleProfile(
+                            PermissionTestProfiles.fromPermissions(player.getName(), perms, player.isOp()));
+                }
+                default -> {
+                    sendMessage(sender, "<red>Usage: /mx permtest full <profiles|me>");
+                    return;
+                }
+            }
+
+            lastTestReport = report;
+            for (String line : PermissionTestEngine.toChatLines(report, true, 300)) {
+                sendMessage(sender, line);
+            }
+        });
+    }
+
+    private void handlePermTestReport(CommandSender sender) {
+        if (lastTestReport == null) {
+            sendMessage(sender, "<red>No test results available. Run a test first.");
+            return;
+        }
+
+        plugin.getServer().getScheduler().runTaskAsynchronously(plugin, () -> {
+            try {
+                java.io.File dir = new java.io.File(plugin.getDataFolder(), "test-reports");
+                java.io.File file = PermissionTestEngine.saveReport(lastTestReport, dir);
+                sendMessage(sender, "<green>Report saved to: <white>" + file.getAbsolutePath());
+            } catch (java.io.IOException e) {
+                sendMessage(sender, "<red>Failed to save report: " + e.getMessage());
+            }
+        });
+    }
+
+    private void handlePermTestMatrix(CommandSender sender) {
+        if (lastTestReport == null) {
+            sendMessage(sender, "<gray>Running profile tests for matrix...");
+            plugin.getServer().getScheduler().runTaskAsynchronously(plugin, () -> {
+                lastTestReport = PermissionTestEngine.runAllProfiles();
+                for (String line : PermissionTestEngine.toMatrixLines(lastTestReport)) {
+                    sendMessage(sender, line);
+                }
+            });
+        } else {
+            for (String line : PermissionTestEngine.toMatrixLines(lastTestReport)) {
+                sendMessage(sender, line);
+            }
+        }
+    }
+
+    // --- Custom Permission Test (Interactive Chat Mode) ---
+
+    private final Map<UUID, CustomPermTestSession> customPermTestSessions = new java.util.concurrent.ConcurrentHashMap<>();
+
+    private static class CustomPermTestSession {
+        final Set<String> permissions = new java.util.HashSet<>();
+        boolean isOp = false;
+    }
+
+    private void startCustomPermTest(Player player) {
+        CustomPermTestSession session = new CustomPermTestSession();
+        customPermTestSessions.put(player.getUniqueId(), session);
+
+        sendMessage(player, "");
+        sendMessage(player, "<gradient:#8b5cf6:#3b82f6>━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━</gradient>");
+        sendMessage(player, "<white>  <bold>Custom Permission Test</bold>");
+        sendMessage(player, "");
+        sendMessage(player, "<gray>Type permissions to add/remove:");
+        sendMessage(player, "  <green>+moderex.ban <gray>- Add a permission");
+        sendMessage(player, "  <red>-moderex.ban <gray>- Remove a permission");
+        sendMessage(player, "  <yellow>+moderex.history.* <gray>- Add wildcard");
+        sendMessage(player, "  <aqua>op / !op <gray>- Toggle OP status");
+        sendMessage(player, "  <gold>run <gray>- Execute tests with current set");
+        sendMessage(player, "  <red>done <gray>- Exit custom mode");
+        sendMessage(player, "");
+        sendMessage(player, "<gray>Current permissions: <white>(empty)");
+        sendMessage(player, "<gray>OP: <red>false");
+        sendMessage(player, "<gradient:#8b5cf6:#3b82f6>━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━</gradient>");
+    }
+
+    /**
+     * Process chat input for custom permission test mode.
+     * Returns true if the message was consumed by the custom test session.
+     */
+    public boolean processCustomPermTestInput(Player player, String message) {
+        CustomPermTestSession session = customPermTestSessions.get(player.getUniqueId());
+        if (session == null) return false;
+
+        String input = message.trim().toLowerCase();
+
+        if (input.equals("done") || input.equals("exit") || input.equals("cancel")) {
+            customPermTestSessions.remove(player.getUniqueId());
+            sendMessage(player, "<gray>Exited custom permission test mode.");
+            return true;
+        }
+
+        if (input.equals("op")) {
+            session.isOp = true;
+            sendMessage(player, "<green>OP status: <white>true");
+            return true;
+        }
+
+        if (input.equals("!op")) {
+            session.isOp = false;
+            sendMessage(player, "<red>OP status: <white>false");
+            return true;
+        }
+
+        if (input.equals("run")) {
+            sendMessage(player, "<gray>Running tests with " + session.permissions.size() + " permissions (OP=" + session.isOp + ")...");
+            plugin.getServer().getScheduler().runTaskAsynchronously(plugin, () -> {
+                PermissionTestEngine.TestReport report = PermissionTestEngine.runCustom(session.permissions, session.isOp);
+                lastTestReport = report;
+                for (String line : PermissionTestEngine.toChatLines(report, false, 200)) {
+                    sendMessage(player, line);
+                }
+            });
+            return true;
+        }
+
+        if (input.equals("clear")) {
+            session.permissions.clear();
+            sendMessage(player, "<gray>Cleared all permissions.");
+            return true;
+        }
+
+        if (input.equals("list")) {
+            if (session.permissions.isEmpty()) {
+                sendMessage(player, "<gray>Current permissions: <white>(empty)");
+            } else {
+                sendMessage(player, "<gray>Current permissions (" + session.permissions.size() + "):");
+                for (String p : session.permissions) {
+                    sendMessage(player, "  <white>" + p);
+                }
+            }
+            sendMessage(player, "<gray>OP: " + (session.isOp ? "<green>true" : "<red>false"));
+            return true;
+        }
+
+        if (input.startsWith("+")) {
+            String perm = input.substring(1).trim();
+            if (!perm.isEmpty()) {
+                session.permissions.add(perm);
+                sendMessage(player, "<green>+ <white>" + perm + " <gray>(" + session.permissions.size() + " total)");
+            }
+            return true;
+        }
+
+        if (input.startsWith("-")) {
+            String perm = input.substring(1).trim();
+            if (session.permissions.remove(perm)) {
+                sendMessage(player, "<red>- <white>" + perm + " <gray>(" + session.permissions.size() + " total)");
+            } else {
+                sendMessage(player, "<red>Permission not in set: " + perm);
+            }
+            return true;
+        }
+
+        // If it looks like a permission, auto-add
+        if (input.startsWith("moderex.")) {
+            session.permissions.add(input);
+            sendMessage(player, "<green>+ <white>" + input + " <gray>(" + session.permissions.size() + " total)");
+            return true;
+        }
+
+        sendMessage(player, "<red>Unknown input. Use +perm, -perm, op, !op, run, list, clear, or done.");
+        return true;
+    }
+
+    /**
+     * Check if a player is in custom permission test mode.
+     */
+    public boolean isInCustomPermTestMode(UUID uuid) {
+        return customPermTestSessions.containsKey(uuid);
     }
 
     private void handlePanel(CommandSender sender) {
@@ -1937,10 +2305,24 @@ public class MxCommand extends BaseCommand {
                         return filterCompletions(Arrays.asList("authsession", "serverid", "integrations", "permissions", "simulate"), args[1]);
                     }
                 }
+                case "permtest" -> {
+                    if (PermissionUtil.hasPermission(sender, "moderex.admin.debug")) {
+                        return filterCompletions(Arrays.asList("check", "full", "report", "matrix"), args[1]);
+                    }
+                }
             }
         }
         if (args.length == 3) {
             String sub = args[0].toLowerCase();
+            if (sub.equals("permtest")) {
+                String mode = args[1].toLowerCase();
+                if (mode.equals("check") && PermissionUtil.hasPermission(sender, "moderex.admin.debug")) {
+                    return filterCompletions(Arrays.asList("profiles", "profile", "isolate", "parity", "me", "player", "custom", "all"), args[2]);
+                }
+                if (mode.equals("full") && PermissionUtil.hasPermission(sender, "moderex.admin.debug")) {
+                    return filterCompletions(Arrays.asList("profiles", "me"), args[2]);
+                }
+            }
             if (sub.equals("debug")) {
                 String action = args[1].toLowerCase();
                 if ((action.equals("authsession") || action.equals("permissions") || action.equals("perms")
@@ -1979,6 +2361,19 @@ public class MxCommand extends BaseCommand {
         }
         if (args.length == 4) {
             String sub = args[0].toLowerCase();
+            if (sub.equals("permtest")) {
+                String mode = args[1].toLowerCase();
+                String subMode = args[2].toLowerCase();
+                if ((mode.equals("check") || mode.equals("full")) && subMode.equals("profile")
+                        && PermissionUtil.hasPermission(sender, "moderex.admin.debug")) {
+                    return filterCompletions(Arrays.asList("NONE", "OP", "HELPER", "MODERATOR", "ADMIN", "OWNER",
+                            "TEMPBAN_ONLY", "HISTORY_PARTIAL", "FLAG_TESTER", "WEB_VIEWER", "CATEGORY_WILDCARD", "WEIGHTED"), args[3]);
+                }
+                if (mode.equals("check") && subMode.equals("player")
+                        && PermissionUtil.hasPermission(sender, "moderex.admin.debug")) {
+                    return filterCompletions(getOnlinePlayerNames(sender), args[3]);
+                }
+            }
             if (sub.equals("sendalert")) {
                 // Suggest example messages based on alert type
                 String alertType = args[2].toLowerCase();

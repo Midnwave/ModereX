@@ -694,6 +694,10 @@ public final class ModereX extends JavaPlugin {
         return commandManager;
     }
 
+    public com.blockforge.moderex.commands.admin.MxCommand getMxCommand() {
+        return commandManager != null ? commandManager.getMxCommand() : null;
+    }
+
     public ListenerManager getListenerManager() {
         return listenerManager;
     }

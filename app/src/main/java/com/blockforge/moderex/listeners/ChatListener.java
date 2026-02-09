@@ -48,6 +48,14 @@ public class ChatListener implements Listener {
             return;
         }
 
+        // Check custom permission test input
+        if (plugin.getMxCommand() != null && plugin.getMxCommand().isInCustomPermTestMode(uuid)) {
+            event.setCancelled(true);
+            plugin.getServer().getScheduler().runTask(plugin, () ->
+                    plugin.getMxCommand().processCustomPermTestInput(player, message));
+            return;
+        }
+
         // Check evidence selection session
         if (plugin.getEvidenceSelectionManager() != null &&
                 plugin.getEvidenceSelectionManager().hasActiveSession(uuid)) {
