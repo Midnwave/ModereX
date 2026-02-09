@@ -127,7 +127,7 @@ buildDate=${java.time.LocalDate.now().toString()}
 }
 
 // ── Build licensed JAR with embedded token ──────────────────────────────
-// Usage: ./gradlew buildLicensed -PlicenseToken=<uuid-token>
+// Usage: ./gradlew buildLicensed -PlicenseToken=<uuid-token> -PlicenseName="Tester Name"
 // Creates a dev build with embedded license token for validation
 tasks.register('buildLicensed') {
     description = 'Build ModereX JAR with embedded license token for dev builds'
@@ -137,6 +137,7 @@ tasks.register('buildLicensed') {
 
     doLast {
         def token = project.findProperty('licenseToken') ?: 'UNLICENSED'
+        def licenseName = project.findProperty('licenseName') ?: 'Unknown'
 
         if (token == 'UNLICENSED') {
             throw new GradleException('License token required! Usage: ./gradlew buildLicensed -PlicenseToken=<uuid>')
@@ -163,10 +164,12 @@ tasks.register('buildLicensed') {
         java.nio.file.Files.writeString(propsPath,
             "# ModereX License Token - Embedded at build time\n" +
             "token=${token}\n" +
+            "licensedTo=${licenseName}\n" +
             "buildTimestamp=${System.currentTimeMillis()}\n")
         zipFs.close()
 
         logger.lifecycle("License token embedded: ${token.take(8)}...${token.takeRight(4)}")
+        logger.lifecycle("Licensed to: ${licenseName}")
         logger.lifecycle("Licensed JAR created: ${licensedJar.name}")
         logger.lifecycle("Output: ${licensedJar.absolutePath}")
     }

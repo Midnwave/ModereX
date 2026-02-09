@@ -1203,7 +1203,7 @@
             tableHTML += `
                 <tr>
                     <td><span class="license-token">${shortToken}</span></td>
-                    <td>${escapeHtml(license.note || 'N/A')}</td>
+                    <td>${escapeHtml(license.testerName || license.note || 'N/A')}</td>
                     <td><span class="license-status ${status}">${statusText}</span></td>
                     <td>${created}</td>
                     <td>${expires}</td>

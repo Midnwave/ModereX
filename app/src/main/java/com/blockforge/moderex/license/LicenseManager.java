@@ -25,6 +25,7 @@ public class LicenseManager {
     private final LicenseValidator validator;
 
     private String licenseToken;
+    private String licensedTo;
     private boolean isLicensed;
     private boolean isValid;
     private Long expiresAt;
@@ -95,10 +96,12 @@ public class LicenseManager {
             }
 
             this.licenseToken = token;
+            this.licensedTo = props.getProperty("licensedTo", "Unknown");
             this.buildTimestamp = Long.parseLong(props.getProperty("buildTimestamp", "0"));
             this.isLicensed = true;
 
-            logger.info("[License] License token loaded: " + maskToken(token));
+            logger.info("[License] Licensed to: " + licensedTo);
+            logger.info("[License] License token: " + maskToken(token));
         } catch (Exception e) {
             logger.warning("[License] Failed to load license token: " + e.getMessage());
             this.isLicensed = false;
@@ -271,16 +274,25 @@ public class LicenseManager {
             return "Unlicensed (Production Build)";
         }
 
+        String name = licensedTo != null && !licensedTo.equals("Unknown") ? " to " + licensedTo : "";
+
         if (!isValid) {
-            return "Licensed (INVALID)";
+            return "Licensed" + name + " (INVALID)";
         }
 
         if (expiresAt != null) {
             long daysUntilExpiry = (expiresAt - System.currentTimeMillis()) / (1000 * 60 * 60 * 24);
-            return "Licensed (Expires in " + daysUntilExpiry + " days)";
+            return "Licensed" + name + " (Expires in " + daysUntilExpiry + " days)";
         }
 
-        return "Licensed (No Expiration)";
+        return "Licensed" + name + " (No Expiration)";
+    }
+
+    /**
+     * Get the licensee name
+     */
+    public String getLicensedTo() {
+        return licensedTo;
     }
 
     /**
