@@ -19,6 +19,9 @@ const fs = require('fs');
 const crypto = require('crypto');
 const { spawn } = require('child_process');
 
+// Current Cloudflare Tunnel host (set when tunnel establishes)
+let currentTunnelHost = null;
+
 // Configuration
 const CONFIG = {
     port: process.env.PORT || 3000,
@@ -2935,6 +2938,7 @@ function startCloudflaredTunnel() {
             if (match && !resolved) {
                 resolved = true;
                 const tunnelHost = match[1];
+                currentTunnelHost = tunnelHost;
                 console.log(`[Tunnel] Tunnel established: https://${tunnelHost}`);
                 updatePanelUrls(tunnelHost);
                 // Auto-deploy to Cloudflare Pages (non-blocking)
@@ -3224,10 +3228,15 @@ function buildLicensedJar(ws, email, data) {
             const shortToken = token.substring(0, 8);
             const filename = `ModereX-licensed-${shortToken}.jar`;
 
+            // Build download URL using tunnel host (bypasses CF Access)
+            const downloadHost = currentTunnelHost || 'localhost:3000';
+            const downloadUrl = `https://${downloadHost}/download/${filename}`;
+
             ws.send(JSON.stringify({
                 type: 'jar_build_complete',
                 token,
                 filename,
+                downloadUrl,
                 path: `gateway/licensed-builds/${filename}`
             }));
 
