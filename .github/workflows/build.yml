@@ -90,6 +90,6 @@ jobs:
       run: |
         git config user.name "github-actions[bot]"
         git config user.email "github-actions[bot]@users.noreply.github.com"
-        git add releases/
+        git add releases/ app/src/main/resources/panel-version.properties
         git commit -m "build: Update ModereX-latest.jar (v${{ steps.version.outputs.version }})" || echo "No changes to commit"
         git push
