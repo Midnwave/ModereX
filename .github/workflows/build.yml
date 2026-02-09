@@ -64,14 +64,43 @@ jobs:
         echo "Build: ${{ steps.buildnum.outputs.number }}" >> releases/build-info.txt
         echo "Commit: ${{ github.sha }}" >> releases/build-info.txt
 
+    - name: Copy unlicensed JAR to public folder
+      run: |
+        VERSION="${{ steps.version.outputs.version }}"
+        mkdir -p releases/public
+        cp "releases/ModereX-${VERSION}.jar" "releases/public/ModereX-${VERSION}.jar"
+        cp "releases/ModereX-${VERSION}.jar" "releases/public/ModereX-latest.jar"
+        echo "Unlicensed JAR copied to releases/public/"
+
+    - name: Patch licensed JAR
+      env:
+        LICENSE_TOKEN: ${{ secrets.LICENSE_TOKEN }}
+      run: |
+        VERSION="${{ steps.version.outputs.version }}"
+        if [ -n "$LICENSE_TOKEN" ]; then
+          echo "# ModereX License Token - Embedded by CI" > license-token.properties
+          echo "token=$LICENSE_TOKEN" >> license-token.properties
+          echo "buildTimestamp=$(date +%s%3N)" >> license-token.properties
+          jar uf "releases/ModereX-${VERSION}.jar" license-token.properties
+          jar uf "releases/ModereX-latest.jar" license-token.properties
+          rm license-token.properties
+          echo "Licensed JAR patched successfully"
+        else
+          echo "No LICENSE_TOKEN secret set - skipping licensed build"
+        fi
+
     - name: Clean up old releases (keep last 3)
       run: |
         cd releases
-        # List versioned JARs sorted by build number, keep last 3, delete the rest
-        # Pattern: ModereX-2.0dev-XX.jar
         ls -1 ModereX-2.0dev-*.jar 2>/dev/null | sort -t'-' -k3 -n | head -n -3 | xargs -r rm -f
         echo "Remaining versioned JARs:"
         ls -1 ModereX-2.0dev-*.jar 2>/dev/null || echo "None"
+        if [ -d public ]; then
+          cd public
+          ls -1 ModereX-2.0dev-*.jar 2>/dev/null | sort -t'-' -k3 -n | head -n -3 | xargs -r rm -f
+          echo "Remaining public versioned JARs:"
+          ls -1 ModereX-2.0dev-*.jar 2>/dev/null || echo "None"
+        fi
 
     - name: Commit and push JAR
       run: |

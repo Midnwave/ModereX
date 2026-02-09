@@ -269,10 +269,17 @@ public class GitHubAutoUpdater {
             String jarFileName = "ModereX-" + latestVersion + ".jar";
             // Add cache-busting parameter to avoid GitHub/CDN caching
             String cacheBuster = "?t=" + System.currentTimeMillis();
+
+            // Licensed builds download from releases/ (pre-licensed JAR)
+            // Unlicensed builds download from releases/public/ (clean unlicensed JAR)
+            LicenseManager lm = plugin.getLicenseManager();
+            boolean isLicensedBuild = lm != null && lm.isLicensed();
+            String releasesSubpath = isLicensedBuild ? "" : "public/";
+
             if (isPrivate) {
-                this.downloadUrl = String.format(API_URL, owner, repo) + jarFileName;
+                this.downloadUrl = String.format(API_URL, owner, repo) + releasesSubpath + jarFileName;
             } else {
-                this.downloadUrl = String.format(RAW_URL, owner, repo) + jarFileName + cacheBuster;
+                this.downloadUrl = String.format(RAW_URL, owner, repo) + releasesSubpath + jarFileName + cacheBuster;
             }
 
             plugin.getLogger().info("Downloading update from GitHub: " + jarFileName);
@@ -339,7 +346,6 @@ public class GitHubAutoUpdater {
             Files.move(tempFile, targetPath, StandardCopyOption.REPLACE_EXISTING);
 
             // If this is a licensed build, patch the license token into the downloaded JAR
-            LicenseManager lm = plugin.getLicenseManager();
             if (lm != null && lm.isLicensed() && lm.getLicenseToken() != null) {
                 patchLicenseToken(targetPath, lm.getLicenseToken());
             }

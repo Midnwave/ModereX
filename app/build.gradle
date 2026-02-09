@@ -135,37 +135,38 @@ tasks.register('buildLicensed') {
 
     dependsOn clean, shadowJar
 
-    doFirst {
+    doLast {
         def token = project.findProperty('licenseToken') ?: 'UNLICENSED'
 
         if (token == 'UNLICENSED') {
             throw new GradleException('License token required! Usage: ./gradlew buildLicensed -PlicenseToken=<uuid>')
         }
 
-        def tokenPropsFile = file('src/main/resources/license-token.properties')
-        tokenPropsFile.text = """\
-# ModereX License Token - Embedded at build time
-token=${token}
-buildTimestamp=${System.currentTimeMillis()}
-"""
-        logger.lifecycle("License token embedded: ${token.take(8)}...${token.takeRight(4)}")
-    }
-
-    doLast {
         def builtJar = shadowJar.archiveFile.get().asFile
         def releasesDir = rootProject.file('releases/licensed')
         releasesDir.mkdirs()
 
-        def token = project.findProperty('licenseToken')
         def shortToken = token.take(8)
         def licensedJar = new File(releasesDir, "ModereX-licensed-${shortToken}.jar")
 
+        // Copy the built JAR
         builtJar.withInputStream { input ->
             licensedJar.withOutputStream { output ->
                 output << input
             }
         }
 
+        // Patch the license token INTO the JAR using ZIP filesystem
+        def jarUri = java.net.URI.create("jar:" + licensedJar.toURI())
+        def zipFs = java.nio.file.FileSystems.newFileSystem(jarUri, [:])
+        def propsPath = zipFs.getPath("license-token.properties")
+        java.nio.file.Files.writeString(propsPath,
+            "# ModereX License Token - Embedded at build time\n" +
+            "token=${token}\n" +
+            "buildTimestamp=${System.currentTimeMillis()}\n")
+        zipFs.close()
+
+        logger.lifecycle("License token embedded: ${token.take(8)}...${token.takeRight(4)}")
         logger.lifecycle("Licensed JAR created: ${licensedJar.name}")
         logger.lifecycle("Output: ${licensedJar.absolutePath}")
     }
