@@ -193,7 +193,7 @@ public class LicenseValidator {
     }
 
     /**
-     * Verify RSA signature on API response
+     * Verify RSA signature on API response using canonical (sorted-key) JSON.
      */
     private boolean verifySignature(JsonObject response, String signatureBase64) {
         if (publicKey == null) {
@@ -211,8 +211,13 @@ public class LicenseValidator {
             JsonObject dataToVerify = response.deepCopy();
             dataToVerify.remove("signature");
 
-            // Convert to JSON string
-            String jsonData = gson.toJson(dataToVerify);
+            // Build canonical JSON with alphabetically sorted keys (matches Worker)
+            JsonObject sorted = new JsonObject();
+            dataToVerify.entrySet().stream()
+                    .sorted(java.util.Map.Entry.comparingByKey())
+                    .forEach(e -> sorted.add(e.getKey(), e.getValue()));
+
+            String jsonData = gson.toJson(sorted);
 
             // Decode signature
             byte[] signatureBytes = Base64.getDecoder().decode(signatureBase64);
@@ -222,7 +227,13 @@ public class LicenseValidator {
             sig.initVerify(publicKey);
             sig.update(jsonData.getBytes(StandardCharsets.UTF_8));
 
-            return sig.verify(signatureBytes);
+            boolean verified = sig.verify(signatureBytes);
+
+            if (!verified) {
+                logger.warning("[License] Signature mismatch - canonical JSON: " + jsonData);
+            }
+
+            return verified;
         } catch (Exception e) {
             logger.severe("[License] Signature verification error: " + e.getMessage());
             return false;

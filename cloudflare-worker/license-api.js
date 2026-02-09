@@ -13,7 +13,7 @@
 // Rate limiting storage (in-memory, resets on worker restart)
 const rateLimits = new Map();
 
-// Helper: Generate RSA signature
+// Helper: Generate RSA signature using canonical (sorted-key) JSON
 async function signResponse(data, privateKeyPem) {
   try {
     const privateKey = await crypto.subtle.importKey(
@@ -27,8 +27,10 @@ async function signResponse(data, privateKeyPem) {
       ['sign']
     );
 
+    // Use canonical JSON with sorted keys for deterministic signing
+    const canonicalJson = JSON.stringify(data, Object.keys(data).sort());
     const encoder = new TextEncoder();
-    const dataBuffer = encoder.encode(JSON.stringify(data));
+    const dataBuffer = encoder.encode(canonicalJson);
 
     const signature = await crypto.subtle.sign(
       'RSASSA-PKCS1-v1_5',

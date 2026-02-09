@@ -14,6 +14,30 @@
 
 window.MX_CHANGELOGS = [
   {
+    build: 296,
+    version: "2.0dev-296",
+    date: "2026-02-08",
+    title: "License Signature Fix",
+    sections: [
+      {
+        type: "fixed",
+        title: "Bug Fixes",
+        items: [
+          "**License Verification** - Fixed RSA signature verification failing due to JSON serialization mismatch between Worker and plugin",
+          "**Key Pair Regeneration** - Regenerated RSA key pair to ensure public/private keys match"
+        ]
+      },
+      {
+        type: "technical",
+        title: "Technical Changes",
+        items: [
+          "**Canonical JSON** - Both Worker and plugin now use alphabetically sorted keys for deterministic signature verification",
+          "**CI Licensed Builds** - GitHub Actions now produces both licensed and unlicensed JARs on every push"
+        ]
+      }
+    ]
+  },
+  {
     build: 295,
     version: "2.0dev-295",
     date: "2026-02-08",
