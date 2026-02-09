@@ -3145,8 +3145,24 @@ function buildLicensedJar(ws, email, data) {
 
     let output = '';
     buildProcess.stdout.on('data', (data) => {
-        output += data.toString();
-        console.log(`[Build] ${data.toString().trim()}`);
+        const text = data.toString();
+        output += text;
+        console.log(`[Build] ${text.trim()}`);
+
+        // Parse progress messages
+        const progressRegex = /__PROGRESS__(.+?)__PROGRESS__/g;
+        let match;
+        while ((match = progressRegex.exec(text)) !== null) {
+            try {
+                const progressData = JSON.parse(match[1]);
+                ws.send(JSON.stringify({
+                    type: 'jar_build_progress',
+                    data: progressData
+                }));
+            } catch (e) {
+                console.error('[Build] Failed to parse progress:', e);
+            }
+        }
     });
 
     buildProcess.stderr.on('data', (data) => {

@@ -51,6 +51,11 @@ function warn(message) {
   log(`⚠ ${message}`, 'yellow');
 }
 
+function reportProgress(stage, progress, message) {
+  // Output structured JSON for gateway to parse
+  console.log(`__PROGRESS__${JSON.stringify({ stage, progress, message })}__PROGRESS__`);
+}
+
 // Parse arguments
 const args = process.argv.slice(2);
 if (args.length < 1) {
@@ -77,14 +82,18 @@ async function main() {
   info(`Tester Name: ${testerName}\n`);
 
   try {
+    reportProgress('init', 0, 'Starting build...');
+
     // Step 1: Verify license token exists in gateway database
     info('Step 1: Verifying license token...');
+    reportProgress('verify', 10, 'Verifying license token...');
     // TODO: Add database check here if gateway uses SQL
     // For now, we'll skip this check
     success('License token verified (skipped for now - implement gateway DB check)\n');
 
     // Step 2: Clean and prepare build directory
     info('Step 2: Preparing build directory...');
+    reportProgress('prepare', 20, 'Preparing build directory...');
     if (fs.existsSync(BUILD_DIR)) {
       fs.rmSync(BUILD_DIR, { recursive: true, force: true });
     }
@@ -93,6 +102,7 @@ async function main() {
 
     // Step 3: Clone the repository
     info('Step 3: Cloning ModereX repository...');
+    reportProgress('clone', 30, 'Copying repository...');
     try {
       execSync(`git clone --depth 1 ${PLUGIN_REPO_URL} ${BUILD_DIR}`, {
         stdio: 'inherit',
@@ -114,6 +124,7 @@ async function main() {
 
     // Step 4: Run Gradle build with license token
     info('Step 4: Building licensed JAR with Gradle...');
+    reportProgress('build', 50, 'Building JAR with Gradle (this may take 1-2 minutes)...');
     const gradleCmd = process.platform === 'win32' ? '.\\gradlew.bat' : './gradlew';
     const buildCommand = `${gradleCmd} clean buildLicensed -PlicenseToken=${licenseToken}`;
 
@@ -127,6 +138,7 @@ async function main() {
 
     // Step 5: Copy built JAR to licensed-builds directory
     info('Step 5: Copying JAR to licensed-builds directory...');
+    reportProgress('finalize', 85, 'Finalizing build...');
     fs.mkdirSync(LICENSED_BUILDS_DIR, { recursive: true });
 
     const shortToken = licenseToken.substring(0, 8);
@@ -158,10 +170,12 @@ async function main() {
 
     // Step 7: Clean up temporary build directory
     info('Step 7: Cleaning up...');
+    reportProgress('cleanup', 95, 'Cleaning up...');
     fs.rmSync(BUILD_DIR, { recursive: true, force: true });
     success('Temporary build files removed\n');
 
     // Done!
+    reportProgress('complete', 100, 'Build complete!');
     log('\n╔════════════════════════════════════════════════════════════╗', 'green');
     log('║            ✓ Licensed Build Complete!                     ║', 'green');
     log('╚════════════════════════════════════════════════════════════╝\n', 'green');
