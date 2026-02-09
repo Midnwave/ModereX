@@ -14,6 +14,37 @@
 
 window.MX_CHANGELOGS = [
   {
+    build: 295,
+    version: "2.0dev-295",
+    date: "2026-02-08",
+    title: "Licensed Build Auto-Updates",
+    sections: [
+      {
+        type: "new",
+        title: "New Features",
+        items: [
+          "**Licensed Build Auto-Update** - Licensed dev builds now auto-update from GitHub while preserving the license token",
+          "**JAR Download Button** - Admin panel shows a download button after building licensed JARs"
+        ]
+      },
+      {
+        type: "fixed",
+        title: "Bug Fixes",
+        items: [
+          "**Download URL** - Fixed JAR download using tunnel URL to bypass Cloudflare Access"
+        ]
+      },
+      {
+        type: "technical",
+        title: "Technical Changes",
+        items: [
+          "**License Patching** - Auto-updater patches license-token.properties into downloaded JARs via ZIP filesystem",
+          "**LicenseManager API** - Added getLicenseToken() and getBuildTimestamp() getters"
+        ]
+      }
+    ]
+  },
+  {
     build: 291,
     version: "2.0dev-291",
     date: "2026-02-08",
