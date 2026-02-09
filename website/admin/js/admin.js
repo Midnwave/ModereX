@@ -699,33 +699,111 @@
             }).join('');
     }
 
+    let connectionChart = null; // Store chart instance
+
     function updateConnectionChart(history) {
-        const container = document.getElementById('connectionChart');
-        if (!container || !history || history.length === 0) return;
+        const canvas = document.getElementById('connectionChart');
+        if (!canvas || !history || history.length === 0) return;
 
-        const maxVal = Math.max(1, ...history.map(h => Math.max(h.servers || 0, h.browsers || 0)));
-        const barWidth = Math.max(2, Math.floor(100 / history.length));
+        const labels = history.map(h => {
+            const time = new Date(h.time);
+            return time.getHours() + ':00';
+        });
 
-        container.innerHTML = `
-            <div style="display:flex;align-items:flex-end;gap:2px;height:100%;padding:8px 0;">
-                ${history.map(h => {
-                    const sH = Math.max(2, Math.round(((h.servers || 0) / maxVal) * 80));
-                    const bH = Math.max(2, Math.round(((h.browsers || 0) / maxVal) * 80));
-                    const time = new Date(h.time);
-                    const label = time.getHours() + ':00';
-                    return `<div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:1px;" title="${label} - ${h.servers || 0} servers, ${h.browsers || 0} browsers">
-                        <div style="display:flex;align-items:flex-end;gap:1px;height:80px;">
-                            <div style="width:${barWidth}%;min-width:3px;height:${sH}px;background:var(--primary, #6366f1);border-radius:2px 2px 0 0;"></div>
-                            <div style="width:${barWidth}%;min-width:3px;height:${bH}px;background:var(--accent, #22d3ee);border-radius:2px 2px 0 0;opacity:0.7;"></div>
-                        </div>
-                    </div>`;
-                }).join('')}
-            </div>
-            <div style="display:flex;justify-content:space-between;font-size:10px;color:var(--text-muted, #888);padding-top:4px;">
-                <span>24h ago</span>
-                <span>Now</span>
-            </div>
-        `;
+        const serversData = history.map(h => h.servers || 0);
+        const browsersData = history.map(h => h.browsers || 0);
+
+        // Destroy existing chart if it exists
+        if (connectionChart) {
+            connectionChart.destroy();
+        }
+
+        // Create new chart
+        connectionChart = new Chart(canvas, {
+            type: 'line',
+            data: {
+                labels: labels,
+                datasets: [
+                    {
+                        label: 'Servers',
+                        data: serversData,
+                        borderColor: 'rgb(99, 102, 241)',
+                        backgroundColor: 'rgba(99, 102, 241, 0.1)',
+                        borderWidth: 2,
+                        fill: true,
+                        tension: 0.4,
+                        pointRadius: 0,
+                        pointHoverRadius: 4,
+                    },
+                    {
+                        label: 'Browsers',
+                        data: browsersData,
+                        borderColor: 'rgb(34, 211, 238)',
+                        backgroundColor: 'rgba(34, 211, 238, 0.1)',
+                        borderWidth: 2,
+                        fill: true,
+                        tension: 0.4,
+                        pointRadius: 0,
+                        pointHoverRadius: 4,
+                    }
+                ]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                interaction: {
+                    mode: 'index',
+                    intersect: false,
+                },
+                plugins: {
+                    legend: {
+                        display: true,
+                        position: 'top',
+                        labels: {
+                            color: 'rgb(156, 163, 175)',
+                            usePointStyle: true,
+                            padding: 12,
+                        }
+                    },
+                    tooltip: {
+                        backgroundColor: 'rgba(17, 24, 39, 0.9)',
+                        padding: 12,
+                        cornerRadius: 8,
+                        titleColor: '#fff',
+                        bodyColor: '#fff',
+                        borderColor: 'rgba(99, 102, 241, 0.3)',
+                        borderWidth: 1,
+                    }
+                },
+                scales: {
+                    x: {
+                        grid: {
+                            color: 'rgba(156, 163, 175, 0.1)',
+                        },
+                        ticks: {
+                            color: 'rgb(156, 163, 175)',
+                            maxRotation: 0,
+                            autoSkip: true,
+                            maxTicksLimit: 8,
+                        }
+                    },
+                    y: {
+                        beginAtZero: true,
+                        grid: {
+                            color: 'rgba(156, 163, 175, 0.1)',
+                        },
+                        ticks: {
+                            color: 'rgb(156, 163, 175)',
+                            precision: 0,
+                        }
+                    }
+                },
+                animation: {
+                    duration: 750,
+                    easing: 'easeInOutQuart'
+                }
+            }
+        });
     }
 
     // ========================================

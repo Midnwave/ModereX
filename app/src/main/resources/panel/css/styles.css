@@ -10759,7 +10759,7 @@ html {
   right: 0;
   z-index: 8999;
   transform: translateY(-100%);
-  transition: transform 0.3s ease;
+  transition: transform 0.3s ease, top 0.3s ease;
 }
 
 .announcementBanner.show {
@@ -10767,8 +10767,7 @@ html {
 }
 
 /* Shift down when update banner is also showing */
-.updateBanner.show + .announcementBanner.show,
-body.has-update-banner .announcementBanner.show {
+.announcementBanner.offset {
   top: 48px;
 }
 

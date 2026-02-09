@@ -431,6 +431,12 @@
       banner.classList.add('non-dismissible');
     }
 
+    // Add offset class if update banner is showing
+    const updateBanner = document.getElementById('updateBanner');
+    if (updateBanner && updateBanner.classList.contains('show')) {
+      banner.classList.add('offset');
+    }
+
     // Show the banner
     banner.classList.add('show');
     console.log('[Announcement] Showing:', data.title);
