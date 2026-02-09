@@ -14,6 +14,26 @@
 
 window.MX_CHANGELOGS = [
   {
+    build: 291,
+    version: "2.0dev-291",
+    date: "2026-02-08",
+    title: "UI Modernization & Polish (Part 3)",
+    sections: [
+      { type: "improved", title: "Admin Panel Improvements", items: [
+        "**Build Progress Bar** - Licensed JAR builds now show real-time progress with visual feedback",
+        "**Progress Stages** - Build progress shows current stage (verifying, preparing, building, finalizing) with percentage",
+        "**Confirmation Modal** - Building a JAR now requires confirmation before starting the 1-2 minute process",
+        "**Auto-hide Progress** - Progress bar automatically hides 2 seconds after build completes"
+      ]},
+      { type: "technical", title: "Technical Changes", items: [
+        "**Progress Reporting** - Build script now outputs structured JSON progress messages at each build stage",
+        "**WebSocket Progress** - Gateway parses progress messages and forwards them to admin panel in real-time",
+        "**Gradient Progress** - Progress bar uses primary→accent gradient with smooth width transitions",
+        "**Build States** - Tracks 7 build stages: init (0%), verify (10%), prepare (20%), clone (30%), build (50%), finalize (85%), cleanup (95%), complete (100%)"
+      ]}
+    ]
+  },
+  {
     build: 290,
     version: "2.0dev-290",
     date: "2026-02-08",
