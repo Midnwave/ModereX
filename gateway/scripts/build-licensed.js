@@ -185,11 +185,6 @@ async function main() {
     success(`Tester: ${testerName}`);
     success(`Token: ${shortToken}...${licenseToken.substring(licenseToken.length - 4)}\n`);
 
-    info('Next steps:');
-    info('1. Send the JAR to the tester');
-    info('2. Ensure license token is active in Cloudflare Workers KV');
-    info('3. Monitor license usage in admin panel\n');
-
   } catch (err) {
     error(`\nBuild failed: ${err.message}`);
     error(err.stack);

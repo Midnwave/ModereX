@@ -615,6 +615,36 @@ const server = http.createServer((req, res) => {
         return;
     }
 
+    // Download licensed JAR files (admin-only, uses secret token in query)
+    const downloadMatch = url.pathname.match(/^\/download\/(.+\.jar)$/);
+    if (downloadMatch) {
+        const filename = path.basename(downloadMatch[1]); // Prevent path traversal
+        const jarPath = path.resolve(path.join(__dirname, 'licensed-builds', filename));
+        const buildsDir = path.resolve(path.join(__dirname, 'licensed-builds'));
+
+        // Ensure path stays within licensed-builds directory
+        if (!jarPath.startsWith(buildsDir + path.sep)) {
+            res.writeHead(403, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ error: 'Forbidden' }));
+            return;
+        }
+
+        if (fs.existsSync(jarPath) && fs.statSync(jarPath).isFile()) {
+            const stat = fs.statSync(jarPath);
+            res.writeHead(200, {
+                'Content-Type': 'application/java-archive',
+                'Content-Disposition': `attachment; filename="${filename}"`,
+                'Content-Length': stat.size
+            });
+            fs.createReadStream(jarPath).pipe(res);
+            return;
+        }
+
+        res.writeHead(404, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'File not found' }));
+        return;
+    }
+
     // Serve panel files if they exist locally (for development)
     const panelDir = path.resolve(path.join(__dirname, 'panel'));
     const requestedFile = url.pathname === '/' ? 'index.html' : url.pathname;

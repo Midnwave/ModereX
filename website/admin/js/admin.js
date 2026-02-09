@@ -45,7 +45,7 @@
             <div style="background:#1e1e1e;padding:30px;border-radius:8px;max-width:500px;color:#fff;">
                 <h2 style="margin-top:0;color:#4CAF50;">Configure Gateway</h2>
                 <p>Enter your ModereX gateway tunnel URL:</p>
-                <input type="text" id="gateway-url-input" placeholder="wss://surge-sons-inkjet-nested.trycloudflare.com"
+                <input type="text" id="gateway-url-input" placeholder="wss://carlo-decor-reel-vice.trycloudflare.com"
                     value="${localStorage.getItem('moderex_gateway_url') || ''}"
                     style="width:100%;padding:10px;margin:10px 0;background:#2d2d2d;border:1px solid #444;color:#fff;border-radius:4px;">
                 <button id="save-gateway-btn" style="background:#4CAF50;color:#fff;border:none;padding:10px 20px;border-radius:4px;cursor:pointer;">
@@ -347,6 +347,10 @@
                 const buildBtn = document.getElementById('buildJarBtn');
                 if (buildBtn) buildBtn.disabled = false;
                 toast('success', 'Build Complete', `Licensed JAR created: ${data.filename}`);
+                // Show download button
+                if (data.filename) {
+                    showDownloadButton(data.filename);
+                }
                 break;
             }
 
@@ -1050,7 +1054,30 @@
         const outputEl = document.getElementById('buildConsoleOutput');
         if (consoleEl) consoleEl.style.display = 'none';
         if (outputEl) outputEl.innerHTML = '';
+        // Also hide download button
+        const dlBtn = document.getElementById('buildDownloadBtn');
+        if (dlBtn) dlBtn.style.display = 'none';
     };
+
+    function showDownloadButton(filename) {
+        let dlBtn = document.getElementById('buildDownloadBtn');
+        if (!dlBtn) {
+            // Create download button next to the build button
+            const buildBtn = document.getElementById('buildJarBtn');
+            if (!buildBtn) return;
+            dlBtn = document.createElement('a');
+            dlBtn.id = 'buildDownloadBtn';
+            dlBtn.className = 'btn btn-success';
+            dlBtn.innerHTML = '<i class="fas fa-download"></i> Download JAR';
+            buildBtn.parentNode.appendChild(dlBtn);
+        }
+        // Derive HTTP URL from the WebSocket URL
+        const wsUrl = GATEWAY_WS_URL || '';
+        const httpUrl = wsUrl.replace('wss://', 'https://').replace('ws://', 'http://').replace(/\/admin$/, '');
+        dlBtn.href = `${httpUrl}/download/${filename}`;
+        dlBtn.target = '_blank';
+        dlBtn.style.display = 'inline-flex';
+    }
 
     window.buildLicensedJar = async function() {
         const token = document.getElementById('buildLicenseToken').value;
