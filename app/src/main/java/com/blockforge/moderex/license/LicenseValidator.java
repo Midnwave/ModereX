@@ -1,6 +1,7 @@
 package com.blockforge.moderex.license;
 
 import com.google.gson.Gson;
+import com.google.gson.GsonBuilder;
 import com.google.gson.JsonObject;
 
 import java.io.BufferedReader;
@@ -31,7 +32,7 @@ public class LicenseValidator {
 
     public LicenseValidator(Logger logger) {
         this.logger = logger;
-        this.gson = new Gson();
+        this.gson = new GsonBuilder().serializeNulls().create();
         this.publicKey = loadPublicKey();
     }
 

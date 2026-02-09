@@ -38,6 +38,21 @@ jobs:
         echo "number=$BUILD_NUM" >> $GITHUB_OUTPUT
         echo "Build number: $BUILD_NUM"
 
+    - name: Sync version properties with CI build number
+      run: |
+        BUILD_NUM=${{ steps.buildnum.outputs.number }}
+        cat > app/src/main/resources/panel-version.properties << PROPS
+        # ModereX Version - Edit this file to update the version everywhere.
+        # Gradle reads this at build time. Plugin reads this at runtime.
+        version=2.0dev-${BUILD_NUM}
+        buildNumber=${BUILD_NUM}
+        buildDate=$(date -u +%Y-%m-%d)
+        PROPS
+        # Remove leading whitespace from heredoc
+        sed -i 's/^        //' app/src/main/resources/panel-version.properties
+        echo "Version properties synced to build ${BUILD_NUM}"
+        cat app/src/main/resources/panel-version.properties
+
     - name: Grant execute permission for gradlew
       run: chmod +x gradlew
 
