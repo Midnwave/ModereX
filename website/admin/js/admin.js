@@ -1,5 +1,5 @@
 /**
- * ModereX Admin Panel v291
+ * ModereX Admin Panel v292
  * Internal administration dashboard for BlockForge Studios
  * CURRENTLY DOES NOT HAVE AUTH SYSTEM - WILL IMPLEMENT BEFORE RELEASE
  */

@@ -16,7 +16,7 @@ const path = require('path');
 const crypto = require('crypto');
 
 // Configuration
-const PLUGIN_REPO_URL = 'https://github.com/your-org/ModereX.git'; // Update with actual repo URL
+const PLUGIN_REPO_URL = 'https://github.com/Midnwave/ModereX.git';
 const BUILD_DIR = path.join(__dirname, '../../temp-build');
 const LICENSED_BUILDS_DIR = path.join(__dirname, '../licensed-builds');
 const GATEWAY_DB_PATH = path.join(__dirname, '../gateway-database.db'); // Adjust if different

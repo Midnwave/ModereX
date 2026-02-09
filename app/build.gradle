@@ -148,7 +148,7 @@ tasks.register('buildLicensed') {
 token=${token}
 buildTimestamp=${System.currentTimeMillis()}
 """
-        logger.lifecycle("License token embedded: ${token.take(8)}...${token.takeLast(4)}")
+        logger.lifecycle("License token embedded: ${token.take(8)}...${token.takeRight(4)}")
     }
 
     doLast {
