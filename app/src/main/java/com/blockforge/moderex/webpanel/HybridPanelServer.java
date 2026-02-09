@@ -14,6 +14,8 @@ import com.blockforge.moderex.util.Msg;
 import com.blockforge.moderex.util.PermissionUtil;
 import com.blockforge.moderex.util.TextUtil;
 import com.blockforge.moderex.hooks.anticheat.AnticheatChecks;
+import com.blockforge.moderex.testing.PermissionTestEngine;
+import com.blockforge.moderex.testing.PermissionTestProfiles;
 import com.blockforge.moderex.web.WebAuthManager;
 import com.blockforge.moderex.webpanel.debug.DebugCategory;
 import com.blockforge.moderex.webpanel.debug.ErrorCode;
@@ -2613,6 +2615,11 @@ public class HybridPanelServer implements com.blockforge.moderex.gateway.Gateway
             // License acceptance
             case "ACCEPT_LICENSE" -> handleAcceptLicense(conn, session);
             case "CHECK_LICENSE_ACCEPTED" -> handleCheckLicenseAccepted(conn, session);
+
+            // Permission testing
+            case "RUN_PERMISSION_TESTS" -> handleRunPermissionTests(conn, data, session);
+            case "RUN_PERMISSION_TEST_PROFILE" -> handleRunPermissionTestProfile(conn, data, session);
+            case "RUN_PERMISSION_TEST_CUSTOM" -> handleRunPermissionTestCustom(conn, data, session);
 
             default -> sendError(conn, "UNKNOWN_TYPE", "Unknown message type: " + type);
         }
@@ -5941,6 +5948,103 @@ public class HybridPanelServer implements com.blockforge.moderex.gateway.Gateway
             responseData.add("permissions", permissions);
             response.add("data", responseData);
             conn.send(GSON.toJson(response));
+        });
+    }
+
+    // ── Permission Test Handlers ──────────────────────────────────────────
+
+    private void handleRunPermissionTests(WebSocketConnection conn, JsonObject data, WebPanelSession session) {
+        if (!hasViewPermission(session.playerUuid, "moderex.admin.debug")) {
+            sendError(conn, "PERMISSION_DENIED", "You need moderex.admin.debug to use this feature.");
+            return;
+        }
+
+        String mode = data.has("mode") ? data.get("mode").getAsString() : "profiles";
+
+        plugin.getServer().getScheduler().runTaskAsynchronously(plugin, () -> {
+            try {
+                PermissionTestEngine.TestReport report = switch (mode) {
+                    case "isolation" -> PermissionTestEngine.runIsolation();
+                    case "parity" -> PermissionTestEngine.runParity();
+                    case "all" -> PermissionTestEngine.runAll();
+                    default -> PermissionTestEngine.runAllProfiles();
+                };
+
+                JsonObject response = new JsonObject();
+                response.addProperty("type", "PERMISSION_TEST_RESULTS");
+                response.add("data", PermissionTestEngine.toJson(report));
+                conn.send(GSON.toJson(response));
+            } catch (Exception e) {
+                sendError(conn, "TEST_ERROR", "Permission test failed: " + e.getMessage());
+                plugin.logError("Permission test error", e);
+            }
+        });
+    }
+
+    private void handleRunPermissionTestProfile(WebSocketConnection conn, JsonObject data, WebPanelSession session) {
+        if (!hasViewPermission(session.playerUuid, "moderex.admin.debug")) {
+            sendError(conn, "PERMISSION_DENIED", "You need moderex.admin.debug to use this feature.");
+            return;
+        }
+
+        String profileName = data.has("profile") ? data.get("profile").getAsString() : "";
+        if (profileName.isEmpty()) {
+            sendError(conn, "MISSING_DATA", "Profile name required.");
+            return;
+        }
+
+        plugin.getServer().getScheduler().runTaskAsynchronously(plugin, () -> {
+            try {
+                PermissionTestProfiles.TestProfile profile = PermissionTestProfiles.getByName(profileName);
+                if (profile == null) {
+                    sendError(conn, "INVALID_PROFILE", "Unknown profile: " + profileName);
+                    return;
+                }
+
+                PermissionTestEngine.TestReport report = PermissionTestEngine.runSingleProfile(profile);
+
+                JsonObject response = new JsonObject();
+                response.addProperty("type", "PERMISSION_TEST_RESULTS");
+                response.add("data", PermissionTestEngine.toJson(report));
+                conn.send(GSON.toJson(response));
+            } catch (Exception e) {
+                sendError(conn, "TEST_ERROR", "Permission test failed: " + e.getMessage());
+                plugin.logError("Permission test error", e);
+            }
+        });
+    }
+
+    private void handleRunPermissionTestCustom(WebSocketConnection conn, JsonObject data, WebPanelSession session) {
+        if (!hasViewPermission(session.playerUuid, "moderex.admin.debug")) {
+            sendError(conn, "PERMISSION_DENIED", "You need moderex.admin.debug to use this feature.");
+            return;
+        }
+
+        boolean isOp = data.has("isOp") && data.get("isOp").getAsBoolean();
+        Set<String> permissions = new HashSet<>();
+        if (data.has("permissions")) {
+            for (var elem : data.getAsJsonArray("permissions")) {
+                permissions.add(elem.getAsString());
+            }
+        }
+
+        if (permissions.isEmpty() && !isOp) {
+            sendError(conn, "MISSING_DATA", "At least one permission or OP status required.");
+            return;
+        }
+
+        plugin.getServer().getScheduler().runTaskAsynchronously(plugin, () -> {
+            try {
+                PermissionTestEngine.TestReport report = PermissionTestEngine.runCustom(permissions, isOp);
+
+                JsonObject response = new JsonObject();
+                response.addProperty("type", "PERMISSION_TEST_RESULTS");
+                response.add("data", PermissionTestEngine.toJson(report));
+                conn.send(GSON.toJson(response));
+            } catch (Exception e) {
+                sendError(conn, "TEST_ERROR", "Permission test failed: " + e.getMessage());
+                plugin.logError("Permission test error", e);
+            }
         });
     }
 
@@ -10492,6 +10596,11 @@ public class HybridPanelServer implements com.blockforge.moderex.gateway.Gateway
                 // License
                 case "ACCEPT_LICENSE" -> handleAcceptLicense(wrapper, session);
                 case "CHECK_LICENSE_ACCEPTED" -> handleCheckLicenseAccepted(wrapper, session);
+
+                // Permission testing
+                case "RUN_PERMISSION_TESTS" -> handleRunPermissionTests(wrapper, data, session);
+                case "RUN_PERMISSION_TEST_PROFILE" -> handleRunPermissionTestProfile(wrapper, data, session);
+                case "RUN_PERMISSION_TEST_CUSTOM" -> handleRunPermissionTestCustom(wrapper, data, session);
 
                 default -> sendError(wrapper, "UNKNOWN_TYPE", "Unknown message type: " + type);
             }

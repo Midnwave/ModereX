@@ -3681,6 +3681,75 @@
                 </div>
               </div>
 
+              <!-- Permission Test Engine -->
+              <div class="card" id="devPermissionTest" style="margin-top:16px">
+                <h3><i class="fa-solid fa-flask" style="color:var(--cyan);margin-right:10px"></i>Permission Test Engine</h3>
+                <p style="margin-bottom:16px">Automated testing of all 250+ permissions across profiles, commands, GUIs, and web panel.</p>
+
+                <!-- Mode Selection -->
+                <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px">
+                  <button class="btn active" id="permTestModeProfiles" onclick="setPermTestMode('profiles')"><i class="fa-solid fa-users"></i> Smart Profiles</button>
+                  <button class="btn" id="permTestModeIsolation" onclick="setPermTestMode('isolation')"><i class="fa-solid fa-vial"></i> Isolation</button>
+                  <button class="btn" id="permTestModeParity" onclick="setPermTestMode('parity')"><i class="fa-solid fa-scale-balanced"></i> Parity Check</button>
+                  <button class="btn" id="permTestModeAll" onclick="setPermTestMode('all')"><i class="fa-solid fa-globe"></i> Run All</button>
+                  <button class="btn" id="permTestModeProfile" onclick="setPermTestMode('profile')"><i class="fa-solid fa-user"></i> Single Profile</button>
+                  <button class="btn" id="permTestModeCustom" onclick="setPermTestMode('custom')"><i class="fa-solid fa-sliders"></i> Custom</button>
+                </div>
+
+                <!-- Single Profile Selector (hidden by default) -->
+                <div id="permTestProfileSelector" style="display:none;margin-bottom:12px">
+                  <label style="font-size:12px;color:var(--text-secondary);margin-bottom:4px;display:block">Select Profile:</label>
+                  <select id="permTestProfileSelect" style="width:100%;padding:8px 12px;background:var(--surface);color:var(--text);border:1px solid var(--border);border-radius:var(--radius);font-family:var(--font-mono);font-size:13px">
+                    <option value="NONE">NONE - No permissions</option>
+                    <option value="OP">OP - Operator bypass</option>
+                    <option value="HELPER">HELPER - Basic view access</option>
+                    <option value="MODERATOR" selected>MODERATOR - Mid-level staff</option>
+                    <option value="ADMIN">ADMIN - Full admin</option>
+                    <option value="OWNER">OWNER - Wildcard moderex.*</option>
+                    <option value="TEMPBAN_ONLY">TEMPBAN_ONLY - Edge case</option>
+                    <option value="HISTORY_PARTIAL">HISTORY_PARTIAL - Partial history</option>
+                    <option value="FLAG_TESTER">FLAG_TESTER - Some flags only</option>
+                    <option value="WEB_VIEWER">WEB_VIEWER - Minimal web access</option>
+                    <option value="CATEGORY_WILDCARD">CATEGORY_WILDCARD - history.*</option>
+                    <option value="WEIGHTED">WEIGHTED - Weight system test</option>
+                  </select>
+                </div>
+
+                <!-- Custom Permission Builder (hidden by default) -->
+                <div id="permTestCustomBuilder" style="display:none;margin-bottom:12px">
+                  <label style="font-size:12px;color:var(--text-secondary);margin-bottom:4px;display:block">Custom Permissions (one per line):</label>
+                  <textarea id="permTestCustomPerms" rows="5" placeholder="moderex.ban&#10;moderex.tempban&#10;moderex.history.*&#10;moderex.info.*" style="width:100%;padding:8px 12px;background:var(--surface);color:var(--text);border:1px solid var(--border);border-radius:var(--radius);font-family:var(--font-mono);font-size:12px;resize:vertical"></textarea>
+                  <label style="margin-top:8px;display:flex;align-items:center;gap:8px;font-size:13px;cursor:pointer">
+                    <input type="checkbox" id="permTestCustomOp"> Simulate OP status
+                  </label>
+                </div>
+
+                <!-- Run Button -->
+                <button class="btn primary" onclick="runPermissionTests()" id="permTestRunBtn" style="width:100%">
+                  <i class="fa-solid fa-play"></i> Run Tests
+                </button>
+
+                <!-- Results Area -->
+                <div id="permTestResults" style="display:none;margin-top:16px">
+                  <!-- Summary Bar -->
+                  <div id="permTestSummary" style="display:flex;gap:16px;align-items:center;padding:12px;background:rgba(0,0,0,0.3);border-radius:var(--radius);border:1px solid var(--border);margin-bottom:12px">
+                  </div>
+
+                  <!-- Filter Bar -->
+                  <div style="display:flex;gap:8px;margin-bottom:12px;align-items:center">
+                    <input type="text" id="permTestFilter" placeholder="Filter tests..." oninput="filterPermTestResults()" style="flex:1;padding:6px 12px;background:var(--surface);color:var(--text);border:1px solid var(--border);border-radius:var(--radius);font-size:12px">
+                    <button class="btn small active" id="permTestFilterAll" onclick="setPermTestFilter('all')">All</button>
+                    <button class="btn small" id="permTestFilterPass" onclick="setPermTestFilter('pass')">Pass</button>
+                    <button class="btn small" id="permTestFilterFail" onclick="setPermTestFilter('fail')">Fail</button>
+                    <button class="btn small" onclick="exportPermTestResults()" title="Export to JSON"><i class="fa-solid fa-download"></i></button>
+                  </div>
+
+                  <!-- Results Groups -->
+                  <div id="permTestGroups" style="max-height:500px;overflow-y:auto">
+                  </div>
+                </div>
+              </div>
+
               <!-- Database Debug -->
               <div class="card" id="devDatabaseDebug" style="margin-top:16px">
                 <h3><i class="fa-solid fa-database" style="color:var(--blue);margin-right:10px"></i>Database Debug</h3>

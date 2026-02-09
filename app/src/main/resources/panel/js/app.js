@@ -9145,6 +9145,7 @@
     { name: 'Slowmode', page: 'actions', keywords: ['rate limit', 'spam', 'slow'], permission: 'moderex.admin.chat' },
     { name: 'Kick All', page: 'actions', keywords: ['clear', 'server', 'disconnect'], permission: 'moderex.admin.kickall' },
     // Developer Tools
+    { name: 'Permission Test Engine', page: 'devtools', keywords: ['permission', 'test', 'simulate', 'profiles', 'parity'], elementId: 'devPermissionTest' },
     { name: 'Debug Permissions', page: 'devtools', keywords: ['permission', 'check', 'debug', 'perms'], elementId: 'devDebugPermissions' },
     { name: 'Test Notifications', page: 'devtools', keywords: ['test', 'alert', 'notification', 'toast'], elementId: 'devNotificationTest' },
     { name: 'Stress Test Players', page: 'devtools', keywords: ['stress', 'test', 'spoof', 'players', 'fake'], elementId: 'devStressPlayers' },
@@ -9890,6 +9891,14 @@
       if (!isLiveMode) return;
       if (window.handleDebugPermissionData) {
         window.handleDebugPermissionData(data);
+      }
+    });
+
+    // Handle permission test results
+    ws.on('PERMISSION_TEST_RESULTS', (data) => {
+      if (!isLiveMode) return;
+      if (window.handlePermissionTestResults) {
+        window.handlePermissionTestResults(data);
       }
     });
 
@@ -13539,6 +13548,204 @@
   window.handleDebugPermissionData = handleDebugPermissionData;
   window.filterDebugMatrix = filterDebugMatrix;
   window.setDebugFilter = setDebugFilter;
+
+  // ===== PERMISSION TEST ENGINE =====
+  let permTestMode = 'profiles';
+  let permTestFilter = 'all';
+  let permTestLastReport = null;
+
+  function setPermTestMode(mode) {
+    permTestMode = mode;
+    ['profiles', 'isolation', 'parity', 'all', 'profile', 'custom'].forEach(m => {
+      const btn = document.getElementById('permTestMode' + m.charAt(0).toUpperCase() + m.slice(1));
+      if (btn) btn.classList.toggle('active', m === mode);
+    });
+    const profileSelector = document.getElementById('permTestProfileSelector');
+    const customBuilder = document.getElementById('permTestCustomBuilder');
+    if (profileSelector) profileSelector.style.display = mode === 'profile' ? '' : 'none';
+    if (customBuilder) customBuilder.style.display = mode === 'custom' ? '' : 'none';
+  }
+
+  function runPermissionTests() {
+    const ws = window.MX?.ws;
+    if (!ws || !ws.isConnected()) {
+      toast('warn', 'Not Connected', 'Must be connected to server for permission testing');
+      return;
+    }
+
+    const btn = document.getElementById('permTestRunBtn');
+    if (btn) {
+      btn.disabled = true;
+      btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Running Tests...';
+    }
+
+    if (window.showLoadingLine) window.showLoadingLine();
+
+    if (permTestMode === 'profile') {
+      const profile = document.getElementById('permTestProfileSelect')?.value || 'MODERATOR';
+      ws.send('RUN_PERMISSION_TEST_PROFILE', { profile });
+    } else if (permTestMode === 'custom') {
+      const permsText = document.getElementById('permTestCustomPerms')?.value || '';
+      const permissions = permsText.split('\n').map(s => s.trim()).filter(s => s.length > 0);
+      const isOp = document.getElementById('permTestCustomOp')?.checked || false;
+      ws.send('RUN_PERMISSION_TEST_CUSTOM', { permissions, isOp });
+    } else {
+      ws.send('RUN_PERMISSION_TESTS', { mode: permTestMode });
+    }
+
+    // Timeout fallback
+    setTimeout(() => {
+      if (btn && btn.disabled) {
+        btn.disabled = false;
+        btn.innerHTML = '<i class="fa-solid fa-play"></i> Run Tests';
+        if (window.hideLoadingLine) window.hideLoadingLine();
+      }
+    }, 60000);
+  }
+
+  function handlePermissionTestResults(data) {
+    if (window.hideLoadingLine) window.hideLoadingLine();
+    const btn = document.getElementById('permTestRunBtn');
+    if (btn) {
+      btn.disabled = false;
+      btn.innerHTML = '<i class="fa-solid fa-play"></i> Run Tests';
+    }
+
+    if (data.error) {
+      toast('bad', 'Test Error', data.error);
+      return;
+    }
+
+    permTestLastReport = data;
+
+    const resultsDiv = document.getElementById('permTestResults');
+    if (resultsDiv) resultsDiv.style.display = '';
+
+    // Render summary
+    const summary = document.getElementById('permTestSummary');
+    const total = data.total || 0;
+    const passed = data.passed || 0;
+    const failed = data.failed || 0;
+    const duration = data.durationMs || 0;
+    const pct = total > 0 ? ((passed / total) * 100).toFixed(1) : 0;
+    const barColor = failed === 0 ? 'var(--ok)' : failed <= 3 ? 'var(--warn)' : 'var(--bad)';
+
+    summary.innerHTML = `
+      <div style="flex:1">
+        <div style="font-size:14px;font-weight:600;margin-bottom:4px">${total.toLocaleString()} Tests</div>
+        <div style="height:6px;background:rgba(255,255,255,0.1);border-radius:3px;overflow:hidden">
+          <div style="height:100%;width:${pct}%;background:${barColor};border-radius:3px;transition:width 0.3s"></div>
+        </div>
+      </div>
+      <div style="text-align:center;min-width:80px">
+        <div style="font-size:20px;font-weight:700;color:var(--ok)">${passed.toLocaleString()}</div>
+        <div style="font-size:11px;color:var(--text-secondary)">Passed</div>
+      </div>
+      <div style="text-align:center;min-width:80px">
+        <div style="font-size:20px;font-weight:700;color:${failed > 0 ? 'var(--bad)' : 'var(--text-secondary)'}">${failed.toLocaleString()}</div>
+        <div style="font-size:11px;color:var(--text-secondary)">Failed</div>
+      </div>
+      <div style="text-align:center;min-width:60px">
+        <div style="font-size:14px;font-weight:600">${duration}ms</div>
+        <div style="font-size:11px;color:var(--text-secondary)">Duration</div>
+      </div>
+    `;
+
+    renderPermTestGroups();
+
+    const statusMsg = failed === 0 ? 'All tests passed!' : `${failed} test${failed > 1 ? 's' : ''} failed`;
+    toast(failed === 0 ? 'ok' : 'bad', 'Permission Tests', statusMsg);
+  }
+
+  function renderPermTestGroups() {
+    if (!permTestLastReport) return;
+    const container = document.getElementById('permTestGroups');
+    const filterText = (document.getElementById('permTestFilter')?.value || '').toLowerCase();
+    const groups = permTestLastReport.groups || {};
+
+    let html = '';
+    for (const [groupName, groupData] of Object.entries(groups)) {
+      const tests = groupData.tests || [];
+      let groupPassed = 0, groupFailed = 0;
+      let rowsHtml = '';
+
+      for (const test of tests) {
+        const pass = test.passed;
+        if (pass) groupPassed++; else groupFailed++;
+
+        // Apply filters
+        const matchesText = !filterText ||
+          (test.permission || '').toLowerCase().includes(filterText) ||
+          (test.profile || '').toLowerCase().includes(filterText) ||
+          (test.group || '').toLowerCase().includes(filterText);
+        const matchesFilter = permTestFilter === 'all' || (permTestFilter === 'pass' && pass) || (permTestFilter === 'fail' && !pass);
+
+        if (!matchesText || !matchesFilter) continue;
+
+        const icon = pass ? '<i class="fa-solid fa-check" style="color:var(--ok)"></i>' : '<i class="fa-solid fa-xmark" style="color:var(--bad)"></i>';
+        const bg = pass ? '' : 'background:rgba(218,54,51,0.08);';
+        rowsHtml += `<div style="display:flex;align-items:center;gap:8px;padding:4px 8px;font-size:12px;font-family:var(--font-mono);${bg}border-bottom:1px solid var(--border)">
+          ${icon}
+          <span style="color:var(--text-secondary);min-width:100px">${test.profile || ''}</span>
+          <span style="flex:1">${test.permission || test.description || ''}</span>
+          <span style="color:var(--text-secondary);min-width:60px">exp: ${test.expected ? 'true' : 'false'}</span>
+          <span style="color:${pass ? 'var(--ok)' : 'var(--bad)'};min-width:60px">got: ${test.actual ? 'true' : 'false'}</span>
+        </div>`;
+      }
+
+      if (permTestFilter === 'fail' && groupFailed === 0) continue;
+      if (permTestFilter === 'pass' && groupPassed === 0) continue;
+
+      const groupColor = groupFailed === 0 ? 'var(--ok)' : 'var(--bad)';
+      const total = groupPassed + groupFailed;
+      html += `<div style="margin-bottom:8px;border:1px solid var(--border);border-radius:var(--radius);overflow:hidden">
+        <div onclick="this.nextElementSibling.style.display=this.nextElementSibling.style.display==='none'?'':'none'" style="display:flex;align-items:center;gap:8px;padding:10px 12px;background:rgba(0,0,0,0.2);cursor:pointer;user-select:none">
+          <i class="fa-solid fa-chevron-right" style="font-size:10px;color:var(--text-secondary)"></i>
+          <span style="font-weight:600;flex:1">${groupName}</span>
+          <span style="font-size:12px;color:${groupColor}">${groupPassed}/${total} passed</span>
+        </div>
+        <div style="display:none">${rowsHtml || '<div style="padding:8px 12px;font-size:12px;color:var(--text-secondary)">No matching tests</div>'}</div>
+      </div>`;
+    }
+
+    container.innerHTML = html || '<div style="padding:12px;color:var(--text-secondary);text-align:center">No results to display</div>';
+  }
+
+  function filterPermTestResults() {
+    renderPermTestGroups();
+  }
+
+  function setPermTestFilter(filter) {
+    permTestFilter = filter;
+    document.getElementById('permTestFilterAll')?.classList.toggle('active', filter === 'all');
+    document.getElementById('permTestFilterPass')?.classList.toggle('active', filter === 'pass');
+    document.getElementById('permTestFilterFail')?.classList.toggle('active', filter === 'fail');
+    renderPermTestGroups();
+  }
+
+  function exportPermTestResults() {
+    if (!permTestLastReport) {
+      toast('warn', 'No Data', 'Run tests first before exporting.');
+      return;
+    }
+    const json = JSON.stringify(permTestLastReport, null, 2);
+    const blob = new Blob([json], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `permtest-${new Date().toISOString().replace(/[:.]/g, '-')}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+    toast('ok', 'Exported', 'Permission test report downloaded as JSON.');
+  }
+
+  // Export permission test functions
+  window.setPermTestMode = setPermTestMode;
+  window.runPermissionTests = runPermissionTests;
+  window.handlePermissionTestResults = handlePermissionTestResults;
+  window.filterPermTestResults = filterPermTestResults;
+  window.setPermTestFilter = setPermTestFilter;
+  window.exportPermTestResults = exportPermTestResults;
 
   // ===== DATABASE DEBUG =====
   function showDatabaseOutput(html) {
