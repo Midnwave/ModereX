@@ -320,30 +320,54 @@
                 break;
 
             case 'jar_build_started':
-                document.getElementById('buildStatusText').textContent = 'Building JAR... This may take a few minutes.';
+                const progressText = document.getElementById('buildProgressText');
+                if (progressText) progressText.textContent = 'Building JAR... This may take a few minutes.';
+                break;
+
+            case 'jar_build_progress':
+                const progressFill = document.getElementById('buildProgressFill');
+                const progressTextUpdate = document.getElementById('buildProgressText');
+                if (progressFill) progressFill.style.width = (data.progress || 0) + '%';
+                if (progressTextUpdate) progressTextUpdate.textContent = data.message || 'Building...';
                 break;
 
             case 'jar_build_complete':
-                const buildStatus = document.getElementById('buildStatus');
-                const buildStatusText = document.getElementById('buildStatusText');
                 const buildBtn = document.getElementById('buildJarBtn');
+                const progressContainer = document.getElementById('buildProgress');
+                const completeFill = document.getElementById('buildProgressFill');
+                const completeText = document.getElementById('buildProgressText');
 
-                buildStatus.querySelector('.alert').className = 'alert alert-success';
-                buildStatusText.textContent = `Build complete! JAR: ${data.filename}`;
-                buildBtn.disabled = false;
-                buildBtn.innerHTML = '<i class="fas fa-hammer"></i> Build JAR';
+                // Clear progress interval
+                if (window.buildProgressInterval) {
+                    clearInterval(window.buildProgressInterval);
+                }
+
+                // Show 100% complete
+                if (completeFill) completeFill.style.width = '100%';
+                if (completeText) completeText.textContent = 'Build complete!';
+
+                // Hide progress bar after 2 seconds
+                setTimeout(() => {
+                    if (progressContainer) progressContainer.style.display = 'none';
+                    if (buildBtn) buildBtn.disabled = false;
+                }, 2000);
+
                 toast('success', 'Build Complete', `Licensed JAR created: ${data.filename}`);
                 break;
 
             case 'jar_build_error':
-                const buildStatusErr = document.getElementById('buildStatus');
-                const buildStatusTextErr = document.getElementById('buildStatusText');
                 const buildBtnErr = document.getElementById('buildJarBtn');
+                const progressContainerErr = document.getElementById('buildProgress');
 
-                buildStatusErr.querySelector('.alert').className = 'alert alert-error';
-                buildStatusTextErr.textContent = `Build failed: ${data.error}`;
-                buildBtnErr.disabled = false;
-                buildBtnErr.innerHTML = '<i class="fas fa-hammer"></i> Build JAR';
+                // Clear progress interval
+                if (window.buildProgressInterval) {
+                    clearInterval(window.buildProgressInterval);
+                }
+
+                // Hide progress bar immediately
+                if (progressContainerErr) progressContainerErr.style.display = 'none';
+                if (buildBtnErr) buildBtnErr.disabled = false;
+
                 toast('error', 'Build Failed', data.error);
                 break;
 
@@ -1015,7 +1039,7 @@
         send('revoke_license', { token });
     };
 
-    window.buildLicensedJar = function() {
+    window.buildLicensedJar = async function() {
         const token = document.getElementById('buildLicenseToken').value;
         const testerName = document.getElementById('buildTesterName').value.trim();
 
@@ -1024,17 +1048,47 @@
             return;
         }
 
-        // Show building status
-        const buildStatus = document.getElementById('buildStatus');
-        const buildStatusText = document.getElementById('buildStatusText');
+        if (!testerName) {
+            toast('error', 'Validation Error', 'Please enter a tester name');
+            return;
+        }
+
+        const confirmed = await showConfirm({
+            title: 'Build Licensed JAR',
+            message: `Build a licensed JAR for ${testerName}?\n\nThis will take 1-2 minutes.`,
+            confirmText: 'Build',
+            cancelText: 'Cancel',
+            type: 'default',
+            icon: 'fa-hammer'
+        });
+
+        if (!confirmed) return;
+
+        // Show progress bar
+        const progressContainer = document.getElementById('buildProgress');
+        const progressFill = document.getElementById('buildProgressFill');
+        const progressText = document.getElementById('buildProgressText');
         const buildBtn = document.getElementById('buildJarBtn');
 
-        buildStatus.classList.remove('hidden');
-        buildStatusText.textContent = 'Starting build...';
+        progressContainer.style.display = 'block';
+        progressFill.style.width = '0%';
+        progressText.textContent = 'Preparing build...';
         buildBtn.disabled = true;
-        buildBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Building...';
 
-        send('build_licensed_jar', { token, testerName: testerName || 'Unknown' });
+        // Simulate progress (actual progress comes from WebSocket)
+        let progress = 0;
+        const progressInterval = setInterval(() => {
+            if (progress < 90) {
+                progress += Math.random() * 10;
+                progressFill.style.width = Math.min(progress, 90) + '%';
+            }
+        }, 500);
+
+        // Store interval ID to clear later
+        window.buildProgressInterval = progressInterval;
+
+        // Send build request
+        send('build_licensed_jar', { token, testerName });
     };
 
     // ========================================
