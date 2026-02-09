@@ -14,6 +14,26 @@
 
 window.MX_CHANGELOGS = [
   {
+    build: 290,
+    version: "2.0dev-290",
+    date: "2026-02-08",
+    title: "UI Modernization & Polish (Part 2)",
+    sections: [
+      { type: "improved", title: "UI Improvements", items: [
+        "**Unified Notification System** - Update banners now stay visible (no dismiss), announcements remain dismissible and stack below updates",
+        "**Stacked Banners** - Announcement banners automatically adjust position when update banner is showing using smooth transitions",
+        "**Connection History Chart** - Replaced basic bar chart with professional line graph using Chart.js with smooth curves and tooltips",
+        "**Interactive Charts** - Connection History now features hover tooltips, legend, gradient fills, and responsive scaling"
+      ]},
+      { type: "technical", title: "Technical Changes", items: [
+        "**Chart.js Integration** - Added Chart.js v4.4.0 for admin panel analytics with line graphs",
+        "**Banner Offset Class** - Added .announcementBanner.offset CSS class for proper banner stacking with transition support",
+        "**Chart Instance Management** - Connection chart properly destroys previous instances before creating new ones to prevent memory leaks",
+        "**Canvas Rendering** - Replaced inline-styled bar chart divs with canvas element for better performance and visuals"
+      ]}
+    ]
+  },
+  {
     build: 289,
     version: "2.0dev-289",
     date: "2026-02-08",
