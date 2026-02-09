@@ -45,7 +45,7 @@
             <div style="background:#1e1e1e;padding:30px;border-radius:8px;max-width:500px;color:#fff;">
                 <h2 style="margin-top:0;color:#4CAF50;">Configure Gateway</h2>
                 <p>Enter your ModereX gateway tunnel URL:</p>
-                <input type="text" id="gateway-url-input" placeholder="wss://ranges-references-diane-weather.trycloudflare.com"
+                <input type="text" id="gateway-url-input" placeholder="wss://peak-throwing-commented-intersection.trycloudflare.com"
                     value="${localStorage.getItem('moderex_gateway_url') || ''}"
                     style="width:100%;padding:10px;margin:10px 0;background:#2d2d2d;border:1px solid #444;color:#fff;border-radius:4px;">
                 <button id="save-gateway-btn" style="background:#4CAF50;color:#fff;border:none;padding:10px 20px;border-radius:4px;cursor:pointer;">
@@ -320,56 +320,46 @@
                 break;
 
             case 'jar_build_started':
-                const progressText = document.getElementById('buildProgressText');
-                if (progressText) progressText.textContent = 'Building JAR... This may take a few minutes.';
+                appendBuildLog('Build started...', 'info');
                 break;
 
-            case 'jar_build_progress':
-                const progressFill = document.getElementById('buildProgressFill');
-                const progressTextUpdate = document.getElementById('buildProgressText');
-                if (progressFill) progressFill.style.width = (data.progress || 0) + '%';
-                if (progressTextUpdate) progressTextUpdate.textContent = data.message || 'Building...';
+            case 'jar_build_progress': {
+                const pFill = document.getElementById('buildProgressFill');
+                const pText = document.getElementById('buildProgressText');
+                const pct = data.progress || 0;
+                if (pFill) pFill.style.width = pct + '%';
+                if (pText) pText.textContent = pct + '%';
+                if (data.message) appendBuildLog(data.message, 'step');
+                break;
+            }
+
+            case 'jar_build_output':
+                appendBuildLog(data.line || data.message || '', data.level || 'info');
                 break;
 
-            case 'jar_build_complete':
+            case 'jar_build_complete': {
+                const pFillDone = document.getElementById('buildProgressFill');
+                const pTextDone = document.getElementById('buildProgressText');
+                if (window.buildProgressInterval) clearInterval(window.buildProgressInterval);
+                if (pFillDone) pFillDone.style.width = '100%';
+                if (pTextDone) pTextDone.textContent = '100%';
+                appendBuildLog(`Build complete! JAR: ${data.filename}`, 'success');
                 const buildBtn = document.getElementById('buildJarBtn');
-                const progressContainer = document.getElementById('buildProgress');
-                const completeFill = document.getElementById('buildProgressFill');
-                const completeText = document.getElementById('buildProgressText');
-
-                // Clear progress interval
-                if (window.buildProgressInterval) {
-                    clearInterval(window.buildProgressInterval);
-                }
-
-                // Show 100% complete
-                if (completeFill) completeFill.style.width = '100%';
-                if (completeText) completeText.textContent = 'Build complete!';
-
-                // Hide progress bar after 2 seconds
-                setTimeout(() => {
-                    if (progressContainer) progressContainer.style.display = 'none';
-                    if (buildBtn) buildBtn.disabled = false;
-                }, 2000);
-
+                if (buildBtn) buildBtn.disabled = false;
                 toast('success', 'Build Complete', `Licensed JAR created: ${data.filename}`);
                 break;
+            }
 
-            case 'jar_build_error':
+            case 'jar_build_error': {
+                if (window.buildProgressInterval) clearInterval(window.buildProgressInterval);
+                const pContainer = document.getElementById('buildProgress');
+                if (pContainer) pContainer.style.display = 'none';
                 const buildBtnErr = document.getElementById('buildJarBtn');
-                const progressContainerErr = document.getElementById('buildProgress');
-
-                // Clear progress interval
-                if (window.buildProgressInterval) {
-                    clearInterval(window.buildProgressInterval);
-                }
-
-                // Hide progress bar immediately
-                if (progressContainerErr) progressContainerErr.style.display = 'none';
                 if (buildBtnErr) buildBtnErr.disabled = false;
-
+                appendBuildLog(`BUILD FAILED: ${data.error}`, 'error');
                 toast('error', 'Build Failed', data.error);
                 break;
+            }
 
             case 'server_suspended':
                 toast('success', 'Server Suspended', `Server ${data.serverId} has been suspended`);
@@ -1039,6 +1029,29 @@
         send('revoke_license', { token });
     };
 
+    // Build console helpers
+    function appendBuildLog(text, level) {
+        const consoleEl = document.getElementById('buildConsole');
+        const outputEl = document.getElementById('buildConsoleOutput');
+        if (!consoleEl || !outputEl) return;
+        consoleEl.style.display = 'block';
+        const span = document.createElement('span');
+        span.className = 'log-' + (level || 'info');
+        // Strip ANSI color codes
+        const clean = text.replace(/\x1b\[[0-9;]*m/g, '').trim();
+        if (!clean) return;
+        span.textContent = clean + '\n';
+        outputEl.appendChild(span);
+        outputEl.scrollTop = outputEl.scrollHeight;
+    }
+
+    window.clearBuildConsole = function() {
+        const consoleEl = document.getElementById('buildConsole');
+        const outputEl = document.getElementById('buildConsoleOutput');
+        if (consoleEl) consoleEl.style.display = 'none';
+        if (outputEl) outputEl.innerHTML = '';
+    };
+
     window.buildLicensedJar = async function() {
         const token = document.getElementById('buildLicenseToken').value;
         const testerName = document.getElementById('buildTesterName').value.trim();
@@ -1064,28 +1077,20 @@
 
         if (!confirmed) return;
 
-        // Show progress bar
+        // Show progress bar and clear console
         const progressContainer = document.getElementById('buildProgress');
         const progressFill = document.getElementById('buildProgressFill');
         const progressText = document.getElementById('buildProgressText');
         const buildBtn = document.getElementById('buildJarBtn');
+        const outputEl = document.getElementById('buildConsoleOutput');
 
-        progressContainer.style.display = 'block';
-        progressFill.style.width = '0%';
-        progressText.textContent = 'Preparing build...';
-        buildBtn.disabled = true;
+        if (progressContainer) progressContainer.style.display = 'flex';
+        if (progressFill) progressFill.style.width = '0%';
+        if (progressText) progressText.textContent = '0%';
+        if (buildBtn) buildBtn.disabled = true;
+        if (outputEl) outputEl.innerHTML = '';
 
-        // Simulate progress (actual progress comes from WebSocket)
-        let progress = 0;
-        const progressInterval = setInterval(() => {
-            if (progress < 90) {
-                progress += Math.random() * 10;
-                progressFill.style.width = Math.min(progress, 90) + '%';
-            }
-        }, 500);
-
-        // Store interval ID to clear later
-        window.buildProgressInterval = progressInterval;
+        appendBuildLog(`Starting build for ${testerName} (token: ${token.substring(0, 8)}...)`, 'info');
 
         // Send build request
         send('build_licensed_jar', { token, testerName });
@@ -1648,3 +1653,4 @@
     document.head.appendChild(style);
 
 })();
+// Force cache bust Sun, Feb  8, 2026  6:18:14 PM

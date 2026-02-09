@@ -3076,7 +3076,7 @@ async function revokeDevLicense(ws, email, data) {
         return;
     }
 
-    // Revoke in Cloudflare Workers KV
+    // Revoke in Cloudflare Workers KV (non-blocking - local DB is source of truth)
     try {
         const response = await fetch('https://license.moderex.net/admin/revoke', {
             method: 'POST',
@@ -3089,17 +3089,13 @@ async function revokeDevLicense(ws, email, data) {
 
         if (!response.ok) {
             const error = await response.text();
-            console.error('[Licenses] Cloudflare API error:', error);
-            ws.send(JSON.stringify({
-                type: 'error',
-                message: `Failed to revoke license: ${error}`
-            }));
-            return;
+            console.error('[Licenses] Cloudflare API error (non-fatal):', error);
+            // Continue anyway - local DB is source of truth
+        } else {
+            console.log('[Licenses] License revoked in Cloudflare KV:', token.substring(0, 8) + '...');
         }
-
-        console.log('[Licenses] License revoked in Cloudflare KV:', token.substring(0, 8) + '...');
     } catch (e) {
-        console.error('[Licenses] Failed to revoke license in Cloudflare:', e.message);
+        console.error('[Licenses] Failed to revoke license in Cloudflare (non-fatal):', e.message);
     }
 
     // Update local gateway database
@@ -3163,10 +3159,34 @@ function buildLicensedJar(ws, email, data) {
                 console.error('[Build] Failed to parse progress:', e);
             }
         }
+
+        // Send raw output lines to console (strip progress markers)
+        const cleanText = text.replace(/__PROGRESS__.*?__PROGRESS__/g, '').trim();
+        if (cleanText) {
+            cleanText.split('\n').forEach(line => {
+                const trimmed = line.trim();
+                if (!trimmed) return;
+                ws.send(JSON.stringify({
+                    type: 'jar_build_output',
+                    data: { line: trimmed, level: 'info' }
+                }));
+            });
+        }
     });
 
     buildProcess.stderr.on('data', (data) => {
-        console.error(`[Build Error] ${data.toString().trim()}`);
+        const text = data.toString().trim();
+        console.error(`[Build Error] ${text}`);
+        if (text) {
+            text.split('\n').forEach(line => {
+                const trimmed = line.trim();
+                if (!trimmed) return;
+                ws.send(JSON.stringify({
+                    type: 'jar_build_output',
+                    data: { line: trimmed, level: 'warn' }
+                }));
+            });
+        }
     });
 
     buildProcess.on('close', (code) => {

@@ -1464,21 +1464,21 @@ body {
     min-width: 80px;
 }
 
-/* ===== BUILD PROGRESS BAR ===== */
-.build-progress {
-    margin: 16px 0;
-    padding: 16px;
-    background: var(--surface-secondary);
-    border-radius: 8px;
-    border: 1px solid var(--border);
+/* ===== BUILD PROGRESS BAR (INLINE) ===== */
+.build-progress-inline {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-width: 160px;
 }
 
-.build-progress-bar {
+.build-progress-inline .build-progress-bar {
+    flex: 1;
     height: 6px;
     background: var(--surface);
     border-radius: 3px;
     overflow: hidden;
-    margin-bottom: 8px;
+    min-width: 100px;
 }
 
 .build-progress-fill {
@@ -1490,12 +1490,67 @@ body {
 }
 
 .build-progress-text {
-    font-size: 13px;
+    font-size: 12px;
     color: var(--text-secondary);
-    text-align: center;
+    white-space: nowrap;
+    font-variant-numeric: tabular-nums;
 }
 
 #buildJarBtn:disabled {
     opacity: 0.6;
     cursor: not-allowed;
 }
+
+/* ===== BUILD CONSOLE ===== */
+.build-console {
+    margin-top: 16px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    overflow: hidden;
+}
+
+.build-console-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 8px 12px;
+    background: var(--surface-secondary);
+    border-bottom: 1px solid var(--border);
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--text-secondary);
+}
+
+.build-console-header .btn-icon {
+    background: none;
+    border: none;
+    color: var(--text-muted);
+    cursor: pointer;
+    padding: 2px 6px;
+    border-radius: 4px;
+}
+
+.build-console-header .btn-icon:hover {
+    color: var(--text);
+    background: var(--surface);
+}
+
+.build-console-output {
+    background: #0d1117;
+    color: #c9d1d9;
+    padding: 12px;
+    margin: 0;
+    font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+    font-size: 12px;
+    line-height: 1.5;
+    max-height: 300px;
+    overflow-y: auto;
+    white-space: pre-wrap;
+    word-break: break-all;
+}
+
+.build-console-output .log-info { color: #58a6ff; }
+.build-console-output .log-success { color: #3fb950; }
+.build-console-output .log-warn { color: #d29922; }
+.build-console-output .log-error { color: #f85149; }
+.build-console-output .log-step { color: #bc8cff; font-weight: 600; }

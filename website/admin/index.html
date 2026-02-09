@@ -533,26 +533,27 @@
                                 <label>Tester Name</label>
                                 <input type="text" id="buildTesterName" placeholder="e.g., John Doe">
                             </div>
-                            <div class="form-group" style="flex: 0 0 auto; align-self: flex-end;">
+                            <div class="form-group" style="flex: 0 0 auto; align-self: flex-end; display: flex; align-items: center; gap: 12px;">
                                 <button class="btn btn-primary" onclick="buildLicensedJar()" id="buildJarBtn">
                                     <i class="fas fa-hammer"></i> Build JAR
                                 </button>
+                                <!-- Inline progress bar next to button -->
+                                <div id="buildProgress" class="build-progress-inline" style="display: none;">
+                                    <div class="build-progress-bar">
+                                        <div class="build-progress-fill" id="buildProgressFill"></div>
+                                    </div>
+                                    <span class="build-progress-text" id="buildProgressText">0%</span>
+                                </div>
                             </div>
                         </div>
 
-                        <!-- Progress Bar Container (initially hidden) -->
-                        <div id="buildProgress" class="build-progress" style="display: none;">
-                            <div class="build-progress-bar">
-                                <div class="build-progress-fill" id="buildProgressFill"></div>
+                        <!-- Build Console Output -->
+                        <div id="buildConsole" class="build-console" style="display: none;">
+                            <div class="build-console-header">
+                                <span><i class="fas fa-terminal"></i> Build Output</span>
+                                <button class="btn-icon" onclick="clearBuildConsole()" title="Clear"><i class="fas fa-xmark"></i></button>
                             </div>
-                            <div class="build-progress-text" id="buildProgressText">Preparing build...</div>
-                        </div>
-
-                        <div class="build-status hidden" id="buildStatus">
-                            <div class="alert alert-info">
-                                <i class="fas fa-info-circle"></i>
-                                <span id="buildStatusText">Build in progress...</span>
-                            </div>
+                            <pre class="build-console-output" id="buildConsoleOutput"></pre>
                         </div>
                     </div>
                 </div>
@@ -759,3 +760,4 @@
     <script src="js/admin.js"></script>
 </body>
 </html>
+<!-- Cache bust Sun, Feb  8, 2026  6:21:48 PM -->

@@ -126,7 +126,7 @@ async function main() {
     info('Step 4: Building licensed JAR with Gradle...');
     reportProgress('build', 50, 'Building JAR with Gradle (this may take 1-2 minutes)...');
     const gradleCmd = process.platform === 'win32' ? '.\\gradlew.bat' : './gradlew';
-    const buildCommand = `${gradleCmd} clean buildLicensed -PlicenseToken=${licenseToken}`;
+    const buildCommand = `${gradleCmd} clean buildLicensed --no-configuration-cache -PlicenseToken=${licenseToken}`;
 
     info(`Running: ${buildCommand}`);
     execSync(buildCommand, {
