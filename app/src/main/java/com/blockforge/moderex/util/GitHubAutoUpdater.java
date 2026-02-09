@@ -2,6 +2,7 @@ package com.blockforge.moderex.util;
 
 import com.blockforge.moderex.ModereX;
 import com.blockforge.moderex.config.lang.MessageKey;
+import com.blockforge.moderex.license.LicenseManager;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 import org.bukkit.Bukkit;
@@ -9,11 +10,15 @@ import org.bukkit.entity.Player;
 
 import java.io.*;
 import java.net.HttpURLConnection;
+import java.net.URI;
 import java.net.URL;
+import java.nio.file.FileSystem;
+import java.nio.file.FileSystems;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import java.util.Base64;
+import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 
 /**
@@ -333,6 +338,12 @@ public class GitHubAutoUpdater {
             Path targetPath = updateFolder.toPath().resolve(jarName);
             Files.move(tempFile, targetPath, StandardCopyOption.REPLACE_EXISTING);
 
+            // If this is a licensed build, patch the license token into the downloaded JAR
+            LicenseManager lm = plugin.getLicenseManager();
+            if (lm != null && lm.isLicensed() && lm.getLicenseToken() != null) {
+                patchLicenseToken(targetPath, lm.getLicenseToken());
+            }
+
             if (latestBuildDate != null) {
                 saveLastUpdateDate(latestBuildDate);
             }
@@ -347,6 +358,26 @@ public class GitHubAutoUpdater {
             plugin.getLogger().warning("Failed to download update: " + e.getMessage());
             e.printStackTrace();
             return false;
+        }
+    }
+
+    /**
+     * Patch license token into a downloaded JAR file.
+     * Opens the JAR as a ZIP filesystem and replaces license-token.properties.
+     */
+    private void patchLicenseToken(Path jarPath, String licenseToken) {
+        try {
+            URI jarUri = URI.create("jar:" + jarPath.toUri());
+            try (FileSystem zipFs = FileSystems.newFileSystem(jarUri, Map.of())) {
+                Path propsPath = zipFs.getPath("license-token.properties");
+                String content = "# ModereX License Token - Patched by auto-updater\n" +
+                        "token=" + licenseToken + "\n" +
+                        "buildTimestamp=" + System.currentTimeMillis() + "\n";
+                Files.writeString(propsPath, content);
+            }
+            plugin.getLogger().info("[AutoUpdate] License token patched into updated JAR");
+        } catch (Exception e) {
+            plugin.getLogger().warning("[AutoUpdate] Failed to patch license token: " + e.getMessage());
         }
     }
 

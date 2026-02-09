@@ -243,6 +243,20 @@ public class LicenseManager {
     }
 
     /**
+     * Get the embedded license token (for auto-updater to patch into new JARs)
+     */
+    public String getLicenseToken() {
+        return licenseToken;
+    }
+
+    /**
+     * Get the build timestamp from the license properties
+     */
+    public long getBuildTimestamp() {
+        return buildTimestamp;
+    }
+
+    /**
      * Check if license is currently valid
      */
     public boolean isValid() {
