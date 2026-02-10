@@ -7616,6 +7616,34 @@ public class HybridPanelServer implements com.blockforge.moderex.gateway.Gateway
                     s.addProperty("onGround", snapshot.isOnGround());
                     s.addProperty("action", snapshot.getAction().name());
                     s.addProperty("actionData", snapshot.getActionData());
+
+                    // Equipment data for 3D viewer
+                    org.bukkit.inventory.ItemStack mainHand = snapshot.getMainHand();
+                    if (mainHand != null && mainHand.getType() != org.bukkit.Material.AIR) {
+                        s.addProperty("mainHand", mainHand.getType().name().toLowerCase());
+                    }
+                    org.bukkit.inventory.ItemStack offHand = snapshot.getOffHand();
+                    if (offHand != null && offHand.getType() != org.bukkit.Material.AIR) {
+                        s.addProperty("offHand", offHand.getType().name().toLowerCase());
+                    }
+                    org.bukkit.inventory.ItemStack[] armor = snapshot.getArmor();
+                    if (armor != null) {
+                        JsonArray armorArr = new JsonArray();
+                        for (org.bukkit.inventory.ItemStack piece : armor) {
+                            if (piece != null && piece.getType() != org.bukkit.Material.AIR) {
+                                JsonObject ap = new JsonObject();
+                                ap.addProperty("type", piece.getType().name().toLowerCase());
+                                if (piece.getItemMeta() instanceof org.bukkit.inventory.meta.LeatherArmorMeta lam) {
+                                    ap.addProperty("color", lam.getColor().asRGB());
+                                }
+                                armorArr.add(ap);
+                            } else {
+                                armorArr.add(com.google.gson.JsonNull.INSTANCE);
+                            }
+                        }
+                        s.add("armor", armorArr);
+                    }
+
                     snapshots.add(s);
                 }
             }

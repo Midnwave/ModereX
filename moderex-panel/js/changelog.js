@@ -14,6 +14,43 @@
 
 window.MX_CHANGELOGS = [
   {
+    build: 308,
+    version: "2.0dev-308",
+    date: "2026-02-09",
+    title: "3D Replay Viewer Overhaul",
+    sections: [
+      {
+        type: "fixed",
+        title: "Bug Fixes",
+        items: [
+          "**Block Rendering** - Fixed blocks not rendering due to GitHub CDN rate-limiting; switched to jsDelivr CDN with retry logic",
+          "**Loading Bar** - Fixed replay loading bar never updating; now shows real progress for texture loading (0-40%) and terrain meshing (40-100%)",
+          "**Sneak Pose** - Fixed sneak body tilt (now accurate 30 degrees) and Y offset (-6.2 pixels) matching Minecraft"
+        ]
+      },
+      {
+        type: "improved",
+        title: "Improvements",
+        items: [
+          "**Walk Animation** - Accurate 2.0 cycles/sec walk cycle with 57-degree arm swing amplitude matching Minecraft",
+          "**Idle Animation** - Players now have subtle arm bob animation when standing still",
+          "**Attack Animation** - 250ms arm swing animation triggered by combat actions",
+          "**Material Sounds** - Block break/place and footstep sounds now vary by material (stone, wood, grass, sand, gravel, glass, metal, cloth, snow)",
+          "**Equipment Rendering** - Players now show held items as colored boxes and armor as colored overlays on body parts",
+          "**Terrain Performance** - Uses requestIdleCallback for non-blocking chunk mesh building to prevent browser lag"
+        ]
+      },
+      {
+        type: "new",
+        title: "New Features",
+        items: [
+          "**Equipment Data** - Backend now sends mainHand, offHand, and armor data in replay snapshots",
+          "**Missing Blocks** - Added stripped logs, bamboo, cherry, tuff variants, suspicious sand/gravel to texture map"
+        ]
+      }
+    ]
+  },
+  {
     build: 307,
     version: "2.0dev-307",
     date: "2026-02-09",

@@ -5534,14 +5534,16 @@
     const progressBar = document.getElementById('r3dProgressBar');
     const progressFill = document.getElementById('r3dProgressFill');
 
-    if (loadText) loadText.textContent = `Loading terrain (${sizeKB} KB)...`;
+    if (loadText) loadText.textContent = `Loading textures...`;
     if (progressBar) progressBar.style.display = '';
-    if (progressFill) progressFill.style.width = '30%';
+    if (progressFill) progressFill.style.width = '0%';
 
+    // Viewer drives progress via its own onProgress callbacks
     activeReplay3DViewer.loadChunkData(data.chunkData).then((count) => {
       console.log(`[Replay3D] Terrain loaded: ${count} chunks`);
 
       if (progressFill) progressFill.style.width = '100%';
+      if (loadText) loadText.textContent = 'Terrain ready!';
 
       // Remove fallback ground
       activeReplay3DViewer.removeFallbackGround();
