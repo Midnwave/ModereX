@@ -1046,8 +1046,27 @@
           } catch (e) {}
         }
 
+        // Apply theme color from gateway settings
+        if (data.settings?.themeColor && window.setThemeColor) {
+          window.setThemeColor(data.settings.themeColor);
+        }
+
         setLoading(false);
         hideAuthOverlay();
+
+        // If redirected from a server URL (e.g. panel.moderex.net/{serverId}),
+        // auto-switch to that server instead of showing the server list
+        const pendingId = ws.getPendingServerId?.();
+        if (pendingId && data.servers) {
+          const targetServer = data.servers.find(s => s.serverId === pendingId || s.urlPrefix === pendingId);
+          if (targetServer) {
+            ws.clearPendingServerId();
+            console.log('[Auth] Auto-switching to pending server:', pendingId);
+            ws.switchServer(targetServer.serverId);
+            return;
+          }
+        }
+
         showServerListPage(data);
       } else {
         console.log('[Auth] Global auth failed:', data.error);
@@ -1069,6 +1088,19 @@
         authState.connectionPhase = 'connected';
 
         hideAuthOverlay();
+
+        // Auto-switch to pending server if redirected from a server URL
+        const pendingId = ws.getPendingServerId?.();
+        if (pendingId && data.servers) {
+          const targetServer = data.servers.find(s => s.serverId === pendingId || s.urlPrefix === pendingId);
+          if (targetServer) {
+            ws.clearPendingServerId();
+            console.log('[Auth] Auto-switching to pending server:', pendingId);
+            ws.switchServer(targetServer.serverId);
+            return;
+          }
+        }
+
         showServerListPage(data);
       } else {
         showManualAuth('Device not recognized. Please enter your token.');
@@ -1599,6 +1631,9 @@
       // Update cache
       dom.authOverlay = overlay;
     }
+    // Hide main app to prevent inspect-element bypass
+    const mainApp = document.getElementById('mainApp');
+    if (mainApp) mainApp.style.display = 'none';
   }
 
   function hideAuthOverlay() {
@@ -1614,6 +1649,9 @@
     } else {
       console.warn('[Auth] Could not find auth overlay to hide');
     }
+    // Show main app now that user is authenticated
+    const mainApp = document.getElementById('mainApp');
+    if (mainApp) mainApp.style.display = '';
   }
 
   function showAccessDenied(message) {
@@ -1996,34 +2034,29 @@
     stopTokenValidation();
     clearSavedAuth();
 
+    // Remove device fingerprint and all cached data to prevent auto-sign-in
+    try {
+      localStorage.removeItem('mx_device_id');
+      localStorage.removeItem('mx_token_device');
+      localStorage.removeItem('mx_state_v1');
+      localStorage.removeItem('mx_my_settings');
+      localStorage.removeItem('mx_session');
+    } catch (e) {}
+
     // Notify server of logout
     if (authState.connected && authState.token) {
-      ws.send('LOGOUT', { token: authState.token });
+      try { ws.send('LOGOUT', { token: authState.token }); } catch (e) {}
+    }
+
+    // If on gateway, tell gateway to revoke device fingerprint
+    if (ws.isGlobalMode && ws.isGlobalMode()) {
+      try { ws.sendRaw({ type: 'logout', revokeFingerprint: true }); } catch (e) {}
     }
 
     ws.disconnect();
-    authState.authenticated = false;
-    authState.status = AuthStatus.UNAUTHENTICATED;
-    authState.token = null;
-    authState.tokenValid = false;
-    authState.session = null;
-    authState.connectionPhase = 'idle';
-    authState.reconnectAttempts = 0;
 
-    if (authState.reconnectTimer) {
-      clearTimeout(authState.reconnectTimer);
-      authState.reconnectTimer = null;
-    }
-
-    if (dom.authStatusArea) {
-      dom.authStatusArea.classList.remove('error', 'success');
-    }
-    if (dom.authManualSection) {
-      dom.authManualSection.style.display = 'none';
-    }
-
-    showAuthOverlay();
-    showManualAuth();
+    // Full page reload — clears all JS state, prevents any data leaking
+    window.location.reload();
   }
 
   /**

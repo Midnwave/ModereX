@@ -105,6 +105,7 @@
   let awaitingPong = false;
   let connectionStatus = 'disconnected'; // 'disconnected', 'connecting', 'connected', 'saving'
   let silentReconnect = false; // When true, suppress sounds/toasts during reconnect
+  let pendingServerId = null; // Server ID to auto-switch to after global auth (gateway redirect)
 
   // Message handlers registered by other modules
   const handlers = new Map();
@@ -238,17 +239,17 @@
     let url;
 
     if (gatewayMode) {
-      // Gateway mode: connect to gateway server with server ID in path
+      // Gateway domain — always connect in global mode (server list auth first)
+      // If a server ID is in the URL, store it for auto-switch after auth
       const serverId = getServerIdFromPath();
-      if (!serverId) {
-        console.error('[WS] No server ID found in URL path');
-        connectionState = ConnectionState.DISCONNECTED;
-        emit('error', { message: 'No server ID found in URL. Expected format: /serverid/' });
-        return;
+      if (serverId) {
+        pendingServerId = serverId;
+        console.log('[WS] Gateway domain with server ID — storing pending:', serverId);
       }
-      currentServerId = serverId;
-      url = `${GATEWAY_WS_URL}/${serverId}`;
-      console.log('[WS] Gateway mode - connecting to', url);
+      globalMode = true;
+      currentServerId = null;
+      url = `${GATEWAY_WS_URL}`;
+      console.log('[WS] Gateway mode - connecting to global panel');
     } else {
       // Direct mode: connect to server's WebSocket port
       currentHost = host;
@@ -1271,6 +1272,8 @@
     isGlobalPanelPath,
     getServerIdFromPath,
     getServerId: () => currentServerId,
+    getPendingServerId: () => pendingServerId,
+    clearPendingServerId: () => { pendingServerId = null; },
     getSession: () => sessionData,
     getHost: () => currentHost,
     getPort: () => currentPort,

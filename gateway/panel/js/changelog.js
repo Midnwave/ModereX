@@ -14,6 +14,32 @@
 
 window.MX_CHANGELOGS = [
   {
+    build: 309,
+    version: "2.0dev-309",
+    date: "2026-02-09",
+    title: "Auth, Security & UX Fixes",
+    sections: [
+      {
+        type: "fixed",
+        title: "Bug Fixes",
+        items: [
+          "**Password Auth via Gateway** - Fixed 'Authentication method not supported via gateway: AUTH_PASSWORD' error when connecting via IP",
+          "**Sign Out** - Sign out now fully clears device fingerprint, cached data, and reloads the page to prevent data leakage",
+          "**Security Bypass** - Panel data no longer loads or is visible until fully authenticated (prevents inspect-element bypass)"
+        ]
+      },
+      {
+        type: "improved",
+        title: "Improvements",
+        items: [
+          "**Gateway Server Access** - panel.moderex.net now always shows server list first; clicking a server auto-authenticates and redirects",
+          "**Theme Color Storage** - Theme color is now stored in the gateway database when using gateway mode, persisting across sessions",
+          "**Update Banner** - Added dismiss button to the plugin update notification bar"
+        ]
+      }
+    ]
+  },
+  {
     build: 308,
     version: "2.0dev-308",
     date: "2026-02-09",

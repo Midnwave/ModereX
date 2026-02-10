@@ -222,15 +222,19 @@ function createTables() {
         )
     `);
 
-    // User settings synced across servers (color scheme + device fingerprints)
+    // User settings synced across servers (color scheme + device fingerprints + theme color)
     db.exec(`
         CREATE TABLE IF NOT EXISTS user_settings (
             uuid TEXT PRIMARY KEY,
             color_scheme TEXT DEFAULT 'blue',
+            theme_color TEXT DEFAULT '#2d7aed',
             device_fingerprints TEXT,
             updated_at INTEGER NOT NULL
         )
     `);
+
+    // Add theme_color column if it doesn't exist (migration for existing DBs)
+    try { db.exec(`ALTER TABLE user_settings ADD COLUMN theme_color TEXT DEFAULT '#2d7aed'`); } catch (e) { /* column already exists */ }
 
     // Dev license builds table
     db.exec(`
@@ -1331,6 +1335,23 @@ function handleBrowserConnection(ws, prefix, clientIp) {
                 return;
             }
 
+            // Intercept AUTH_PASSWORD — gateway handles password auth (password DB lives here)
+            if (message.type === 'AUTH_PASSWORD') {
+                handleBrowserPasswordAuth(ws, clientId, serverId, clientIp, message);
+                return;
+            }
+
+            // Intercept save_settings — store theme color in gateway DB
+            if (message.type === 'save_settings') {
+                const browserClient = browserClients.get(clientId);
+                if (browserClient?.authedUuid) {
+                    const existing = getUserSettings(browserClient.authedUuid);
+                    saveUserSettings(browserClient.authedUuid, message.colorScheme || existing.colorScheme, existing.deviceFingerprints, message.themeColor || existing.themeColor);
+                    ws.send(JSON.stringify({ type: 'settings_saved', success: true }));
+                }
+                return;
+            }
+
             // Forward to MC server
             const server = mcServers.get(serverId);
             if (server && server.ws.readyState === WebSocket.OPEN) {
@@ -1369,6 +1390,103 @@ function handleBrowserConnection(ws, prefix, clientIp) {
     ws.on('error', (err) => {
         console.error(`[Browser] WebSocket error:`, err.message);
     });
+}
+
+/**
+ * Handle AUTH_PASSWORD from a browser connected directly to a server.
+ * Password DB lives on the gateway, so we validate here then send
+ * global_pre_auth to the MC server to create a session.
+ */
+async function handleBrowserPasswordAuth(ws, clientId, serverId, clientIp, message) {
+    const data = message.data || message;
+    const username = data.username;
+    const password = data.password;
+    const deviceFingerprint = data.deviceFingerprint;
+
+    if (!username || !password) {
+        ws.send(JSON.stringify({ type: 'auth_failed', data: { message: 'Username and password required' } }));
+        return;
+    }
+
+    if (!argon2) {
+        ws.send(JSON.stringify({ type: 'auth_failed', data: { message: 'Password auth not available' } }));
+        return;
+    }
+
+    // Look up account in gateway DB
+    let account = null;
+    if (db) {
+        try {
+            account = db.prepare('SELECT * FROM user_accounts WHERE LOWER(minecraft_username) = LOWER(?)').get(username);
+        } catch (e) {}
+    } else {
+        for (const [, acc] of inMemoryUserAccounts) {
+            if (acc.minecraft_username.toLowerCase() === username.toLowerCase()) { account = acc; break; }
+        }
+    }
+
+    if (!account) {
+        ws.send(JSON.stringify({ type: 'auth_failed', data: { message: 'Invalid username or password' } }));
+        return;
+    }
+
+    // Check lockout
+    if (account.locked_until && account.locked_until > Date.now()) {
+        ws.send(JSON.stringify({ type: 'auth_failed', data: { message: 'Account locked. Please wait.' } }));
+        return;
+    }
+
+    try {
+        const valid = await argon2.verify(account.password_hash, password);
+        if (!valid) {
+            const failedCount = (account.failed_attempts || 0) + 1;
+            const lockUntil = failedCount >= 5 ? Date.now() + 15 * 60 * 1000 : 0;
+            if (db) { try { db.prepare('UPDATE user_accounts SET failed_attempts = ?, locked_until = ? WHERE minecraft_uuid = ?').run(failedCount, lockUntil, account.minecraft_uuid); } catch (e) {} }
+            ws.send(JSON.stringify({ type: 'auth_failed', data: { message: 'Invalid username or password' } }));
+            return;
+        }
+
+        // Password valid — reset failed attempts
+        if (db) { try { db.prepare('UPDATE user_accounts SET failed_attempts = 0, locked_until = 0, last_login_at = ? WHERE minecraft_uuid = ?').run(Date.now(), account.minecraft_uuid); } catch (e) {} }
+
+        // Store pending auth info on browser client
+        const browserClient = browserClients.get(clientId);
+        if (browserClient) {
+            browserClient.pendingPasswordAuth = true;
+            browserClient.authedUuid = account.minecraft_uuid;
+            browserClient.authedUsername = account.minecraft_username;
+            browserClient.deviceFingerprint = deviceFingerprint;
+        }
+
+        // Save device fingerprint
+        if (deviceFingerprint) saveDeviceFingerprint(account.minecraft_uuid, deviceFingerprint);
+
+        // Create gateway session
+        const sessionToken = createSession(account.minecraft_uuid, deviceFingerprint || null, clientIp);
+        if (browserClient) browserClient.gatewaySessionToken = sessionToken;
+
+        // Get user's permissions for this server
+        const userServers = getServersForUser(account.minecraft_uuid);
+        const serverAccess = userServers.find(s => s.serverId === serverId);
+
+        // Send pre-auth to MC server to create a session there
+        const server = mcServers.get(serverId);
+        if (server && server.ws.readyState === WebSocket.OPEN) {
+            server.ws.send(JSON.stringify({
+                type: 'global_pre_auth',
+                clientId: clientId,
+                uuid: account.minecraft_uuid,
+                username: account.minecraft_username,
+                permissions: serverAccess?.permissions || []
+            }));
+            console.log(`[Browser] ${account.minecraft_username} password auth via gateway for server ${serverId}`);
+        } else {
+            ws.send(JSON.stringify({ type: 'auth_failed', data: { message: 'Server went offline' } }));
+        }
+    } catch (e) {
+        console.error('[Browser] Password auth error:', e.message);
+        ws.send(JSON.stringify({ type: 'auth_failed', data: { message: 'Authentication failed' } }));
+    }
 }
 
 /**
@@ -1530,20 +1648,21 @@ function handleTokenRevoke(uuid) {
  * Sync user settings from MC server to gateway.
  */
 function handleSettingsSync(data) {
-    const { uuid, colorScheme, deviceFingerprints } = data;
+    const { uuid, colorScheme, themeColor, deviceFingerprints } = data;
     if (!uuid) return;
 
     if (db) {
         try {
             db.prepare(
-                'INSERT OR REPLACE INTO user_settings (uuid, color_scheme, device_fingerprints, updated_at) VALUES (?, ?, ?, ?)'
-            ).run(uuid, colorScheme || 'blue', JSON.stringify(deviceFingerprints || []), Date.now());
+                'INSERT OR REPLACE INTO user_settings (uuid, color_scheme, theme_color, device_fingerprints, updated_at) VALUES (?, ?, ?, ?, ?)'
+            ).run(uuid, colorScheme || 'blue', themeColor || '#2d7aed', JSON.stringify(deviceFingerprints || []), Date.now());
         } catch (e) {
             console.error('[Token] Settings sync DB error:', e.message);
         }
     } else {
         inMemoryUserSettings.set(uuid, {
             uuid, color_scheme: colorScheme || 'blue',
+            theme_color: themeColor || '#2d7aed',
             device_fingerprints: JSON.stringify(deviceFingerprints || []),
             updated_at: Date.now()
         });
@@ -1692,6 +1811,7 @@ function getUserSettings(uuid) {
             if (row) {
                 return {
                     colorScheme: row.color_scheme || 'blue',
+                    themeColor: row.theme_color || '#2d7aed',
                     deviceFingerprints: JSON.parse(row.device_fingerprints || '[]')
                 };
             }
@@ -1703,28 +1823,30 @@ function getUserSettings(uuid) {
         if (settings) {
             return {
                 colorScheme: settings.color_scheme || 'blue',
+                themeColor: settings.theme_color || '#2d7aed',
                 deviceFingerprints: JSON.parse(settings.device_fingerprints || '[]')
             };
         }
     }
-    return { colorScheme: 'blue', deviceFingerprints: [] };
+    return { colorScheme: 'blue', themeColor: '#2d7aed', deviceFingerprints: [] };
 }
 
 /**
  * Save user settings to gateway DB.
  */
-function saveUserSettings(uuid, colorScheme, deviceFingerprints) {
+function saveUserSettings(uuid, colorScheme, deviceFingerprints, themeColor) {
     if (db) {
         try {
             db.prepare(
-                'INSERT OR REPLACE INTO user_settings (uuid, color_scheme, device_fingerprints, updated_at) VALUES (?, ?, ?, ?)'
-            ).run(uuid, colorScheme || 'blue', JSON.stringify(deviceFingerprints || []), Date.now());
+                'INSERT OR REPLACE INTO user_settings (uuid, color_scheme, theme_color, device_fingerprints, updated_at) VALUES (?, ?, ?, ?, ?)'
+            ).run(uuid, colorScheme || 'blue', themeColor || '#2d7aed', JSON.stringify(deviceFingerprints || []), Date.now());
         } catch (e) {
             console.error('[Token] Save settings DB error:', e.message);
         }
     } else {
         inMemoryUserSettings.set(uuid, {
             uuid, color_scheme: colorScheme || 'blue',
+            theme_color: themeColor || '#2d7aed',
             device_fingerprints: JSON.stringify(deviceFingerprints || []),
             updated_at: Date.now()
         });
@@ -1739,92 +1861,139 @@ function handleGlobalPreAuthResult(message) {
     const { clientId, sessionId, success, error } = message;
     if (!clientId) return;
 
+    // Check global panel clients first (switch_server flow)
     const client = globalPanelClients.get(clientId);
-    if (!client || client.ws.readyState !== WebSocket.OPEN) return;
+    if (client && client.ws.readyState === WebSocket.OPEN) {
+        if (success && sessionId) {
+            // Pre-auth succeeded — transition this client to a normal browser connection
+            const serverId = client.pendingSwitchServerId;
+            if (!serverId) return;
 
-    if (success && sessionId) {
-        // Pre-auth succeeded — transition this client to a normal browser connection
-        const serverId = client.pendingSwitchServerId;
-        if (!serverId) return;
+            // Fix 8: Check TTL on pending switch (5 minute max)
+            const PRE_AUTH_TTL = 5 * 60 * 1000;
+            if (client.pendingSwitchAt && (Date.now() - client.pendingSwitchAt) > PRE_AUTH_TTL) {
+                client.ws.send(JSON.stringify({ type: 'switch_server_result', success: false, error: 'Pre-auth session expired. Please try again.' }));
+                delete client.pendingSwitchServerId;
+                delete client.pendingSwitchAt;
+                return;
+            }
 
-        // Fix 8: Check TTL on pending switch (5 minute max)
-        const PRE_AUTH_TTL = 5 * 60 * 1000;
-        if (client.pendingSwitchAt && (Date.now() - client.pendingSwitchAt) > PRE_AUTH_TTL) {
-            client.ws.send(JSON.stringify({ type: 'switch_server_result', success: false, error: 'Pre-auth session expired. Please try again.' }));
-            delete client.pendingSwitchServerId;
-            delete client.pendingSwitchAt;
-            return;
+            const serverData = mcServers.get(serverId);
+            if (!serverData) {
+                client.ws.send(JSON.stringify({ type: 'switch_server_result', success: false, error: 'Server went offline' }));
+                return;
+            }
+
+            // Move client from global pool to browser pool
+            globalPanelClients.delete(clientId);
+            browserClients.set(clientId, {
+                ws: client.ws,
+                serverId: serverId,
+                connectedAt: Date.now(),
+                clientIp: client.clientIp,
+                authedUuid: client.uuid
+            });
+
+            // Notify browser of successful switch with pre-auth session
+            client.ws.send(JSON.stringify({
+                type: 'switch_server_result',
+                success: true,
+                serverId: serverId,
+                serverName: serverData.info.serverName,
+                urlPrefix: serverData.urlPrefix,
+                sessionId: sessionId
+            }));
+
+            // Notify MC server of new browser connection
+            if (serverData.ws.readyState === WebSocket.OPEN) {
+                serverData.ws.send(JSON.stringify({
+                    type: 'browser_connected',
+                    clientId: clientId,
+                    clientIp: client.clientIp
+                }));
+            }
+
+            // Send cached server status
+            if (serverData.lastStatus) {
+                client.ws.send(JSON.stringify(serverData.lastStatus));
+            }
+
+            console.log(`[Token] ${client.uuid} switched to server ${serverId}`);
+
+            // Re-attach message handler for normal browser routing
+            // (The ws 'message' handler from handleGlobalPanelConnection will be replaced)
+            client.ws.removeAllListeners('message');
+            client.ws.on('message', (data) => {
+                try {
+                    if (isMessageRateLimited(client.ws)) {
+                        client.ws.send(JSON.stringify({ type: 'error', code: 'RATE_LIMITED', message: 'Too many messages. Slow down.' }));
+                        return;
+                    }
+                    const msg = JSON.parse(data.toString());
+
+                    // Intercept save_settings — store in gateway DB
+                    if (msg.type === 'save_settings') {
+                        const bc = browserClients.get(clientId);
+                        if (bc?.authedUuid) {
+                            const existing = getUserSettings(bc.authedUuid);
+                            saveUserSettings(bc.authedUuid, msg.colorScheme || existing.colorScheme, existing.deviceFingerprints, msg.themeColor || existing.themeColor);
+                            client.ws.send(JSON.stringify({ type: 'settings_saved', success: true }));
+                        }
+                        return;
+                    }
+
+                    const server = mcServers.get(serverId);
+                    if (server && server.ws.readyState === WebSocket.OPEN) {
+                        msg.clientId = clientId;
+                        msg.clientIp = client.clientIp;
+                        server.ws.send(JSON.stringify(msg));
+                    } else {
+                        client.ws.send(JSON.stringify({ type: 'error', code: 'SERVER_OFFLINE', message: 'Server went offline' }));
+                    }
+                } catch (err) {
+                    console.error('[Browser] Error processing message:', err.message);
+                }
+            });
+        } else {
+            client.ws.send(JSON.stringify({
+                type: 'switch_server_result',
+                success: false,
+                error: error || 'Pre-authentication failed'
+            }));
         }
+        return;
+    }
 
-        const serverData = mcServers.get(serverId);
-        if (!serverData) {
-            client.ws.send(JSON.stringify({ type: 'switch_server_result', success: false, error: 'Server went offline' }));
-            return;
-        }
+    // Check browser clients (AUTH_PASSWORD via gateway flow)
+    const browserClient = browserClients.get(clientId);
+    if (browserClient && browserClient.pendingPasswordAuth && browserClient.ws.readyState === WebSocket.OPEN) {
+        delete browserClient.pendingPasswordAuth;
 
-        // Move client from global pool to browser pool
-        globalPanelClients.delete(clientId);
-        browserClients.set(clientId, {
-            ws: client.ws,
-            serverId: serverId,
-            connectedAt: Date.now(),
-            clientIp: client.clientIp
-        });
-
-        // Notify browser of successful switch with pre-auth session
-        client.ws.send(JSON.stringify({
-            type: 'switch_server_result',
-            success: true,
-            serverId: serverId,
-            serverName: serverData.info.serverName,
-            urlPrefix: serverData.urlPrefix,
-            sessionId: sessionId
-        }));
-
-        // Notify MC server of new browser connection
-        if (serverData.ws.readyState === WebSocket.OPEN) {
-            serverData.ws.send(JSON.stringify({
-                type: 'browser_connected',
-                clientId: clientId,
-                clientIp: client.clientIp
+        if (success && sessionId) {
+            browserClient.ws.send(JSON.stringify({
+                type: 'auth_success',
+                data: {
+                    playerName: browserClient.authedUsername,
+                    playerUuid: browserClient.authedUuid,
+                    username: browserClient.authedUsername,
+                    uuid: browserClient.authedUuid,
+                    sessionId: sessionId,
+                    authMethod: 'password',
+                    gatewaySessionToken: browserClient.gatewaySessionToken
+                }
+            }));
+            console.log(`[Browser] Password auth completed for ${browserClient.authedUsername}`);
+        } else {
+            browserClient.ws.send(JSON.stringify({
+                type: 'auth_failed',
+                data: { message: error || 'No web panel permission on this server' }
             }));
         }
 
-        // Send cached server status
-        if (serverData.lastStatus) {
-            client.ws.send(JSON.stringify(serverData.lastStatus));
-        }
-
-        console.log(`[Token] ${client.uuid} switched to server ${serverId}`);
-
-        // Re-attach message handler for normal browser routing
-        // (The ws 'message' handler from handleGlobalPanelConnection will be replaced)
-        client.ws.removeAllListeners('message');
-        client.ws.on('message', (data) => {
-            try {
-                if (isMessageRateLimited(client.ws)) {
-                    client.ws.send(JSON.stringify({ type: 'error', code: 'RATE_LIMITED', message: 'Too many messages. Slow down.' }));
-                    return;
-                }
-                const msg = JSON.parse(data.toString());
-                const server = mcServers.get(serverId);
-                if (server && server.ws.readyState === WebSocket.OPEN) {
-                    msg.clientId = clientId;
-                    msg.clientIp = client.clientIp;
-                    server.ws.send(JSON.stringify(msg));
-                } else {
-                    client.ws.send(JSON.stringify({ type: 'error', code: 'SERVER_OFFLINE', message: 'Server went offline' }));
-                }
-            } catch (err) {
-                console.error('[Browser] Error processing message:', err.message);
-            }
-        });
-    } else {
-        client.ws.send(JSON.stringify({
-            type: 'switch_server_result',
-            success: false,
-            error: error || 'Pre-authentication failed'
-        }));
+        // Clean up temp auth data (keep authedUuid for gateway settings)
+        delete browserClient.authedUsername;
+        delete browserClient.deviceFingerprint;
+        delete browserClient.gatewaySessionToken;
     }
 }
 
@@ -2175,7 +2344,7 @@ function handleGlobalPanelConnection(ws, clientIp) {
                         ws.send(JSON.stringify({ type: 'error', code: 'NOT_AUTHENTICATED', message: 'Please authenticate first' }));
                         break;
                     }
-                    saveUserSettings(authedUuid, message.colorScheme, message.deviceFingerprints);
+                    saveUserSettings(authedUuid, message.colorScheme, message.deviceFingerprints, message.themeColor);
                     ws.send(JSON.stringify({ type: 'settings_saved', success: true }));
                     break;
                 }
@@ -2233,6 +2402,20 @@ function handleGlobalPanelConnection(ws, clientIp) {
                 case 'get_panel_version': {
                     // In global mode, no MC server to query - return gateway info
                     ws.send(JSON.stringify({ type: 'PANEL_VERSION', version: 'gateway', buildNumber: 0 }));
+                    break;
+                }
+
+                case 'logout': {
+                    // Clear device fingerprints on logout so auto-sign-in is disabled
+                    if (message.revokeFingerprint && authedUuid) {
+                        if (db) {
+                            try { db.prepare('UPDATE user_accounts SET device_fingerprints = ? WHERE minecraft_uuid = ?').run('[]', authedUuid); } catch (e) {}
+                        } else {
+                            const acc = inMemoryUserAccounts.get(authedUuid);
+                            if (acc) acc.device_fingerprints = '[]';
+                        }
+                        console.log(`[Global] Revoked fingerprints for ${authedUsername || authedUuid}`);
+                    }
                     break;
                 }
 

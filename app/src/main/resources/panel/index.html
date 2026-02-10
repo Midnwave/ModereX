@@ -288,6 +288,7 @@
       </div>
       <div class="updateBanner-actions">
         <button class="btn mini primary" onclick="applyPanelUpdate()"><i class="fa-solid fa-download"></i> Update Now</button>
+        <button class="btn mini ghost" onclick="dismissUpdateBanner()" title="Dismiss"><i class="fa-solid fa-xmark"></i></button>
       </div>
     </div>
   </div>
@@ -307,8 +308,8 @@
     </div>
   </div>
 
-  <!-- Main App -->
-  <div class="app">
+  <!-- Main App (hidden until authenticated to prevent inspect-element bypass) -->
+  <div class="app" id="mainApp" style="display:none">
     <!-- Sidebar -->
     <aside class="sidebar">
       <div class="sb-head">

@@ -12120,10 +12120,16 @@
     state.userSettings.themeColor = color;
     saveState();
 
-    // Sync to server
+    // Sync theme color to the appropriate storage
     const ws = window.MX?.ws;
     if (ws && ws.isConnected()) {
-      ws.send('UPDATE_USER_SETTINGS', { themeColor: color });
+      if (ws.isGatewayMode()) {
+        // On gateway: store in gateway DB only
+        ws.sendRaw({ type: 'save_settings', themeColor: color });
+      } else {
+        // Direct mode: store on MC server
+        ws.send('UPDATE_USER_SETTINGS', { themeColor: color });
+      }
     }
 
     // Update background pattern colors if applicable
@@ -14503,7 +14509,7 @@
   // ===== INITIALIZATION =====
   document.addEventListener('DOMContentLoaded', () => {
     ui.initDom();
-    if (!loadState()) initializeState();
+    initializeState(); // Always start clean — real data loads after auth
     setupEventListeners();
     setupWebSocketHandlers();
     setupStatusIndicator();
