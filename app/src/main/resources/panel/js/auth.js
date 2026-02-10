@@ -1118,6 +1118,13 @@
       console.log('[Auth] Server switched, session:', data.sessionId);
       // Hide server list, show normal panel
       hideServerListPage();
+
+      // Update URL to reflect the server we switched to
+      const prefix = data.urlPrefix || data.serverId;
+      if (prefix && ws.isGatewayMode()) {
+        try { window.history.replaceState({}, '', `/${prefix}/`); } catch (e) {}
+      }
+
       // Auth with the pre-auth session from gateway
       if (data.sessionId) {
         ws.authWithSession(data.sessionId);
