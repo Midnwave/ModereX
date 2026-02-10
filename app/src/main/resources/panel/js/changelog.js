@@ -14,6 +14,23 @@
 
 window.MX_CHANGELOGS = [
   {
+    build: 311,
+    version: "2.0dev-311",
+    date: "2026-02-10",
+    title: "Gateway Auth Routing Fix",
+    sections: [
+      {
+        type: "fixed",
+        title: "Bug Fixes",
+        items: [
+          "**Gateway Auth** - Fixed AUTH_PASSWORD error by routing all gateway connections through global auth first",
+          "**Server Redirect** - Clicking a server now does a full page redirect to /{serverId} instead of WebSocket switch",
+          "**Trailing Slash** - Fixed URLs with trailing slash (e.g. /z392j/) breaking the panel"
+        ]
+      }
+    ]
+  },
+  {
     build: 310,
     version: "2.0dev-310",
     date: "2026-02-09",

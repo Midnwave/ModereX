@@ -184,6 +184,12 @@
     // Generate device fingerprint
     authState.deviceFingerprint = generateDeviceFingerprint();
 
+    // Normalize URL: strip trailing slash (e.g. /z392j/ → /z392j)
+    const path = window.location.pathname;
+    if (path.length > 1 && path.endsWith('/')) {
+      window.history.replaceState({}, '', path.slice(0, -1) + window.location.search + window.location.hash);
+    }
+
     cacheDom();
     checkUrlToken();
     setupEventListeners();
@@ -219,46 +225,24 @@
     const isGateway = ws.isGatewayDomain();
 
     if (isGateway) {
-      // Check if this is global mode (no server ID - server list page)
-      if (ws.isGlobalPanelPath()) {
-        console.log('[Auth] Global panel mode - connecting to gateway for server list');
-        updateStatus('Connecting...', 'Connecting to ModereX gateway');
-
-        try {
-          await connectGlobalPanelWebSocket();
-        } catch (err) {
-          console.error('[Auth] Global panel connection failed:', err);
-          authState.connectionPhase = 'idle';
-          authState.status = AuthStatus.UNAUTHENTICATED;
-          authState.lastError = err.message || 'Gateway connection failed';
-          showConnectionToast('bad', 'Connection Failed', authState.lastError);
-          showGatewayErrorPage('Connection Failed', authState.lastError);
-        }
-        return;
-      }
-
-      // Gateway mode with server ID: connect directly to gateway
+      // Gateway domain — always connect in global mode first (authenticate, then switch)
+      // If there's a server ID in the URL, it will auto-switch after auth
       const serverId = ws.getServerIdFromPath();
-      if (!serverId) {
-        authState.connectionPhase = 'idle';
-        authState.status = AuthStatus.UNAUTHENTICATED;
-        authState.lastError = 'No server ID found in URL. Expected format: /serverid/';
-        showConnectionToast('bad', 'Invalid URL', authState.lastError);
-        showGatewayErrorPage('Invalid Server URL', 'Please check the URL and try again.');
-        return;
+      if (serverId) {
+        console.log('[Auth] Gateway domain with server ID — will auto-switch to:', serverId);
+      } else {
+        console.log('[Auth] Global panel mode - connecting to gateway for server list');
       }
 
-      updateStatus('Connecting...', 'Connecting to server via gateway');
-      console.log('[Auth] Gateway mode - connecting to server:', serverId);
+      updateStatus('Connecting...', 'Connecting to ModereX gateway');
 
       try {
-        await connectGatewayWebSocket(serverId);
+        await connectGlobalPanelWebSocket();
       } catch (err) {
-        console.error('[Auth] Gateway connection failed:', err);
+        console.error('[Auth] Global panel connection failed:', err);
         authState.connectionPhase = 'idle';
         authState.status = AuthStatus.UNAUTHENTICATED;
         authState.lastError = err.message || 'Gateway connection failed';
-
         showConnectionToast('bad', 'Connection Failed', authState.lastError);
         showGatewayErrorPage('Connection Failed', authState.lastError);
       }
@@ -1061,8 +1045,9 @@
           const targetServer = data.servers.find(s => s.serverId === pendingId || s.urlPrefix === pendingId);
           if (targetServer) {
             ws.clearPendingServerId();
-            console.log('[Auth] Auto-switching to pending server:', pendingId);
-            ws.switchServer(targetServer.serverId);
+            const prefix = targetServer.urlPrefix || targetServer.serverId;
+            console.log('[Auth] Redirecting to pending server:', prefix);
+            window.location.href = `/${prefix}`;
             return;
           }
         }
@@ -1095,8 +1080,9 @@
           const targetServer = data.servers.find(s => s.serverId === pendingId || s.urlPrefix === pendingId);
           if (targetServer) {
             ws.clearPendingServerId();
-            console.log('[Auth] Auto-switching to pending server:', pendingId);
-            ws.switchServer(targetServer.serverId);
+            const prefix = targetServer.urlPrefix || targetServer.serverId;
+            console.log('[Auth] Redirecting to pending server:', prefix);
+            window.location.href = `/${prefix}`;
             return;
           }
         }
@@ -1116,16 +1102,14 @@
 
     ws.on('server_switched', (data) => {
       console.log('[Auth] Server switched, session:', data.sessionId);
-      // Hide server list, show normal panel
-      hideServerListPage();
-
-      // Update URL to reflect the server we switched to
+      // Redirect to the server URL so it gets a clean page load
       const prefix = data.urlPrefix || data.serverId;
       if (prefix && ws.isGatewayMode()) {
-        try { window.history.replaceState({}, '', `/${prefix}/`); } catch (e) {}
+        window.location.href = `/${prefix}`;
+        return;
       }
-
-      // Auth with the pre-auth session from gateway
+      // Fallback: hide server list and auth with session
+      hideServerListPage();
       if (data.sessionId) {
         ws.authWithSession(data.sessionId);
       }
@@ -1936,7 +1920,7 @@
       const rank = server.rank || server.primaryGroup || 'Member';
 
       return `
-        <div class="serverCard" onclick="window.MX.switchToServer('${escapeHtml(server.serverId)}')" title="Connect to ${escapeHtml(server.serverName || server.serverId)}">
+        <div class="serverCard" onclick="window.MX.switchToServer('${escapeHtml(server.urlPrefix || server.serverId)}')" title="Connect to ${escapeHtml(server.serverName || server.serverId)}">
           <div class="serverCard-header">
             <span class="serverCard-name">${escapeHtml(server.serverName || server.serverId)}</span>
             <div class="serverCard-status">
@@ -1967,10 +1951,10 @@
   /**
    * Switch to a specific server from the server list
    */
-  window.MX.switchToServer = function(serverId) {
-    console.log('[Auth] Switching to server:', serverId);
-    showConnectionToast('info', 'Connecting', 'Connecting to server...');
-    ws.switchServer(serverId);
+  window.MX.switchToServer = function(serverPrefix) {
+    console.log('[Auth] Redirecting to server:', serverPrefix);
+    // Navigate to the server URL — page reload handles auth via session
+    window.location.href = `/${serverPrefix}`;
   };
 
   /**
