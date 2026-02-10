@@ -84,8 +84,7 @@
           <div class="auth-section" id="authTokenSection">
             <label class="auth-label">Permanent Token <span style="color:var(--warning);font-size:11px">(Deprecated)</span></label>
             <p class="auth-hint">Run <code>/mx gettoken</code> in-game to get your token</p>
-            <p class="auth-hint" style="font-size:11px;color:var(--muted);margin-top:4px"><i class="fa-solid fa-code"></i> Dev: Enter a player UUID to login as them</p>
-            <input type="password" class="input" id="authToken" placeholder="Token or UUID..." autocomplete="off" spellcheck="false">
+            <input type="password" class="input" id="authToken" placeholder="Enter your permanent token" autocomplete="off" spellcheck="false">
           </div>
           <p class="auth-hint" style="margin-top:8px;color:var(--warning)"><i class="fa-solid fa-triangle-exclamation"></i> Token auth is being replaced. Use <strong>/mx link</strong> + password instead.</p>
         </div>
@@ -3714,26 +3713,8 @@
                   </div>
                 </div>
 
-                <!-- UUID Dev Auth -->
-                <div class="stress-test-card" id="devUuidAuth" style="padding:16px;background:rgba(0,0,0,0.2);border-radius:var(--radius);border:1px solid var(--border)">
-                  <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px">
-                    <div style="width:36px;height:36px;background:rgba(168,85,247,0.15);border-radius:var(--radius);display:flex;align-items:center;justify-content:center">
-                      <i class="fa-solid fa-fingerprint" style="color:var(--purple)"></i>
-                    </div>
-                    <div>
-                      <div style="font-weight:600">UUID Dev Authentication</div>
-                      <div style="font-size:11px;color:var(--text-secondary)">Sign in as any UUID (dev only)</div>
-                    </div>
-                  </div>
-                  <div style="display:flex;gap:8px;align-items:center;margin-bottom:10px">
-                    <input type="text" class="input" id="devUuidInput" placeholder="Enter UUID..." style="flex:1">
-                    <button class="btn primary" onclick="devUuidAuth()"><i class="fa-solid fa-sign-in-alt"></i> Auth</button>
-                  </div>
-                  <div style="padding:8px;background:rgba(168,85,247,0.1);border-radius:var(--radius);border:1px solid rgba(168,85,247,0.2);font-size:11px;color:var(--text-secondary)">
-                    <i class="fa-solid fa-info-circle" style="color:var(--purple);margin-right:6px"></i>
-                    Creates a temp token for this UUID. Token revoked on disconnect.
-                  </div>
-                </div>
+
+
               </div>
 
               <!-- Debug Permissions -->

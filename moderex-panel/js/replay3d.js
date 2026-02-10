@@ -256,43 +256,68 @@
      * different center frequencies create the textured crunch that makes
      * this sound like actual stone breaking rather than a single beep.
      */
-    playBlockBreak() {
+    // Material-specific sound parameters for Minecraft-accurate audio
+    static SOUND_PARAMS = {
+      stone:  { freq: [600, 800, 400, 1200], q: [2, 1.5, 3, 1], dur: [0.12, 0.10, 0.08, 0.06], vol: 1.0, thud: 200 },
+      wood:   { freq: [400, 550, 300, 800],  q: [1.5, 1.2, 2, 0.8], dur: [0.14, 0.12, 0.10, 0.07], vol: 0.9, thud: 150 },
+      grass:  { freq: [800, 1000, 600, 1400], q: [1, 0.8, 1.5, 0.6], dur: [0.08, 0.07, 0.06, 0.05], vol: 0.7, thud: 100 },
+      sand:   { freq: [300, 400, 200, 500],  q: [0.8, 0.6, 1, 0.5], dur: [0.15, 0.12, 0.10, 0.08], vol: 0.6, thud: 120 },
+      gravel: { freq: [500, 700, 350, 900],  q: [1.5, 1, 2, 0.8], dur: [0.10, 0.09, 0.07, 0.06], vol: 0.8, thud: 160 },
+      glass:  { freq: [1500, 2000, 1200, 2500], q: [3, 2.5, 4, 2], dur: [0.06, 0.05, 0.04, 0.03], vol: 0.5, thud: 80 },
+      metal:  { freq: [800, 1200, 600, 1600], q: [4, 3, 5, 2.5], dur: [0.18, 0.15, 0.12, 0.08], vol: 0.8, thud: 250 },
+      cloth:  { freq: [600, 800, 400, 1000], q: [0.6, 0.5, 0.8, 0.4], dur: [0.10, 0.08, 0.07, 0.05], vol: 0.5, thud: 80 },
+      snow:   { freq: [1000, 1200, 800, 1500], q: [0.5, 0.4, 0.6, 0.3], dur: [0.06, 0.05, 0.04, 0.03], vol: 0.4, thud: 60 },
+    };
+
+    static BLOCK_SOUND_CATEGORIES = {
+      stone: /stone|cobblestone|andesite|granite|diorite|deepslate|obsidian|bricks|prismarine|purpur|quartz|basalt|blackstone|calcite|tuff|end_stone|netherrack|terracotta|concrete(?!_powder)/,
+      wood: /oak|spruce|birch|jungle|acacia|dark_oak|cherry|mangrove|bamboo|crimson|warped|planks|log|stem|bookshelf|crafting/,
+      grass: /grass|dirt|podzol|mycelium|farmland|mud|moss|rooted_dirt|dirt_path/,
+      sand: /sand(?!stone)|concrete_powder/,
+      gravel: /gravel/,
+      glass: /glass/,
+      metal: /iron_block|gold_block|copper|anvil|chain|netherite_block|raw_iron|raw_gold|raw_copper|lantern|hopper/,
+      cloth: /wool|carpet|banner|bed/,
+      snow: /snow|powder_snow|ice/,
+    };
+
+    _getSoundCategory(blockName) {
+      if (!blockName) return 'stone';
+      const name = blockName.replace('minecraft:', '').toLowerCase();
+      for (const [cat, regex] of Object.entries(ReplaySoundManager.BLOCK_SOUND_CATEGORIES)) {
+        if (regex.test(name)) return cat;
+      }
+      return 'stone';
+    }
+
+    playBlockBreak(blockName) {
       if (!this._canPlay('block_break')) return;
       this._resume();
       const t = this._ctx.currentTime;
-      // Main crunch grains - bandpass filtered noise at varying frequencies
-      this._playGrain(t, 0.12, 600 + Math.random() * 400, 2, 'bandpass', 0.08);
-      this._playGrain(t + 0.008, 0.10, 800 + Math.random() * 300, 1.5, 'bandpass', 0.06);
-      this._playGrain(t + 0.015, 0.08, 400 + Math.random() * 200, 3, 'bandpass', 0.05);
-      // Higher crackle grain for texture
-      this._playGrain(t + 0.005, 0.06, 1200 + Math.random() * 500, 1, 'bandpass', 0.03);
-      // Low-end thud for impact weight
-      this._playGrain(t, 0.05, 200, 1, 'lowpass', 0.04);
+      const cat = this._getSoundCategory(blockName);
+      const p = ReplaySoundManager.SOUND_PARAMS[cat] || ReplaySoundManager.SOUND_PARAMS.stone;
+      const v = p.vol;
+      this._playGrain(t, p.dur[0], p.freq[0] + Math.random() * 400, p.q[0], 'bandpass', 0.08 * v);
+      this._playGrain(t + 0.008, p.dur[1], p.freq[1] + Math.random() * 300, p.q[1], 'bandpass', 0.06 * v);
+      this._playGrain(t + 0.015, p.dur[2], p.freq[2] + Math.random() * 200, p.q[2], 'bandpass', 0.05 * v);
+      this._playGrain(t + 0.005, p.dur[3], p.freq[3] + Math.random() * 500, p.q[3], 'bandpass', 0.03 * v);
+      this._playGrain(t, 0.05, p.thud, 1, 'lowpass', 0.04 * v);
     }
 
-    /**
-     * Block place: shorter, slightly softer stone/wood placement sound.
-     * Similar to break but more compact and lower volume.
-     */
-    playBlockPlace() {
+    playBlockPlace(blockName) {
       if (!this._canPlay('block_place')) return;
       this._resume();
       const t = this._ctx.currentTime;
-      // Compact placement crunch - 3 grains for texture
-      this._playGrain(t, 0.08, 500 + Math.random() * 300, 2.5, 'bandpass', 0.06);
-      this._playGrain(t + 0.005, 0.07, 700 + Math.random() * 200, 2, 'bandpass', 0.05);
-      this._playGrain(t + 0.01, 0.06, 350 + Math.random() * 150, 3, 'bandpass', 0.04);
-      // Subtle thud
-      this._playGrain(t, 0.04, 180, 1, 'lowpass', 0.035);
+      const cat = this._getSoundCategory(blockName);
+      const p = ReplaySoundManager.SOUND_PARAMS[cat] || ReplaySoundManager.SOUND_PARAMS.stone;
+      const v = p.vol * 0.8;
+      this._playGrain(t, p.dur[0] * 0.7, p.freq[0] + Math.random() * 300, p.q[0] * 1.2, 'bandpass', 0.06 * v);
+      this._playGrain(t + 0.005, p.dur[1] * 0.7, p.freq[1] + Math.random() * 200, p.q[1], 'bandpass', 0.05 * v);
+      this._playGrain(t + 0.01, p.dur[2] * 0.7, p.freq[2] + Math.random() * 150, p.q[2], 'bandpass', 0.04 * v);
+      this._playGrain(t, 0.04, p.thud * 0.9, 1, 'lowpass', 0.035 * v);
     }
 
-    /**
-     * Footstep: very short, quiet step sound on stone.
-     * Alternates subtly between left/right foot with a small
-     * frequency offset for natural variation.
-     * Returns true if a footstep was played (for external tracking).
-     */
-    playFootstep(currentTimeMs) {
+    playFootstep(currentTimeMs, blockName) {
       const interval = this._footstepInterval / Math.max(this._playbackSpeed, 0.25);
       if (currentTimeMs - this._lastFootstepTime < interval) return false;
       if (!this._canPlay('footstep')) return false;
@@ -301,13 +326,13 @@
       this._footstepAlternate = !this._footstepAlternate;
 
       const t = this._ctx.currentTime;
-      // Slight frequency offset between left and right foot
+      const cat = this._getSoundCategory(blockName);
+      const p = ReplaySoundManager.SOUND_PARAMS[cat] || ReplaySoundManager.SOUND_PARAMS.stone;
       const freqOffset = this._footstepAlternate ? 0 : 150;
-      // Very short noise grains - stone step sound
-      this._playGrain(t, 0.04, 300 + freqOffset + Math.random() * 200, 2, 'bandpass', 0.04);
-      this._playGrain(t + 0.003, 0.035, 600 + freqOffset + Math.random() * 300, 1.5, 'bandpass', 0.03);
-      // Subtle low thump
-      this._playGrain(t, 0.025, 150, 1, 'lowpass', 0.025);
+      const v = p.vol * 0.5;
+      this._playGrain(t, p.dur[0] * 0.35, p.freq[0] * 0.5 + freqOffset + Math.random() * 200, p.q[0], 'bandpass', 0.04 * v);
+      this._playGrain(t + 0.003, p.dur[1] * 0.35, p.freq[1] + freqOffset + Math.random() * 300, p.q[1], 'bandpass', 0.03 * v);
+      this._playGrain(t, 0.025, p.thud * 0.75, 1, 'lowpass', 0.025 * v);
       return true;
     }
 
@@ -486,7 +511,7 @@
      * Process an action event from the replay and play the corresponding sound.
      * @param {string} action - The ActionType string (e.g. 'ATTACK', 'BREAK_BLOCK')
      */
-    playActionSound(action) {
+    playActionSound(action, actionData) {
       switch (action) {
         case 'ATTACK':
         case 'DAMAGE_DEALT':
@@ -499,10 +524,10 @@
           this.playDamage();
           break;
         case 'BREAK_BLOCK':
-          this.playBlockBreak();
+          this.playBlockBreak(actionData);
           break;
         case 'PLACE_BLOCK':
-          this.playBlockPlace();
+          this.playBlockPlace(actionData);
           break;
         case 'BOW_SHOOT':
         case 'CROSSBOW_SHOOT':
@@ -537,6 +562,50 @@
 
 
   const PLAYER_SCALE = 1.8;
+
+  // ===== EQUIPMENT COLOR MAPS =====
+  const ARMOR_MATERIAL_COLORS = {
+    leather: 0x8B4513, chainmail: 0x9A9A9A, iron: 0xC8C8C8,
+    golden: 0xFFD700, diamond: 0x5CE8E8, netherite: 0x3A3A3E, turtle: 0x3B7A3E,
+  };
+
+  const ITEM_COLORS = {
+    wooden_sword: 0xB8945F, stone_sword: 0x7A7A7A, iron_sword: 0xC8C8C8,
+    golden_sword: 0xFFD700, diamond_sword: 0x5CE8E8, netherite_sword: 0x3A3A3E,
+    wooden_pickaxe: 0xB8945F, stone_pickaxe: 0x7A7A7A, iron_pickaxe: 0xC8C8C8,
+    golden_pickaxe: 0xFFD700, diamond_pickaxe: 0x5CE8E8, netherite_pickaxe: 0x3A3A3E,
+    wooden_axe: 0xB8945F, stone_axe: 0x7A7A7A, iron_axe: 0xC8C8C8,
+    golden_axe: 0xFFD700, diamond_axe: 0x5CE8E8, netherite_axe: 0x3A3A3E,
+    wooden_shovel: 0xB8945F, stone_shovel: 0x7A7A7A, iron_shovel: 0xC8C8C8,
+    golden_shovel: 0xFFD700, diamond_shovel: 0x5CE8E8, netherite_shovel: 0x3A3A3E,
+    wooden_hoe: 0xB8945F, stone_hoe: 0x7A7A7A, iron_hoe: 0xC8C8C8,
+    golden_hoe: 0xFFD700, diamond_hoe: 0x5CE8E8, netherite_hoe: 0x3A3A3E,
+    bow: 0x6B4226, crossbow: 0x5A4A3A, trident: 0x4AC8C8, shield: 0x8B4513,
+    fishing_rod: 0x6B4226, flint_and_steel: 0x888888, shears: 0xAAAAAA,
+    torch: 0xFFA500, ender_pearl: 0x2A6A4A, snowball: 0xEEEEEE,
+    egg: 0xF5E6C8, bucket: 0xAAAAAA, water_bucket: 0x3366CC, lava_bucket: 0xFF6600,
+    mace: 0x6A5A8A, wind_charge: 0xAACCFF,
+  };
+
+  function getItemColor(materialName) {
+    if (!materialName) return 0xCCCCCC;
+    const name = materialName.replace('minecraft:', '');
+    if (ITEM_COLORS[name]) return ITEM_COLORS[name];
+    // Try matching by suffix
+    if (name.includes('sword')) return 0xCCCCCC;
+    if (name.includes('pickaxe') || name.includes('axe') || name.includes('shovel') || name.includes('hoe')) return 0xBBBBBB;
+    // Default: block-like item, use brown-ish
+    return 0xAA8855;
+  }
+
+  function getArmorColor(materialName) {
+    if (!materialName) return null;
+    const name = materialName.replace('minecraft:', '');
+    for (const [mat, color] of Object.entries(ARMOR_MATERIAL_COLORS)) {
+      if (name.startsWith(mat + '_')) return color;
+    }
+    return 0xAAAAAA;
+  }
 
   // ===== SKIN TEXTURE CACHE =====
   // Global cache to avoid re-fetching skins across viewer instances.
@@ -877,15 +946,34 @@
         return 0;
       }
 
+      // Progress bar elements
+      const progressBar = document.getElementById('r3dProgressBar');
+      const progressFill = document.getElementById('r3dProgressFill');
+      const loadText = document.getElementById('r3dLoadingText');
+
+      const onProgress = (phase, current, total) => {
+        if (!total) return;
+        const pct = Math.round((current / total) * 100);
+        if (progressBar) progressBar.style.display = '';
+        if (phase === 'textures') {
+          if (loadText) loadText.textContent = `Loading textures (${current}/${total})...`;
+          if (progressFill) progressFill.style.width = `${Math.round(pct * 0.4)}%`;
+        } else if (phase === 'meshing') {
+          if (loadText) loadText.textContent = `Building terrain (${current}/${total} chunks)...`;
+          if (progressFill) progressFill.style.width = `${Math.round(40 + pct * 0.6)}%`;
+        }
+      };
+
       try {
         // Try to load texture atlas before building meshes (non-blocking fallback)
-        await this._initTextureAtlas();
+        await this._initTextureAtlas(onProgress);
 
+        if (loadText) loadText.textContent = 'Parsing chunk data...';
         console.log('[Replay3D] Parsing chunk data...');
         const columns = await terrain.ChunkDataParser.parse(base64Data);
         console.log(`[Replay3D] Loaded ${columns.length} chunk columns`);
 
-        this.chunkManager.loadColumns(columns);
+        await this.chunkManager.loadColumns(columns, onProgress);
         this.terrainLoaded = true;
         this._needsRender = true;
 
@@ -921,13 +1009,13 @@
      * Initialize texture atlas (Mode 2 fallback).
      * Non-blocking - if it fails, terrain renders with vertex colors.
      */
-    async _initTextureAtlas() {
+    async _initTextureAtlas(onProgress) {
       const terrain = window.MX?.terrain;
       if (!terrain?.loadTextureAtlas) return;
       if (terrain.TEXTURE_ATLAS?.loaded || terrain.TEXTURE_ATLAS?.loading) return;
 
       try {
-        await terrain.loadTextureAtlas();
+        await terrain.loadTextureAtlas(onProgress);
       } catch (e) {
         console.warn('[Replay3D] Texture atlas failed, using vertex colors:', e.message);
       }
@@ -1408,10 +1496,9 @@
 
       const s = PLAYER_SCALE / 32;
       if (sneaking) {
-        // Tilt upper body forward ~25 degrees around hip pivot (y=12*s)
-        bodyPivot.rotation.x = 0.44; // ~25 degrees
-        // Shift down slightly to simulate the lower eye height
-        bodyPivot.position.y = -4 * s;
+        // Minecraft sneaking: body tilts ~30 degrees, eye height drops from 1.62 to 1.27 blocks
+        bodyPivot.rotation.x = 0.524; // ~30 degrees
+        bodyPivot.position.y = -6.2 * s;
       } else {
         bodyPivot.rotation.x = 0;
         bodyPivot.position.y = 0;
@@ -1471,7 +1558,7 @@
             headPivot.rotation.y = 0;
           }
 
-          // ----- Velocity-based walk animation -----
+          // ----- Velocity-based walk animation (Minecraft-accurate) -----
           const dx = snap2.x - snap1.x;
           const dz = snap2.z - snap1.z;
           const dt = (snap2.timestamp - snap1.timestamp) / 1000;
@@ -1480,32 +1567,49 @@
           const isMoving = speed > 0.5;
           if (isMoving) movingCount++;
 
-          // Accumulate walk phase based on distance/time for smooth animation
-          // Walk cycle: ~2 full swings per second at walking speed (4.317 blocks/s)
-          // Running speed is ~5.612 blocks/s, sprinting ~7.143
-          const walkCycleSpeed = 1.8; // Full cycles per second at speed 4.3
+          // Minecraft walk speed = 4.317 b/s, sprint = 5.612 b/s
+          const walkCycleSpeed = 2.0; // Full cycles per second at walk speed
           const normalizedSpeed = speed / 4.317;
           const cycleFreq = walkCycleSpeed * Math.min(normalizedSpeed, 2.0);
 
-          // Use absolute time for continuous smooth sine wave
           const phase = absoluteTime * 0.001 * cycleFreq * Math.PI * 2;
 
-          // Swing amplitude: scales with speed, capped for realism
-          // Walking ~40 degrees, sprinting ~55 degrees
+          // Minecraft uses ~1 radian (57.3deg) peak amplitude at walk speed
           const maxSwing = isMoving
-            ? Math.min(normalizedSpeed * 0.7, 1.0) * (Math.PI / 180) * 40
+            ? Math.min(normalizedSpeed, 1.5) * 1.0  // 1.0 radian base
             : 0;
           const swing = Math.sin(phase) * maxSwing;
 
-          // Arms swing opposite to legs (right arm with left leg)
+          // Arms swing opposite to legs
           if (rArmPivot) rArmPivot.rotation.x = swing;
           if (lArmPivot) lArmPivot.rotation.x = -swing;
           if (rLegPivot) rLegPivot.rotation.x = -swing;
           if (lLegPivot) lLegPivot.rotation.x = swing;
 
+          // Attack/swing arm animation
+          const snapForAction = t < 0.5 ? snap1 : snap2;
+          if (snapForAction.action === 'ATTACK' || snapForAction.action === 'SWING_ARM' || snapForAction.action === 'DAMAGE_DEALT') {
+            if (!group.userData.swingStart) group.userData.swingStart = absoluteTime;
+          }
+          if (group.userData.swingStart) {
+            const swingElapsed = absoluteTime - group.userData.swingStart;
+            const SWING_DURATION = 250; // ~6 Minecraft ticks
+            if (swingElapsed < SWING_DURATION) {
+              const st = swingElapsed / SWING_DURATION;
+              const swingAngle = Math.sin(st * Math.PI) * -1.5; // ~86deg forward sweep
+              if (rArmPivot) rArmPivot.rotation.x = swingAngle;
+            } else {
+              group.userData.swingStart = null;
+            }
+          }
+
           // Sneaking state (use nearer snapshot)
           const isSneaking = (t < 0.5 ? snap1.sneaking : snap2.sneaking);
           this._applySneakPose(group, isSneaking);
+
+          // Equipment (use nearer snapshot)
+          const equipSnap = t < 0.5 ? snap1 : snap2;
+          this._updatePlayerEquipment(group, equipSnap);
 
         } else {
           // No interpolation target - hold at snap1
@@ -1518,14 +1622,33 @@
             headPivot.rotation.y = 0;
           }
 
-          // Static pose (arms at sides, legs straight)
-          if (rArmPivot) rArmPivot.rotation.x = 0;
-          if (lArmPivot) lArmPivot.rotation.x = 0;
+          // Idle animation - subtle arm bob (~2 degrees, Minecraft-like idle sway)
+          const idlePhase = absoluteTime * 0.001 * 0.5 * Math.PI * 2;
+          const idleSwing = Math.sin(idlePhase) * 0.035; // ~2 degrees
+          if (rArmPivot) { rArmPivot.rotation.x = idleSwing; rArmPivot.rotation.z = Math.sin(idlePhase * 0.7) * 0.02; }
+          if (lArmPivot) { lArmPivot.rotation.x = -idleSwing * 0.7; lArmPivot.rotation.z = -Math.sin(idlePhase * 0.7) * 0.02; }
           if (rLegPivot) rLegPivot.rotation.x = 0;
           if (lLegPivot) lLegPivot.rotation.x = 0;
 
+          // Attack swing in idle
+          if (snap1.action === 'ATTACK' || snap1.action === 'SWING_ARM' || snap1.action === 'DAMAGE_DEALT') {
+            if (!group.userData.swingStart) group.userData.swingStart = absoluteTime;
+          }
+          if (group.userData.swingStart) {
+            const swingElapsed = absoluteTime - group.userData.swingStart;
+            if (swingElapsed < 250) {
+              const st = swingElapsed / 250;
+              if (rArmPivot) rArmPivot.rotation.x = Math.sin(st * Math.PI) * -1.5;
+            } else {
+              group.userData.swingStart = null;
+            }
+          }
+
           // Sneaking
           this._applySneakPose(group, snap1.sneaking);
+
+          // Equipment
+          this._updatePlayerEquipment(group, snap1);
         }
       }
 
@@ -1549,6 +1672,125 @@
 
       // Track moving player count for footstep sounds
       this._movingPlayerCount = movingCount;
+    }
+
+    // ===== EQUIPMENT RENDERING =====
+
+    _updatePlayerEquipment(group, snap) {
+      if (!snap) return;
+      const s = PLAYER_SCALE / 32;
+      const rArmPivot = group.getObjectByName('rightArmPivot');
+
+      // Main hand item - small colored box in right hand
+      let heldItem = rArmPivot?.getObjectByName('heldItem');
+      if (snap.mainHand) {
+        if (!heldItem && rArmPivot) {
+          const geo = new THREE.BoxGeometry(2 * s, 10 * s, 2 * s);
+          const mat = new THREE.MeshStandardMaterial({ color: 0xcccccc, roughness: 0.6 });
+          heldItem = new THREE.Mesh(geo, mat);
+          heldItem.name = 'heldItem';
+          heldItem.position.set(0, -10 * s, -3 * s);
+          heldItem.rotation.x = -Math.PI / 6;
+          rArmPivot.add(heldItem);
+        }
+        if (heldItem) {
+          heldItem.visible = true;
+          heldItem.material.color.setHex(getItemColor(snap.mainHand));
+        }
+      } else if (heldItem) {
+        heldItem.visible = false;
+      }
+
+      // Armor overlays
+      if (snap.armor) {
+        this._updateArmorVisuals(group, snap.armor);
+      }
+    }
+
+    _updateArmorVisuals(group, armor) {
+      // armor is [boots, leggings, chestplate, helmet]
+      if (!armor || !Array.isArray(armor)) return;
+      const s = PLAYER_SCALE / 32;
+      const bodyPivot = group.getObjectByName('bodyPivot');
+      if (!bodyPivot) return;
+
+      const INFLATE = 0.5 * s; // Slight inflation over body part
+
+      // Helmet (index 3) → head
+      const helmetData = armor[3];
+      let helmet = bodyPivot.getObjectByName('armorHelmet');
+      if (helmetData && helmetData.type) {
+        if (!helmet) {
+          const geo = new THREE.BoxGeometry(8 * s + INFLATE * 2, 8 * s + INFLATE * 2, 8 * s + INFLATE * 2);
+          const mat = new THREE.MeshStandardMaterial({ color: 0xCCCCCC, roughness: 0.4, metalness: 0.3, transparent: true, opacity: 0.85 });
+          helmet = new THREE.Mesh(geo, mat);
+          helmet.name = 'armorHelmet';
+          helmet.position.set(0, 24 * s, 0);
+          bodyPivot.add(helmet);
+        }
+        helmet.visible = true;
+        const color = getArmorColor(helmetData.type);
+        if (color !== null) helmet.material.color.setHex(helmetData.color || color);
+      } else if (helmet) {
+        helmet.visible = false;
+      }
+
+      // Chestplate (index 2) → body + upper arms
+      const chestData = armor[2];
+      let chest = bodyPivot.getObjectByName('armorChest');
+      if (chestData && chestData.type) {
+        if (!chest) {
+          const geo = new THREE.BoxGeometry(8 * s + INFLATE * 2, 12 * s + INFLATE * 2, 4 * s + INFLATE * 2);
+          const mat = new THREE.MeshStandardMaterial({ color: 0xCCCCCC, roughness: 0.4, metalness: 0.3, transparent: true, opacity: 0.85 });
+          chest = new THREE.Mesh(geo, mat);
+          chest.name = 'armorChest';
+          chest.position.set(0, 18 * s, 0);
+          bodyPivot.add(chest);
+        }
+        chest.visible = true;
+        const color = getArmorColor(chestData.type);
+        if (color !== null) chest.material.color.setHex(chestData.color || color);
+      } else if (chest) {
+        chest.visible = false;
+      }
+
+      // Leggings (index 1) → legs
+      const legsData = armor[1];
+      let legs = bodyPivot.getObjectByName('armorLegs');
+      if (legsData && legsData.type) {
+        if (!legs) {
+          const geo = new THREE.BoxGeometry(8 * s + INFLATE, 12 * s + INFLATE, 4 * s + INFLATE);
+          const mat = new THREE.MeshStandardMaterial({ color: 0xCCCCCC, roughness: 0.4, metalness: 0.3, transparent: true, opacity: 0.85 });
+          legs = new THREE.Mesh(geo, mat);
+          legs.name = 'armorLegs';
+          legs.position.set(0, 6 * s, 0);
+          bodyPivot.add(legs);
+        }
+        legs.visible = true;
+        const color = getArmorColor(legsData.type);
+        if (color !== null) legs.material.color.setHex(legsData.color || color);
+      } else if (legs) {
+        legs.visible = false;
+      }
+
+      // Boots (index 0) → feet
+      const bootsData = armor[0];
+      let boots = bodyPivot.getObjectByName('armorBoots');
+      if (bootsData && bootsData.type) {
+        if (!boots) {
+          const geo = new THREE.BoxGeometry(8 * s + INFLATE, 4 * s + INFLATE, 4 * s + INFLATE);
+          const mat = new THREE.MeshStandardMaterial({ color: 0xCCCCCC, roughness: 0.4, metalness: 0.3, transparent: true, opacity: 0.85 });
+          boots = new THREE.Mesh(geo, mat);
+          boots.name = 'armorBoots';
+          boots.position.set(0, 0, 0);
+          bodyPivot.add(boots);
+        }
+        boots.visible = true;
+        const color = getArmorColor(bootsData.type);
+        if (color !== null) boots.material.color.setHex(bootsData.color || color);
+      } else if (boots) {
+        boots.visible = false;
+      }
     }
 
     // ===== FALLBACK GROUND =====
@@ -1627,7 +1869,7 @@
           for (const a of actions) {
             const act = a.action || a.actionType;
             if (act && act !== 'NONE') {
-              this.soundManager.playActionSound(act);
+              this.soundManager.playActionSound(act, a.actionData);
             }
           }
           this._lastSoundActionTime = this.currentTime;
@@ -1635,7 +1877,20 @@
 
         // Sound: footsteps for moving players
         if (this.soundManager && this._movingPlayerCount > 0) {
-          this.soundManager.playFootstep(this.currentTime);
+          let groundBlock = null;
+          if (this.chunkManager) {
+            // Get ground block under the primary (first) player for material-specific footstep sounds
+            for (const [, group] of this.players) {
+              if (group.visible) {
+                const px = Math.floor(group.position.x);
+                const py = Math.floor(group.position.y) - 1;
+                const pz = Math.floor(group.position.z);
+                groundBlock = this.chunkManager.getBlockAt(px, py, pz);
+                break;
+              }
+            }
+          }
+          this.soundManager.playFootstep(this.currentTime, groundBlock);
         }
 
         this._needsRender = true;

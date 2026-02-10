@@ -14,6 +14,31 @@
 
 window.MX_CHANGELOGS = [
   {
+    build: 312,
+    version: "2.0dev-312",
+    date: "2026-02-10",
+    title: "Website Auth, Reviews & UUID Cleanup",
+    sections: [
+      {
+        type: "new",
+        title: "New Features",
+        items: [
+          "**Website Auth** - Added password-based sign-in to moderex.net with account dropdown in nav bar",
+          "**Review System** - Users can rate ModereX 1-5 stars with a description on the homepage",
+          "**Reviews API** - New GET/POST /api/reviews gateway endpoints for the review board"
+        ]
+      },
+      {
+        type: "improved",
+        title: "Improvements",
+        items: [
+          "**Token Auth** - Removed UUID dev-login from the panel token auth tab",
+          "**CORS** - Added Authorization header to gateway CORS for Bearer token support"
+        ]
+      }
+    ]
+  },
+  {
     build: 311,
     version: "2.0dev-311",
     date: "2026-02-10",

@@ -77,6 +77,9 @@ const inMemoryUserAccounts = new Map(); // minecraft_uuid → { password_hash, m
 // In-memory fallback for user sessions
 const inMemoryUserSessions = new Map(); // session_id_hash → { minecraft_uuid, device_fingerprint_hash, created_at, expires_at, last_active_at, ip_address }
 
+// In-memory fallback for reviews
+const inMemoryReviews = new Map(); // minecraft_uuid → { minecraft_uuid, minecraft_username, rating, description, created_at, updated_at }
+
 // Rate limiters for auth API
 const linkVerifyAttempts = new Map(); // IP → { count, firstAttempt }
 const passwordAuthAttempts = new Map(); // minecraft_uuid → { count, lastAttempt }
@@ -258,6 +261,19 @@ function createTables() {
             suspended_at INTEGER NOT NULL,
             suspended_by TEXT NOT NULL,
             reason TEXT
+        )
+    `);
+
+    // User reviews (one per user)
+    db.exec(`
+        CREATE TABLE IF NOT EXISTS reviews (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            minecraft_uuid TEXT NOT NULL UNIQUE,
+            minecraft_username TEXT NOT NULL,
+            rating INTEGER NOT NULL CHECK(rating >= 1 AND rating <= 5),
+            description TEXT NOT NULL,
+            created_at INTEGER NOT NULL,
+            updated_at INTEGER
         )
     `);
 
@@ -618,7 +634,7 @@ const server = http.createServer((req, res) => {
         res.setHeader('Access-Control-Allow-Origin', '*');
     }
     res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
-    res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
 
     if (req.method === 'OPTIONS') {
         res.writeHead(204);
@@ -796,6 +812,49 @@ const server = http.createServer((req, res) => {
             }
             revokeAllSessions(session.minecraft_uuid);
             jsonResponse(res, 200, { success: true, message: 'All sessions revoked' });
+        });
+        return;
+    }
+
+    // GET /api/reviews — Public, returns all reviews
+    if (url.pathname === '/api/reviews' && req.method === 'GET') {
+        const reviews = getAllReviews();
+        const publicReviews = reviews.map(r => ({
+            username: r.minecraft_username,
+            uuid: r.minecraft_uuid,
+            rating: r.rating,
+            description: r.description,
+            date: r.created_at
+        }));
+        jsonResponse(res, 200, { reviews: publicReviews });
+        return;
+    }
+
+    // POST /api/reviews — Submit or update a review (requires auth)
+    if (url.pathname === '/api/reviews' && req.method === 'POST') {
+        readJsonBody(req, (body) => {
+            const authHeader = req.headers['authorization'];
+            if (!authHeader || !authHeader.startsWith('Bearer ')) {
+                return jsonResponse(res, 401, { error: 'Authentication required' });
+            }
+            const token = authHeader.substring(7);
+            const session = validateSession(token);
+            if (!session) {
+                return jsonResponse(res, 401, { error: 'Invalid or expired session' });
+            }
+            if (!body || typeof body.rating !== 'number' || body.rating < 1 || body.rating > 5) {
+                return jsonResponse(res, 400, { error: 'Rating must be between 1 and 5' });
+            }
+            if (!body.description || typeof body.description !== 'string' || body.description.trim().length < 10) {
+                return jsonResponse(res, 400, { error: 'Description must be at least 10 characters' });
+            }
+            if (body.description.length > 500) {
+                return jsonResponse(res, 400, { error: 'Description must be under 500 characters' });
+            }
+            const account = getUserAccount(session.minecraft_uuid);
+            const username = account?.minecraft_username || 'Unknown';
+            upsertReview(session.minecraft_uuid, username, body.rating, body.description.trim());
+            jsonResponse(res, 200, { success: true, message: 'Review submitted' });
         });
         return;
     }
@@ -3521,6 +3580,43 @@ function revokeAllSessions(uuid) {
         for (const [id, session] of inMemoryUserSessions) {
             if (session.minecraft_uuid === uuid) inMemoryUserSessions.delete(id);
         }
+    }
+}
+
+/**
+ * Get all reviews sorted by newest first.
+ */
+function getAllReviews() {
+    if (db) {
+        try {
+            return db.prepare('SELECT * FROM reviews ORDER BY created_at DESC').all();
+        } catch (e) {
+            console.error('[Reviews] Failed to get reviews:', e.message);
+        }
+    }
+    return Array.from(inMemoryReviews.values()).sort((a, b) => b.created_at - a.created_at);
+}
+
+/**
+ * Insert or update a review (one per user).
+ */
+function upsertReview(uuid, username, rating, description) {
+    const now = Date.now();
+    if (db) {
+        try {
+            const existing = db.prepare('SELECT id FROM reviews WHERE minecraft_uuid = ?').get(uuid);
+            if (existing) {
+                db.prepare('UPDATE reviews SET minecraft_username = ?, rating = ?, description = ?, updated_at = ? WHERE minecraft_uuid = ?')
+                    .run(username, rating, description, now, uuid);
+            } else {
+                db.prepare('INSERT INTO reviews (minecraft_uuid, minecraft_username, rating, description, created_at) VALUES (?, ?, ?, ?, ?)')
+                    .run(uuid, username, rating, description, now);
+            }
+        } catch (e) {
+            console.error('[Reviews] Failed to upsert review:', e.message);
+        }
+    } else {
+        inMemoryReviews.set(uuid, { minecraft_uuid: uuid, minecraft_username: username, rating, description, created_at: inMemoryReviews.get(uuid)?.created_at || now, updated_at: now });
     }
 }
 
