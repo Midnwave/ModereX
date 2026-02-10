@@ -2,6 +2,13 @@
 // ModereX Landing Page - Enhanced JavaScript
 // ============================================
 
+const GATEWAY_URL = 'https://neighbors-steps-unable-stop.trycloudflare.com';
+const SESSION_KEY = 'mx_website_session';
+
+let allReviews = [];
+let showingAllReviews = false;
+let selectedRating = 0;
+
 document.addEventListener('DOMContentLoaded', () => {
     initNavbar();
     initScrollAnimations();
@@ -12,6 +19,8 @@ document.addEventListener('DOMContentLoaded', () => {
     initCountUpAnimations();
     initButtonEffects();
     initPanelMockAnimations();
+    initAuth();
+    initReviews();
 });
 
 // ============================================
@@ -234,10 +243,7 @@ async function fetchLiveStats() {
     if (!statsElement) return;
 
     try {
-        // Try quick tunnel URL first (current setup)
-        let gatewayUrl = 'https://neighbors-steps-unable-stop.trycloudflare.com/api/stats';
-
-        const response = await fetch(gatewayUrl, {
+        const response = await fetch(GATEWAY_URL + '/api/stats', {
             method: 'GET',
             headers: { 'Accept': 'application/json' },
             signal: AbortSignal.timeout(5000)
@@ -641,9 +647,15 @@ function hideComingSoon() {
 
 // Close modal when clicking outside
 document.addEventListener('click', (e) => {
-    const modal = document.getElementById('comingSoonModal');
-    if (modal && e.target === modal) {
+    if (e.target.classList.contains('modal-overlay')) {
         hideComingSoon();
+        hideSignInModal();
+    }
+    // Close account dropdown when clicking outside
+    const dropdown = document.getElementById('navAccountDropdown');
+    const accountBtn = document.querySelector('.nav-account-btn');
+    if (dropdown && accountBtn && !dropdown.contains(e.target) && !accountBtn.contains(e.target)) {
+        dropdown.classList.remove('show');
     }
 });
 
@@ -651,5 +663,346 @@ document.addEventListener('click', (e) => {
 document.addEventListener('keydown', (e) => {
     if (e.key === 'Escape') {
         hideComingSoon();
+        hideSignInModal();
     }
 });
+
+// ============================================
+// Authentication System
+// ============================================
+
+function getSession() {
+    try {
+        const raw = localStorage.getItem(SESSION_KEY);
+        if (!raw) return null;
+        return JSON.parse(raw);
+    } catch { return null; }
+}
+
+function saveSession(data) {
+    localStorage.setItem(SESSION_KEY, JSON.stringify(data));
+}
+
+function clearSession() {
+    localStorage.removeItem(SESSION_KEY);
+}
+
+async function initAuth() {
+    const session = getSession();
+    if (session && session.token) {
+        const valid = await validateSession(session.token);
+        if (valid) {
+            updateNavAuth(true);
+        } else {
+            clearSession();
+            updateNavAuth(false);
+        }
+    } else {
+        updateNavAuth(false);
+    }
+}
+
+async function validateSession(token) {
+    try {
+        const res = await fetch(GATEWAY_URL + '/api/auth/session/validate', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ token })
+        });
+        if (!res.ok) return false;
+        const data = await res.json();
+        return data.valid === true;
+    } catch { return false; }
+}
+
+async function loginWithPassword(username, password) {
+    const res = await fetch(GATEWAY_URL + '/api/auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username, password })
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Login failed');
+    return data;
+}
+
+function updateNavAuth(loggedIn) {
+    const signInBtn = document.getElementById('navSignInBtn');
+    const accountEl = document.getElementById('navAccount');
+    if (!signInBtn || !accountEl) return;
+
+    if (loggedIn) {
+        const session = getSession();
+        signInBtn.style.display = 'none';
+        accountEl.style.display = 'flex';
+        const avatar = document.getElementById('navAvatar');
+        const username = document.getElementById('navUsername');
+        if (avatar && session) {
+            avatar.src = `https://mc-heads.net/avatar/${session.uuid || session.username}/24`;
+        }
+        if (username && session) {
+            username.textContent = session.username;
+        }
+    } else {
+        signInBtn.style.display = '';
+        accountEl.style.display = 'none';
+    }
+    updateReviewSubmitArea();
+}
+
+function toggleAccountDropdown() {
+    const dropdown = document.getElementById('navAccountDropdown');
+    if (dropdown) dropdown.classList.toggle('show');
+}
+
+function logout() {
+    clearSession();
+    updateNavAuth(false);
+    const dropdown = document.getElementById('navAccountDropdown');
+    if (dropdown) dropdown.classList.remove('show');
+}
+
+function showSignInModal() {
+    const modal = document.getElementById('signInModal');
+    if (modal) {
+        modal.classList.add('show');
+        const usernameInput = document.getElementById('signInUsername');
+        if (usernameInput) setTimeout(() => usernameInput.focus(), 200);
+    }
+}
+
+function hideSignInModal() {
+    const modal = document.getElementById('signInModal');
+    if (modal) modal.classList.remove('show');
+    const err = document.getElementById('signInError');
+    if (err) { err.style.display = 'none'; err.textContent = ''; }
+}
+
+async function handleSignIn(e) {
+    e.preventDefault();
+    const username = document.getElementById('signInUsername').value.trim();
+    const password = document.getElementById('signInPassword').value;
+    const errorEl = document.getElementById('signInError');
+    const submitBtn = document.getElementById('signInSubmitBtn');
+
+    if (!username || !password) {
+        errorEl.textContent = 'Please fill in all fields.';
+        errorEl.style.display = 'block';
+        return;
+    }
+
+    submitBtn.disabled = true;
+    submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Signing in...';
+    errorEl.style.display = 'none';
+
+    try {
+        const data = await loginWithPassword(username, password);
+        saveSession({
+            token: data.token,
+            username: data.username || username,
+            uuid: data.uuid || ''
+        });
+        hideSignInModal();
+        updateNavAuth(true);
+        document.getElementById('signInPassword').value = '';
+    } catch (err) {
+        errorEl.textContent = err.message || 'Login failed. Please try again.';
+        errorEl.style.display = 'block';
+    } finally {
+        submitBtn.disabled = false;
+        submitBtn.innerHTML = '<i class="fas fa-sign-in-alt"></i> Sign In';
+    }
+}
+
+// ============================================
+// Reviews System
+// ============================================
+
+async function initReviews() {
+    await fetchReviews();
+    updateReviewSubmitArea();
+}
+
+async function fetchReviews() {
+    try {
+        const res = await fetch(GATEWAY_URL + '/api/reviews', {
+            signal: AbortSignal.timeout(8000)
+        });
+        if (res.ok) {
+            const data = await res.json();
+            allReviews = data.reviews || [];
+        }
+    } catch (err) {
+        console.log('[Reviews] Could not fetch reviews:', err.message);
+        allReviews = [];
+    }
+    renderReviews();
+}
+
+function renderReviews() {
+    const grid = document.getElementById('reviewsGrid');
+    const showMoreBtn = document.getElementById('reviewsShowMore');
+    if (!grid) return;
+
+    if (allReviews.length === 0) {
+        grid.innerHTML = '<p style="text-align:center;color:var(--text-secondary);grid-column:1/-1;">No reviews yet. Be the first to share your experience!</p>';
+        if (showMoreBtn) showMoreBtn.style.display = 'none';
+        return;
+    }
+
+    const toShow = showingAllReviews ? allReviews : allReviews.slice(0, 6);
+    grid.innerHTML = toShow.map(r => `
+        <div class="review-card glass-card">
+            <div class="review-header">
+                <img class="review-avatar" src="https://mc-heads.net/avatar/${escapeHtml(r.minecraft_uuid || r.minecraft_username)}/32" alt="">
+                <div class="review-info">
+                    <span class="review-username">${escapeHtml(r.minecraft_username)}</span>
+                    <span class="review-date">${formatReviewDate(r.created_at)}</span>
+                </div>
+            </div>
+            <div class="review-stars">${renderStars(r.rating)}</div>
+            <p class="review-description">${escapeHtml(r.description)}</p>
+        </div>
+    `).join('');
+
+    if (showMoreBtn) {
+        showMoreBtn.style.display = (!showingAllReviews && allReviews.length > 6) ? '' : 'none';
+    }
+}
+
+function showAllReviews() {
+    showingAllReviews = true;
+    renderReviews();
+}
+
+function renderStars(rating) {
+    let html = '';
+    for (let i = 1; i <= 5; i++) {
+        html += i <= rating
+            ? '<i class="fas fa-star" style="color:#f59e0b;"></i>'
+            : '<i class="far fa-star" style="color:#f59e0b;"></i>';
+    }
+    return html;
+}
+
+function selectRating(n) {
+    selectedRating = n;
+    for (let i = 1; i <= 5; i++) {
+        const btn = document.getElementById('starBtn' + i);
+        if (btn) {
+            btn.innerHTML = i <= n
+                ? '<i class="fas fa-star"></i>'
+                : '<i class="far fa-star"></i>';
+            btn.classList.toggle('active', i <= n);
+        }
+    }
+}
+
+function updateReviewSubmitArea() {
+    const area = document.getElementById('reviewSubmitArea');
+    if (!area) return;
+
+    const session = getSession();
+    if (!session || !session.token) {
+        area.innerHTML = `
+            <div style="text-align:center;">
+                <button class="btn btn-primary" onclick="showSignInModal()">
+                    <i class="fas fa-sign-in-alt"></i> Sign In to Leave a Review
+                </button>
+            </div>`;
+        return;
+    }
+
+    const existing = allReviews.find(r =>
+        r.minecraft_username && session.username &&
+        r.minecraft_username.toLowerCase() === session.username.toLowerCase()
+    );
+
+    const prefillRating = existing ? existing.rating : 0;
+    const prefillDesc = existing ? escapeHtml(existing.description) : '';
+    const btnLabel = existing ? 'Update Your Review' : 'Submit Review';
+    selectedRating = prefillRating;
+
+    let starButtons = '';
+    for (let i = 1; i <= 5; i++) {
+        const filled = i <= prefillRating;
+        starButtons += `<button type="button" class="review-star-btn ${filled ? 'active' : ''}" id="starBtn${i}" onclick="selectRating(${i})">
+            <i class="${filled ? 'fas' : 'far'} fa-star"></i>
+        </button>`;
+    }
+
+    area.innerHTML = `
+        <div class="review-form glass-card">
+            <h3>${existing ? 'Update Your Review' : 'Leave a Review'}</h3>
+            <div class="review-star-select">${starButtons}</div>
+            <textarea id="reviewDescription" class="modal-input" placeholder="Share your experience with ModereX... (10-500 characters)" maxlength="500" rows="3">${prefillDesc}</textarea>
+            <div class="review-char-count"><span id="reviewCharCount">${prefillDesc.length}</span>/500</div>
+            <button class="btn btn-primary" id="reviewSubmitBtn" onclick="submitReview()">
+                <i class="fas fa-paper-plane"></i> ${btnLabel}
+            </button>
+        </div>`;
+
+    const textarea = document.getElementById('reviewDescription');
+    if (textarea) {
+        textarea.addEventListener('input', () => {
+            const count = document.getElementById('reviewCharCount');
+            if (count) count.textContent = textarea.value.length;
+        });
+    }
+}
+
+async function submitReview() {
+    const session = getSession();
+    if (!session || !session.token) {
+        showSignInModal();
+        return;
+    }
+
+    const description = (document.getElementById('reviewDescription')?.value || '').trim();
+    const btn = document.getElementById('reviewSubmitBtn');
+    if (!btn) return;
+
+    if (selectedRating < 1 || selectedRating > 5) {
+        alert('Please select a star rating (1-5).');
+        return;
+    }
+    if (description.length < 10 || description.length > 500) {
+        alert('Description must be between 10 and 500 characters.');
+        return;
+    }
+
+    btn.disabled = true;
+    btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Submitting...';
+
+    try {
+        const res = await fetch(GATEWAY_URL + '/api/reviews', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': 'Bearer ' + session.token
+            },
+            body: JSON.stringify({ rating: selectedRating, description })
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'Failed to submit review');
+
+        await fetchReviews();
+    } catch (err) {
+        alert(err.message || 'Failed to submit review.');
+        btn.disabled = false;
+        btn.innerHTML = '<i class="fas fa-paper-plane"></i> Submit Review';
+    }
+}
+
+function escapeHtml(str) {
+    if (!str) return '';
+    const div = document.createElement('div');
+    div.textContent = str;
+    return div.innerHTML;
+}
+
+function formatReviewDate(timestamp) {
+    if (!timestamp) return '';
+    const date = new Date(typeof timestamp === 'number' ? timestamp * 1000 : timestamp);
+    return date.toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' });
+}

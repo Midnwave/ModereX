@@ -51,6 +51,21 @@
                 <a href="https://discord.gg/jQGMhKA5m6" class="btn btn-outline btn-sm" target="_blank">
                     <i class="fab fa-discord"></i> Discord
                 </a>
+                <div class="nav-auth" id="navAuth">
+                    <button class="btn btn-primary btn-sm" id="navSignInBtn" onclick="showSignInModal()">
+                        <i class="fas fa-sign-in-alt"></i> Sign In
+                    </button>
+                    <div class="nav-account" id="navAccount" style="display:none;">
+                        <button class="nav-account-btn" onclick="toggleAccountDropdown()">
+                            <img class="nav-avatar" id="navAvatar" src="" alt="Avatar">
+                            <span class="nav-username" id="navUsername"></span>
+                            <i class="fas fa-chevron-down"></i>
+                        </button>
+                        <div class="nav-account-dropdown" id="navAccountDropdown">
+                            <button onclick="logout()"><i class="fas fa-sign-out-alt"></i> Log Out</button>
+                        </div>
+                    </div>
+                </div>
             </div>
             <button class="mobile-menu-btn" aria-label="Menu">
                 <i class="fas fa-bars"></i>
@@ -559,6 +574,26 @@
         </div>
     </section>
 
+    <!-- Reviews Section -->
+    <section id="reviews" class="reviews">
+        <div class="container">
+            <div class="section-header fade-in-up">
+                <span class="section-badge"><i class="fas fa-star"></i> Reviews</span>
+                <h2>What Server Owners Say</h2>
+                <p>Real feedback from Minecraft server administrators using ModereX</p>
+            </div>
+            <div class="reviews-grid" id="reviewsGrid">
+                <div class="reviews-loading"><i class="fas fa-spinner fa-spin"></i> Loading reviews...</div>
+            </div>
+            <div class="reviews-show-more" id="reviewsShowMore" style="display:none;">
+                <button class="btn btn-outline" onclick="showAllReviews()">
+                    <i class="fas fa-chevron-down"></i> Show More Reviews
+                </button>
+            </div>
+            <div id="reviewSubmitArea" style="margin-top:48px;"></div>
+        </div>
+    </section>
+
     <!-- Download Section -->
     <section id="download" class="download">
         <div class="container">
@@ -675,6 +710,31 @@
                 </a>
                 <button class="btn btn-outline" onclick="hideComingSoon()">Close</button>
             </div>
+        </div>
+    </div>
+
+    <!-- Sign In Modal -->
+    <div class="modal-overlay" id="signInModal">
+        <div class="modal-box">
+            <div class="modal-icon">
+                <i class="fas fa-user-shield"></i>
+            </div>
+            <h2>Sign In</h2>
+            <p>Use your ModereX account credentials</p>
+            <div class="sign-in-error" id="signInError" style="display:none;"></div>
+            <form onsubmit="handleSignIn(event)" style="width:100%;">
+                <label class="modal-label" for="signInUsername">Minecraft Username</label>
+                <input class="modal-input" type="text" id="signInUsername" placeholder="Enter your username" required autocomplete="username">
+                <label class="modal-label" for="signInPassword" style="margin-top:12px;">Password</label>
+                <input class="modal-input" type="password" id="signInPassword" placeholder="Enter your password" required autocomplete="current-password">
+                <div class="modal-buttons" style="margin-top:20px;">
+                    <button type="submit" class="btn btn-primary" id="signInSubmitBtn">
+                        <i class="fas fa-sign-in-alt"></i> Sign In
+                    </button>
+                    <button type="button" class="btn btn-outline" onclick="hideSignInModal()">Cancel</button>
+                </div>
+            </form>
+            <p class="modal-hint" style="margin-top:16px;">No account? Run <strong>/mx link</strong> in-game to create one.</p>
         </div>
     </div>
 

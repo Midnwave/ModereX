@@ -612,6 +612,30 @@
     'minecraft:sculk': { all: 'sculk' },
     'minecraft:mud_bricks': { all: 'mud_bricks' },
     'minecraft:bamboo_planks': { all: 'bamboo_planks' },
+    'minecraft:bamboo_block': { top: 'bamboo_block_top', side: 'bamboo_block' },
+    'minecraft:bamboo_mosaic': { all: 'bamboo_mosaic' },
+    'minecraft:packed_mud': { all: 'packed_mud' },
+    // Stripped logs
+    'minecraft:stripped_oak_log': { top: 'stripped_oak_log_top', side: 'stripped_oak_log' },
+    'minecraft:stripped_spruce_log': { top: 'stripped_spruce_log_top', side: 'stripped_spruce_log' },
+    'minecraft:stripped_birch_log': { top: 'stripped_birch_log_top', side: 'stripped_birch_log' },
+    'minecraft:stripped_jungle_log': { top: 'stripped_jungle_log_top', side: 'stripped_jungle_log' },
+    'minecraft:stripped_acacia_log': { top: 'stripped_acacia_log_top', side: 'stripped_acacia_log' },
+    'minecraft:stripped_dark_oak_log': { top: 'stripped_dark_oak_log_top', side: 'stripped_dark_oak_log' },
+    'minecraft:stripped_cherry_log': { top: 'stripped_cherry_log_top', side: 'stripped_cherry_log' },
+    'minecraft:stripped_mangrove_log': { top: 'stripped_mangrove_log_top', side: 'stripped_mangrove_log' },
+    'minecraft:stripped_warped_stem': { top: 'stripped_warped_stem_top', side: 'stripped_warped_stem' },
+    'minecraft:stripped_crimson_stem': { top: 'stripped_crimson_stem_top', side: 'stripped_crimson_stem' },
+    // Tuff variants
+    'minecraft:tuff_bricks': { all: 'tuff_bricks' },
+    'minecraft:polished_tuff': { all: 'polished_tuff' },
+    'minecraft:chiseled_tuff': { all: 'chiseled_tuff' },
+    'minecraft:chiseled_tuff_bricks': { all: 'chiseled_tuff_bricks' },
+    // Cherry
+    'minecraft:cherry_log': { top: 'cherry_log_top', side: 'cherry_log' },
+    // Suspicious blocks
+    'minecraft:suspicious_sand': { all: 'suspicious_sand_0' },
+    'minecraft:suspicious_gravel': { all: 'suspicious_gravel_0' },
     // Wool colors
     'minecraft:white_wool': { all: 'white_wool' },
     'minecraft:orange_wool': { all: 'orange_wool' },
@@ -777,12 +801,38 @@
    * Creates individual block textures and builds a combined atlas.
    * @returns {Promise<boolean>} true if loaded successfully
    */
-  async function loadTextureAtlas() {
+  async function loadTextureAtlas(onProgress) {
     if (TEXTURE_ATLAS.loaded || TEXTURE_ATLAS.loading) return TEXTURE_ATLAS.loaded;
     TEXTURE_ATLAS.loading = true;
 
     console.log('[TextureAtlas] Loading Minecraft block textures from CDN...');
     const startTime = performance.now();
+
+    // Retry helper for individual image loads
+    function loadImageWithRetry(url, retries) {
+      return new Promise((resolve) => {
+        const attempt = (remaining) => {
+          const img = new Image();
+          img.crossOrigin = 'anonymous';
+          img.onload = () => {
+            if (typeof img.decode === 'function') {
+              img.decode().then(() => resolve(img)).catch(() => resolve(img));
+            } else {
+              resolve(img);
+            }
+          };
+          img.onerror = () => {
+            if (remaining > 0) {
+              setTimeout(() => attempt(remaining - 1), 300);
+            } else {
+              resolve(null);
+            }
+          };
+          img.src = url;
+        };
+        attempt(retries);
+      });
+    }
 
     try {
       // Collect all unique texture names we need
@@ -808,8 +858,8 @@
       canvas.height = atlasH;
       const ctx = canvas.getContext('2d');
 
-      // Load textures from PrismarineJS minecraft-assets on GitHub (raw URLs)
-      const CDN_BASE = 'https://raw.githubusercontent.com/PrismarineJS/minecraft-assets/master/data/1.20.2/blocks';
+      // Load textures from PrismarineJS minecraft-assets on jsDelivr CDN
+      const CDN_BASE = 'https://cdn.jsdelivr.net/gh/PrismarineJS/minecraft-assets@master/data/1.20.2/blocks';
       const texCoords = {}; // texName -> { col, row }
       let loadedCount = 0;
 
@@ -817,29 +867,23 @@
       const BATCH_SIZE = 20;
       for (let b = 0; b < texNames.length; b += BATCH_SIZE) {
         const batch = texNames.slice(b, b + BATCH_SIZE);
-        await Promise.all(batch.map((name, batchIdx) => {
+        await Promise.all(batch.map(async (name, batchIdx) => {
           const globalIdx = b + batchIdx;
           const col = globalIdx % ATLAS_COLS;
           const row = Math.floor(globalIdx / ATLAS_COLS);
           texCoords[name] = { col, row };
 
-          return new Promise((resolve) => {
-            const img = new Image();
-            img.crossOrigin = 'anonymous';
-            img.onload = () => {
-              ctx.drawImage(img, col * TILE_SIZE, row * TILE_SIZE, TILE_SIZE, TILE_SIZE);
-              loadedCount++;
-              resolve();
-            };
-            img.onerror = () => {
-              // Draw a solid color fallback from BLOCK_COLORS
-              ctx.fillStyle = '#808080';
-              ctx.fillRect(col * TILE_SIZE, row * TILE_SIZE, TILE_SIZE, TILE_SIZE);
-              resolve();
-            };
-            img.src = `${CDN_BASE}/${name}.png`;
-          });
+          const img = await loadImageWithRetry(`${CDN_BASE}/${name}.png`, 2);
+          if (img) {
+            ctx.drawImage(img, col * TILE_SIZE, row * TILE_SIZE, TILE_SIZE, TILE_SIZE);
+            loadedCount++;
+          } else {
+            // Draw a solid color fallback
+            ctx.fillStyle = '#808080';
+            ctx.fillRect(col * TILE_SIZE, row * TILE_SIZE, TILE_SIZE, TILE_SIZE);
+          }
         }));
+        if (onProgress) onProgress('textures', Math.min(b + BATCH_SIZE, texNames.length), texNames.length);
       }
 
       console.log(`[TextureAtlas] Loaded ${loadedCount}/${texNames.length} textures`);
@@ -1671,38 +1715,46 @@ const vec2 atlasTileSize = vec2(${tileUW.toFixed(10)}, ${tileUH.toFixed(10)});`
      * on large terrain datasets (100+ chunks).
      * @param {Array} columns - Array of { chunkX, chunkZ, sections }
      */
-    loadColumns(columns) {
-      console.log(`[Terrain] Loading ${columns.length} chunk columns...`);
-      const startTime = performance.now();
+    loadColumns(columns, onProgress) {
+      return new Promise((resolve) => {
+        console.log(`[Terrain] Loading ${columns.length} chunk columns...`);
+        const startTime = performance.now();
 
-      // Store all column data first (for cross-chunk neighbor lookups)
-      for (const col of columns) {
-        const key = `${col.chunkX},${col.chunkZ}`;
-        this.columns.set(key, {
-          data: col,
-          group: null,
-          sectionMeshes: new Map(),
-          sectionIndex: this._buildSectionIndex(col.sections),
-        });
-      }
+        // Store all column data first (for cross-chunk neighbor lookups)
+        for (const col of columns) {
+          const key = `${col.chunkX},${col.chunkZ}`;
+          this.columns.set(key, {
+            data: col,
+            group: null,
+            sectionMeshes: new Map(),
+            sectionIndex: this._buildSectionIndex(col.sections),
+          });
+        }
 
-      // Build meshes in batches to avoid blocking the browser UI thread
-      const BATCH_SIZE = 8;
-      let built = 0;
-      const buildBatch = () => {
-        const batchEnd = Math.min(built + BATCH_SIZE, columns.length);
-        for (let i = built; i < batchEnd; i++) {
-          this._buildColumnMeshes(columns[i].chunkX, columns[i].chunkZ);
-        }
-        built = batchEnd;
-        if (built < columns.length) {
-          setTimeout(buildBatch, 0);
-        } else {
-          const elapsed = (performance.now() - startTime).toFixed(1);
-          console.log(`[Terrain] Built meshes for ${columns.length} columns in ${elapsed}ms`);
-        }
-      };
-      buildBatch();
+        // Build meshes in batches using requestIdleCallback to avoid blocking UI
+        const BATCH_SIZE = 8;
+        let built = 0;
+        const scheduleNext = typeof requestIdleCallback !== 'undefined'
+          ? (fn) => requestIdleCallback(fn, { timeout: 50 })
+          : (fn) => setTimeout(fn, 0);
+
+        const buildBatch = () => {
+          const batchEnd = Math.min(built + BATCH_SIZE, columns.length);
+          for (let i = built; i < batchEnd; i++) {
+            this._buildColumnMeshes(columns[i].chunkX, columns[i].chunkZ);
+          }
+          built = batchEnd;
+          if (onProgress) onProgress('meshing', built, columns.length);
+          if (built < columns.length) {
+            scheduleNext(buildBatch);
+          } else {
+            const elapsed = (performance.now() - startTime).toFixed(1);
+            console.log(`[Terrain] Built meshes for ${columns.length} columns in ${elapsed}ms`);
+            resolve(columns.length);
+          }
+        };
+        buildBatch();
+      });
     }
 
     /**

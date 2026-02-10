@@ -9152,7 +9152,6 @@
     { name: 'Stress Test Players', page: 'devtools', keywords: ['stress', 'test', 'spoof', 'players', 'fake'], elementId: 'devStressPlayers' },
     { name: 'Stress Test Punishments', page: 'devtools', keywords: ['stress', 'test', 'spoof', 'punishments', 'fake'], elementId: 'devStressPunishments' },
     { name: 'Token Stress Test', page: 'devtools', keywords: ['token', 'auth', 'stress', 'test'], elementId: 'devTokenStress' },
-    { name: 'UUID Auth', page: 'devtools', keywords: ['uuid', 'auth', 'authenticate', 'dev'], elementId: 'devUuidAuth' },
     { name: 'Development Checklist', page: 'devtools', keywords: ['checklist', 'todo', 'tasks', 'dev'], elementId: 'devChecklist' },
     { name: 'Debug Console', page: 'devtools', keywords: ['console', 'log', 'debug', 'messages'], elementId: 'devDebugConsole' }
   ];
@@ -13972,34 +13971,7 @@
     window.MX.ws.on('message', progressHandler);
   }
 
-  // ===== UUID DEV AUTHENTICATION =====
-  function devUuidAuth() {
-    const uuidInput = document.getElementById('devUuidInput');
-    const uuid = uuidInput?.value?.trim();
-
-    if (!uuid) {
-      toast('bad', 'UUID Required', 'Please enter a valid UUID.');
-      return;
-    }
-
-    // Basic UUID format validation
-    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-    if (!uuidRegex.test(uuid)) {
-      toast('bad', 'Invalid UUID', 'UUID must be in format: xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx');
-      return;
-    }
-
-    toast('info', 'Dev Auth', `Authenticating as UUID: ${uuid.substring(0, 8)}...`);
-
-    // Send dev auth request
-    window.MX.ws.send('AUTH_DEV_UUID', {
-      uuid: uuid,
-      timestamp: Date.now()
-    });
-  }
-
   window.startTokenStressTest = startTokenStressTest;
-  window.devUuidAuth = devUuidAuth;
 
   // ===== WEB PANEL VERSION & GITHUB UPDATE CHECKER =====
   let panelVersionInfo = null;
