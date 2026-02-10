@@ -75,6 +75,18 @@
 
   const GATEWAY_WS_URL = getGatewayWsUrl();
 
+  /**
+   * Derive the gateway HTTP(S) base URL from the WS URL.
+   * e.g. wss://gateway.moderex.net/panel → https://gateway.moderex.net
+   */
+  function getGatewayHttpUrl() {
+    const wsUrl = GATEWAY_WS_URL;
+    return wsUrl
+      .replace(/^wss:\/\//, 'https://')
+      .replace(/^ws:\/\//, 'http://')
+      .replace(/\/panel\/?$/, '');
+  }
+
   let ws = null;
   let heartbeatTimer = null;
   let reconnectTimer = null;
@@ -328,6 +340,20 @@
    * @param {string} type - Message type
    * @param {object} data - Message data
    */
+  /**
+   * Send a raw JSON message (not wrapped in {type, data} envelope).
+   * Used for gateway-direct messages like session_auth, fingerprint_auth, password_auth.
+   */
+  function sendRaw(obj) {
+    if (!ws || ws.readyState !== WebSocket.OPEN) {
+      console.warn('[WS] Cannot sendRaw, not connected');
+      return false;
+    }
+    ws.send(JSON.stringify(obj));
+    if (window.debugLog) window.debugLog('WS', `Sent raw: ${obj.type || 'unknown'}`, 'info');
+    return true;
+  }
+
   function send(type, data = {}) {
     if (!ws || ws.readyState !== WebSocket.OPEN) {
       console.warn('[WS] Cannot send, not connected');
@@ -1235,6 +1261,7 @@
     scheduleServerOfflineRetry,
     disconnect,
     send,
+    sendRaw,
     on,
     off,
     isConnected: () => isConnected,
@@ -1252,6 +1279,7 @@
     getConnectionState: () => connectionState,
     ConnectionState,
     setStatus,
+    getGatewayHttpUrl,
     isSilentReconnect: () => silentReconnect,
     isPageUnloading: () => isPageUnloading,
     getReconnectAttempts: () => reconnectAttempts,

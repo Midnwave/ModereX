@@ -60,19 +60,41 @@
           </div>
         </div>
 
-        <!-- Token Auth Section -->
-        <div class="auth-section" id="authTokenSection">
-          <label class="auth-label">Permanent Token</label>
-          <p class="auth-hint">Run <code>/mx gettoken</code> in-game to get your token</p>
-          <p class="auth-hint" style="font-size:11px;color:var(--muted);margin-top:4px"><i class="fa-solid fa-code"></i> Dev: Enter a player UUID to login as them</p>
-          <input type="password" class="input" id="authToken" placeholder="Token or UUID..." autocomplete="off" spellcheck="false">
+        <!-- Auth Tabs -->
+        <div class="auth-tabs">
+          <button class="auth-tab active" data-tab="password"><i class="fa-solid fa-lock"></i> Sign In</button>
+          <button class="auth-tab" data-tab="token"><i class="fa-solid fa-key"></i> Legacy Token</button>
+        </div>
+
+        <!-- Password Auth Tab -->
+        <div class="auth-tab-content active" id="authTabPassword" data-tab="password">
+          <div class="auth-section">
+            <label class="auth-label">Minecraft Username</label>
+            <input type="text" class="input" id="authUsername" placeholder="Your Minecraft username" autocomplete="username" spellcheck="false">
+          </div>
+          <div class="auth-section">
+            <label class="auth-label">Password</label>
+            <input type="password" class="input" id="authPassword" placeholder="Password" autocomplete="current-password">
+          </div>
+          <p class="auth-hint" style="margin-top:8px">No account? Run <code>/mx link</code> in-game to create one.</p>
+        </div>
+
+        <!-- Legacy Token Tab -->
+        <div class="auth-tab-content" id="authTabToken" data-tab="token">
+          <div class="auth-section" id="authTokenSection">
+            <label class="auth-label">Permanent Token <span style="color:var(--warning);font-size:11px">(Deprecated)</span></label>
+            <p class="auth-hint">Run <code>/mx gettoken</code> in-game to get your token</p>
+            <p class="auth-hint" style="font-size:11px;color:var(--muted);margin-top:4px"><i class="fa-solid fa-code"></i> Dev: Enter a player UUID to login as them</p>
+            <input type="password" class="input" id="authToken" placeholder="Token or UUID..." autocomplete="off" spellcheck="false">
+          </div>
+          <p class="auth-hint" style="margin-top:8px;color:var(--warning)"><i class="fa-solid fa-triangle-exclamation"></i> Token auth is being replaced. Use <strong>/mx link</strong> + password instead.</p>
         </div>
 
         <!-- Error Message -->
         <div class="auth-error" id="authError" style="display:none"></div>
 
         <!-- Auth Button -->
-        <button class="btn primary" id="authBtn" style="margin-top:16px"><i class="fa-solid fa-right-to-bracket"></i> Connect</button>
+        <button class="btn primary" id="authBtn" style="margin-top:16px"><i class="fa-solid fa-right-to-bracket"></i> Sign In</button>
       </div>
     </div>
   </div>
@@ -2633,6 +2655,50 @@
               </div>
             </div>
 
+            <!-- Account Security -->
+            <div class="card" id="accountSecurityCard" style="display:none">
+              <h3><i class="fa-solid fa-lock" style="color:var(--primary-light)"></i> Account Security</h3>
+              <p>Manage your password and session security.</p>
+
+              <div class="settings-row" style="margin-top:14px">
+                <div class="settings-row-left">
+                  <div class="settings-row-icon blue"><i class="fa-solid fa-key"></i></div>
+                  <div class="settings-row-text">
+                    <div class="settings-row-title">Change Password</div>
+                    <div class="settings-row-sub">Update your panel login password</div>
+                  </div>
+                </div>
+                <button class="btn small" onclick="openChangePasswordModal()"><i class="fa-solid fa-pen"></i> Change</button>
+              </div>
+
+              <div class="settings-row" style="margin-top:10px">
+                <div class="settings-row-left">
+                  <div class="settings-row-icon green"><i class="fa-solid fa-fingerprint"></i></div>
+                  <div class="settings-row-text">
+                    <div class="settings-row-title">Auto Sign-In</div>
+                    <div class="settings-row-sub">Skip the login page on trusted devices</div>
+                  </div>
+                </div>
+                <button class="toggle" id="autoSignInEnabled" onclick="toggleAutoSignIn()"><span class="toggle-thumb"></span></button>
+              </div>
+
+              <div class="settings-row" style="margin-top:10px">
+                <div class="settings-row-left">
+                  <div class="settings-row-icon red"><i class="fa-solid fa-right-from-bracket"></i></div>
+                  <div class="settings-row-text">
+                    <div class="settings-row-title">Revoke All Sessions</div>
+                    <div class="settings-row-sub">Sign out from all devices except this one</div>
+                  </div>
+                </div>
+                <button class="btn small danger" onclick="revokeAllSessions()"><i class="fa-solid fa-trash"></i> Revoke</button>
+              </div>
+
+              <div class="info-box" style="margin-top:14px">
+                <i class="fa-solid fa-circle-info" style="color:var(--primary-light)"></i>
+                <span>Forgot your password? Run <code>/mx link</code> in-game to re-link your account and set a new password.</span>
+              </div>
+            </div>
+
             <!-- Developer Tools -->
             <div class="card">
               <h3><i class="fa-solid fa-bug" style="color:var(--warn)"></i> Developer Tools</h3>
@@ -3681,75 +3747,6 @@
                 </div>
               </div>
 
-              <!-- Permission Test Engine -->
-              <div class="card" id="devPermissionTest" style="margin-top:16px">
-                <h3><i class="fa-solid fa-flask" style="color:var(--cyan);margin-right:10px"></i>Permission Test Engine</h3>
-                <p style="margin-bottom:16px">Automated testing of all 250+ permissions across profiles, commands, GUIs, and web panel.</p>
-
-                <!-- Mode Selection -->
-                <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px">
-                  <button class="btn active" id="permTestModeProfiles" onclick="setPermTestMode('profiles')"><i class="fa-solid fa-users"></i> Smart Profiles</button>
-                  <button class="btn" id="permTestModeIsolation" onclick="setPermTestMode('isolation')"><i class="fa-solid fa-vial"></i> Isolation</button>
-                  <button class="btn" id="permTestModeParity" onclick="setPermTestMode('parity')"><i class="fa-solid fa-scale-balanced"></i> Parity Check</button>
-                  <button class="btn" id="permTestModeAll" onclick="setPermTestMode('all')"><i class="fa-solid fa-globe"></i> Run All</button>
-                  <button class="btn" id="permTestModeProfile" onclick="setPermTestMode('profile')"><i class="fa-solid fa-user"></i> Single Profile</button>
-                  <button class="btn" id="permTestModeCustom" onclick="setPermTestMode('custom')"><i class="fa-solid fa-sliders"></i> Custom</button>
-                </div>
-
-                <!-- Single Profile Selector (hidden by default) -->
-                <div id="permTestProfileSelector" style="display:none;margin-bottom:12px">
-                  <label style="font-size:12px;color:var(--text-secondary);margin-bottom:4px;display:block">Select Profile:</label>
-                  <select id="permTestProfileSelect" style="width:100%;padding:8px 12px;background:var(--surface);color:var(--text);border:1px solid var(--border);border-radius:var(--radius);font-family:var(--font-mono);font-size:13px">
-                    <option value="NONE">NONE - No permissions</option>
-                    <option value="OP">OP - Operator bypass</option>
-                    <option value="HELPER">HELPER - Basic view access</option>
-                    <option value="MODERATOR" selected>MODERATOR - Mid-level staff</option>
-                    <option value="ADMIN">ADMIN - Full admin</option>
-                    <option value="OWNER">OWNER - Wildcard moderex.*</option>
-                    <option value="TEMPBAN_ONLY">TEMPBAN_ONLY - Edge case</option>
-                    <option value="HISTORY_PARTIAL">HISTORY_PARTIAL - Partial history</option>
-                    <option value="FLAG_TESTER">FLAG_TESTER - Some flags only</option>
-                    <option value="WEB_VIEWER">WEB_VIEWER - Minimal web access</option>
-                    <option value="CATEGORY_WILDCARD">CATEGORY_WILDCARD - history.*</option>
-                    <option value="WEIGHTED">WEIGHTED - Weight system test</option>
-                  </select>
-                </div>
-
-                <!-- Custom Permission Builder (hidden by default) -->
-                <div id="permTestCustomBuilder" style="display:none;margin-bottom:12px">
-                  <label style="font-size:12px;color:var(--text-secondary);margin-bottom:4px;display:block">Custom Permissions (one per line):</label>
-                  <textarea id="permTestCustomPerms" rows="5" placeholder="moderex.ban&#10;moderex.tempban&#10;moderex.history.*&#10;moderex.info.*" style="width:100%;padding:8px 12px;background:var(--surface);color:var(--text);border:1px solid var(--border);border-radius:var(--radius);font-family:var(--font-mono);font-size:12px;resize:vertical"></textarea>
-                  <label style="margin-top:8px;display:flex;align-items:center;gap:8px;font-size:13px;cursor:pointer">
-                    <input type="checkbox" id="permTestCustomOp"> Simulate OP status
-                  </label>
-                </div>
-
-                <!-- Run Button -->
-                <button class="btn primary" onclick="runPermissionTests()" id="permTestRunBtn" style="width:100%">
-                  <i class="fa-solid fa-play"></i> Run Tests
-                </button>
-
-                <!-- Results Area -->
-                <div id="permTestResults" style="display:none;margin-top:16px">
-                  <!-- Summary Bar -->
-                  <div id="permTestSummary" style="display:flex;gap:16px;align-items:center;padding:12px;background:rgba(0,0,0,0.3);border-radius:var(--radius);border:1px solid var(--border);margin-bottom:12px">
-                  </div>
-
-                  <!-- Filter Bar -->
-                  <div style="display:flex;gap:8px;margin-bottom:12px;align-items:center">
-                    <input type="text" id="permTestFilter" placeholder="Filter tests..." oninput="filterPermTestResults()" style="flex:1;padding:6px 12px;background:var(--surface);color:var(--text);border:1px solid var(--border);border-radius:var(--radius);font-size:12px">
-                    <button class="btn small active" id="permTestFilterAll" onclick="setPermTestFilter('all')">All</button>
-                    <button class="btn small" id="permTestFilterPass" onclick="setPermTestFilter('pass')">Pass</button>
-                    <button class="btn small" id="permTestFilterFail" onclick="setPermTestFilter('fail')">Fail</button>
-                    <button class="btn small" onclick="exportPermTestResults()" title="Export to JSON"><i class="fa-solid fa-download"></i></button>
-                  </div>
-
-                  <!-- Results Groups -->
-                  <div id="permTestGroups" style="max-height:500px;overflow-y:auto">
-                  </div>
-                </div>
-              </div>
-
               <!-- Database Debug -->
               <div class="card" id="devDatabaseDebug" style="margin-top:16px">
                 <h3><i class="fa-solid fa-database" style="color:var(--blue);margin-right:10px"></i>Database Debug</h3>
@@ -4437,6 +4434,53 @@
       <div class="modal-foot" style="justify-content:center">
         <button class="btn ghost" onclick="closeChecklistResetModal()"><i class="fa-solid fa-xmark"></i> Cancel</button>
         <button class="btn warn" onclick="confirmResetChecklist()"><i class="fa-solid fa-rotate-left"></i> Reset All</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Change Password Modal -->
+  <div class="overlay" id="changePasswordOverlay">
+    <div class="modal" style="max-width:420px" onclick="event.stopPropagation()">
+      <div class="modal-top">
+        <div style="display:flex;align-items:center;gap:10px">
+          <i class="fa-solid fa-key" style="color:var(--primary-light)"></i>
+          <b>Change Password</b>
+        </div>
+        <button class="mini" onclick="closeChangePasswordModal()"><i class="fa-solid fa-xmark"></i></button>
+      </div>
+      <div class="modal-body">
+        <div style="margin-bottom:14px">
+          <label class="hintline" style="margin-top:0">Current Password</label>
+          <div class="password-field">
+            <input type="password" class="input" id="cpCurrentPassword" placeholder="Enter current password" autocomplete="current-password">
+            <button class="password-toggle" type="button" onclick="togglePasswordField('cpCurrentPassword', this)"><i class="fa-solid fa-eye"></i></button>
+          </div>
+        </div>
+        <div style="margin-bottom:14px">
+          <label class="hintline" style="margin-top:0">New Password</label>
+          <div class="password-field">
+            <input type="password" class="input" id="cpNewPassword" placeholder="Enter new password" autocomplete="new-password" oninput="updateCpStrength()">
+            <button class="password-toggle" type="button" onclick="togglePasswordField('cpNewPassword', this)"><i class="fa-solid fa-eye"></i></button>
+          </div>
+          <div class="password-strength-bar" style="margin-top:8px">
+            <div class="password-strength-fill" id="cpStrengthFill"></div>
+          </div>
+          <div class="password-strength-label" id="cpStrengthLabel" style="font-size:12px;margin-top:4px;color:var(--text-secondary)"></div>
+        </div>
+        <div style="margin-bottom:8px">
+          <label class="hintline" style="margin-top:0">Confirm New Password</label>
+          <div class="password-field">
+            <input type="password" class="input" id="cpConfirmPassword" placeholder="Re-enter new password" autocomplete="new-password">
+            <button class="password-toggle" type="button" onclick="togglePasswordField('cpConfirmPassword', this)"><i class="fa-solid fa-eye"></i></button>
+          </div>
+        </div>
+      </div>
+      <div class="modal-foot">
+        <span class="badge gray"><i class="fa-solid fa-shield-halved"></i> Argon2id encrypted</span>
+        <div style="display:flex;gap:10px">
+          <button class="btn ghost" onclick="closeChangePasswordModal()"><i class="fa-solid fa-xmark"></i> Cancel</button>
+          <button class="btn primary" id="cpSubmitBtn" onclick="submitChangePassword()"><i class="fa-solid fa-check"></i> Update Password</button>
+        </div>
       </div>
     </div>
   </div>

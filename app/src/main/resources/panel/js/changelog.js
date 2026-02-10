@@ -14,6 +14,51 @@
 
 window.MX_CHANGELOGS = [
   {
+    build: 307,
+    version: "2.0dev-307",
+    date: "2026-02-09",
+    title: "Secure Link Authentication System",
+    sections: [
+      {
+        type: "new",
+        title: "New Features",
+        items: [
+          "**Secure Link Auth** - New `/mx link` command generates a 10-digit code for secure account linking via moderex.net/link",
+          "**Password Authentication** - Panel now supports username + password login with Argon2id hashing",
+          "**Device Fingerprint Auto Sign-In** - Trusted devices can skip the login page automatically",
+          "**Account Security Settings** - Change password, toggle auto sign-in, and revoke all sessions from the Settings page",
+          "**Link Page** - New moderex.net/link page with 4-step animated flow: code entry, identity confirm, password creation, success"
+        ]
+      },
+      {
+        type: "improved",
+        title: "Improvements",
+        items: [
+          "**Tabbed Login** - Panel login now has Sign In (password) and Legacy Token tabs",
+          "**Session Management** - Persistent sessions with 30-day expiry, stored as SHA-256 hashes server-side",
+          "**Announcement Broadcast** - Admin announcements now reach all connected web panels (browser + global panel clients)"
+        ]
+      },
+      {
+        type: "fixed",
+        title: "Bug Fixes",
+        items: [
+          "**Announcement Delivery** - Fixed announcements only being sent to MC servers, not browser panel clients"
+        ]
+      },
+      {
+        type: "technical",
+        title: "Technical Changes",
+        items: [
+          "**Argon2id Hashing** - All passwords hashed with Argon2id (memoryCost=65536, timeCost=3)",
+          "**Rate Limiting** - 5 code verify attempts/IP/10min, 5 password failures → 15-min lockout",
+          "**Gateway HTTP API** - 8 new REST endpoints for link verification, registration, auth, and session management",
+          "**Legacy Deprecation** - `/mx gettoken` and `/mx revoketoken` marked as legacy with deprecation notices"
+        ]
+      }
+    ]
+  },
+  {
     build: 296,
     version: "2.0dev-296",
     date: "2026-02-08",

@@ -5315,6 +5315,53 @@ textarea.input {
   text-align: left;
 }
 
+/* Auth Tabs */
+.auth-tabs {
+  display: flex;
+  gap: 0;
+  margin-bottom: 16px;
+  background: rgba(255,255,255,0.03);
+  border-radius: 8px;
+  padding: 3px;
+  border: 1px solid rgba(255,255,255,0.06);
+}
+
+.auth-tab {
+  flex: 1;
+  padding: 8px 12px;
+  background: none;
+  border: none;
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  border-radius: 6px;
+  transition: all 0.2s;
+  font-family: inherit;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+}
+
+.auth-tab:hover {
+  color: var(--text);
+}
+
+.auth-tab.active {
+  background: var(--primary);
+  color: white;
+}
+
+.auth-tab-content {
+  display: none;
+}
+
+.auth-tab-content.active {
+  display: block;
+  animation: fadeSlideIn 0.2s ease;
+}
+
 @keyframes fadeSlideIn {
   from {
     opacity: 0;
@@ -5324,6 +5371,68 @@ textarea.input {
     opacity: 1;
     transform: translateY(0);
   }
+}
+
+/* Password field with toggle */
+.password-field {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.password-field .input {
+  padding-right: 42px;
+  width: 100%;
+}
+
+.password-toggle {
+  position: absolute;
+  right: 8px;
+  background: none;
+  border: none;
+  color: var(--text-secondary);
+  cursor: pointer;
+  padding: 4px 6px;
+  font-size: 14px;
+  opacity: 0.6;
+  transition: opacity 0.15s;
+}
+
+.password-toggle:hover {
+  opacity: 1;
+  color: var(--text);
+}
+
+/* Password strength bar */
+.password-strength-bar {
+  height: 4px;
+  background: rgba(255, 255, 255, 0.08);
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.password-strength-fill {
+  height: 100%;
+  width: 0;
+  border-radius: 4px;
+  transition: width 0.3s ease, background 0.3s ease;
+}
+
+/* Small button variant */
+.btn.small {
+  padding: 6px 14px;
+  font-size: 12px;
+  gap: 6px;
+}
+
+.btn.small.danger {
+  background: rgba(var(--bad-rgb), 0.1);
+  border-color: rgba(var(--bad-rgb), 0.25);
+  color: var(--bad);
+}
+
+.btn.small.danger:hover {
+  background: rgba(var(--bad-rgb), 0.18);
 }
 
 /* Access Denied Overlay */

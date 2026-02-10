@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Link Account - ModereX</title>
+    <meta name="description" content="Link your Minecraft account to ModereX web panel">
+    <meta name="theme-color" content="#2d7aed">
+    <link rel="icon" type="image/png" href="../images/logo.png">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <link rel="stylesheet" href="link.css">
+</head>
+<body>
+    <div class="link-container">
+        <div class="link-card">
+            <!-- Header -->
+            <div class="link-header">
+                <img src="../images/logo.png" alt="ModereX" class="link-logo" onerror="this.style.display='none'">
+                <h1>Link Your Account</h1>
+                <p class="link-subtitle">Connect your Minecraft account to the web panel</p>
+            </div>
+
+            <!-- Progress Steps -->
+            <div class="progress-bar">
+                <div class="progress-step active" data-step="1">
+                    <div class="step-circle">1</div>
+                    <span>Enter Code</span>
+                </div>
+                <div class="progress-line"></div>
+                <div class="progress-step" data-step="2">
+                    <div class="step-circle">2</div>
+                    <span>Confirm</span>
+                </div>
+                <div class="progress-line"></div>
+                <div class="progress-step" data-step="3">
+                    <div class="step-circle">3</div>
+                    <span>Password</span>
+                </div>
+                <div class="progress-line"></div>
+                <div class="progress-step" data-step="4">
+                    <div class="step-circle">4</div>
+                    <span>Done</span>
+                </div>
+            </div>
+
+            <!-- Step 1: Code Entry -->
+            <div class="step-content" id="step-1">
+                <p class="step-instructions">Enter the 10-digit code from <code>/mx link</code></p>
+                <div class="code-input-container">
+                    <div class="code-group">
+                        <input type="password" maxlength="1" inputmode="numeric" pattern="[0-9]" class="code-digit" data-index="0" autocomplete="off">
+                        <input type="password" maxlength="1" inputmode="numeric" pattern="[0-9]" class="code-digit" data-index="1" autocomplete="off">
+                        <input type="password" maxlength="1" inputmode="numeric" pattern="[0-9]" class="code-digit" data-index="2" autocomplete="off">
+                        <input type="password" maxlength="1" inputmode="numeric" pattern="[0-9]" class="code-digit" data-index="3" autocomplete="off">
+                    </div>
+                    <span class="code-separator">-</span>
+                    <div class="code-group">
+                        <input type="password" maxlength="1" inputmode="numeric" pattern="[0-9]" class="code-digit" data-index="4" autocomplete="off">
+                        <input type="password" maxlength="1" inputmode="numeric" pattern="[0-9]" class="code-digit" data-index="5" autocomplete="off">
+                        <input type="password" maxlength="1" inputmode="numeric" pattern="[0-9]" class="code-digit" data-index="6" autocomplete="off">
+                    </div>
+                    <span class="code-separator">-</span>
+                    <div class="code-group">
+                        <input type="password" maxlength="1" inputmode="numeric" pattern="[0-9]" class="code-digit" data-index="7" autocomplete="off">
+                        <input type="password" maxlength="1" inputmode="numeric" pattern="[0-9]" class="code-digit" data-index="8" autocomplete="off">
+                        <input type="password" maxlength="1" inputmode="numeric" pattern="[0-9]" class="code-digit" data-index="9" autocomplete="off">
+                    </div>
+                </div>
+                <div class="error-message" id="code-error"></div>
+                <button class="btn btn-primary" id="verify-btn" disabled>Verify Code</button>
+                <p class="hint-text">Run <code>/mx link</code> in-game to get a code</p>
+            </div>
+
+            <!-- Step 2: Identity Confirmation -->
+            <div class="step-content hidden" id="step-2">
+                <div class="player-identity">
+                    <img id="player-head" class="player-head" src="" alt="Player Head">
+                    <div id="identity-text"></div>
+                </div>
+                <div class="error-message" id="identity-error"></div>
+                <div id="identity-buttons" class="identity-buttons">
+                    <button class="btn btn-primary" id="confirm-yes">Yes, that's me!</button>
+                    <button class="btn btn-secondary" id="confirm-no">No, that's not me</button>
+                </div>
+            </div>
+
+            <!-- Step 3: Password Creation (new users only) -->
+            <div class="step-content hidden" id="step-3">
+                <p class="step-instructions">Create a password for your account</p>
+                <div class="form-group">
+                    <label for="password">Password</label>
+                    <div class="password-input-wrapper">
+                        <input type="password" id="password" placeholder="Enter password" autocomplete="new-password">
+                        <button type="button" class="toggle-password" data-target="password"><i class="fas fa-eye"></i></button>
+                    </div>
+                </div>
+                <div class="strength-meter">
+                    <div class="strength-bar" id="strength-bar"></div>
+                </div>
+                <div class="strength-label" id="strength-label"></div>
+                <div class="form-group">
+                    <label for="password-confirm">Confirm Password</label>
+                    <div class="password-input-wrapper">
+                        <input type="password" id="password-confirm" placeholder="Confirm password" autocomplete="new-password">
+                        <button type="button" class="toggle-password" data-target="password-confirm"><i class="fas fa-eye"></i></button>
+                    </div>
+                </div>
+                <div class="error-message" id="password-error"></div>
+                <button class="btn btn-primary" id="create-account-btn" disabled>Create Account</button>
+            </div>
+
+            <!-- Step 4: Success -->
+            <div class="step-content hidden" id="step-4">
+                <div class="success-animation">
+                    <div class="checkmark-circle">
+                        <i class="fas fa-check"></i>
+                    </div>
+                </div>
+                <h2 class="success-title" id="success-title">Account Created!</h2>
+                <p class="success-text" id="success-text">Your account has been linked successfully.</p>
+                <a href="https://panel.moderex.net" class="btn btn-primary" id="goto-panel-btn">Go to Panel</a>
+            </div>
+
+            <!-- Loading Overlay -->
+            <div class="loading-overlay hidden" id="loading-overlay">
+                <div class="spinner"></div>
+                <p id="loading-text">Verifying...</p>
+            </div>
+        </div>
+    </div>
+
+    <script src="link.js"></script>
+</body>
+</html>

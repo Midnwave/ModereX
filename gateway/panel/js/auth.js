@@ -441,18 +441,47 @@
   async function tryGlobalAuthenticate() {
     authState.connectionPhase = 'authenticating';
     authState.status = AuthStatus.PENDING_VERIFICATION;
-    updateStatus('Authenticating...', 'Verifying global token');
+    updateStatus('Authenticating...', 'Checking credentials');
 
+    // Priority 1: Session token (from password/link auth)
+    let savedSession = null;
+    try {
+      savedSession = JSON.parse(localStorage.getItem('mx_session') || 'null');
+    } catch (e) {}
+
+    if (savedSession && savedSession.token) {
+      console.log('[Auth] Trying session auth for', savedSession.username);
+      updateStatus('Authenticating...', 'Validating session');
+      ws.sendRaw({ type: 'session_auth', sessionToken: savedSession.token });
+
+      // If session fails, global_auth_result handler will call showManualAuth
+      setTimeout(() => {
+        if (authState.connectionPhase === 'authenticating' && !authState.authenticated) {
+          console.log('[Auth] Session auth timeout - trying fingerprint');
+          tryFingerprintAuth();
+        }
+      }, 5000);
+      return;
+    }
+
+    // Priority 2: Device fingerprint auto-sign-in
+    if (authState.deviceFingerprint) {
+      tryFingerprintAuth();
+      return;
+    }
+
+    // Priority 3: Legacy saved token
     const savedToken = await loadEncryptedToken(authState.deviceFingerprint);
     const savedDeviceFingerprint = localStorage.getItem('mx_token_device');
 
     if (savedToken && savedDeviceFingerprint === authState.deviceFingerprint) {
-      console.log('[Auth] Global auth with saved token');
+      console.log('[Auth] Global auth with saved legacy token');
+      updateStatus('Authenticating...', 'Verifying legacy token');
       ws.globalAuthWithToken(savedToken);
     } else {
-      // No saved token — show auth overlay
-      console.log('[Auth] No saved global token - showing auth screen');
-      showManualAuth('Enter your token to access your servers');
+      console.log('[Auth] No saved credentials - showing auth screen');
+      showManualAuth('Sign in to access your servers');
+      return;
     }
 
     // Auth timeout
@@ -462,6 +491,43 @@
         showManualAuth('Authentication timed out');
       }
     }, 10000);
+  }
+
+  function tryFingerprintAuth() {
+    if (!authState.deviceFingerprint) {
+      tryLegacyTokenAuth();
+      return;
+    }
+
+    console.log('[Auth] Trying fingerprint auto-sign-in');
+    updateStatus('Authenticating...', 'Checking device trust');
+    ws.sendRaw({ type: 'fingerprint_auth', fingerprintHash: authState.deviceFingerprint });
+
+    setTimeout(async () => {
+      if (authState.connectionPhase === 'authenticating' && !authState.authenticated) {
+        console.log('[Auth] Fingerprint auth timeout - trying legacy token');
+        await tryLegacyTokenAuth();
+      }
+    }, 5000);
+  }
+
+  async function tryLegacyTokenAuth() {
+    const savedToken = await loadEncryptedToken(authState.deviceFingerprint);
+    const savedDeviceFingerprint = localStorage.getItem('mx_token_device');
+
+    if (savedToken && savedDeviceFingerprint === authState.deviceFingerprint) {
+      console.log('[Auth] Trying legacy token auth');
+      updateStatus('Authenticating...', 'Verifying legacy token');
+      ws.globalAuthWithToken(savedToken);
+
+      setTimeout(() => {
+        if (authState.connectionPhase === 'authenticating' && !authState.authenticated) {
+          showManualAuth('Authentication timed out');
+        }
+      }, 8000);
+    } else {
+      showManualAuth('Sign in to access your servers');
+    }
   }
 
   /**
@@ -674,6 +740,8 @@
       serverSection: $('#serverSection'),
       authTokenSection: $('#authTokenSection'),
       authToken: $('#authToken'),
+      authUsername: $('#authUsername'),
+      authPassword: $('#authPassword'),
       serverHost: $('#serverHost'),
       serverPort: $('#serverPort'),
       authBtn: $('#authBtn'),
@@ -684,6 +752,9 @@
   /**
    * Setup event listeners
    */
+  // Track active auth tab
+  let activeAuthTab = 'password';
+
   function setupEventListeners() {
     dom.authBtn?.addEventListener('click', () => {
       authenticate();
@@ -693,12 +764,37 @@
       if (e.key === 'Enter') authenticate();
     });
 
+    dom.authPassword?.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') authenticate();
+    });
+
+    dom.authUsername?.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') dom.authPassword?.focus();
+    });
+
     dom.serverHost?.addEventListener('keydown', (e) => {
       if (e.key === 'Enter') authenticate();
     });
 
     dom.serverPort?.addEventListener('keydown', (e) => {
       if (e.key === 'Enter') authenticate();
+    });
+
+    // Auth tab switching
+    document.querySelectorAll('.auth-tab').forEach(tab => {
+      tab.addEventListener('click', () => {
+        const tabName = tab.dataset.tab;
+        activeAuthTab = tabName;
+        document.querySelectorAll('.auth-tab').forEach(t => t.classList.toggle('active', t.dataset.tab === tabName));
+        document.querySelectorAll('.auth-tab-content').forEach(c => c.classList.toggle('active', c.dataset.tab === tabName));
+        clearError();
+        // Update button text
+        if (dom.authBtn) {
+          dom.authBtn.innerHTML = tabName === 'password'
+            ? '<i class="fa-solid fa-right-to-bracket"></i> Sign In'
+            : '<i class="fa-solid fa-right-to-bracket"></i> Connect';
+        }
+      });
     });
   }
 
@@ -938,10 +1034,24 @@
         authState.connectionPhase = 'connected';
         authState.reconnectAttempts = 0;
 
+        // Save session token from password/fingerprint auth
+        if (data.sessionToken) {
+          try {
+            localStorage.setItem('mx_session', JSON.stringify({
+              token: data.sessionToken,
+              uuid: data.uuid,
+              username: data.username,
+              savedAt: Date.now()
+            }));
+          } catch (e) {}
+        }
+
+        setLoading(false);
         hideAuthOverlay();
         showServerListPage(data);
       } else {
         console.log('[Auth] Global auth failed:', data.error);
+        setLoading(false);
         showManualAuth(data.error || 'Authentication failed');
 
         if (data.error === 'Token expired' || data.error === 'Invalid token') {
@@ -1293,6 +1403,90 @@
    * Authenticate with permanent token (manual) or UUID (dev mode)
    */
   function authenticate() {
+    // Check which tab is active
+    if (activeAuthTab === 'password') {
+      authenticateWithPassword();
+    } else {
+      authenticateWithToken();
+    }
+  }
+
+  /**
+   * Password-based authentication (new system)
+   */
+  function authenticateWithPassword() {
+    const username = dom.authUsername?.value?.trim();
+    const password = dom.authPassword?.value;
+
+    if (!username || username.length < 1) {
+      showError('Please enter your Minecraft username');
+      return;
+    }
+    if (!password || password.length < 1) {
+      showError('Please enter your password');
+      return;
+    }
+
+    clearError();
+    setLoading(true);
+
+    // Get host/port
+    let host = authState.serverHost;
+    let port = authState.serverPort;
+    if (!authState.configLoaded) {
+      host = dom.serverHost?.value?.trim() || window.location.hostname;
+      port = parseInt(dom.serverPort?.value, 10) || 8081;
+      authState.serverHost = host;
+      authState.serverPort = port;
+    }
+
+    // Ensure WebSocket connected, then send password auth
+    const doPasswordAuth = () => {
+      authState.connectionPhase = 'authenticating';
+      authState.status = AuthStatus.PENDING_VERIFICATION;
+      updateStatus('Authenticating...', 'Verifying credentials');
+
+      if (ws.isGlobalMode()) {
+        ws.sendRaw({
+          type: 'password_auth',
+          username: username,
+          password: password,
+          fingerprintHash: authState.deviceFingerprint
+        });
+      } else {
+        // Direct server mode: send via standard auth
+        ws.send('AUTH_PASSWORD', {
+          username: username,
+          password: password,
+          deviceFingerprint: authState.deviceFingerprint
+        });
+      }
+
+      setTimeout(() => {
+        if (!authState.authenticated) {
+          setLoading(false);
+          showError('Authentication timed out');
+        }
+      }, 10000);
+    };
+
+    if (ws.isConnected()) {
+      doPasswordAuth();
+    } else {
+      authState.connectionPhase = 'connecting';
+      updateStatus('Connecting...', 'Establishing connection');
+      connectWebSocket().then(doPasswordAuth).catch((err) => {
+        setLoading(false);
+        authState.status = AuthStatus.UNAUTHENTICATED;
+        showError(err.message || 'Connection failed');
+      });
+    }
+  }
+
+  /**
+   * Token-based authentication (legacy system)
+   */
+  function authenticateWithToken() {
     const token = dom.authToken?.value?.trim();
 
     if (!token || token.length < 10) {

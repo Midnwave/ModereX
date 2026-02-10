@@ -61,6 +61,7 @@ public class MxCommand extends BaseCommand {
         switch (subcommand) {
             case "reload" -> handleReload(sender);
             case "connect" -> handleConnect(sender);
+            case "link" -> handleLink(sender);
             case "gettoken" -> handleGetToken(sender);
             case "revoketoken" -> handleRevokeToken(sender);
             case "sessions" -> handleSessions(sender);
@@ -1276,7 +1277,90 @@ public class MxCommand extends BaseCommand {
         sendMessage(sender, "");
     }
 
+    // Rate limit: track link code generation per player (max 3 per hour)
+    private static final Map<UUID, List<Long>> linkCodeRateLimit = new ConcurrentHashMap<>();
+
+    private void handleLink(CommandSender sender) {
+        if (!(sender instanceof Player player)) {
+            sendMessage(sender, MessageKey.PLAYER_ONLY);
+            return;
+        }
+
+        if (!PermissionUtil.hasPermission(sender, "moderex.webpanel")) {
+            sendMessage(sender, MessageKey.NO_PERMISSION);
+            return;
+        }
+
+        // Require gateway connection
+        var gateway = plugin.getGatewayClient();
+        if (gateway == null || !gateway.isConnected()) {
+            sendMessage(sender, "<red>Gateway is not connected. Link codes require the gateway.");
+            sendMessage(sender, "<gray>Ask an admin to enable the gateway in the config.");
+            return;
+        }
+
+        // Rate limit: 3 codes per player per hour
+        UUID uuid = player.getUniqueId();
+        List<Long> timestamps = linkCodeRateLimit.computeIfAbsent(uuid, k -> new ArrayList<>());
+        long oneHourAgo = System.currentTimeMillis() - 3600000;
+        timestamps.removeIf(t -> t < oneHourAgo);
+        if (timestamps.size() >= 3) {
+            sendMessage(sender, "<red>You've generated too many link codes recently. Please wait before trying again.");
+            return;
+        }
+        timestamps.add(System.currentTimeMillis());
+
+        // Generate 10-digit numeric code
+        java.security.SecureRandom random = new java.security.SecureRandom();
+        StringBuilder codeBuilder = new StringBuilder();
+        for (int i = 0; i < 10; i++) {
+            codeBuilder.append(random.nextInt(10));
+        }
+        String code = codeBuilder.toString();
+
+        // SHA-256 hash the code (only the hash is sent to gateway)
+        String codeHash;
+        try {
+            java.security.MessageDigest digest = java.security.MessageDigest.getInstance("SHA-256");
+            byte[] hashBytes = digest.digest(code.getBytes(java.nio.charset.StandardCharsets.UTF_8));
+            StringBuilder hexBuilder = new StringBuilder();
+            for (byte b : hashBytes) {
+                hexBuilder.append(String.format("%02x", b));
+            }
+            codeHash = hexBuilder.toString();
+        } catch (java.security.NoSuchAlgorithmException e) {
+            sendMessage(sender, "<red>Internal error generating link code.");
+            return;
+        }
+
+        // Send hash to gateway (expires in 10 minutes)
+        long expiresAt = System.currentTimeMillis() + 10 * 60 * 1000;
+        gateway.sendLinkCode(uuid, player.getName(), codeHash, expiresAt);
+
+        // Format code for display: XXXX-XXX-XXX
+        String formattedCode = code.substring(0, 4) + "-" + code.substring(4, 7) + "-" + code.substring(7, 10);
+
+        // Display to player
+        sendMessage(sender, "");
+        sendMessage(sender, "<gradient:#a855f7:#ec4899>━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━</gradient>");
+        sendMessage(sender, "<white>      <bold>Web Panel Link Code</bold>");
+        sendMessage(sender, "");
+        sendMessage(sender, "<gray>Your link code:");
+        sendMessage(sender, "");
+        sendMessage(sender, "<white><bold>" + formattedCode + "</bold>");
+        sendMessage(sender, "");
+        sendMessage(sender, "<yellow>This code expires in <white>10 minutes<yellow>.");
+        sendMessage(sender, "<gray>Go to <aqua><click:open_url:'https://moderex.net/link'><hover:show_text:'<gray>Click to open'>moderex.net/link</hover></click></aqua> <gray>and enter this code.");
+        sendMessage(sender, "");
+        sendMessage(sender, "<red><bold>DO NOT</bold></red> <red>share this code with anyone!");
+        sendMessage(sender, "<gradient:#a855f7:#ec4899>━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━</gradient>");
+        sendMessage(sender, "");
+    }
+
     private void handleGetToken(CommandSender sender) {
+        // Legacy token system — recommend /mx link instead
+        sendMessage(sender, "<yellow>Note: <gray>Token auth is being replaced. Use <white>/mx link<gray> for secure password-based login.");
+
         if (!(sender instanceof Player player)) {
             sendMessage(sender, MessageKey.PLAYER_ONLY);
             return;
@@ -2201,11 +2285,12 @@ public class MxCommand extends BaseCommand {
         sendMessage(sender, "<yellow>/mx templates <gray>- View punishment templates");
         sendMessage(sender, "");
         sendMessage(sender, "<gold><bold>Web Panel:</bold>");
+        sendMessage(sender, "<yellow>/mx link <gray>- Generate a link code for web panel access");
         sendMessage(sender, "<yellow>/mx panel <gray>- Show clickable panel URL");
         sendMessage(sender, "<yellow>/mx gateway status <gray>- Show gateway connection status");
         sendMessage(sender, "<yellow>/mx gateway reconnect <gray>- Reconnect to gateway");
         sendMessage(sender, "<yellow>/mx connect <gray>- Get quick web panel link (30m expiry)");
-        sendMessage(sender, "<yellow>/mx gettoken <gray>- Generate permanent web access token");
+        sendMessage(sender, "<yellow>/mx gettoken <gray>- <dark_gray>(Legacy) <gray>Generate permanent web access token");
         sendMessage(sender, "");
         sendMessage(sender, "<gold><bold>Admin:</bold>");
         sendMessage(sender, "<yellow>/mx reload <gray>- Reload configuration");
@@ -2272,6 +2357,7 @@ public class MxCommand extends BaseCommand {
                 completions.add("gateway");
             }
             if (PermissionUtil.hasPermission(sender, "moderex.webpanel")) {
+                completions.add("link");
                 completions.add("connect");
                 completions.add("gettoken");
                 completions.add("revoketoken");

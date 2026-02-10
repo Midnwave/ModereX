@@ -649,6 +649,24 @@ public class GatewayClient {
     }
 
     /**
+     * Send a link code hash to the gateway for /mx link authentication.
+     * The code itself is shown only to the player; only the SHA-256 hash is sent to gateway.
+     */
+    public void sendLinkCode(UUID uuid, String username, String codeHash, long expiresAt) {
+        if (!isConnected() || !isRegistered()) return;
+
+        JsonObject msg = new JsonObject();
+        msg.addProperty("type", "link_code_register");
+        msg.addProperty("uuid", uuid.toString());
+        msg.addProperty("username", username);
+        msg.addProperty("codeHash", codeHash);
+        msg.addProperty("expiresAt", expiresAt);
+
+        send(msg);
+        log("Link code registered for " + username);
+    }
+
+    /**
      * Register a global token on the gateway.
      * Called when /mx gettoken generates a token with gateway enabled.
      */

@@ -11686,6 +11686,184 @@
   }
   window.refreshMySettings = refreshMySettings;
 
+  // ===== ACCOUNT SECURITY =====
+
+  function initAccountSecurity() {
+    const session = localStorage.getItem('mx_session');
+    const card = document.getElementById('accountSecurityCard');
+    if (card) {
+      card.style.display = session ? '' : 'none';
+    }
+    // Restore auto-sign-in toggle state
+    const autoSignInBtn = document.getElementById('autoSignInEnabled');
+    if (autoSignInBtn) {
+      const enabled = localStorage.getItem('mx_auto_sign_in') !== 'false';
+      autoSignInBtn.classList.toggle('on', enabled);
+    }
+  }
+
+  function openChangePasswordModal() {
+    const overlay = document.getElementById('changePasswordOverlay');
+    if (overlay) overlay.classList.add('show');
+    // Clear previous values
+    const fields = ['cpCurrentPassword', 'cpNewPassword', 'cpConfirmPassword'];
+    fields.forEach(id => {
+      const el = document.getElementById(id);
+      if (el) { el.value = ''; el.type = 'password'; }
+    });
+    const fill = document.getElementById('cpStrengthFill');
+    if (fill) { fill.style.width = '0'; }
+    const label = document.getElementById('cpStrengthLabel');
+    if (label) label.textContent = '';
+    window.MX.sounds?.click();
+  }
+  window.openChangePasswordModal = openChangePasswordModal;
+
+  function closeChangePasswordModal() {
+    const overlay = document.getElementById('changePasswordOverlay');
+    if (overlay) overlay.classList.remove('show');
+    window.MX.sounds?.click();
+  }
+  window.closeChangePasswordModal = closeChangePasswordModal;
+
+  function togglePasswordField(inputId, btn) {
+    const input = document.getElementById(inputId);
+    if (!input) return;
+    const isPassword = input.type === 'password';
+    input.type = isPassword ? 'text' : 'password';
+    const icon = btn.querySelector('i');
+    if (icon) {
+      icon.className = isPassword ? 'fa-solid fa-eye-slash' : 'fa-solid fa-eye';
+    }
+  }
+  window.togglePasswordField = togglePasswordField;
+
+  function calcPasswordStrength(pw) {
+    if (!pw) return { score: 0, label: '', color: '' };
+    let score = 0;
+    if (pw.length >= 8) score += 20;
+    if (pw.length >= 12) score += 10;
+    if (pw.length >= 16) score += 10;
+    if (/[A-Z]/.test(pw)) score += 15;
+    if (/[a-z]/.test(pw)) score += 10;
+    if (/[0-9]/.test(pw)) score += 15;
+    if (/[^A-Za-z0-9]/.test(pw)) score += 20;
+    // Penalize common patterns
+    if (/^(password|123456|qwerty|letmein|admin)/i.test(pw)) score = Math.max(score - 40, 5);
+    if (/(.)\1{2,}/.test(pw)) score = Math.max(score - 15, 5);
+    score = Math.min(score, 100);
+
+    let label, color;
+    if (score < 30) { label = 'Weak'; color = 'var(--bad)'; }
+    else if (score < 50) { label = 'Fair'; color = '#f97316'; }
+    else if (score < 75) { label = 'Good'; color = '#eab308'; }
+    else { label = 'Strong'; color = 'var(--good)'; }
+    return { score, label, color };
+  }
+
+  function updateCpStrength() {
+    const pw = document.getElementById('cpNewPassword')?.value || '';
+    const { score, label, color } = calcPasswordStrength(pw);
+    const fill = document.getElementById('cpStrengthFill');
+    const lbl = document.getElementById('cpStrengthLabel');
+    if (fill) {
+      fill.style.width = score + '%';
+      fill.style.background = color;
+    }
+    if (lbl) {
+      lbl.textContent = pw ? label : '';
+      lbl.style.color = color;
+    }
+  }
+  window.updateCpStrength = updateCpStrength;
+
+  async function submitChangePassword() {
+    const currentPw = document.getElementById('cpCurrentPassword')?.value;
+    const newPw = document.getElementById('cpNewPassword')?.value;
+    const confirmPw = document.getElementById('cpConfirmPassword')?.value;
+
+    if (!currentPw || !newPw || !confirmPw) {
+      toast('error', 'Missing Fields', 'Please fill in all password fields.');
+      return;
+    }
+    if (newPw !== confirmPw) {
+      toast('error', 'Mismatch', 'New passwords do not match.');
+      return;
+    }
+    const { score } = calcPasswordStrength(newPw);
+    if (score < 50) {
+      toast('error', 'Too Weak', 'Please choose a stronger password (at least "Good" strength).');
+      return;
+    }
+
+    const btn = document.getElementById('cpSubmitBtn');
+    if (btn) { btn.disabled = true; btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Updating...'; }
+
+    try {
+      const session = JSON.parse(localStorage.getItem('mx_session') || '{}');
+      const gatewayUrl = window.MX?.ws?.getGatewayHttpUrl?.() || '';
+      const res = await fetch(gatewayUrl + '/api/auth/password/change', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          sessionToken: session.token,
+          currentPassword: currentPw,
+          newPassword: newPw
+        })
+      });
+      const data = await res.json();
+      if (data.success) {
+        toast('success', 'Password Changed', 'Your password has been updated successfully.');
+        closeChangePasswordModal();
+        // Clear fingerprint since password changed
+        localStorage.removeItem('mx_fingerprint');
+      } else {
+        toast('error', 'Failed', data.error || 'Could not change password.');
+      }
+    } catch (e) {
+      toast('error', 'Error', 'Failed to reach the gateway server.');
+    } finally {
+      if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fa-solid fa-check"></i> Update Password'; }
+    }
+  }
+  window.submitChangePassword = submitChangePassword;
+
+  function toggleAutoSignIn() {
+    const btn = document.getElementById('autoSignInEnabled');
+    const current = localStorage.getItem('mx_auto_sign_in') !== 'false';
+    const newValue = !current;
+    localStorage.setItem('mx_auto_sign_in', String(newValue));
+    if (btn) btn.classList.toggle('on', newValue);
+    window.MX.sounds?.click();
+    if (!newValue) {
+      localStorage.removeItem('mx_fingerprint');
+    }
+    systemLog(`Auto sign-in ${newValue ? 'enabled' : 'disabled'}`, newValue ? 'success' : 'info');
+  }
+  window.toggleAutoSignIn = toggleAutoSignIn;
+
+  async function revokeAllSessions() {
+    if (!confirm('Are you sure you want to sign out from all other devices?')) return;
+    try {
+      const session = JSON.parse(localStorage.getItem('mx_session') || '{}');
+      const gatewayUrl = window.MX?.ws?.getGatewayHttpUrl?.() || '';
+      const res = await fetch(gatewayUrl + '/api/auth/session/revoke-all', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ sessionToken: session.token })
+      });
+      const data = await res.json();
+      if (data.success) {
+        toast('success', 'Sessions Revoked', `Revoked ${data.revokedCount || 'all other'} sessions.`);
+      } else {
+        toast('error', 'Failed', data.error || 'Could not revoke sessions.');
+      }
+    } catch (e) {
+      toast('error', 'Error', 'Failed to reach the gateway server.');
+    }
+  }
+  window.revokeAllSessions = revokeAllSessions;
+
   function toggleDeviceTrust() {
     const currentValue = state.settings.deviceTrustEnabled ?? false;
     const newValue = !currentValue;
@@ -14334,6 +14512,7 @@
     ui.refreshUnsavedUI();
     go('dashboard');
     applyMySettingsUI();
+    initAccountSecurity();
     applyThemeFromState();
     applyDevModeUI();
     initAllCustomSelects();

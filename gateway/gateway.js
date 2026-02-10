@@ -18,6 +18,8 @@ const path = require('path');
 const fs = require('fs');
 const crypto = require('crypto');
 const { spawn } = require('child_process');
+let argon2;
+try { argon2 = require('argon2'); } catch (e) { console.warn('[Auth] argon2 not available - password auth disabled'); }
 
 // Current Cloudflare Tunnel host (set when tunnel establishes)
 let currentTunnelHost = null;
@@ -38,7 +40,7 @@ const BLOCKED_BROWSER_TYPES = new Set([
     'register', 'heartbeat', 'panel_response', 'broadcast',
     'permission_sync', 'permission_update', 'token_register', 'token_revoke',
     'settings_sync', 'server_unregister', 'global_pre_auth_result',
-    'browser_connected', 'browser_disconnected'
+    'browser_connected', 'browser_disconnected', 'link_code_register'
 ]);
 
 // ============================================================================
@@ -65,6 +67,19 @@ const inMemoryServerAccess = new Map(); // key: `${uuid}:${serverId}`
 
 // In-memory fallback for user settings
 const inMemoryUserSettings = new Map();
+
+// In-memory fallback for link codes
+const inMemoryLinkCodes = new Map(); // code_hash → { minecraft_uuid, minecraft_username, server_id, created_at, expires_at, used }
+
+// In-memory fallback for user accounts
+const inMemoryUserAccounts = new Map(); // minecraft_uuid → { password_hash, minecraft_username, created_at, updated_at, last_login_at, failed_attempts, locked_until, device_fingerprints }
+
+// In-memory fallback for user sessions
+const inMemoryUserSessions = new Map(); // session_id_hash → { minecraft_uuid, device_fingerprint_hash, created_at, expires_at, last_active_at, ip_address }
+
+// Rate limiters for auth API
+const linkVerifyAttempts = new Map(); // IP → { count, firstAttempt }
+const passwordAuthAttempts = new Map(); // minecraft_uuid → { count, lastAttempt }
 
 /**
  * Create a sql.js wrapper that matches better-sqlite3's synchronous API.
@@ -252,6 +267,48 @@ function createTables() {
             messages_per_sec REAL,
             cpu_usage REAL,
             memory_usage REAL
+        )
+    `);
+
+    // Link codes for /mx link authentication
+    db.exec(`
+        CREATE TABLE IF NOT EXISTS link_codes (
+            code_hash TEXT PRIMARY KEY,
+            minecraft_uuid TEXT NOT NULL,
+            minecraft_username TEXT NOT NULL,
+            server_id TEXT,
+            created_at INTEGER NOT NULL,
+            expires_at INTEGER NOT NULL,
+            used INTEGER DEFAULT 0
+        )
+    `);
+
+    // User accounts for password-based authentication
+    db.exec(`
+        CREATE TABLE IF NOT EXISTS user_accounts (
+            minecraft_uuid TEXT PRIMARY KEY,
+            minecraft_username TEXT NOT NULL,
+            password_hash TEXT NOT NULL,
+            created_at INTEGER NOT NULL,
+            updated_at INTEGER NOT NULL,
+            last_login_at INTEGER,
+            failed_attempts INTEGER DEFAULT 0,
+            locked_until INTEGER DEFAULT 0,
+            device_fingerprints TEXT DEFAULT '[]',
+            auto_sign_in INTEGER DEFAULT 1
+        )
+    `);
+
+    // User sessions for session-based authentication
+    db.exec(`
+        CREATE TABLE IF NOT EXISTS user_sessions (
+            session_id TEXT PRIMARY KEY,
+            minecraft_uuid TEXT NOT NULL,
+            device_fingerprint_hash TEXT,
+            created_at INTEGER NOT NULL,
+            expires_at INTEGER NOT NULL,
+            last_active_at INTEGER NOT NULL,
+            ip_address TEXT
         )
     `);
 }
@@ -549,8 +606,14 @@ const server = http.createServer((req, res) => {
     const url = new URL(req.url, `http://${req.headers.host}`);
 
     // CORS headers for API endpoints
-    res.setHeader('Access-Control-Allow-Origin', '*');
-    res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
+    const allowedOrigins = ['https://moderex.net', 'https://www.moderex.net', 'https://panel.moderex.net', 'https://panel-moderex.pages.dev', 'https://moderex.pages.dev'];
+    const origin = req.headers.origin;
+    if (origin && (allowedOrigins.includes(origin) || origin.endsWith('.trycloudflare.com'))) {
+        res.setHeader('Access-Control-Allow-Origin', origin);
+    } else if (!origin) {
+        res.setHeader('Access-Control-Allow-Origin', '*');
+    }
+    res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
     res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
 
     if (req.method === 'OPTIONS') {
@@ -615,6 +678,121 @@ const server = http.createServer((req, res) => {
             servers: mcServers.size,
             players: totalPlayers
         }));
+        return;
+    }
+
+    // ================================================================
+    // Link & Auth HTTP API Endpoints
+    // ================================================================
+
+    // POST /api/link/verify — Verify a 10-digit link code
+    if (url.pathname === '/api/link/verify' && req.method === 'POST') {
+        readJsonBody(req, (body) => {
+            if (!body || !body.code) {
+                return jsonResponse(res, 400, { error: 'Code is required' });
+            }
+
+            // Rate limit: 5 attempts per IP per 10 minutes
+            const attempts = linkVerifyAttempts.get(clientIpFromReq(req)) || { count: 0, firstAttempt: Date.now() };
+            if (Date.now() - attempts.firstAttempt > 10 * 60 * 1000) {
+                attempts.count = 0;
+                attempts.firstAttempt = Date.now();
+            }
+            attempts.count++;
+            linkVerifyAttempts.set(clientIpFromReq(req), attempts);
+            if (attempts.count > 5) {
+                return jsonResponse(res, 429, { error: 'Too many attempts. Please wait before trying again.' });
+            }
+
+            // Hash the code and look up
+            const codeHash = crypto.createHash('sha256').update(body.code.replace(/\D/g, '')).digest('hex');
+            const linkCode = getLinkCode(codeHash);
+
+            if (!linkCode) {
+                return jsonResponse(res, 404, { error: 'Invalid or expired code' });
+            }
+
+            if (linkCode.used) {
+                return jsonResponse(res, 410, { error: 'This code has already been used' });
+            }
+
+            // Check if user already has an account
+            const account = getUserAccount(linkCode.minecraft_uuid);
+            const hasAccount = !!account;
+
+            jsonResponse(res, 200, {
+                uuid: linkCode.minecraft_uuid,
+                username: linkCode.minecraft_username,
+                hasAccount,
+                codeHash // Send back so client can reference it for register/login
+            });
+        });
+        return;
+    }
+
+    // POST /api/link/register — Create account with password (new users)
+    if (url.pathname === '/api/link/register' && req.method === 'POST') {
+        handleLinkRegister(req, res);
+        return;
+    }
+
+    // POST /api/link/login — Auto-login for existing users (code-verified)
+    if (url.pathname === '/api/link/login' && req.method === 'POST') {
+        handleLinkLogin(req, res);
+        return;
+    }
+
+    // POST /api/auth/login — Password login
+    if (url.pathname === '/api/auth/login' && req.method === 'POST') {
+        handlePasswordLogin(req, res);
+        return;
+    }
+
+    // POST /api/auth/fingerprint — Device fingerprint auto-sign-in
+    if (url.pathname === '/api/auth/fingerprint' && req.method === 'POST') {
+        handleFingerprintAuth(req, res);
+        return;
+    }
+
+    // POST /api/auth/password/change — Change password
+    if (url.pathname === '/api/auth/password/change' && req.method === 'POST') {
+        handlePasswordChange(req, res);
+        return;
+    }
+
+    // POST /api/auth/session/validate — Validate session token
+    if (url.pathname === '/api/auth/session/validate' && req.method === 'POST') {
+        readJsonBody(req, (body) => {
+            if (!body || !body.sessionToken) {
+                return jsonResponse(res, 400, { error: 'Session token is required' });
+            }
+            const session = validateSession(body.sessionToken);
+            if (!session) {
+                return jsonResponse(res, 401, { error: 'Invalid or expired session' });
+            }
+            const account = getUserAccount(session.minecraft_uuid);
+            jsonResponse(res, 200, {
+                valid: true,
+                uuid: session.minecraft_uuid,
+                username: account?.minecraft_username || null
+            });
+        });
+        return;
+    }
+
+    // POST /api/auth/session/revoke-all — Revoke all sessions for a user
+    if (url.pathname === '/api/auth/session/revoke-all' && req.method === 'POST') {
+        readJsonBody(req, (body) => {
+            if (!body || !body.sessionToken) {
+                return jsonResponse(res, 400, { error: 'Session token is required' });
+            }
+            const session = validateSession(body.sessionToken);
+            if (!session) {
+                return jsonResponse(res, 401, { error: 'Invalid or expired session' });
+            }
+            revokeAllSessions(session.minecraft_uuid);
+            jsonResponse(res, 200, { success: true, message: 'All sessions revoked' });
+        });
         return;
     }
 
@@ -1006,6 +1184,16 @@ function handleMCServerConnection(ws, clientIp) {
             if (message.type === 'permission_update') {
                 if (!serverId || !registered) return;
                 handlePermissionUpdate(serverId, message);
+                return;
+            }
+
+            // Register link code hash from MC server (/mx link)
+            if (message.type === 'link_code_register') {
+                if (!serverId || !registered) return;
+                const { uuid, username, codeHash, expiresAt } = message;
+                if (!uuid || !codeHash) return;
+                storeLinkCode(codeHash, uuid, username, serverId, expiresAt || (Date.now() + 10 * 60 * 1000));
+                console.log(`[Auth] Link code registered for ${username || uuid} from ${serverId}`);
                 return;
             }
 
@@ -1668,7 +1856,7 @@ function handleGlobalPanelConnection(ws, clientIp) {
     // Send connection confirmation
     ws.send(JSON.stringify({ type: 'connected', mode: 'global' }));
 
-    ws.on('message', (data) => {
+    ws.on('message', async (data) => {
         try {
             if (isMessageRateLimited(ws)) {
                 ws.send(JSON.stringify({ type: 'error', code: 'RATE_LIMITED', message: 'Too many messages. Slow down.' }));
@@ -1801,6 +1989,164 @@ function handleGlobalPanelConnection(ws, clientIp) {
                             error: 'Device not recognized'
                         }));
                     }
+                    break;
+                }
+
+                case 'password_auth': {
+                    // Authenticate with username + password via WebSocket
+                    if (!argon2) {
+                        ws.send(JSON.stringify({ type: 'global_auth_result', success: false, error: 'Password auth not available' }));
+                        break;
+                    }
+
+                    const pwUsername = message.username;
+                    const pwPassword = message.password;
+                    if (!pwUsername || !pwPassword) {
+                        ws.send(JSON.stringify({ type: 'global_auth_result', success: false, error: 'Username and password required' }));
+                        break;
+                    }
+
+                    // Look up account
+                    let pwAccount = null;
+                    if (db) {
+                        try {
+                            pwAccount = db.prepare('SELECT * FROM user_accounts WHERE LOWER(minecraft_username) = LOWER(?)').get(pwUsername);
+                        } catch (e) {}
+                    } else {
+                        for (const [, acc] of inMemoryUserAccounts) {
+                            if (acc.minecraft_username.toLowerCase() === pwUsername.toLowerCase()) { pwAccount = acc; break; }
+                        }
+                    }
+
+                    if (!pwAccount) {
+                        ws.send(JSON.stringify({ type: 'global_auth_result', success: false, error: 'Invalid username or password' }));
+                        break;
+                    }
+
+                    // Check lockout
+                    if (pwAccount.locked_until && pwAccount.locked_until > Date.now()) {
+                        ws.send(JSON.stringify({ type: 'global_auth_result', success: false, error: 'Account locked. Please wait.' }));
+                        break;
+                    }
+
+                    try {
+                        const pwValid = await argon2.verify(pwAccount.password_hash, pwPassword);
+                        if (!pwValid) {
+                            const failedCount = (pwAccount.failed_attempts || 0) + 1;
+                            const lockUntil = failedCount >= 5 ? Date.now() + 15 * 60 * 1000 : 0;
+                            if (db) { try { db.prepare('UPDATE user_accounts SET failed_attempts = ?, locked_until = ? WHERE minecraft_uuid = ?').run(failedCount, lockUntil, pwAccount.minecraft_uuid); } catch (e) {} }
+                            ws.send(JSON.stringify({ type: 'global_auth_result', success: false, error: 'Invalid username or password' }));
+                            break;
+                        }
+
+                        // Success
+                        if (db) { try { db.prepare('UPDATE user_accounts SET failed_attempts = 0, locked_until = 0, last_login_at = ? WHERE minecraft_uuid = ?').run(Date.now(), pwAccount.minecraft_uuid); } catch (e) {} }
+
+                        authedUuid = pwAccount.minecraft_uuid;
+                        authedUsername = pwAccount.minecraft_username;
+                        const pwClient = globalPanelClients.get(clientId);
+                        if (pwClient) pwClient.uuid = authedUuid;
+
+                        // Create session
+                        const pwSessionToken = createSession(authedUuid, message.fingerprintHash || null, clientIp);
+                        if (message.fingerprintHash) saveDeviceFingerprint(authedUuid, message.fingerprintHash);
+
+                        const pwServers = getServersForUser(authedUuid);
+                        const pwSettings = getUserSettings(authedUuid);
+                        ws.send(JSON.stringify({
+                            type: 'global_auth_result',
+                            success: true,
+                            uuid: authedUuid,
+                            username: authedUsername,
+                            servers: pwServers,
+                            settings: pwSettings,
+                            sessionToken: pwSessionToken
+                        }));
+                        console.log(`[Global] ${authedUsername} authenticated with password`);
+                    } catch (e) {
+                        ws.send(JSON.stringify({ type: 'global_auth_result', success: false, error: 'Authentication failed' }));
+                    }
+                    break;
+                }
+
+                case 'session_auth': {
+                    // Authenticate with session token
+                    if (!message.sessionToken) {
+                        ws.send(JSON.stringify({ type: 'global_auth_result', success: false, error: 'Session token required' }));
+                        break;
+                    }
+                    const session = validateSession(message.sessionToken);
+                    if (!session) {
+                        ws.send(JSON.stringify({ type: 'global_auth_result', success: false, error: 'Invalid or expired session' }));
+                        break;
+                    }
+                    const sessAccount = getUserAccount(session.minecraft_uuid);
+                    authedUuid = session.minecraft_uuid;
+                    authedUsername = sessAccount?.minecraft_username || null;
+                    const sessClient = globalPanelClients.get(clientId);
+                    if (sessClient) sessClient.uuid = authedUuid;
+
+                    const sessServers = getServersForUser(authedUuid);
+                    const sessSettings = getUserSettings(authedUuid);
+                    ws.send(JSON.stringify({
+                        type: 'global_auth_result',
+                        success: true,
+                        uuid: authedUuid,
+                        username: authedUsername,
+                        servers: sessServers,
+                        settings: sessSettings
+                    }));
+                    console.log(`[Global] ${authedUsername || authedUuid} authenticated via session`);
+                    break;
+                }
+
+                case 'fingerprint_auth': {
+                    // Authenticate with device fingerprint (new auth system)
+                    if (!message.fingerprintHash) {
+                        ws.send(JSON.stringify({ type: 'global_auth_result', success: false, error: 'Fingerprint required' }));
+                        break;
+                    }
+
+                    let fpMatchedAccount = null;
+                    if (db) {
+                        try {
+                            const rows = db.prepare('SELECT * FROM user_accounts WHERE auto_sign_in = 1').all();
+                            for (const row of rows) {
+                                const fps = JSON.parse(row.device_fingerprints || '[]');
+                                if (fps.includes(message.fingerprintHash)) { fpMatchedAccount = row; break; }
+                            }
+                        } catch (e) {}
+                    } else {
+                        for (const [, acc] of inMemoryUserAccounts) {
+                            if (!acc.auto_sign_in) continue;
+                            const fps = JSON.parse(acc.device_fingerprints || '[]');
+                            if (fps.includes(message.fingerprintHash)) { fpMatchedAccount = acc; break; }
+                        }
+                    }
+
+                    if (!fpMatchedAccount) {
+                        ws.send(JSON.stringify({ type: 'global_auth_result', success: false, error: 'Device not recognized' }));
+                        break;
+                    }
+
+                    authedUuid = fpMatchedAccount.minecraft_uuid;
+                    authedUsername = fpMatchedAccount.minecraft_username;
+                    const fpClient = globalPanelClients.get(clientId);
+                    if (fpClient) fpClient.uuid = authedUuid;
+
+                    const fpSessionToken = createSession(authedUuid, message.fingerprintHash, clientIp);
+                    const fpServers = getServersForUser(authedUuid);
+                    const fpSettings = getUserSettings(authedUuid);
+                    ws.send(JSON.stringify({
+                        type: 'global_auth_result',
+                        success: true,
+                        uuid: authedUuid,
+                        username: authedUsername,
+                        servers: fpServers,
+                        settings: fpSettings,
+                        sessionToken: fpSessionToken
+                    }));
+                    console.log(`[Global] ${authedUsername} authenticated via device fingerprint (new)`);
                     break;
                 }
 
@@ -2415,6 +2761,20 @@ function broadcastAnnouncementToAll(ws, email, announcementId, silent = false) {
         }
     });
 
+    // Also send directly to all connected browser panel clients
+    browserClients.forEach((client) => {
+        if (client.ws.readyState === WebSocket.OPEN) {
+            client.ws.send(JSON.stringify(payload));
+        }
+    });
+
+    // Also send to global panel clients (server list page)
+    globalPanelClients.forEach((client) => {
+        if (client.ws.readyState === WebSocket.OPEN) {
+            client.ws.send(JSON.stringify(payload));
+        }
+    });
+
     // Update sent count in database
     if (db) {
         try {
@@ -2755,6 +3115,629 @@ function cleanupDeadServers() {
 
 // Run cleanup every 30 seconds
 setInterval(cleanupDeadServers, CONFIG.heartbeatInterval);
+
+/**
+ * Cleanup expired link codes and sessions.
+ */
+function cleanupExpiredAuthData() {
+    const now = Date.now();
+
+    if (db) {
+        try {
+            const deletedCodes = db.prepare('DELETE FROM link_codes WHERE expires_at < ? OR used = 1').run(now);
+            const deletedSessions = db.prepare('DELETE FROM user_sessions WHERE expires_at < ?').run(now);
+            if (deletedCodes.changes > 0) console.log(`[Auth] Cleaned up ${deletedCodes.changes} expired/used link codes`);
+            if (deletedSessions.changes > 0) console.log(`[Auth] Cleaned up ${deletedSessions.changes} expired sessions`);
+        } catch (e) {
+            console.error('[Auth] Cleanup error:', e.message);
+        }
+    } else {
+        for (const [hash, code] of inMemoryLinkCodes) {
+            if (code.expires_at < now || code.used) inMemoryLinkCodes.delete(hash);
+        }
+        for (const [id, session] of inMemoryUserSessions) {
+            if (session.expires_at < now) inMemoryUserSessions.delete(id);
+        }
+    }
+
+    // Clean up rate limit maps (entries older than 15 minutes)
+    const cutoff = now - 15 * 60 * 1000;
+    for (const [ip, data] of linkVerifyAttempts) {
+        if (data.firstAttempt < cutoff) linkVerifyAttempts.delete(ip);
+    }
+    for (const [uuid, data] of passwordAuthAttempts) {
+        if (data.lastAttempt < cutoff) passwordAuthAttempts.delete(uuid);
+    }
+}
+
+// Run auth cleanup every 60 seconds
+setInterval(cleanupExpiredAuthData, 60000);
+
+// ============================================================================
+// Link & Auth Helper Functions
+// ============================================================================
+
+/**
+ * Read JSON body from HTTP request.
+ */
+function readJsonBody(req, callback) {
+    let body = '';
+    req.on('data', chunk => { body += chunk.toString(); });
+    req.on('end', () => {
+        try {
+            callback(JSON.parse(body));
+        } catch (e) {
+            callback(null);
+        }
+    });
+}
+
+/**
+ * Send JSON HTTP response.
+ */
+function jsonResponse(res, status, data) {
+    res.writeHead(status, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify(data));
+}
+
+/**
+ * Get client IP from HTTP request (Cloudflare-aware).
+ */
+function clientIpFromReq(req) {
+    const isBehindCF = !!(req.headers['cf-ray'] && req.headers['cf-connecting-ip']);
+    return isBehindCF ? req.headers['cf-connecting-ip'] : req.socket.remoteAddress;
+}
+
+/**
+ * Store a link code hash in the database.
+ */
+function storeLinkCode(codeHash, uuid, username, serverId, expiresAt) {
+    const now = Date.now();
+    if (db) {
+        try {
+            db.prepare(
+                'INSERT OR REPLACE INTO link_codes (code_hash, minecraft_uuid, minecraft_username, server_id, created_at, expires_at, used) VALUES (?, ?, ?, ?, ?, ?, 0)'
+            ).run(codeHash, uuid, username, serverId || null, now, expiresAt);
+        } catch (e) {
+            console.error('[Auth] Failed to store link code:', e.message);
+            inMemoryLinkCodes.set(codeHash, { minecraft_uuid: uuid, minecraft_username: username, server_id: serverId, created_at: now, expires_at: expiresAt, used: 0 });
+        }
+    } else {
+        inMemoryLinkCodes.set(codeHash, { minecraft_uuid: uuid, minecraft_username: username, server_id: serverId, created_at: now, expires_at: expiresAt, used: 0 });
+    }
+}
+
+/**
+ * Get a link code by hash.
+ */
+function getLinkCode(codeHash) {
+    if (db) {
+        try {
+            const row = db.prepare('SELECT * FROM link_codes WHERE code_hash = ? AND expires_at > ? AND used = 0').get(codeHash, Date.now());
+            return row || null;
+        } catch (e) {
+            console.error('[Auth] Failed to get link code:', e.message);
+        }
+    }
+    const code = inMemoryLinkCodes.get(codeHash);
+    if (code && code.expires_at > Date.now() && !code.used) return code;
+    return null;
+}
+
+/**
+ * Mark a link code as used.
+ */
+function markLinkCodeUsed(codeHash) {
+    if (db) {
+        try {
+            db.prepare('UPDATE link_codes SET used = 1 WHERE code_hash = ?').run(codeHash);
+        } catch (e) {
+            console.error('[Auth] Failed to mark link code used:', e.message);
+        }
+    }
+    const code = inMemoryLinkCodes.get(codeHash);
+    if (code) code.used = 1;
+}
+
+/**
+ * Get a user account by UUID.
+ */
+function getUserAccount(uuid) {
+    if (db) {
+        try {
+            return db.prepare('SELECT * FROM user_accounts WHERE minecraft_uuid = ?').get(uuid) || null;
+        } catch (e) {
+            console.error('[Auth] Failed to get user account:', e.message);
+        }
+    }
+    return inMemoryUserAccounts.get(uuid) || null;
+}
+
+/**
+ * Create a new user account.
+ */
+function createUserAccount(uuid, username, passwordHash) {
+    const now = Date.now();
+    if (db) {
+        try {
+            db.prepare(
+                'INSERT INTO user_accounts (minecraft_uuid, minecraft_username, password_hash, created_at, updated_at, failed_attempts, locked_until, device_fingerprints, auto_sign_in) VALUES (?, ?, ?, ?, ?, 0, 0, ?, 1)'
+            ).run(uuid, username, passwordHash, now, now, '[]');
+        } catch (e) {
+            console.error('[Auth] Failed to create user account:', e.message);
+            inMemoryUserAccounts.set(uuid, { minecraft_uuid: uuid, minecraft_username: username, password_hash: passwordHash, created_at: now, updated_at: now, failed_attempts: 0, locked_until: 0, device_fingerprints: '[]', auto_sign_in: 1 });
+        }
+    } else {
+        inMemoryUserAccounts.set(uuid, { minecraft_uuid: uuid, minecraft_username: username, password_hash: passwordHash, created_at: now, updated_at: now, failed_attempts: 0, locked_until: 0, device_fingerprints: '[]', auto_sign_in: 1 });
+    }
+}
+
+/**
+ * Create a session and return the raw token.
+ */
+function createSession(uuid, fingerprintHash, ipAddress) {
+    const rawToken = crypto.randomBytes(32).toString('hex'); // 64 hex chars
+    const sessionId = crypto.createHash('sha256').update(rawToken).digest('hex');
+    const now = Date.now();
+    const expiresAt = now + 30 * 24 * 60 * 60 * 1000; // 30 days
+
+    if (db) {
+        try {
+            db.prepare(
+                'INSERT INTO user_sessions (session_id, minecraft_uuid, device_fingerprint_hash, created_at, expires_at, last_active_at, ip_address) VALUES (?, ?, ?, ?, ?, ?, ?)'
+            ).run(sessionId, uuid, fingerprintHash || null, now, expiresAt, now, ipAddress || null);
+        } catch (e) {
+            console.error('[Auth] Failed to create session:', e.message);
+            inMemoryUserSessions.set(sessionId, { minecraft_uuid: uuid, device_fingerprint_hash: fingerprintHash, created_at: now, expires_at: expiresAt, last_active_at: now, ip_address: ipAddress });
+        }
+    } else {
+        inMemoryUserSessions.set(sessionId, { minecraft_uuid: uuid, device_fingerprint_hash: fingerprintHash, created_at: now, expires_at: expiresAt, last_active_at: now, ip_address: ipAddress });
+    }
+
+    return rawToken;
+}
+
+/**
+ * Validate a session token and return session data.
+ */
+function validateSession(rawToken) {
+    const sessionId = crypto.createHash('sha256').update(rawToken).digest('hex');
+    const now = Date.now();
+
+    if (db) {
+        try {
+            const row = db.prepare('SELECT * FROM user_sessions WHERE session_id = ? AND expires_at > ?').get(sessionId, now);
+            if (row) {
+                db.prepare('UPDATE user_sessions SET last_active_at = ? WHERE session_id = ?').run(now, sessionId);
+                return row;
+            }
+        } catch (e) {
+            console.error('[Auth] Failed to validate session:', e.message);
+        }
+    } else {
+        const session = inMemoryUserSessions.get(sessionId);
+        if (session && session.expires_at > now) {
+            session.last_active_at = now;
+            return session;
+        }
+    }
+    return null;
+}
+
+/**
+ * Revoke all sessions for a UUID.
+ */
+function revokeAllSessions(uuid) {
+    if (db) {
+        try {
+            db.prepare('DELETE FROM user_sessions WHERE minecraft_uuid = ?').run(uuid);
+        } catch (e) {
+            console.error('[Auth] Failed to revoke sessions:', e.message);
+        }
+    } else {
+        for (const [id, session] of inMemoryUserSessions) {
+            if (session.minecraft_uuid === uuid) inMemoryUserSessions.delete(id);
+        }
+    }
+}
+
+/**
+ * Save device fingerprint for a user account.
+ */
+function saveDeviceFingerprint(uuid, fingerprintHash) {
+    if (!fingerprintHash) return;
+
+    const account = getUserAccount(uuid);
+    if (!account) return;
+
+    let fingerprints;
+    try {
+        fingerprints = JSON.parse(account.device_fingerprints || '[]');
+    } catch (e) {
+        fingerprints = [];
+    }
+
+    if (!fingerprints.includes(fingerprintHash)) {
+        fingerprints.push(fingerprintHash);
+        // Keep max 10 fingerprints
+        if (fingerprints.length > 10) fingerprints.shift();
+
+        if (db) {
+            try {
+                db.prepare('UPDATE user_accounts SET device_fingerprints = ?, updated_at = ? WHERE minecraft_uuid = ?')
+                    .run(JSON.stringify(fingerprints), Date.now(), uuid);
+            } catch (e) {
+                console.error('[Auth] Failed to save device fingerprint:', e.message);
+            }
+        } else {
+            const acc = inMemoryUserAccounts.get(uuid);
+            if (acc) {
+                acc.device_fingerprints = JSON.stringify(fingerprints);
+                acc.updated_at = Date.now();
+            }
+        }
+    }
+}
+
+/**
+ * Handle POST /api/link/register — Create account with password.
+ */
+async function handleLinkRegister(req, res) {
+    readJsonBody(req, async (body) => {
+        if (!body || !body.codeHash || !body.password) {
+            return jsonResponse(res, 400, { error: 'Code hash and password are required' });
+        }
+
+        if (!argon2) {
+            return jsonResponse(res, 503, { error: 'Password authentication is not available on this server' });
+        }
+
+        // Verify the link code is still valid
+        const linkCode = getLinkCode(body.codeHash);
+        if (!linkCode) {
+            return jsonResponse(res, 404, { error: 'Invalid or expired code' });
+        }
+
+        // Check if account already exists
+        const existing = getUserAccount(linkCode.minecraft_uuid);
+        if (existing) {
+            return jsonResponse(res, 409, { error: 'Account already exists. Use /api/link/login instead.' });
+        }
+
+        // Validate password strength (minimum 8 chars)
+        if (body.password.length < 8) {
+            return jsonResponse(res, 400, { error: 'Password must be at least 8 characters' });
+        }
+
+        try {
+            // Hash password with Argon2id
+            const passwordHash = await argon2.hash(body.password, {
+                type: argon2.argon2id,
+                memoryCost: 65536,
+                timeCost: 3,
+                parallelism: 4,
+                hashLength: 32
+            });
+
+            // Create account
+            createUserAccount(linkCode.minecraft_uuid, linkCode.minecraft_username, passwordHash);
+
+            // Mark link code as used
+            markLinkCodeUsed(body.codeHash);
+
+            // Create session
+            const ip = clientIpFromReq(req);
+            const sessionToken = createSession(linkCode.minecraft_uuid, body.fingerprintHash || null, ip);
+
+            // Save device fingerprint
+            if (body.fingerprintHash) {
+                saveDeviceFingerprint(linkCode.minecraft_uuid, body.fingerprintHash);
+            }
+
+            console.log(`[Auth] Account created for ${linkCode.minecraft_username} (${linkCode.minecraft_uuid})`);
+
+            jsonResponse(res, 201, {
+                success: true,
+                uuid: linkCode.minecraft_uuid,
+                username: linkCode.minecraft_username,
+                sessionToken
+            });
+        } catch (e) {
+            console.error('[Auth] Registration failed:', e.message);
+            jsonResponse(res, 500, { error: 'Registration failed' });
+        }
+    });
+}
+
+/**
+ * Handle POST /api/link/login — Auto-login for existing users with valid link code.
+ */
+async function handleLinkLogin(req, res) {
+    readJsonBody(req, async (body) => {
+        if (!body || !body.codeHash) {
+            return jsonResponse(res, 400, { error: 'Code hash is required' });
+        }
+
+        const linkCode = getLinkCode(body.codeHash);
+        if (!linkCode) {
+            return jsonResponse(res, 404, { error: 'Invalid or expired code' });
+        }
+
+        // Verify account exists
+        const account = getUserAccount(linkCode.minecraft_uuid);
+        if (!account) {
+            return jsonResponse(res, 404, { error: 'No account found. Use /api/link/register instead.' });
+        }
+
+        // Mark link code as used
+        markLinkCodeUsed(body.codeHash);
+
+        // Create session
+        const ip = clientIpFromReq(req);
+        const sessionToken = createSession(linkCode.minecraft_uuid, body.fingerprintHash || null, ip);
+
+        // Save device fingerprint
+        if (body.fingerprintHash) {
+            saveDeviceFingerprint(linkCode.minecraft_uuid, body.fingerprintHash);
+        }
+
+        // Update last login
+        if (db) {
+            try {
+                db.prepare('UPDATE user_accounts SET last_login_at = ?, failed_attempts = 0 WHERE minecraft_uuid = ?')
+                    .run(Date.now(), linkCode.minecraft_uuid);
+            } catch (e) {}
+        }
+
+        console.log(`[Auth] ${linkCode.minecraft_username} logged in via link code`);
+
+        jsonResponse(res, 200, {
+            success: true,
+            uuid: linkCode.minecraft_uuid,
+            username: linkCode.minecraft_username,
+            sessionToken
+        });
+    });
+}
+
+/**
+ * Handle POST /api/auth/login — Password-based login.
+ */
+async function handlePasswordLogin(req, res) {
+    readJsonBody(req, async (body) => {
+        if (!body || !body.username || !body.password) {
+            return jsonResponse(res, 400, { error: 'Username and password are required' });
+        }
+
+        if (!argon2) {
+            return jsonResponse(res, 503, { error: 'Password authentication is not available on this server' });
+        }
+
+        // Look up account by username (case-insensitive)
+        let account = null;
+        if (db) {
+            try {
+                account = db.prepare('SELECT * FROM user_accounts WHERE LOWER(minecraft_username) = LOWER(?)').get(body.username);
+            } catch (e) {
+                console.error('[Auth] Login lookup error:', e.message);
+            }
+        } else {
+            for (const [uuid, acc] of inMemoryUserAccounts) {
+                if (acc.minecraft_username.toLowerCase() === body.username.toLowerCase()) {
+                    account = acc;
+                    break;
+                }
+            }
+        }
+
+        if (!account) {
+            return jsonResponse(res, 401, { error: 'Invalid username or password' });
+        }
+
+        // Check lockout
+        if (account.locked_until && account.locked_until > Date.now()) {
+            const remaining = Math.ceil((account.locked_until - Date.now()) / 60000);
+            return jsonResponse(res, 429, { error: `Account locked. Try again in ${remaining} minute(s).` });
+        }
+
+        // Rate limit by UUID
+        const attempts = passwordAuthAttempts.get(account.minecraft_uuid) || { count: 0, lastAttempt: 0 };
+        if (attempts.count >= 5) {
+            const cooldown = Math.min(900000, 1000 * Math.pow(2, attempts.count - 5)); // exponential backoff, max 15min
+            if (Date.now() - attempts.lastAttempt < cooldown) {
+                return jsonResponse(res, 429, { error: 'Too many failed attempts. Please wait before trying again.' });
+            }
+        }
+
+        try {
+            const valid = await argon2.verify(account.password_hash, body.password);
+            if (!valid) {
+                // Track failed attempt
+                attempts.count++;
+                attempts.lastAttempt = Date.now();
+                passwordAuthAttempts.set(account.minecraft_uuid, attempts);
+
+                // Lock account after 5 failures (15 min lockout)
+                const failedCount = (account.failed_attempts || 0) + 1;
+                const lockUntil = failedCount >= 5 ? Date.now() + 15 * 60 * 1000 : 0;
+                if (db) {
+                    try {
+                        db.prepare('UPDATE user_accounts SET failed_attempts = ?, locked_until = ? WHERE minecraft_uuid = ?')
+                            .run(failedCount, lockUntil, account.minecraft_uuid);
+                    } catch (e) {}
+                }
+
+                return jsonResponse(res, 401, { error: 'Invalid username or password' });
+            }
+
+            // Success — clear failed attempts
+            passwordAuthAttempts.delete(account.minecraft_uuid);
+            if (db) {
+                try {
+                    db.prepare('UPDATE user_accounts SET failed_attempts = 0, locked_until = 0, last_login_at = ? WHERE minecraft_uuid = ?')
+                        .run(Date.now(), account.minecraft_uuid);
+                } catch (e) {}
+            }
+
+            // Create session
+            const ip = clientIpFromReq(req);
+            const sessionToken = createSession(account.minecraft_uuid, body.fingerprintHash || null, ip);
+
+            // Save device fingerprint
+            if (body.fingerprintHash) {
+                saveDeviceFingerprint(account.minecraft_uuid, body.fingerprintHash);
+            }
+
+            console.log(`[Auth] ${account.minecraft_username} logged in with password`);
+
+            jsonResponse(res, 200, {
+                success: true,
+                uuid: account.minecraft_uuid,
+                username: account.minecraft_username,
+                sessionToken
+            });
+        } catch (e) {
+            console.error('[Auth] Password verification error:', e.message);
+            jsonResponse(res, 500, { error: 'Authentication failed' });
+        }
+    });
+}
+
+/**
+ * Handle POST /api/auth/fingerprint — Device fingerprint auto-sign-in.
+ */
+function handleFingerprintAuth(req, res) {
+    readJsonBody(req, (body) => {
+        if (!body || !body.fingerprintHash) {
+            return jsonResponse(res, 400, { error: 'Fingerprint hash is required' });
+        }
+
+        // Find account with this fingerprint
+        let matchedAccount = null;
+        if (db) {
+            try {
+                const rows = db.prepare('SELECT * FROM user_accounts WHERE auto_sign_in = 1').all();
+                for (const row of rows) {
+                    const fps = JSON.parse(row.device_fingerprints || '[]');
+                    if (fps.includes(body.fingerprintHash)) {
+                        matchedAccount = row;
+                        break;
+                    }
+                }
+            } catch (e) {
+                console.error('[Auth] Fingerprint lookup error:', e.message);
+            }
+        } else {
+            for (const [uuid, acc] of inMemoryUserAccounts) {
+                if (!acc.auto_sign_in) continue;
+                const fps = JSON.parse(acc.device_fingerprints || '[]');
+                if (fps.includes(body.fingerprintHash)) {
+                    matchedAccount = acc;
+                    break;
+                }
+            }
+        }
+
+        if (!matchedAccount) {
+            return jsonResponse(res, 401, { error: 'Device not recognized' });
+        }
+
+        // Create session
+        const ip = clientIpFromReq(req);
+        const sessionToken = createSession(matchedAccount.minecraft_uuid, body.fingerprintHash, ip);
+
+        console.log(`[Auth] ${matchedAccount.minecraft_username} auto-signed-in via fingerprint`);
+
+        jsonResponse(res, 200, {
+            success: true,
+            uuid: matchedAccount.minecraft_uuid,
+            username: matchedAccount.minecraft_username,
+            sessionToken
+        });
+    });
+}
+
+/**
+ * Handle POST /api/auth/password/change — Change password.
+ */
+async function handlePasswordChange(req, res) {
+    readJsonBody(req, async (body) => {
+        if (!body || !body.sessionToken || !body.newPassword) {
+            return jsonResponse(res, 400, { error: 'Session token and new password are required' });
+        }
+
+        if (!argon2) {
+            return jsonResponse(res, 503, { error: 'Password authentication is not available on this server' });
+        }
+
+        // Validate session
+        const session = validateSession(body.sessionToken);
+        if (!session) {
+            return jsonResponse(res, 401, { error: 'Invalid or expired session' });
+        }
+
+        const account = getUserAccount(session.minecraft_uuid);
+        if (!account) {
+            return jsonResponse(res, 404, { error: 'Account not found' });
+        }
+
+        // Verify current password (if provided — not required if using link code)
+        if (body.currentPassword) {
+            try {
+                const valid = await argon2.verify(account.password_hash, body.currentPassword);
+                if (!valid) {
+                    return jsonResponse(res, 401, { error: 'Current password is incorrect' });
+                }
+            } catch (e) {
+                return jsonResponse(res, 500, { error: 'Password verification failed' });
+            }
+        }
+
+        // Validate new password
+        if (body.newPassword.length < 8) {
+            return jsonResponse(res, 400, { error: 'Password must be at least 8 characters' });
+        }
+
+        try {
+            const newHash = await argon2.hash(body.newPassword, {
+                type: argon2.argon2id,
+                memoryCost: 65536,
+                timeCost: 3,
+                parallelism: 4,
+                hashLength: 32
+            });
+
+            if (db) {
+                try {
+                    // Update password, clear fingerprints, revoke all sessions except current
+                    db.prepare('UPDATE user_accounts SET password_hash = ?, device_fingerprints = ?, updated_at = ? WHERE minecraft_uuid = ?')
+                        .run(newHash, '[]', Date.now(), session.minecraft_uuid);
+                    // Revoke all sessions except current
+                    const currentSessionId = crypto.createHash('sha256').update(body.sessionToken).digest('hex');
+                    db.prepare('DELETE FROM user_sessions WHERE minecraft_uuid = ? AND session_id != ?')
+                        .run(session.minecraft_uuid, currentSessionId);
+                } catch (e) {
+                    console.error('[Auth] Password change DB error:', e.message);
+                    return jsonResponse(res, 500, { error: 'Failed to update password' });
+                }
+            } else {
+                const acc = inMemoryUserAccounts.get(session.minecraft_uuid);
+                if (acc) {
+                    acc.password_hash = newHash;
+                    acc.device_fingerprints = '[]';
+                    acc.updated_at = Date.now();
+                }
+            }
+
+            console.log(`[Auth] Password changed for ${account.minecraft_username}`);
+
+            jsonResponse(res, 200, { success: true, message: 'Password changed successfully. All other sessions revoked.' });
+        } catch (e) {
+            console.error('[Auth] Password change error:', e.message);
+            jsonResponse(res, 500, { error: 'Failed to change password' });
+        }
+    });
+}
 
 /**
  * Store current metrics snapshot in database.

@@ -9145,7 +9145,6 @@
     { name: 'Slowmode', page: 'actions', keywords: ['rate limit', 'spam', 'slow'], permission: 'moderex.admin.chat' },
     { name: 'Kick All', page: 'actions', keywords: ['clear', 'server', 'disconnect'], permission: 'moderex.admin.kickall' },
     // Developer Tools
-    { name: 'Permission Test Engine', page: 'devtools', keywords: ['permission', 'test', 'simulate', 'profiles', 'parity'], elementId: 'devPermissionTest' },
     { name: 'Debug Permissions', page: 'devtools', keywords: ['permission', 'check', 'debug', 'perms'], elementId: 'devDebugPermissions' },
     { name: 'Test Notifications', page: 'devtools', keywords: ['test', 'alert', 'notification', 'toast'], elementId: 'devNotificationTest' },
     { name: 'Stress Test Players', page: 'devtools', keywords: ['stress', 'test', 'spoof', 'players', 'fake'], elementId: 'devStressPlayers' },
@@ -9891,14 +9890,6 @@
       if (!isLiveMode) return;
       if (window.handleDebugPermissionData) {
         window.handleDebugPermissionData(data);
-      }
-    });
-
-    // Handle permission test results
-    ws.on('PERMISSION_TEST_RESULTS', (data) => {
-      if (!isLiveMode) return;
-      if (window.handlePermissionTestResults) {
-        window.handlePermissionTestResults(data);
       }
     });
 
@@ -11694,6 +11685,184 @@
     // The USER_SETTINGS_DATA handler will update the UI automatically
   }
   window.refreshMySettings = refreshMySettings;
+
+  // ===== ACCOUNT SECURITY =====
+
+  function initAccountSecurity() {
+    const session = localStorage.getItem('mx_session');
+    const card = document.getElementById('accountSecurityCard');
+    if (card) {
+      card.style.display = session ? '' : 'none';
+    }
+    // Restore auto-sign-in toggle state
+    const autoSignInBtn = document.getElementById('autoSignInEnabled');
+    if (autoSignInBtn) {
+      const enabled = localStorage.getItem('mx_auto_sign_in') !== 'false';
+      autoSignInBtn.classList.toggle('on', enabled);
+    }
+  }
+
+  function openChangePasswordModal() {
+    const overlay = document.getElementById('changePasswordOverlay');
+    if (overlay) overlay.classList.add('show');
+    // Clear previous values
+    const fields = ['cpCurrentPassword', 'cpNewPassword', 'cpConfirmPassword'];
+    fields.forEach(id => {
+      const el = document.getElementById(id);
+      if (el) { el.value = ''; el.type = 'password'; }
+    });
+    const fill = document.getElementById('cpStrengthFill');
+    if (fill) { fill.style.width = '0'; }
+    const label = document.getElementById('cpStrengthLabel');
+    if (label) label.textContent = '';
+    window.MX.sounds?.click();
+  }
+  window.openChangePasswordModal = openChangePasswordModal;
+
+  function closeChangePasswordModal() {
+    const overlay = document.getElementById('changePasswordOverlay');
+    if (overlay) overlay.classList.remove('show');
+    window.MX.sounds?.click();
+  }
+  window.closeChangePasswordModal = closeChangePasswordModal;
+
+  function togglePasswordField(inputId, btn) {
+    const input = document.getElementById(inputId);
+    if (!input) return;
+    const isPassword = input.type === 'password';
+    input.type = isPassword ? 'text' : 'password';
+    const icon = btn.querySelector('i');
+    if (icon) {
+      icon.className = isPassword ? 'fa-solid fa-eye-slash' : 'fa-solid fa-eye';
+    }
+  }
+  window.togglePasswordField = togglePasswordField;
+
+  function calcPasswordStrength(pw) {
+    if (!pw) return { score: 0, label: '', color: '' };
+    let score = 0;
+    if (pw.length >= 8) score += 20;
+    if (pw.length >= 12) score += 10;
+    if (pw.length >= 16) score += 10;
+    if (/[A-Z]/.test(pw)) score += 15;
+    if (/[a-z]/.test(pw)) score += 10;
+    if (/[0-9]/.test(pw)) score += 15;
+    if (/[^A-Za-z0-9]/.test(pw)) score += 20;
+    // Penalize common patterns
+    if (/^(password|123456|qwerty|letmein|admin)/i.test(pw)) score = Math.max(score - 40, 5);
+    if (/(.)\1{2,}/.test(pw)) score = Math.max(score - 15, 5);
+    score = Math.min(score, 100);
+
+    let label, color;
+    if (score < 30) { label = 'Weak'; color = 'var(--bad)'; }
+    else if (score < 50) { label = 'Fair'; color = '#f97316'; }
+    else if (score < 75) { label = 'Good'; color = '#eab308'; }
+    else { label = 'Strong'; color = 'var(--good)'; }
+    return { score, label, color };
+  }
+
+  function updateCpStrength() {
+    const pw = document.getElementById('cpNewPassword')?.value || '';
+    const { score, label, color } = calcPasswordStrength(pw);
+    const fill = document.getElementById('cpStrengthFill');
+    const lbl = document.getElementById('cpStrengthLabel');
+    if (fill) {
+      fill.style.width = score + '%';
+      fill.style.background = color;
+    }
+    if (lbl) {
+      lbl.textContent = pw ? label : '';
+      lbl.style.color = color;
+    }
+  }
+  window.updateCpStrength = updateCpStrength;
+
+  async function submitChangePassword() {
+    const currentPw = document.getElementById('cpCurrentPassword')?.value;
+    const newPw = document.getElementById('cpNewPassword')?.value;
+    const confirmPw = document.getElementById('cpConfirmPassword')?.value;
+
+    if (!currentPw || !newPw || !confirmPw) {
+      toast('error', 'Missing Fields', 'Please fill in all password fields.');
+      return;
+    }
+    if (newPw !== confirmPw) {
+      toast('error', 'Mismatch', 'New passwords do not match.');
+      return;
+    }
+    const { score } = calcPasswordStrength(newPw);
+    if (score < 50) {
+      toast('error', 'Too Weak', 'Please choose a stronger password (at least "Good" strength).');
+      return;
+    }
+
+    const btn = document.getElementById('cpSubmitBtn');
+    if (btn) { btn.disabled = true; btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Updating...'; }
+
+    try {
+      const session = JSON.parse(localStorage.getItem('mx_session') || '{}');
+      const gatewayUrl = window.MX?.ws?.getGatewayHttpUrl?.() || '';
+      const res = await fetch(gatewayUrl + '/api/auth/password/change', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          sessionToken: session.token,
+          currentPassword: currentPw,
+          newPassword: newPw
+        })
+      });
+      const data = await res.json();
+      if (data.success) {
+        toast('success', 'Password Changed', 'Your password has been updated successfully.');
+        closeChangePasswordModal();
+        // Clear fingerprint since password changed
+        localStorage.removeItem('mx_fingerprint');
+      } else {
+        toast('error', 'Failed', data.error || 'Could not change password.');
+      }
+    } catch (e) {
+      toast('error', 'Error', 'Failed to reach the gateway server.');
+    } finally {
+      if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fa-solid fa-check"></i> Update Password'; }
+    }
+  }
+  window.submitChangePassword = submitChangePassword;
+
+  function toggleAutoSignIn() {
+    const btn = document.getElementById('autoSignInEnabled');
+    const current = localStorage.getItem('mx_auto_sign_in') !== 'false';
+    const newValue = !current;
+    localStorage.setItem('mx_auto_sign_in', String(newValue));
+    if (btn) btn.classList.toggle('on', newValue);
+    window.MX.sounds?.click();
+    if (!newValue) {
+      localStorage.removeItem('mx_fingerprint');
+    }
+    systemLog(`Auto sign-in ${newValue ? 'enabled' : 'disabled'}`, newValue ? 'success' : 'info');
+  }
+  window.toggleAutoSignIn = toggleAutoSignIn;
+
+  async function revokeAllSessions() {
+    if (!confirm('Are you sure you want to sign out from all other devices?')) return;
+    try {
+      const session = JSON.parse(localStorage.getItem('mx_session') || '{}');
+      const gatewayUrl = window.MX?.ws?.getGatewayHttpUrl?.() || '';
+      const res = await fetch(gatewayUrl + '/api/auth/session/revoke-all', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ sessionToken: session.token })
+      });
+      const data = await res.json();
+      if (data.success) {
+        toast('success', 'Sessions Revoked', `Revoked ${data.revokedCount || 'all other'} sessions.`);
+      } else {
+        toast('error', 'Failed', data.error || 'Could not revoke sessions.');
+      }
+    } catch (e) {
+      toast('error', 'Error', 'Failed to reach the gateway server.');
+    }
+  }
+  window.revokeAllSessions = revokeAllSessions;
 
   function toggleDeviceTrust() {
     const currentValue = state.settings.deviceTrustEnabled ?? false;
@@ -13549,204 +13718,6 @@
   window.filterDebugMatrix = filterDebugMatrix;
   window.setDebugFilter = setDebugFilter;
 
-  // ===== PERMISSION TEST ENGINE =====
-  let permTestMode = 'profiles';
-  let permTestFilter = 'all';
-  let permTestLastReport = null;
-
-  function setPermTestMode(mode) {
-    permTestMode = mode;
-    ['profiles', 'isolation', 'parity', 'all', 'profile', 'custom'].forEach(m => {
-      const btn = document.getElementById('permTestMode' + m.charAt(0).toUpperCase() + m.slice(1));
-      if (btn) btn.classList.toggle('active', m === mode);
-    });
-    const profileSelector = document.getElementById('permTestProfileSelector');
-    const customBuilder = document.getElementById('permTestCustomBuilder');
-    if (profileSelector) profileSelector.style.display = mode === 'profile' ? '' : 'none';
-    if (customBuilder) customBuilder.style.display = mode === 'custom' ? '' : 'none';
-  }
-
-  function runPermissionTests() {
-    const ws = window.MX?.ws;
-    if (!ws || !ws.isConnected()) {
-      toast('warn', 'Not Connected', 'Must be connected to server for permission testing');
-      return;
-    }
-
-    const btn = document.getElementById('permTestRunBtn');
-    if (btn) {
-      btn.disabled = true;
-      btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Running Tests...';
-    }
-
-    if (window.showLoadingLine) window.showLoadingLine();
-
-    if (permTestMode === 'profile') {
-      const profile = document.getElementById('permTestProfileSelect')?.value || 'MODERATOR';
-      ws.send('RUN_PERMISSION_TEST_PROFILE', { profile });
-    } else if (permTestMode === 'custom') {
-      const permsText = document.getElementById('permTestCustomPerms')?.value || '';
-      const permissions = permsText.split('\n').map(s => s.trim()).filter(s => s.length > 0);
-      const isOp = document.getElementById('permTestCustomOp')?.checked || false;
-      ws.send('RUN_PERMISSION_TEST_CUSTOM', { permissions, isOp });
-    } else {
-      ws.send('RUN_PERMISSION_TESTS', { mode: permTestMode });
-    }
-
-    // Timeout fallback
-    setTimeout(() => {
-      if (btn && btn.disabled) {
-        btn.disabled = false;
-        btn.innerHTML = '<i class="fa-solid fa-play"></i> Run Tests';
-        if (window.hideLoadingLine) window.hideLoadingLine();
-      }
-    }, 60000);
-  }
-
-  function handlePermissionTestResults(data) {
-    if (window.hideLoadingLine) window.hideLoadingLine();
-    const btn = document.getElementById('permTestRunBtn');
-    if (btn) {
-      btn.disabled = false;
-      btn.innerHTML = '<i class="fa-solid fa-play"></i> Run Tests';
-    }
-
-    if (data.error) {
-      toast('bad', 'Test Error', data.error);
-      return;
-    }
-
-    permTestLastReport = data;
-
-    const resultsDiv = document.getElementById('permTestResults');
-    if (resultsDiv) resultsDiv.style.display = '';
-
-    // Render summary
-    const summary = document.getElementById('permTestSummary');
-    const total = data.total || 0;
-    const passed = data.passed || 0;
-    const failed = data.failed || 0;
-    const duration = data.durationMs || 0;
-    const pct = total > 0 ? ((passed / total) * 100).toFixed(1) : 0;
-    const barColor = failed === 0 ? 'var(--ok)' : failed <= 3 ? 'var(--warn)' : 'var(--bad)';
-
-    summary.innerHTML = `
-      <div style="flex:1">
-        <div style="font-size:14px;font-weight:600;margin-bottom:4px">${total.toLocaleString()} Tests</div>
-        <div style="height:6px;background:rgba(255,255,255,0.1);border-radius:3px;overflow:hidden">
-          <div style="height:100%;width:${pct}%;background:${barColor};border-radius:3px;transition:width 0.3s"></div>
-        </div>
-      </div>
-      <div style="text-align:center;min-width:80px">
-        <div style="font-size:20px;font-weight:700;color:var(--ok)">${passed.toLocaleString()}</div>
-        <div style="font-size:11px;color:var(--text-secondary)">Passed</div>
-      </div>
-      <div style="text-align:center;min-width:80px">
-        <div style="font-size:20px;font-weight:700;color:${failed > 0 ? 'var(--bad)' : 'var(--text-secondary)'}">${failed.toLocaleString()}</div>
-        <div style="font-size:11px;color:var(--text-secondary)">Failed</div>
-      </div>
-      <div style="text-align:center;min-width:60px">
-        <div style="font-size:14px;font-weight:600">${duration}ms</div>
-        <div style="font-size:11px;color:var(--text-secondary)">Duration</div>
-      </div>
-    `;
-
-    renderPermTestGroups();
-
-    const statusMsg = failed === 0 ? 'All tests passed!' : `${failed} test${failed > 1 ? 's' : ''} failed`;
-    toast(failed === 0 ? 'ok' : 'bad', 'Permission Tests', statusMsg);
-  }
-
-  function renderPermTestGroups() {
-    if (!permTestLastReport) return;
-    const container = document.getElementById('permTestGroups');
-    const filterText = (document.getElementById('permTestFilter')?.value || '').toLowerCase();
-    const groups = permTestLastReport.groups || {};
-
-    let html = '';
-    for (const [groupName, groupData] of Object.entries(groups)) {
-      const tests = groupData.tests || [];
-      let groupPassed = 0, groupFailed = 0;
-      let rowsHtml = '';
-
-      for (const test of tests) {
-        const pass = test.passed;
-        if (pass) groupPassed++; else groupFailed++;
-
-        // Apply filters
-        const matchesText = !filterText ||
-          (test.permission || '').toLowerCase().includes(filterText) ||
-          (test.profile || '').toLowerCase().includes(filterText) ||
-          (test.group || '').toLowerCase().includes(filterText);
-        const matchesFilter = permTestFilter === 'all' || (permTestFilter === 'pass' && pass) || (permTestFilter === 'fail' && !pass);
-
-        if (!matchesText || !matchesFilter) continue;
-
-        const icon = pass ? '<i class="fa-solid fa-check" style="color:var(--ok)"></i>' : '<i class="fa-solid fa-xmark" style="color:var(--bad)"></i>';
-        const bg = pass ? '' : 'background:rgba(218,54,51,0.08);';
-        rowsHtml += `<div style="display:flex;align-items:center;gap:8px;padding:4px 8px;font-size:12px;font-family:var(--font-mono);${bg}border-bottom:1px solid var(--border)">
-          ${icon}
-          <span style="color:var(--text-secondary);min-width:100px">${test.profile || ''}</span>
-          <span style="flex:1">${test.permission || test.description || ''}</span>
-          <span style="color:var(--text-secondary);min-width:60px">exp: ${test.expected ? 'true' : 'false'}</span>
-          <span style="color:${pass ? 'var(--ok)' : 'var(--bad)'};min-width:60px">got: ${test.actual ? 'true' : 'false'}</span>
-        </div>`;
-      }
-
-      if (permTestFilter === 'fail' && groupFailed === 0) continue;
-      if (permTestFilter === 'pass' && groupPassed === 0) continue;
-
-      const groupColor = groupFailed === 0 ? 'var(--ok)' : 'var(--bad)';
-      const total = groupPassed + groupFailed;
-      html += `<div style="margin-bottom:8px;border:1px solid var(--border);border-radius:var(--radius);overflow:hidden">
-        <div onclick="this.nextElementSibling.style.display=this.nextElementSibling.style.display==='none'?'':'none'" style="display:flex;align-items:center;gap:8px;padding:10px 12px;background:rgba(0,0,0,0.2);cursor:pointer;user-select:none">
-          <i class="fa-solid fa-chevron-right" style="font-size:10px;color:var(--text-secondary)"></i>
-          <span style="font-weight:600;flex:1">${groupName}</span>
-          <span style="font-size:12px;color:${groupColor}">${groupPassed}/${total} passed</span>
-        </div>
-        <div style="display:none">${rowsHtml || '<div style="padding:8px 12px;font-size:12px;color:var(--text-secondary)">No matching tests</div>'}</div>
-      </div>`;
-    }
-
-    container.innerHTML = html || '<div style="padding:12px;color:var(--text-secondary);text-align:center">No results to display</div>';
-  }
-
-  function filterPermTestResults() {
-    renderPermTestGroups();
-  }
-
-  function setPermTestFilter(filter) {
-    permTestFilter = filter;
-    document.getElementById('permTestFilterAll')?.classList.toggle('active', filter === 'all');
-    document.getElementById('permTestFilterPass')?.classList.toggle('active', filter === 'pass');
-    document.getElementById('permTestFilterFail')?.classList.toggle('active', filter === 'fail');
-    renderPermTestGroups();
-  }
-
-  function exportPermTestResults() {
-    if (!permTestLastReport) {
-      toast('warn', 'No Data', 'Run tests first before exporting.');
-      return;
-    }
-    const json = JSON.stringify(permTestLastReport, null, 2);
-    const blob = new Blob([json], { type: 'application/json' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `permtest-${new Date().toISOString().replace(/[:.]/g, '-')}.json`;
-    a.click();
-    URL.revokeObjectURL(url);
-    toast('ok', 'Exported', 'Permission test report downloaded as JSON.');
-  }
-
-  // Export permission test functions
-  window.setPermTestMode = setPermTestMode;
-  window.runPermissionTests = runPermissionTests;
-  window.handlePermissionTestResults = handlePermissionTestResults;
-  window.filterPermTestResults = filterPermTestResults;
-  window.setPermTestFilter = setPermTestFilter;
-  window.exportPermTestResults = exportPermTestResults;
-
   // ===== DATABASE DEBUG =====
   function showDatabaseOutput(html) {
     const outputEl = document.getElementById('debugDatabaseOutput');
@@ -14541,6 +14512,7 @@
     ui.refreshUnsavedUI();
     go('dashboard');
     applyMySettingsUI();
+    initAccountSecurity();
     applyThemeFromState();
     applyDevModeUI();
     initAllCustomSelects();
