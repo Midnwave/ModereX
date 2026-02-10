@@ -14220,23 +14220,25 @@
 
   function logout() {
     closeProfileDropdown();
-    state.authenticated = false;
-    state.currentUser = null;
-    state.staffName = '';
-    state.notifications = [];
-
-    // Disconnect WebSocket
-    const ws = window.MX?.ws;
-    if (ws) ws.disconnect();
-
-    // Clear saved auth
-    try {
-      localStorage.removeItem('mx_auth');
-      localStorage.removeItem('mx_token');
-    } catch (e) {}
-
-    // Reload to show auth screen
-    window.location.reload();
+    // Delegate to auth.js logout which handles full cleanup
+    // (device fingerprint, gateway revoke, localStorage, reload)
+    if (window.MX?.auth?.logout) {
+      window.MX.auth.logout();
+    } else {
+      // Fallback if auth module not loaded
+      const ws = window.MX?.ws;
+      if (ws) ws.disconnect();
+      try {
+        localStorage.removeItem('mx_auth');
+        localStorage.removeItem('mx_token');
+        localStorage.removeItem('mx_device_id');
+        localStorage.removeItem('mx_token_device');
+        localStorage.removeItem('mx_state_v1');
+        localStorage.removeItem('mx_my_settings');
+        localStorage.removeItem('mx_session');
+      } catch (e) {}
+      window.location.reload();
+    }
   }
 
   // ===== NOTIFICATIONS =====

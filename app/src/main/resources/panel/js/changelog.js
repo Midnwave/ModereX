@@ -14,6 +14,23 @@
 
 window.MX_CHANGELOGS = [
   {
+    build: 310,
+    version: "2.0dev-310",
+    date: "2026-02-09",
+    title: "Sign Out & Server Redirect Fix",
+    sections: [
+      {
+        type: "fixed",
+        title: "Bug Fixes",
+        items: [
+          "**Sign Out** - Fixed Log Out button calling the wrong function; now properly clears all auth data, fingerprint, and reloads",
+          "**Server Redirect** - URL now updates to /{serverId}/ after switching servers from the server list",
+          "**Auto-Switch** - Fixed connectGlobalPanel not storing pending server ID for auto-switch after auth"
+        ]
+      }
+    ]
+  },
+  {
     build: 309,
     version: "2.0dev-309",
     date: "2026-02-09",

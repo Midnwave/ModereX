@@ -166,6 +166,14 @@
     gatewayMode = true;
     globalMode = true;
     currentServerId = null;
+
+    // Check if there's a server ID in the URL to auto-switch to after auth
+    const serverId = getServerIdFromPath();
+    if (serverId) {
+      pendingServerId = serverId;
+      console.log('[WS] Global panel mode with pending server:', serverId);
+    }
+
     const url = `${GATEWAY_WS_URL}`;
     console.log('[WS] Global panel mode - connecting to', url);
 
