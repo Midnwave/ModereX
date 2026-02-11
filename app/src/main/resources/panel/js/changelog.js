@@ -14,6 +14,28 @@
 
 window.MX_CHANGELOGS = [
   {
+    build: 323,
+    version: "2.0dev-323",
+    date: "2026-02-11",
+    title: "Panel URL Path Fix & Dev Build Guide",
+    sections: [
+      {
+        type: "fixed",
+        title: "Bug Fixes",
+        items: [
+          "**Panel URL Routing** - Fixed panel not loading when URL has trailing slash (e.g. /z392j/)"
+        ]
+      },
+      {
+        type: "new",
+        title: "New Features",
+        items: [
+          "**Dev Build Guide** - Added comprehensive tester guide with permissions, commands, and setup instructions"
+        ]
+      }
+    ]
+  },
+  {
     build: 319,
     version: "2.0dev-319",
     date: "2026-02-10",
