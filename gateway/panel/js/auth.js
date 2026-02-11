@@ -1039,15 +1039,14 @@
         hideAuthOverlay();
 
         // If redirected from a server URL (e.g. panel.moderex.net/{serverId}),
-        // auto-switch to that server instead of showing the server list
+        // auto-switch to that server via WebSocket instead of redirecting (avoids reload loop)
         const pendingId = ws.getPendingServerId?.();
         if (pendingId && data.servers) {
           const targetServer = data.servers.find(s => s.serverId === pendingId || s.urlPrefix === pendingId);
           if (targetServer) {
             ws.clearPendingServerId();
-            const prefix = targetServer.urlPrefix || targetServer.serverId;
-            console.log('[Auth] Redirecting to pending server:', prefix);
-            window.location.href = `/${prefix}`;
+            console.log('[Auth] Auto-switching to pending server via WebSocket:', targetServer.serverId);
+            ws.switchServer(targetServer.serverId);
             return;
           }
         }
@@ -1074,15 +1073,14 @@
 
         hideAuthOverlay();
 
-        // Auto-switch to pending server if redirected from a server URL
+        // Auto-switch to pending server via WebSocket instead of redirecting (avoids reload loop)
         const pendingId = ws.getPendingServerId?.();
         if (pendingId && data.servers) {
           const targetServer = data.servers.find(s => s.serverId === pendingId || s.urlPrefix === pendingId);
           if (targetServer) {
             ws.clearPendingServerId();
-            const prefix = targetServer.urlPrefix || targetServer.serverId;
-            console.log('[Auth] Redirecting to pending server:', prefix);
-            window.location.href = `/${prefix}`;
+            console.log('[Auth] Auto-switching to pending server via WebSocket:', targetServer.serverId);
+            ws.switchServer(targetServer.serverId);
             return;
           }
         }
