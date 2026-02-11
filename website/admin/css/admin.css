@@ -1,5 +1,5 @@
 /* ============================================
-   ModereX Admin Panel Styles v292
+   ModereX Admin Panel Styles v294
    ============================================ */
 
 :root {
@@ -45,11 +45,12 @@
 
 body {
     font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
-    background: var(--bg);
+    background: #0a0a1a;
     color: var(--text);
     line-height: 1.5;
     display: flex;
     min-height: 100vh;
+    overflow: hidden;
 }
 
 /* ============================================
@@ -80,7 +81,8 @@ body {
 
 .sidebar {
     width: var(--sidebar-width);
-    background: var(--bg-secondary);
+    background: hsla(222, 25%, 10%, 0.9);
+    backdrop-filter: blur(16px);
     border-right: 1px solid var(--border);
     display: flex;
     flex-direction: column;
@@ -211,6 +213,9 @@ body {
     display: flex;
     flex-direction: column;
     min-height: 100vh;
+    position: relative;
+    z-index: 1;
+    overflow-y: auto;
 }
 
 .main-header {
@@ -888,77 +893,140 @@ body {
 }
 
 /* ============================================
-   Feature Flags
+   Users Table
    ============================================ */
 
-.feature-flags-list {
-    display: flex;
-    flex-direction: column;
-    gap: 10px;
+.users-row {
+    cursor: pointer;
+    transition: background 0.15s;
 }
 
-.feature-flag-card {
+.users-row:hover td {
+    background: hsla(215, 85%, 55%, 0.06);
+}
+
+.users-avatar {
+    width: 24px;
+    height: 24px;
+    border-radius: 4px;
+    vertical-align: middle;
+}
+
+.users-uuid {
+    font-family: 'Consolas', 'Monaco', monospace;
+    font-size: 11px;
+    color: var(--text-muted);
+    cursor: pointer;
+    filter: blur(4px);
+    transition: filter 0.2s ease;
+    user-select: none;
+}
+
+.users-uuid.revealed {
+    filter: none;
+    user-select: text;
+}
+
+.users-actions {
+    display: flex;
+    gap: 6px;
+}
+
+.users-count-badge {
+    padding: 6px 14px;
     background: var(--bg-card);
     border: 1px solid var(--border);
-    border-radius: var(--radius-lg);
-    padding: 18px;
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-}
-
-.flag-info h4 {
-    font-size: 14px;
-    font-weight: 600;
-    margin-bottom: 3px;
-}
-
-.flag-info p {
+    border-radius: 8px;
     font-size: 12px;
-    color: var(--text-muted);
+    font-weight: 600;
+    color: var(--text-secondary);
 }
 
-.toggle {
-    position: relative;
-    width: 44px;
-    height: 24px;
-    cursor: pointer;
+/* ============================================
+   Animated Background
+   ============================================ */
+
+.admin-bg {
+    position: fixed;
+    inset: 0;
+    z-index: 0;
+    pointer-events: none;
+    overflow: hidden;
 }
 
-.toggle input {
-    opacity: 0;
-    width: 0;
-    height: 0;
+.admin-bg-orb {
+    position: absolute;
+    border-radius: 50%;
+    filter: blur(100px);
+    animation-timing-function: ease-in-out;
+    animation-iteration-count: infinite;
+    animation-direction: alternate;
 }
 
-.toggle-slider {
+.admin-bg-orb--blue {
+    width: 500px;
+    height: 500px;
+    background: radial-gradient(circle, rgba(59, 130, 246, 0.4), transparent 70%);
+    top: -100px;
+    left: -100px;
+    animation: orbPulseBlue 8s ease-in-out infinite alternate;
+}
+
+.admin-bg-orb--purple {
+    width: 600px;
+    height: 600px;
+    background: radial-gradient(circle, rgba(139, 92, 246, 0.35), transparent 70%);
+    bottom: -150px;
+    right: -150px;
+    animation: orbPulsePurple 8s ease-in-out infinite alternate;
+}
+
+.admin-bg-orb--accent {
+    width: 300px;
+    height: 300px;
+    background: radial-gradient(circle, rgba(99, 102, 241, 0.2), transparent 70%);
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    animation: orbPulseAccent 10s ease-in-out infinite alternate;
+}
+
+@keyframes orbPulseBlue {
+    0% { opacity: 0.3; transform: translate(0, 0) scale(1); }
+    50% { opacity: 0.8; transform: translate(50px, 30px) scale(1.1); }
+    100% { opacity: 0.3; transform: translate(-20px, 50px) scale(0.95); }
+}
+
+@keyframes orbPulsePurple {
+    0% { opacity: 0.8; transform: translate(0, 0) scale(1); }
+    50% { opacity: 0.3; transform: translate(-40px, -20px) scale(1.05); }
+    100% { opacity: 0.8; transform: translate(30px, -40px) scale(0.9); }
+}
+
+@keyframes orbPulseAccent {
+    0% { opacity: 0.15; transform: translate(-50%, -50%) scale(0.8); }
+    100% { opacity: 0.3; transform: translate(-50%, -50%) scale(1.2); }
+}
+
+.admin-bg-particles {
     position: absolute;
     inset: 0;
-    background: var(--bg-secondary);
-    border: 1px solid var(--border);
-    border-radius: 24px;
-    transition: all 0.25s;
 }
 
-.toggle-slider::before {
-    content: '';
+.admin-bg-particle {
     position: absolute;
-    width: 18px;
-    height: 18px;
-    left: 2px;
-    bottom: 2px;
-    background: white;
+    width: 3px;
+    height: 3px;
+    background: rgba(139, 92, 246, 0.5);
     border-radius: 50%;
-    transition: all 0.25s;
+    animation: particleFloat linear infinite;
 }
 
-.toggle input:checked + .toggle-slider {
-    background: var(--primary);
-    border-color: var(--primary);
-}
-
-.toggle input:checked + .toggle-slider::before {
-    transform: translateX(20px);
+@keyframes particleFloat {
+    0% { transform: translateY(100vh) translateX(0); opacity: 0; }
+    10% { opacity: 1; }
+    90% { opacity: 1; }
+    100% { transform: translateY(-20px) translateX(30px); opacity: 0; }
 }
 
 /* ============================================
@@ -1697,4 +1765,172 @@ body {
     .page-content {
         padding: 14px;
     }
+}
+
+/* ============================================
+   Admin Login & 2FA
+   ============================================ */
+
+.admin-login-overlay {
+    position: fixed;
+    inset: 0;
+    background: linear-gradient(135deg, #0a0a1a 0%, #1a0a2a 50%, #0a1a2a 100%);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 10000;
+}
+
+.admin-login-card {
+    background: rgba(20, 20, 40, 0.9);
+    border: 1px solid rgba(100, 100, 200, 0.2);
+    border-radius: 16px;
+    padding: 40px;
+    max-width: 400px;
+    width: 90%;
+    backdrop-filter: blur(20px);
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+}
+
+.admin-login-logo {
+    text-align: center;
+    font-size: 48px;
+    color: #8b5cf6;
+    margin-bottom: 16px;
+}
+
+.admin-login-card h1 {
+    text-align: center;
+    font-size: 24px;
+    color: #e2e8f0;
+    margin: 0 0 8px;
+}
+
+.admin-login-subtitle {
+    text-align: center;
+    color: #94a3b8;
+    font-size: 14px;
+    margin: 0 0 24px;
+}
+
+.admin-login-card label {
+    display: block;
+    color: #94a3b8;
+    font-size: 12px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin-bottom: 6px;
+    margin-top: 16px;
+}
+
+.admin-login-card input {
+    width: 100%;
+    padding: 12px 16px;
+    background: rgba(15, 15, 35, 0.8);
+    border: 1px solid rgba(100, 100, 200, 0.2);
+    border-radius: 8px;
+    color: #e2e8f0;
+    font-size: 14px;
+    outline: none;
+    transition: border-color 0.2s;
+    box-sizing: border-box;
+}
+
+.admin-login-card input:focus {
+    border-color: #8b5cf6;
+}
+
+.admin-login-card input::placeholder {
+    color: #475569;
+}
+
+.admin-login-btn {
+    width: 100%;
+    padding: 12px;
+    margin-top: 24px;
+    background: linear-gradient(135deg, #8b5cf6, #6366f1);
+    border: none;
+    border-radius: 8px;
+    color: white;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: opacity 0.2s, transform 0.1s;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    font-family: inherit;
+}
+
+.admin-login-btn:hover {
+    opacity: 0.9;
+}
+
+.admin-login-btn:active {
+    transform: scale(0.98);
+}
+
+.admin-login-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.admin-login-error {
+    background: rgba(239, 68, 68, 0.15);
+    border: 1px solid rgba(239, 68, 68, 0.3);
+    border-radius: 8px;
+    padding: 10px 14px;
+    color: #fca5a5;
+    font-size: 13px;
+    margin-bottom: 8px;
+}
+
+.admin-2fa-qr {
+    text-align: center;
+    margin: 20px 0;
+    padding: 16px;
+    background: white;
+    border-radius: 12px;
+    display: flex;
+    justify-content: center;
+}
+
+.admin-2fa-secret {
+    text-align: center;
+    margin: 12px 0 20px;
+    color: #94a3b8;
+    font-size: 13px;
+}
+
+.admin-2fa-secret code {
+    display: block;
+    margin-top: 6px;
+    padding: 8px 12px;
+    background: rgba(15, 15, 35, 0.8);
+    border: 1px solid rgba(100, 100, 200, 0.2);
+    border-radius: 6px;
+    font-family: monospace;
+    font-size: 14px;
+    color: #a5b4fc;
+    letter-spacing: 2px;
+    user-select: all;
+}
+
+.admin-logout-btn {
+    background: transparent;
+    border: 1px solid rgba(100, 100, 200, 0.2);
+    border-radius: 6px;
+    padding: 6px 12px;
+    color: #94a3b8;
+    cursor: pointer;
+    font-size: 14px;
+    transition: all 0.2s;
+}
+
+.admin-logout-btn:hover {
+    color: #ef4444;
+    border-color: rgba(239, 68, 68, 0.3);
+    background: rgba(239, 68, 68, 0.1);
 }

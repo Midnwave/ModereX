@@ -1102,13 +1102,16 @@
 
     ws.on('server_switched', (data) => {
       console.log('[Auth] Server switched, session:', data.sessionId);
-      // Redirect to the server URL so it gets a clean page load
       const prefix = data.urlPrefix || data.serverId;
       if (prefix && ws.isGatewayMode()) {
-        window.location.href = `/${prefix}`;
-        return;
+        // Only redirect if we're not already on the correct server URL
+        const currentPath = window.location.pathname.replace(/^\/|\/$/g, '');
+        if (currentPath !== prefix) {
+          window.location.href = `/${prefix}`;
+          return;
+        }
       }
-      // Fallback: hide server list and auth with session
+      // Already on correct URL or not gateway — proceed with auth
       hideServerListPage();
       if (data.sessionId) {
         ws.authWithSession(data.sessionId);

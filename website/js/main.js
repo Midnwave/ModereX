@@ -4,10 +4,13 @@
 
 const GATEWAY_URL = 'https://neighbors-steps-unable-stop.trycloudflare.com';
 const SESSION_KEY = 'mx_website_session';
+const TURNSTILE_SITE_KEY = '0x0000000000000000000000'; // TODO: Replace with real site key from Cloudflare dashboard
 
 let allReviews = [];
 let showingAllReviews = false;
 let selectedRating = 0;
+let turnstileToken = null;
+let turnstileWidgetId = null;
 
 document.addEventListener('DOMContentLoaded', () => {
     initNavbar();
@@ -715,11 +718,13 @@ async function validateSession(token) {
     } catch { return false; }
 }
 
-async function loginWithPassword(username, password) {
+async function loginWithPassword(username, password, cfTurnstileToken) {
+    const body = { username, password };
+    if (cfTurnstileToken) body.turnstileToken = cfTurnstileToken;
     const res = await fetch(GATEWAY_URL + '/api/auth/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ username, password })
+        body: JSON.stringify(body)
     });
     const data = await res.json();
     if (!res.ok) throw new Error(data.error || 'Login failed');
@@ -768,6 +773,8 @@ function showSignInModal() {
         modal.classList.add('show');
         const usernameInput = document.getElementById('signInUsername');
         if (usernameInput) setTimeout(() => usernameInput.focus(), 200);
+        // Reset Turnstile widget on reopen
+        resetTurnstile();
     }
 }
 
@@ -776,6 +783,44 @@ function hideSignInModal() {
     if (modal) modal.classList.remove('show');
     const err = document.getElementById('signInError');
     if (err) { err.style.display = 'none'; err.textContent = ''; }
+    resetTurnstile();
+}
+
+// ============================================
+// Cloudflare Turnstile
+// ============================================
+
+function onTurnstileLoad() {
+    const container = document.getElementById('turnstileWidget');
+    if (!container || !window.turnstile) return;
+    turnstileWidgetId = turnstile.render(container, {
+        sitekey: TURNSTILE_SITE_KEY,
+        theme: 'dark',
+        callback: function(token) {
+            turnstileToken = token;
+            const btn = document.getElementById('signInSubmitBtn');
+            if (btn) btn.disabled = false;
+        },
+        'expired-callback': function() {
+            turnstileToken = null;
+            const btn = document.getElementById('signInSubmitBtn');
+            if (btn) btn.disabled = true;
+        },
+        'error-callback': function() {
+            turnstileToken = null;
+            const btn = document.getElementById('signInSubmitBtn');
+            if (btn) btn.disabled = true;
+        }
+    });
+}
+
+function resetTurnstile() {
+    turnstileToken = null;
+    const btn = document.getElementById('signInSubmitBtn');
+    if (btn) btn.disabled = true;
+    if (turnstileWidgetId !== null && window.turnstile) {
+        turnstile.reset(turnstileWidgetId);
+    }
 }
 
 async function handleSignIn(e) {
@@ -791,12 +836,18 @@ async function handleSignIn(e) {
         return;
     }
 
+    if (!turnstileToken) {
+        errorEl.textContent = 'Please complete the verification.';
+        errorEl.style.display = 'block';
+        return;
+    }
+
     submitBtn.disabled = true;
     submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Signing in...';
     errorEl.style.display = 'none';
 
     try {
-        const data = await loginWithPassword(username, password);
+        const data = await loginWithPassword(username, password, turnstileToken);
         saveSession({
             token: data.token,
             username: data.username || username,
@@ -808,6 +859,7 @@ async function handleSignIn(e) {
     } catch (err) {
         errorEl.textContent = err.message || 'Login failed. Please try again.';
         errorEl.style.display = 'block';
+        resetTurnstile();
     } finally {
         submitBtn.disabled = false;
         submitBtn.innerHTML = '<i class="fas fa-sign-in-alt"></i> Sign In';

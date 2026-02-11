@@ -14,6 +14,43 @@
 
 window.MX_CHANGELOGS = [
   {
+    build: 313,
+    version: "2.0dev-313",
+    date: "2026-02-10",
+    title: "Security, Bug Fixes & Admin Overhaul",
+    sections: [
+      {
+        type: "new",
+        title: "New Features",
+        items: [
+          "**Cloudflare Turnstile** - Bot protection added to website sign-in (CAPTCHA verification required)",
+          "**Admin Panel Auth** - UUID-based admin login with TOTP two-factor authentication",
+          "**Admin Users Tab** - View, search, and manage registered user accounts from the admin panel",
+          "**Mojang UUID Validation** - Password auth now validates official Minecraft/Floodgate UUIDs, cracked accounts use token auth",
+          "**Admin Animated Background** - Professional blue/purple gradient with floating particle effects"
+        ]
+      },
+      {
+        type: "fixed",
+        title: "Bug Fixes",
+        items: [
+          "**Announcements** - Fixed admin announcements not reaching web panels (case mismatch in message type)",
+          "**Server Switch** - Fixed infinite reload loop when switching between servers on the gateway panel",
+          "**Replay Terrain** - Fixed blocks not rendering in 3D replay viewer (race condition with chunk data)"
+        ]
+      },
+      {
+        type: "improved",
+        title: "Improvements",
+        items: [
+          "**Token Auth** - Marked as deprecated (Legacy) with warning notice, password auth recommended",
+          "**Admin Security** - Removed Cloudflare Access dependency, admin UUIDs stored in .env file",
+          "**Feature Flags** - Removed placeholder feature flags tab from admin panel"
+        ]
+      }
+    ]
+  },
+  {
     build: 312,
     version: "2.0dev-312",
     date: "2026-02-10",

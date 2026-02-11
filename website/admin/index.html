@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!--ModereX Admin Panel v291 - CURRENTLY DOES NOT HAVE AUTH SYSTEM - WILL IMPLEMENT BEFORE RELEASE-->
+<!--ModereX Admin Panel v294-->
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -12,9 +12,17 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
-    <link rel="stylesheet" href="css/admin.css?v=293">
+    <link rel="stylesheet" href="css/admin.css?v=294">
 </head>
 <body>
+    <!-- Animated Background -->
+    <div class="admin-bg">
+        <div class="admin-bg-orb admin-bg-orb--blue"></div>
+        <div class="admin-bg-orb admin-bg-orb--purple"></div>
+        <div class="admin-bg-orb admin-bg-orb--accent"></div>
+        <div class="admin-bg-particles" id="adminBgParticles"></div>
+    </div>
+
     <!-- Sidebar -->
     <aside class="sidebar">
         <div class="sidebar-header">
@@ -52,9 +60,9 @@
                 <i class="fas fa-key"></i>
                 <span>Dev Licenses</span>
             </a>
-            <a href="#features" class="nav-item" data-page="features">
-                <i class="fas fa-toggle-on"></i>
-                <span>Feature Flags</span>
+            <a href="#users" class="nav-item" data-page="users">
+                <i class="fas fa-users"></i>
+                <span>Users</span>
             </a>
             <a href="#audit" class="nav-item" data-page="audit">
                 <i class="fas fa-clipboard-list"></i>
@@ -91,6 +99,9 @@
                 </div>
                 <button class="btn btn-outline btn-sm" onclick="location.href='/'">
                     <i class="fas fa-external-link-alt"></i> Main Site
+                </button>
+                <button onclick="adminLogout()" class="admin-logout-btn" title="Log Out">
+                    <i class="fa-solid fa-right-from-bracket"></i>
                 </button>
             </div>
         </header>
@@ -436,58 +447,38 @@
                 </div>
             </section>
 
-            <!-- Feature Flags Page -->
-            <section class="page hidden" id="page-features">
-                <div class="feature-flags-list" id="featureFlagsList">
-                    <div class="feature-flag-card">
-                        <div class="flag-info">
-                            <h4>Replays System</h4>
-                            <p>Enable player action replay recording and playback (requires Citizens)</p>
-                        </div>
-                        <label class="toggle">
-                            <input type="checkbox" data-flag="replays" checked>
-                            <span class="toggle-slider"></span>
-                        </label>
+            <!-- Users Page -->
+            <section class="page hidden" id="page-users">
+                <div class="page-actions">
+                    <div class="search-box">
+                        <i class="fas fa-search"></i>
+                        <input type="text" placeholder="Search users..." id="usersSearch" oninput="renderUsers(allUsers)">
                     </div>
-                    <div class="feature-flag-card">
-                        <div class="flag-info">
-                            <h4>Server Monitoring</h4>
-                            <p>TPS, memory, and performance monitoring in web panel</p>
-                        </div>
-                        <label class="toggle">
-                            <input type="checkbox" data-flag="monitoring" checked>
-                            <span class="toggle-slider"></span>
-                        </label>
-                    </div>
-                    <div class="feature-flag-card">
-                        <div class="flag-info">
-                            <h4>Heat Map</h4>
-                            <p>Visual chunk performance heat map (experimental)</p>
-                        </div>
-                        <label class="toggle">
-                            <input type="checkbox" data-flag="heatmap">
-                            <span class="toggle-slider"></span>
-                        </label>
-                    </div>
-                    <div class="feature-flag-card">
-                        <div class="flag-info">
-                            <h4>Global Ban List</h4>
-                            <p>Opt-in shared ban database across participating servers</p>
-                        </div>
-                        <label class="toggle">
-                            <input type="checkbox" data-flag="globalBanList">
-                            <span class="toggle-slider"></span>
-                        </label>
-                    </div>
-                    <div class="feature-flag-card">
-                        <div class="flag-info">
-                            <h4>AI Moderation Assistant</h4>
-                            <p>AI-powered chat analysis and moderation suggestions (beta)</p>
-                        </div>
-                        <label class="toggle">
-                            <input type="checkbox" data-flag="aiAssistant">
-                            <span class="toggle-slider"></span>
-                        </label>
+                    <span class="users-count-badge"><span id="usersCount">0</span> users</span>
+                </div>
+
+                <div class="card">
+                    <div class="servers-table-container">
+                        <table class="data-table">
+                            <thead>
+                                <tr>
+                                    <th style="width:40px;"></th>
+                                    <th>Username</th>
+                                    <th>UUID</th>
+                                    <th>Created</th>
+                                    <th>Last Login</th>
+                                    <th>Sessions</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody id="usersTableBody">
+                                <tr>
+                                    <td colspan="7" class="table-loading">
+                                        <i class="fas fa-spinner fa-spin"></i> Loading users...
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
                     </div>
                 </div>
             </section>
@@ -757,7 +748,7 @@
     <div id="toastContainer"></div>
 
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
-    <script src="js/admin.js?v=293"></script>
+    <script src="js/admin.js?v=294"></script>
 </body>
 </html>
-<!-- Cache bust Sun, Feb  8, 2026  6:21:48 PM -->
+<!-- Cache bust Tue, Feb 10, 2026 -->

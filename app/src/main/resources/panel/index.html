@@ -63,7 +63,7 @@
         <!-- Auth Tabs -->
         <div class="auth-tabs">
           <button class="auth-tab active" data-tab="password"><i class="fa-solid fa-lock"></i> Sign In</button>
-          <button class="auth-tab" data-tab="token"><i class="fa-solid fa-key"></i> Legacy Token</button>
+          <button class="auth-tab" data-tab="token"><i class="fa-solid fa-key"></i> Token <span style="font-size:10px;color:#f59e0b;margin-left:4px;">(Legacy)</span></button>
         </div>
 
         <!-- Password Auth Tab -->
@@ -81,6 +81,10 @@
 
         <!-- Legacy Token Tab -->
         <div class="auth-tab-content" id="authTabToken" data-tab="token">
+          <div style="background:rgba(245,158,11,0.1);border:1px solid rgba(245,158,11,0.2);border-radius:8px;padding:10px 14px;margin-bottom:12px;color:#fbbf24;font-size:12px;">
+            <i class="fa-solid fa-triangle-exclamation" style="margin-right:6px;"></i>
+            Token auth is deprecated and will be removed in a future version. Use password authentication instead.
+          </div>
           <div class="auth-section" id="authTokenSection">
             <label class="auth-label">Permanent Token <span style="color:var(--warning);font-size:11px">(Deprecated)</span></label>
             <p class="auth-hint">Run <code>/mx gettoken</code> in-game to get your token</p>
