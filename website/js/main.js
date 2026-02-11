@@ -664,10 +664,9 @@ document.addEventListener('click', (e) => {
         hideSignInModal();
     }
     // Close account dropdown when clicking outside
-    const dropdown = document.getElementById('navAccountDropdown');
-    const accountBtn = document.querySelector('.nav-account-btn');
-    if (dropdown && accountBtn && !dropdown.contains(e.target) && !accountBtn.contains(e.target)) {
-        dropdown.classList.remove('show');
+    const accountEl2 = document.getElementById('navAccount');
+    if (accountEl2 && !accountEl2.contains(e.target)) {
+        accountEl2.classList.remove('open');
     }
 });
 
@@ -790,8 +789,8 @@ function updateNavAuth(loggedIn) {
 }
 
 function toggleAccountDropdown() {
-    const dropdown = document.getElementById('navAccountDropdown');
-    if (dropdown) dropdown.classList.toggle('show');
+    const account = document.getElementById('navAccount');
+    if (account) account.classList.toggle('open');
 }
 
 async function logout() {
@@ -808,8 +807,8 @@ async function logout() {
     clearSession();
     localStorage.removeItem('mx_promo_dismissed');
     updateNavAuth(false);
-    const dropdown = document.getElementById('navAccountDropdown');
-    if (dropdown) dropdown.classList.remove('show');
+    const account = document.getElementById('navAccount');
+    if (account) account.classList.remove('open');
 }
 
 function showSignInModal() {

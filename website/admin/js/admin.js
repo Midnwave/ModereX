@@ -44,7 +44,7 @@
             <div style="background:#1e1e1e;padding:30px;border-radius:8px;max-width:500px;color:#fff;">
                 <h2 style="margin-top:0;color:#4CAF50;">Configure Gateway</h2>
                 <p>Enter your ModereX gateway tunnel URL:</p>
-                <input type="text" id="gateway-url-input" placeholder="wss://folks-optimization-meetup-enemies.trycloudflare.com"
+                <input type="text" id="gateway-url-input" placeholder="wss://childrens-logs-presence-aircraft.trycloudflare.com"
                     value="${localStorage.getItem('moderex_gateway_url') || ''}"
                     style="width:100%;padding:10px;margin:10px 0;background:#2d2d2d;border:1px solid #444;color:#fff;border-radius:4px;">
                 <button id="save-gateway-btn" style="background:#4CAF50;color:#fff;border:none;padding:10px 20px;border-radius:4px;cursor:pointer;">
@@ -1703,9 +1703,7 @@
     // ========================================
 
     function loadUsers() {
-        if (ws && ws.readyState === WebSocket.OPEN) {
-            ws.send(JSON.stringify({ type: 'get_users' }));
-        }
+        send('get_users');
     }
 
     function renderUsers(users) {
@@ -1812,9 +1810,7 @@
     }
 
     function showUserDetails(uuid) {
-        if (ws && ws.readyState === WebSocket.OPEN) {
-            ws.send(JSON.stringify({ type: 'get_user_details', uuid }));
-        }
+        send('get_user_details', { uuid });
     }
 
     async function confirmResetPassword(uuid, username) {
@@ -1827,7 +1823,7 @@
             icon: 'fa-key'
         });
         if (confirmed) {
-            ws.send(JSON.stringify({ type: 'admin_reset_password', uuid }));
+            send('admin_reset_password', { uuid });
         }
     }
 
@@ -1841,7 +1837,7 @@
             icon: 'fa-triangle-exclamation'
         });
         if (confirmed) {
-            ws.send(JSON.stringify({ type: 'admin_delete_account', uuid }));
+            send('admin_delete_account', { uuid });
         }
     }
 
