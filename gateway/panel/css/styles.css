@@ -9163,6 +9163,7 @@ textarea.input {
 .replay-loading-overlay .loading-text {
   font-size: 14px;
   color: var(--text-secondary);
+  transition: opacity 0.25s ease, transform 0.25s ease;
 }
 
 .replay-loading-progress {

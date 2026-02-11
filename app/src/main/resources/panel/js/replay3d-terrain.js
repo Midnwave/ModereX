@@ -946,7 +946,7 @@
       texture.magFilter = THREE.NearestFilter;
       texture.minFilter = THREE.NearestFilter;
       texture.generateMipmaps = false; // Crisp pixelated Minecraft look
-      texture.colorSpace = THREE.SRGBColorSpace;
+      texture.encoding = THREE.sRGBEncoding;
 
       // Shader injection for atlas-aware UV tiling.
       // When greedy-merged quads span multiple blocks, UVs extend beyond a single
@@ -978,7 +978,7 @@ const vec2 atlasTileSize = vec2(${tileUW.toFixed(10)}, ${tileUH.toFixed(10)});`
           '#include <map_fragment>',
           `#ifdef USE_MAP
   // Wrap UVs within the atlas tile for texture tiling on merged quads
-  vec2 tiledUV = vTileOrigin + fract((vMapUv - vTileOrigin) / atlasTileSize) * atlasTileSize;
+  vec2 tiledUV = vTileOrigin + fract((vUv - vTileOrigin) / atlasTileSize) * atlasTileSize;
   vec4 sampledDiffuseColor = texture2D(map, tiledUV);
   #ifdef DECODE_VIDEO_TEXTURE
     sampledDiffuseColor = vec4(mix(pow(sampledDiffuseColor.rgb * 0.9478672986 + vec3(0.0521327014), vec3(2.4)), sampledDiffuseColor.rgb * 0.0773993808, vec3(lessThanEqual(sampledDiffuseColor.rgb, vec3(0.04045)))), sampledDiffuseColor.w);

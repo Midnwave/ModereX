@@ -363,6 +363,15 @@ function createTables() {
             ip_address TEXT
         )
     `);
+
+    db.exec(`
+        CREATE TABLE IF NOT EXISTS known_servers (
+            server_id TEXT PRIMARY KEY,
+            server_name TEXT NOT NULL,
+            version TEXT,
+            last_seen INTEGER NOT NULL
+        )
+    `);
 }
 
 /**
@@ -856,7 +865,8 @@ const server = http.createServer((req, res) => {
             jsonResponse(res, 200, {
                 valid: true,
                 uuid: session.minecraft_uuid,
-                username: account?.minecraft_username || null
+                username: account?.minecraft_username || null,
+                isAdmin: ADMIN_UUIDS.has(session.minecraft_uuid)
             });
         });
         return;
@@ -1220,6 +1230,14 @@ function handleMCServerConnection(ws, clientIp) {
                     lastHeartbeat: Date.now(),
                     clientIp: clientIp
                 });
+
+                // Persist server info for offline name lookups
+                if (db) {
+                    try {
+                        db.prepare('INSERT INTO known_servers (server_id, server_name, version, last_seen) VALUES (?, ?, ?, ?) ON CONFLICT(server_id) DO UPDATE SET server_name = excluded.server_name, version = excluded.version, last_seen = excluded.last_seen')
+                            .run(serverId, message.serverName || 'Unknown', message.version || 'unknown', Date.now());
+                    } catch (e) {}
+                }
 
                 registered = true;
                 console.log(`[Server] ${serverId} registered: ${message.serverName} (URL: /${prefix}/)`);
@@ -1889,9 +1907,16 @@ function getServersForUser(uuid) {
             const rows = db.prepare('SELECT * FROM server_access WHERE uuid = ?').all(uuid);
             for (const row of rows) {
                 const mcServer = mcServers.get(row.server_id);
+                let serverName = mcServer?.info?.serverName;
+                if (!serverName) {
+                    try {
+                        const known = db.prepare('SELECT server_name FROM known_servers WHERE server_id = ?').get(row.server_id);
+                        if (known) serverName = known.server_name;
+                    } catch (e) {}
+                }
                 servers.push({
                     serverId: row.server_id,
-                    serverName: mcServer?.info?.serverName || 'Unknown Server',
+                    serverName: serverName || 'Unknown Server',
                     rank: row.rank || 'Member',
                     permissions: JSON.parse(row.permissions || '[]'),
                     online: !!mcServer,
@@ -1906,9 +1931,16 @@ function getServersForUser(uuid) {
         for (const [key, access] of inMemoryServerAccess) {
             if (access.uuid === uuid) {
                 const mcServer = mcServers.get(access.server_id);
+                let serverName = mcServer?.info?.serverName;
+                if (!serverName && db) {
+                    try {
+                        const known = db.prepare('SELECT server_name FROM known_servers WHERE server_id = ?').get(access.server_id);
+                        if (known) serverName = known.server_name;
+                    } catch (e) {}
+                }
                 servers.push({
                     serverId: access.server_id,
-                    serverName: mcServer?.info?.serverName || 'Unknown Server',
+                    serverName: serverName || 'Unknown Server',
                     rank: access.rank || 'Member',
                     permissions: JSON.parse(access.permissions || '[]'),
                     online: !!mcServer,
@@ -4246,7 +4278,8 @@ async function handlePasswordLogin(req, res) {
                 success: true,
                 uuid: account.minecraft_uuid,
                 username: account.minecraft_username,
-                sessionToken
+                sessionToken,
+                isAdmin: ADMIN_UUIDS.has(account.minecraft_uuid)
             });
         } catch (e) {
             console.error('[Auth] Password verification error:', e.message);

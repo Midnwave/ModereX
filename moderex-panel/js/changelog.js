@@ -14,6 +14,43 @@
 
 window.MX_CHANGELOGS = [
   {
+    build: 317,
+    version: "2.0dev-317",
+    date: "2026-02-10",
+    title: "Security Hardening, Replay Fix & Gateway Improvements",
+    sections: [
+      {
+        type: "fixed",
+        title: "Bug Fixes",
+        items: [
+          "**Replay Terrain Rendering** - Fixed THREE.js shader error (vMapUv undeclared) that prevented all terrain/blocks from rendering",
+          "**Replay Skin Loading** - Reordered skin proxies to avoid CORS failures on Crafatar",
+          "**Website Sign-In** - Fixed hardcoded gateway URL that broke all website-gateway communication",
+          "**Website Sign-Out** - Now revokes server-side sessions and clears all stored data",
+          "**Offline Server Names** - Servers that disconnect now retain their name instead of showing Unknown Server"
+        ]
+      },
+      {
+        type: "improved",
+        title: "Improvements",
+        items: [
+          "**Admin Panel Security** - Removed globally-exposed functions from browser console (event delegation)",
+          "**Replay Loading Animation** - Smooth slide transitions between loading phases",
+          "**Promo Ads Simplified** - Apply Now links directly to Discord invite",
+          "**Admin Nav Button** - Admin accounts now see Admin Panel link in website navigation"
+        ]
+      },
+      {
+        type: "technical",
+        title: "Technical Changes",
+        items: [
+          "**Gateway** - Added isAdmin to session validate response, known_servers DB table for offline name persistence",
+          "**THREE.js r128 Compat** - Fixed colorSpace to encoding, vMapUv to vUv for shader compatibility"
+        ]
+      }
+    ]
+  },
+  {
     build: 315,
     version: "2.0dev-315",
     date: "2026-02-10",

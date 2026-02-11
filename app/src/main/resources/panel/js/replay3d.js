@@ -615,9 +615,9 @@
 
   // Skin proxy endpoints in priority order (first working one wins)
   const SKIN_PROXIES = [
-    uuid => `https://crafatar.com/skins/${uuid}?default=MHF_Steve`,
     uuid => `https://mc-heads.net/skin/${uuid}`,
     uuid => `https://visage.surgeplay.com/skin/64/${uuid}`,
+    uuid => `https://crafatar.com/skins/${uuid}?default=MHF_Steve`,
   ];
 
   /**
@@ -951,15 +951,33 @@
       const progressFill = document.getElementById('r3dProgressFill');
       const loadText = document.getElementById('r3dLoadingText');
 
+      let lastPhase = '';
       const onProgress = (phase, current, total) => {
         if (!total) return;
         const pct = Math.round((current / total) * 100);
         if (progressBar) progressBar.style.display = '';
+
+        const newText = phase === 'textures'
+          ? `Loading textures (${current}/${total})...`
+          : `Building terrain (${current}/${total} chunks)...`;
+
+        // Slide-fade transition when phase changes
+        if (phase !== lastPhase && loadText) {
+          loadText.style.opacity = '0';
+          loadText.style.transform = 'translateY(6px)';
+          setTimeout(() => {
+            loadText.textContent = newText;
+            loadText.style.opacity = '1';
+            loadText.style.transform = 'translateY(0)';
+          }, 200);
+          lastPhase = phase;
+        } else if (loadText) {
+          loadText.textContent = newText;
+        }
+
         if (phase === 'textures') {
-          if (loadText) loadText.textContent = `Loading textures (${current}/${total})...`;
           if (progressFill) progressFill.style.width = `${Math.round(pct * 0.4)}%`;
         } else if (phase === 'meshing') {
-          if (loadText) loadText.textContent = `Building terrain (${current}/${total} chunks)...`;
           if (progressFill) progressFill.style.width = `${Math.round(40 + pct * 0.6)}%`;
         }
       };
