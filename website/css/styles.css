@@ -1859,6 +1859,12 @@ body {
     color: var(--primary-light);
 }
 
+.turnstile-container {
+    display: flex;
+    justify-content: center;
+    margin-top: 16px;
+}
+
 .modal-buttons {
     display: flex;
     flex-direction: column;

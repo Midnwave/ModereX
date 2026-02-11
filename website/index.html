@@ -727,8 +727,9 @@
                 <input class="modal-input" type="text" id="signInUsername" placeholder="Enter your username" required autocomplete="username">
                 <label class="modal-label" for="signInPassword" style="margin-top:12px;">Password</label>
                 <input class="modal-input" type="password" id="signInPassword" placeholder="Enter your password" required autocomplete="current-password">
+                <div id="turnstileWidget" class="turnstile-container"></div>
                 <div class="modal-buttons" style="margin-top:20px;">
-                    <button type="submit" class="btn btn-primary" id="signInSubmitBtn">
+                    <button type="submit" class="btn btn-primary" id="signInSubmitBtn" disabled>
                         <i class="fas fa-sign-in-alt"></i> Sign In
                     </button>
                     <button type="button" class="btn btn-outline" onclick="hideSignInModal()">Cancel</button>
@@ -738,6 +739,7 @@
         </div>
     </div>
 
+    <script src="https://challenges.cloudflare.com/turnstile/v0/api.js?onload=onTurnstileLoad" async defer></script>
     <script src="js/main.js"></script>
 </body>
 </html>

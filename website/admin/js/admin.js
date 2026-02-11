@@ -1,7 +1,6 @@
 /**
- * ModereX Admin Panel v292
+ * ModereX Admin Panel v294
  * Internal administration dashboard for BlockForge Studios
- * CURRENTLY DOES NOT HAVE AUTH SYSTEM - WILL IMPLEMENT BEFORE RELEASE
  */
 
 (function() {
@@ -68,90 +67,342 @@
 
     const GATEWAY_WS_URL = getAdminGatewayUrl();
 
-    // State
-    let ws = null;
-    let adminEmail = null;
-    let currentPage = 'dashboard';
-    let reconnectAttempts = 0;
-    const MAX_RECONNECT_ATTEMPTS = 10;
+    // ========================================
+    // Admin Auth - Session Management
+    // ========================================
 
-    // DOM Ready
-    document.addEventListener('DOMContentLoaded', () => {
-        initializeAdmin();
-    });
+    const ADMIN_SESSION_KEY = 'mx_admin_session';
 
-    function initializeAdmin() {
-        // Check Cloudflare Access JWT
-        checkAuth();
+    function getAdminSession() {
+        try { return JSON.parse(localStorage.getItem(ADMIN_SESSION_KEY)); } catch { return null; }
+    }
+    function saveAdminSession(data) {
+        localStorage.setItem(ADMIN_SESSION_KEY, JSON.stringify(data));
+    }
+    function clearAdminSession() {
+        localStorage.removeItem(ADMIN_SESSION_KEY);
+    }
 
-        // Initialize navigation
-        initNavigation();
+    function getAdminApiUrl() {
+        const wsUrl = getAdminGatewayUrl();
+        // Convert wss://host/admin to https://host
+        return wsUrl.replace('wss://', 'https://').replace('ws://', 'http://').replace(/\/admin$/, '');
+    }
 
-        // Initialize tabs
-        initTabs();
+    // ========================================
+    // Admin Auth - API Functions
+    // ========================================
 
-        // Initialize mobile menu
-        initMobileMenu();
+    async function adminLogin(username, password) {
+        const res = await fetch(getAdminApiUrl() + '/api/admin/auth', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ username, password })
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'Login failed');
+        return data;
+    }
 
-        // Connect to gateway
-        connectToGateway();
+    async function adminVerify2FA(token, code) {
+        const res = await fetch(getAdminApiUrl() + '/api/admin/auth/2fa', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ token, code })
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'Verification failed');
+        return data;
+    }
 
-        // Load initial page from hash
-        const hash = window.location.hash.replace('#', '');
-        if (hash) {
-            navigateToPage(hash);
+    async function adminSetup2FA(token) {
+        const res = await fetch(getAdminApiUrl() + '/api/admin/2fa/setup', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ token })
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || '2FA setup failed');
+        return data;
+    }
+
+    async function adminVerify2FASetup(token, code) {
+        const res = await fetch(getAdminApiUrl() + '/api/admin/2fa/verify', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ token, code })
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'Verification failed');
+        return data;
+    }
+
+    async function validateAdminSession() {
+        const session = getAdminSession();
+        if (!session || !session.token) return false;
+        try {
+            const res = await fetch(getAdminApiUrl() + '/api/admin/session/validate', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ token: session.token })
+            });
+            const data = await res.json();
+            return data.valid === true;
+        } catch { return false; }
+    }
+
+    // ========================================
+    // Admin Auth - Login UI
+    // ========================================
+
+    function showAdminLogin() {
+        // Hide main content, show login overlay
+        const sidebar = document.querySelector('.sidebar');
+        const main = document.querySelector('.main-content');
+        if (sidebar) sidebar.style.display = 'none';
+        if (main) main.style.display = 'none';
+
+        let loginOverlay = document.getElementById('adminLoginOverlay');
+        if (!loginOverlay) {
+            loginOverlay = document.createElement('div');
+            loginOverlay.id = 'adminLoginOverlay';
+            loginOverlay.className = 'admin-login-overlay';
+            document.body.appendChild(loginOverlay);
+        }
+
+        loginOverlay.innerHTML = `
+            <div class="admin-login-card">
+                <div class="admin-login-logo">
+                    <i class="fa-solid fa-shield-halved"></i>
+                </div>
+                <h1>ModereX Admin</h1>
+                <p class="admin-login-subtitle">Authorized personnel only</p>
+                <div class="admin-login-error" id="adminLoginError" style="display:none;"></div>
+                <form id="adminLoginForm">
+                    <label>Minecraft Username</label>
+                    <input type="text" id="adminUsername" placeholder="Enter your username" required autocomplete="username">
+                    <label>Password</label>
+                    <input type="password" id="adminPassword" placeholder="Enter your password" required autocomplete="current-password">
+                    <button type="submit" class="admin-login-btn" id="adminLoginBtn">
+                        <i class="fa-solid fa-right-to-bracket"></i> Sign In
+                    </button>
+                </form>
+            </div>
+        `;
+        loginOverlay.style.display = 'flex';
+
+        document.getElementById('adminLoginForm').addEventListener('submit', handleAdminLogin);
+        setTimeout(() => document.getElementById('adminUsername')?.focus(), 200);
+    }
+
+    async function handleAdminLogin(e) {
+        e.preventDefault();
+        const username = document.getElementById('adminUsername').value.trim();
+        const password = document.getElementById('adminPassword').value;
+        const errorEl = document.getElementById('adminLoginError');
+        const btn = document.getElementById('adminLoginBtn');
+
+        if (!username || !password) {
+            errorEl.textContent = 'Please fill in all fields.';
+            errorEl.style.display = 'block';
+            return;
+        }
+
+        btn.disabled = true;
+        btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Authenticating...';
+        errorEl.style.display = 'none';
+
+        try {
+            const data = await adminLogin(username, password);
+            saveAdminSession({ token: data.token, uuid: data.uuid, username: data.username });
+
+            if (data.requires2FA) {
+                show2FAVerify();
+            } else if (!data.has2FASetup) {
+                show2FASetup();
+            } else {
+                completeAdminLogin();
+            }
+        } catch (err) {
+            errorEl.textContent = err.message;
+            errorEl.style.display = 'block';
+        } finally {
+            btn.disabled = false;
+            btn.innerHTML = '<i class="fa-solid fa-right-to-bracket"></i> Sign In';
         }
     }
 
-    // ========================================
-    // Authentication
-    // ========================================
+    function show2FAVerify() {
+        const loginOverlay = document.getElementById('adminLoginOverlay');
+        if (!loginOverlay) return;
 
-    function checkAuth() {
-        // In production, Cloudflare Access handles auth
-        // The gateway will verify the CF-Access-JWT-Assertion header
+        loginOverlay.innerHTML = `
+            <div class="admin-login-card">
+                <div class="admin-login-logo">
+                    <i class="fa-solid fa-shield-halved"></i>
+                </div>
+                <h1>Two-Factor Auth</h1>
+                <p class="admin-login-subtitle">Enter the 6-digit code from your authenticator app</p>
+                <div class="admin-login-error" id="admin2FAError" style="display:none;"></div>
+                <form id="admin2FAForm">
+                    <input type="text" id="admin2FACode" placeholder="000000" maxlength="6" pattern="[0-9]{6}"
+                        autocomplete="one-time-code" inputmode="numeric" style="text-align:center;font-size:24px;letter-spacing:8px;">
+                    <button type="submit" class="admin-login-btn" id="admin2FABtn">
+                        <i class="fa-solid fa-check"></i> Verify
+                    </button>
+                </form>
+            </div>
+        `;
 
-        // For now, try to get user info from Cloudflare Access cookie
-        // This will be set by Cloudflare Access after successful auth
+        document.getElementById('admin2FAForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const code = document.getElementById('admin2FACode').value.trim();
+            const errorEl = document.getElementById('admin2FAError');
+            const btn = document.getElementById('admin2FABtn');
+            if (code.length !== 6) { errorEl.textContent = 'Enter a 6-digit code.'; errorEl.style.display = 'block'; return; }
 
-        // Simulate admin user for development
-        const email = getCFAccessEmail() || 'developer@blockforge.studio';
-        adminEmail = email;
-
-        document.getElementById('adminName').textContent = email.split('@')[0];
+            btn.disabled = true;
+            btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Verifying...';
+            try {
+                const session = getAdminSession();
+                await adminVerify2FA(session.token, code);
+                completeAdminLogin();
+            } catch (err) {
+                errorEl.textContent = err.message;
+                errorEl.style.display = 'block';
+                btn.disabled = false;
+                btn.innerHTML = '<i class="fa-solid fa-check"></i> Verify';
+            }
+        });
+        setTimeout(() => document.getElementById('admin2FACode')?.focus(), 200);
     }
 
-    function getCFAccessEmail() {
-        // In production, this would parse the CF-Access-JWT-Assertion header
-        // or be provided by the gateway after verification
-        return null;
+    async function show2FASetup() {
+        const loginOverlay = document.getElementById('adminLoginOverlay');
+        if (!loginOverlay) return;
+
+        const session = getAdminSession();
+        let setupData;
+        try {
+            setupData = await adminSetup2FA(session.token);
+        } catch (err) {
+            loginOverlay.innerHTML = `<div class="admin-login-card"><h1>Error</h1><p class="admin-login-subtitle">${escapeHtml(err.message)}</p></div>`;
+            return;
+        }
+
+        loginOverlay.innerHTML = `
+            <div class="admin-login-card" style="max-width:480px;">
+                <div class="admin-login-logo">
+                    <i class="fa-solid fa-qrcode"></i>
+                </div>
+                <h1>Set Up 2FA</h1>
+                <p class="admin-login-subtitle">Scan this QR code with your authenticator app (Google Authenticator, Authy, etc.)</p>
+                <div class="admin-2fa-qr" id="admin2FAQrContainer"></div>
+                <div class="admin-2fa-secret">
+                    <span>Manual entry:</span>
+                    <code id="admin2FASecret">${escapeHtml(setupData.secret)}</code>
+                </div>
+                <div class="admin-login-error" id="admin2FASetupError" style="display:none;"></div>
+                <form id="admin2FASetupForm">
+                    <label>Enter the 6-digit code to confirm setup</label>
+                    <input type="text" id="admin2FASetupCode" placeholder="000000" maxlength="6" pattern="[0-9]{6}"
+                        autocomplete="one-time-code" inputmode="numeric" style="text-align:center;font-size:24px;letter-spacing:8px;">
+                    <button type="submit" class="admin-login-btn" id="admin2FASetupBtn">
+                        <i class="fa-solid fa-check-double"></i> Verify & Enable 2FA
+                    </button>
+                </form>
+            </div>
+        `;
+
+        // Generate QR code
+        const qrContainer = document.getElementById('admin2FAQrContainer');
+        if (qrContainer) {
+            const qrImg = document.createElement('img');
+            qrImg.src = 'https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=' + encodeURIComponent(setupData.otpauthUrl);
+            qrImg.alt = 'QR Code';
+            qrImg.style.cssText = 'width:200px;height:200px;border-radius:8px;';
+            qrContainer.appendChild(qrImg);
+        }
+
+        document.getElementById('admin2FASetupForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const code = document.getElementById('admin2FASetupCode').value.trim();
+            const errorEl = document.getElementById('admin2FASetupError');
+            const btn = document.getElementById('admin2FASetupBtn');
+            if (code.length !== 6) { errorEl.textContent = 'Enter a 6-digit code.'; errorEl.style.display = 'block'; return; }
+
+            btn.disabled = true;
+            btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Verifying...';
+            try {
+                await adminVerify2FASetup(session.token, code);
+                completeAdminLogin();
+            } catch (err) {
+                errorEl.textContent = err.message;
+                errorEl.style.display = 'block';
+                btn.disabled = false;
+                btn.innerHTML = '<i class="fa-solid fa-check-double"></i> Verify & Enable 2FA';
+            }
+        });
+        setTimeout(() => document.getElementById('admin2FASetupCode')?.focus(), 200);
     }
 
+    function completeAdminLogin() {
+        const loginOverlay = document.getElementById('adminLoginOverlay');
+        if (loginOverlay) loginOverlay.style.display = 'none';
+        const sidebar = document.querySelector('.sidebar');
+        const main = document.querySelector('.main-content');
+        if (sidebar) sidebar.style.display = '';
+        if (main) main.style.display = '';
+
+        // Update admin name and email from session
+        const session = getAdminSession();
+        if (session) {
+            if (session.username) {
+                document.getElementById('adminName').textContent = session.username;
+            }
+            adminEmail = session.username || session.uuid || null;
+        }
+
+        // Re-initialize WebSocket with token
+        initAdminWebSocket();
+    }
+
+    function adminLogout() {
+        clearAdminSession();
+        if (ws) { ws.close(); ws = null; }
+        showAdminLogin();
+    }
+
+    // Expose adminLogout on window for HTML onclick
+    window.adminLogout = adminLogout;
+
     // ========================================
-    // WebSocket Connection
+    // Admin Auth - WebSocket with Token
     // ========================================
 
-    function connectToGateway() {
-        // Don't attempt connection if gateway URL not configured
+    function initAdminWebSocket() {
         if (!GATEWAY_WS_URL) {
             console.log('[Admin] Gateway URL not configured');
             return;
         }
 
+        const session = getAdminSession();
+        if (!session || !session.token) {
+            showAdminLogin();
+            return;
+        }
+
+        const wsUrl = GATEWAY_WS_URL + '?token=' + encodeURIComponent(session.token);
+
         updateGatewayStatus('connecting');
 
         try {
-            ws = new WebSocket(GATEWAY_WS_URL);
+            ws = new WebSocket(wsUrl);
 
             ws.onopen = () => {
                 console.log('[Admin] Connected to gateway');
                 updateGatewayStatus('connected');
                 reconnectAttempts = 0;
-
-                // Authenticate
-                send('admin_auth', {
-                    email: adminEmail
-                });
 
                 // Request initial data
                 requestDashboardData();
@@ -160,6 +411,12 @@
             ws.onclose = (event) => {
                 console.log('[Admin] Disconnected from gateway:', event.code);
                 updateGatewayStatus('disconnected');
+                // If closed with 4001 (auth failure), show login
+                if (event.code === 4001) {
+                    clearAdminSession();
+                    showAdminLogin();
+                    return;
+                }
                 scheduleReconnect();
             };
 
@@ -183,6 +440,59 @@
         }
     }
 
+    // State
+    let ws = null;
+    let adminEmail = null;
+    let currentPage = 'dashboard';
+    let reconnectAttempts = 0;
+    let allUsers = [];
+    const MAX_RECONNECT_ATTEMPTS = 10;
+
+    // DOM Ready
+    document.addEventListener('DOMContentLoaded', () => {
+        initializeAdmin();
+    });
+
+    async function initializeAdmin() {
+        // Initialize navigation
+        initNavigation();
+
+        // Initialize tabs
+        initTabs();
+
+        // Initialize mobile menu
+        initMobileMenu();
+
+        // Check admin session before loading
+        const valid = await validateAdminSession();
+        if (!valid) {
+            showAdminLogin();
+            return;
+        }
+
+        // Session is valid - update admin name from session
+        const session = getAdminSession();
+        if (session) {
+            if (session.username) {
+                document.getElementById('adminName').textContent = session.username;
+            }
+            adminEmail = session.username || session.uuid || null;
+        }
+
+        // Connect to gateway with auth token
+        initAdminWebSocket();
+
+        // Load initial page from hash
+        const hash = window.location.hash.replace('#', '');
+        if (hash) {
+            navigateToPage(hash);
+        }
+    }
+
+    // ========================================
+    // WebSocket Connection
+    // ========================================
+
     function scheduleReconnect() {
         if (reconnectAttempts >= MAX_RECONNECT_ATTEMPTS) {
             console.log('[Admin] Max reconnect attempts reached');
@@ -193,7 +503,7 @@
         const delay = Math.min(1000 * Math.pow(2, reconnectAttempts), 30000);
 
         console.log(`[Admin] Reconnecting in ${delay}ms (attempt ${reconnectAttempts})`);
-        setTimeout(connectToGateway, delay);
+        setTimeout(initAdminWebSocket, delay);
     }
 
     function send(type, data = {}) {
@@ -391,6 +701,25 @@
                 }
                 // Re-render servers to show updated suspension status
                 send('get_servers');
+                break;
+
+            case 'users_list':
+                allUsers = data.users || [];
+                renderUsers(allUsers);
+                break;
+
+            case 'user_details':
+                showUserDetailsModal(data);
+                break;
+
+            case 'password_reset_success':
+                toast('success', 'Password Reset', 'Password reset for ' + (data.uuid || 'user'));
+                loadUsers();
+                break;
+
+            case 'account_deleted':
+                toast('success', 'Account Deleted', 'Account has been deleted');
+                loadUsers();
                 break;
 
             case 'error':
@@ -854,7 +1183,8 @@
             gateway: 'Gateway Health',
             analytics: 'Analytics',
             premium: 'Premium Management',
-            features: 'Feature Flags',
+            users: 'Registered Users',
+            licenses: 'Dev Licenses',
             audit: 'Audit Log'
         };
         document.getElementById('pageTitle').textContent = titles[page] || 'Dashboard';
@@ -877,6 +1207,9 @@
                 break;
             case 'premium':
                 requestPremiumData();
+                break;
+            case 'users':
+                loadUsers();
                 break;
             case 'licenses':
                 refreshLicenses();
@@ -1366,6 +1699,161 @@
     };
 
     // ========================================
+    // Users Management
+    // ========================================
+
+    function loadUsers() {
+        if (ws && ws.readyState === WebSocket.OPEN) {
+            ws.send(JSON.stringify({ type: 'get_users' }));
+        }
+    }
+
+    function renderUsers(users) {
+        const container = document.getElementById('usersTableBody');
+        if (!container) return;
+
+        const searchTerm = (document.getElementById('usersSearch')?.value || '').toLowerCase();
+        const filtered = searchTerm ? users.filter(u => u.minecraft_username?.toLowerCase().includes(searchTerm) || u.minecraft_uuid?.toLowerCase().includes(searchTerm)) : users;
+
+        const countEl = document.getElementById('usersCount');
+        if (countEl) countEl.textContent = filtered.length;
+
+        if (!filtered.length) {
+            container.innerHTML = `
+                <tr>
+                    <td colspan="7" class="table-loading">
+                        <i class="fas fa-users"></i> ${searchTerm ? 'No users match your search' : 'No registered users'}
+                    </td>
+                </tr>
+            `;
+            return;
+        }
+
+        container.innerHTML = filtered.map(u => `
+            <tr class="users-row" onclick="showUserDetails('${u.minecraft_uuid}')">
+                <td><img src="https://mc-heads.net/avatar/${u.minecraft_uuid}/24" class="users-avatar" alt="" onerror="this.src='https://mc-heads.net/avatar/MHF_Steve/24'"></td>
+                <td><strong>${escapeHtml(u.minecraft_username)}</strong></td>
+                <td class="users-uuid" onclick="event.stopPropagation();this.classList.toggle('revealed')">${u.minecraft_uuid}</td>
+                <td>${u.created_at ? new Date(u.created_at).toLocaleDateString() : 'N/A'}</td>
+                <td>${u.last_login ? new Date(u.last_login).toLocaleDateString() : 'Never'}</td>
+                <td>${u.sessionCount || 0}</td>
+                <td class="users-actions">
+                    <button class="btn btn-sm btn-outline" onclick="event.stopPropagation();confirmResetPassword('${u.minecraft_uuid}', '${escapeHtml(u.minecraft_username)}')" title="Reset Password">
+                        <i class="fas fa-key"></i>
+                    </button>
+                    <button class="btn btn-sm btn-danger" onclick="event.stopPropagation();confirmDeleteAccount('${u.minecraft_uuid}', '${escapeHtml(u.minecraft_username)}')" title="Delete Account">
+                        <i class="fas fa-trash"></i>
+                    </button>
+                </td>
+            </tr>
+        `).join('');
+    }
+
+    function showUserDetailsModal(data) {
+        const account = data.account;
+        const sessions = data.sessions || [];
+        const settings = data.settings;
+
+        if (!account) {
+            toast('error', 'Error', 'User not found');
+            return;
+        }
+
+        const overlay = ensureModalContainer();
+        overlay.innerHTML = `
+            <div class="mx-modal" style="max-width:560px;">
+                <div class="mx-modal-header">
+                    <i class="fa-solid fa-user"></i>
+                    <div class="mx-modal-title">${escapeHtml(account.minecraft_username)}</div>
+                </div>
+                <div class="mx-modal-body" style="white-space:normal;">
+                    <div style="display:flex;align-items:center;gap:16px;margin-bottom:18px;">
+                        <img src="https://mc-heads.net/avatar/${account.minecraft_uuid}/48" style="border-radius:8px;" alt="" onerror="this.src='https://mc-heads.net/avatar/MHF_Steve/48'">
+                        <div>
+                            <div style="font-weight:600;font-size:16px;color:var(--text);">${escapeHtml(account.minecraft_username)}</div>
+                            <div style="font-size:12px;color:var(--text-muted);font-family:monospace;">${account.minecraft_uuid}</div>
+                        </div>
+                    </div>
+                    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:18px;">
+                        <div style="background:var(--bg-secondary);padding:12px;border-radius:8px;">
+                            <div style="font-size:11px;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.4px;margin-bottom:4px;">Created</div>
+                            <div style="font-size:13px;font-weight:600;">${account.created_at ? new Date(account.created_at).toLocaleString() : 'N/A'}</div>
+                        </div>
+                        <div style="background:var(--bg-secondary);padding:12px;border-radius:8px;">
+                            <div style="font-size:11px;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.4px;margin-bottom:4px;">Last Login</div>
+                            <div style="font-size:13px;font-weight:600;">${account.last_login ? new Date(account.last_login).toLocaleString() : 'Never'}</div>
+                        </div>
+                    </div>
+                    ${settings ? `
+                    <div style="background:var(--bg-secondary);padding:12px;border-radius:8px;margin-bottom:18px;">
+                        <div style="font-size:11px;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.4px;margin-bottom:6px;">Settings</div>
+                        <div style="font-size:13px;color:var(--text-secondary);">
+                            Theme: ${escapeHtml(settings.color_scheme || 'default')}
+                            ${settings.theme_color ? ` | Color: <span style="display:inline-block;width:12px;height:12px;border-radius:3px;background:${escapeHtml(settings.theme_color)};vertical-align:middle;"></span>` : ''}
+                        </div>
+                    </div>
+                    ` : ''}
+                    <div style="font-size:11px;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.4px;margin-bottom:8px;">Active Sessions (${sessions.length})</div>
+                    ${sessions.length > 0 ? sessions.slice(0, 5).map(s => `
+                        <div style="background:var(--bg-secondary);padding:10px 12px;border-radius:8px;margin-bottom:6px;font-size:12px;">
+                            <div style="display:flex;justify-content:space-between;">
+                                <span style="color:var(--text-muted);">${s.ip_address || 'Unknown IP'}</span>
+                                <span style="color:var(--text-muted);">Last active: ${s.last_active_at ? formatTime(s.last_active_at) : 'N/A'}</span>
+                            </div>
+                        </div>
+                    `).join('') : '<div style="font-size:13px;color:var(--text-muted);">No active sessions</div>'}
+                </div>
+                <div class="mx-modal-footer">
+                    <button class="btn" onclick="hideModal()">Close</button>
+                </div>
+            </div>
+        `;
+        overlay.classList.add('show');
+    }
+
+    window.showUserDetails = function(uuid) {
+        if (ws && ws.readyState === WebSocket.OPEN) {
+            ws.send(JSON.stringify({ type: 'get_user_details', uuid }));
+        }
+    };
+
+    window.confirmResetPassword = async function(uuid, username) {
+        const confirmed = await showConfirm({
+            title: 'Reset Password',
+            message: `Reset password for ${username}?\n\nThey will need to re-link in-game to set a new password. All active sessions will be terminated.`,
+            confirmText: 'Reset',
+            cancelText: 'Cancel',
+            type: 'warning',
+            icon: 'fa-key'
+        });
+        if (confirmed) {
+            ws.send(JSON.stringify({ type: 'admin_reset_password', uuid }));
+        }
+    };
+
+    window.confirmDeleteAccount = async function(uuid, username) {
+        const confirmed = await showConfirm({
+            title: 'Delete Account',
+            message: `DELETE account for ${username}?\n\nThis removes their account, sessions, settings, and reviews. This cannot be undone.`,
+            confirmText: 'Delete',
+            cancelText: 'Cancel',
+            type: 'danger',
+            icon: 'fa-triangle-exclamation'
+        });
+        if (confirmed) {
+            ws.send(JSON.stringify({ type: 'admin_delete_account', uuid }));
+        }
+    };
+
+    // Expose for inline HTML handlers (oninput="renderUsers(allUsers)")
+    window.renderUsers = function(users) { renderUsers(users || allUsers); };
+    Object.defineProperty(window, 'allUsers', {
+        get: () => allUsers,
+        set: (v) => { allUsers = v; },
+        configurable: true
+    });
+
+    // ========================================
     // Utilities
     // ========================================
 
@@ -1684,5 +2172,28 @@
     `;
     document.head.appendChild(style);
 
+    // ========================================
+    // Animated Background Particles
+    // ========================================
+
+    function initBgParticles() {
+        const container = document.getElementById('adminBgParticles');
+        if (!container) return;
+        for (let i = 0; i < 20; i++) {
+            const particle = document.createElement('div');
+            particle.className = 'admin-bg-particle';
+            particle.style.left = Math.random() * 100 + '%';
+            particle.style.animationDuration = (15 + Math.random() * 20) + 's';
+            particle.style.animationDelay = (Math.random() * 15) + 's';
+            particle.style.width = (2 + Math.random() * 3) + 'px';
+            particle.style.height = particle.style.width;
+            particle.style.background = Math.random() > 0.5
+                ? 'rgba(59, 130, 246, 0.4)'
+                : 'rgba(139, 92, 246, 0.4)';
+            container.appendChild(particle);
+        }
+    }
+    initBgParticles();
+
 })();
-// Force cache bust Sun, Feb  8, 2026  6:18:14 PM
+// Force cache bust Tue, Feb 10, 2026

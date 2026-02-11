@@ -5047,6 +5047,7 @@
   // ===== 3D REPLAY VIEWER MODAL =====
   let activeReplay3DViewer = null;
   let pendingReplaySessionId = null;
+  let pendingChunkData = null;
 
   function formatReplayTime(ms) {
     const seconds = Math.floor(ms / 1000);
@@ -5348,6 +5349,13 @@
             viewer.showFallbackGround();
           }
 
+          // Process any chunk data that arrived before the viewer was ready
+          if (pendingChunkData) {
+            console.log('[Replay3D] Processing buffered chunk data');
+            handleReplayChunks(pendingChunkData);
+            pendingChunkData = null;
+          }
+
           // Track last action feed time for range queries
           let lastActionFeedTime = 0;
 
@@ -5521,7 +5529,15 @@
   }
 
   function handleReplayChunks(data) {
-    if (!activeReplay3DViewer || !data.chunkData) return;
+    if (!data.chunkData) return;
+
+    // Buffer chunk data if the 3D viewer isn't ready yet (race condition:
+    // REPLAY_CHUNKS arrives before requestAnimationFrame creates the viewer)
+    if (!activeReplay3DViewer) {
+      console.log('[Replay3D] Viewer not ready, buffering chunk data for', data.sessionId);
+      pendingChunkData = data;
+      return;
+    }
 
     // Verify it's for the current replay
     if (data.sessionId && data.sessionId !== pendingReplaySessionId) {

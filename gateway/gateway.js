@@ -35,6 +35,9 @@ const CONFIG = {
 // Cloudflare Admin Secret for license API
 const CLOUDFLARE_ADMIN_SECRET = process.env.CLOUDFLARE_ADMIN_SECRET || '16a72a240d6934b3ddc1730e16bc83cafbb01912ac2a435b05f95e0e0ac0727d';
 
+// Admin UUIDs (comma-separated Minecraft UUIDs allowed to access admin panel)
+const ADMIN_UUIDS = new Set((process.env.ADMIN_UUIDS || '').split(',').map(u => u.trim()).filter(Boolean));
+
 // Message types that browsers are NOT allowed to send (server-internal only)
 const BLOCKED_BROWSER_TYPES = new Set([
     'register', 'heartbeat', 'panel_response', 'broadcast',
@@ -79,6 +82,12 @@ const inMemoryUserSessions = new Map(); // session_id_hash → { minecraft_uuid,
 
 // In-memory fallback for reviews
 const inMemoryReviews = new Map(); // minecraft_uuid → { minecraft_uuid, minecraft_username, rating, description, created_at, updated_at }
+
+// In-memory fallback for admin accounts
+const inMemoryAdminAccounts = new Map(); // minecraft_uuid → { minecraft_uuid, totp_secret, totp_verified, created_at, last_login }
+
+// In-memory fallback for admin sessions
+const inMemoryAdminSessions = new Map(); // session_id_hash → { minecraft_uuid, created_at, expires_at, fully_authenticated, ip_address }
 
 // Rate limiters for auth API
 const linkVerifyAttempts = new Map(); // IP → { count, firstAttempt }
@@ -328,6 +337,29 @@ function createTables() {
             created_at INTEGER NOT NULL,
             expires_at INTEGER NOT NULL,
             last_active_at INTEGER NOT NULL,
+            ip_address TEXT
+        )
+    `);
+
+    // Admin accounts for admin panel authentication
+    db.exec(`
+        CREATE TABLE IF NOT EXISTS admin_accounts (
+            minecraft_uuid TEXT PRIMARY KEY,
+            totp_secret TEXT,
+            totp_verified INTEGER DEFAULT 0,
+            created_at INTEGER NOT NULL,
+            last_login INTEGER
+        )
+    `);
+
+    // Admin sessions for admin panel authentication
+    db.exec(`
+        CREATE TABLE IF NOT EXISTS admin_sessions (
+            session_id TEXT PRIMARY KEY,
+            minecraft_uuid TEXT NOT NULL,
+            created_at INTEGER NOT NULL,
+            expires_at INTEGER NOT NULL,
+            fully_authenticated INTEGER DEFAULT 0,
             ip_address TEXT
         )
     `);
@@ -759,6 +791,36 @@ const server = http.createServer((req, res) => {
     // POST /api/link/login — Auto-login for existing users (code-verified)
     if (url.pathname === '/api/link/login' && req.method === 'POST') {
         handleLinkLogin(req, res);
+        return;
+    }
+
+    // POST /api/admin/auth — Admin login (username + password, validates UUID is in ADMIN_UUIDS)
+    if (url.pathname === '/api/admin/auth' && req.method === 'POST') {
+        handleAdminAuth(req, res);
+        return;
+    }
+
+    // POST /api/admin/auth/2fa — Verify TOTP code for admin session
+    if (url.pathname === '/api/admin/auth/2fa' && req.method === 'POST') {
+        handleAdmin2FA(req, res);
+        return;
+    }
+
+    // POST /api/admin/2fa/setup — Get TOTP setup QR data (requires admin session)
+    if (url.pathname === '/api/admin/2fa/setup' && req.method === 'POST') {
+        handleAdmin2FASetup(req, res);
+        return;
+    }
+
+    // POST /api/admin/2fa/verify — Confirm initial 2FA setup with verification code
+    if (url.pathname === '/api/admin/2fa/verify' && req.method === 'POST') {
+        handleAdmin2FAVerify(req, res);
+        return;
+    }
+
+    // POST /api/admin/session/validate — Validate admin session
+    if (url.pathname === '/api/admin/session/validate' && req.method === 'POST') {
+        handleAdminSessionValidate(req, res);
         return;
     }
 
@@ -2508,9 +2570,28 @@ function handleGlobalPanelConnection(ws, clientIp) {
 function handleAdminConnection(ws, clientIp, cfEmail, req) {
     const adminId = 'admin_' + crypto.randomBytes(8).toString('hex');
 
-    // Set admin email from CF Access header or default
-    if (!cfEmail) {
-        cfEmail = 'admin@localhost';
+    // Validate admin session token from query params
+    const urlParams = new URL(req.url, 'http://localhost').searchParams;
+    const adminToken = urlParams.get('token');
+
+    // Allow ADMIN_DEV_KEY bypass for local development
+    const devKey = process.env.ADMIN_DEV_KEY;
+    if (devKey && adminToken === devKey) {
+        // Dev key bypass — skip session validation
+        cfEmail = cfEmail || 'dev@localhost';
+    } else if (!adminToken) {
+        ws.send(JSON.stringify({ type: 'error', code: 'AUTH_REQUIRED', message: 'Admin session token required' }));
+        ws.close(4001, 'Authentication required');
+        return;
+    } else {
+        const adminSession = validateAdminSession(adminToken, true);
+        if (!adminSession) {
+            ws.send(JSON.stringify({ type: 'error', code: 'AUTH_FAILED', message: 'Invalid or expired admin session' }));
+            ws.close(4001, 'Authentication failed');
+            return;
+        }
+        // Use the admin UUID for identification instead of email
+        cfEmail = adminSession.minecraft_uuid;
     }
 
     const email = cfEmail;
@@ -2701,6 +2782,92 @@ function handleAdminMessage(adminId, email, message) {
         case 'get_suspended_servers':
             sendSuspendedServers(admin.ws);
             break;
+
+        case 'get_users': {
+            // Return user list with session counts
+            let users = [];
+            if (db) {
+                try {
+                    const stmt = db.prepare('SELECT minecraft_uuid, minecraft_username, created_at, last_login_at AS last_login FROM user_accounts ORDER BY created_at DESC');
+                    users = stmt.all();
+                } catch (e) { console.error('[Admin] Get users error:', e.message); }
+            } else {
+                users = Array.from(inMemoryUserAccounts.values()).map(a => ({
+                    minecraft_uuid: a.minecraft_uuid,
+                    minecraft_username: a.minecraft_username,
+                    created_at: a.created_at,
+                    last_login: a.last_login_at
+                }));
+            }
+            for (const user of users) {
+                if (db) {
+                    try {
+                        const count = db.prepare('SELECT COUNT(*) as count FROM user_sessions WHERE minecraft_uuid = ?').get(user.minecraft_uuid);
+                        user.sessionCount = count?.count || 0;
+                    } catch (e) { user.sessionCount = 0; }
+                } else {
+                    user.sessionCount = 0;
+                }
+            }
+            admin.ws.send(JSON.stringify({ type: 'users_list', users }));
+            break;
+        }
+
+        case 'get_user_details': {
+            const detailUuid = data?.uuid;
+            if (!detailUuid) {
+                admin.ws.send(JSON.stringify({ type: 'error', message: 'UUID required' }));
+                break;
+            }
+            let account = null, sessions = [], settings = null;
+            if (db) {
+                try {
+                    account = db.prepare('SELECT minecraft_uuid, minecraft_username, created_at, last_login_at AS last_login FROM user_accounts WHERE minecraft_uuid = ?').get(detailUuid);
+                    sessions = db.prepare('SELECT session_id, created_at, expires_at, last_active_at, ip_address FROM user_sessions WHERE minecraft_uuid = ? ORDER BY created_at DESC').all(detailUuid);
+                    settings = db.prepare('SELECT * FROM user_settings WHERE uuid = ?').get(detailUuid);
+                } catch (e) { console.error('[Admin] Get user details error:', e.message); }
+            }
+            admin.ws.send(JSON.stringify({ type: 'user_details', account, sessions, settings }));
+            break;
+        }
+
+        case 'admin_reset_password': {
+            const resetUuid = data?.uuid;
+            if (!resetUuid) {
+                admin.ws.send(JSON.stringify({ type: 'error', message: 'UUID required' }));
+                break;
+            }
+            if (db) {
+                try {
+                    db.prepare('UPDATE user_accounts SET password_hash = NULL WHERE minecraft_uuid = ?').run(resetUuid);
+                    db.prepare('DELETE FROM user_sessions WHERE minecraft_uuid = ?').run(resetUuid);
+                } catch (e) { console.error('[Admin] Reset password error:', e.message); }
+            }
+            logAudit(email, 'admin_reset_password', { uuid: resetUuid });
+            admin.ws.send(JSON.stringify({ type: 'password_reset_success', uuid: resetUuid }));
+            break;
+        }
+
+        case 'admin_delete_account': {
+            const deleteUuid = data?.uuid;
+            if (!deleteUuid) {
+                admin.ws.send(JSON.stringify({ type: 'error', message: 'UUID required' }));
+                break;
+            }
+            if (db) {
+                try {
+                    db.prepare('DELETE FROM user_accounts WHERE minecraft_uuid = ?').run(deleteUuid);
+                    db.prepare('DELETE FROM user_sessions WHERE minecraft_uuid = ?').run(deleteUuid);
+                    db.prepare('DELETE FROM user_settings WHERE uuid = ?').run(deleteUuid);
+                    db.prepare('DELETE FROM reviews WHERE minecraft_uuid = ?').run(deleteUuid);
+                } catch (e) { console.error('[Admin] Delete account error:', e.message); }
+            } else {
+                inMemoryUserAccounts.delete(deleteUuid);
+            }
+            logAudit(email, 'admin_delete_account', { uuid: deleteUuid });
+            admin.ws.send(JSON.stringify({ type: 'account_deleted', uuid: deleteUuid }));
+            break;
+        }
 
         default:
             admin.ws.send(JSON.stringify({
@@ -2989,7 +3156,7 @@ function broadcastAnnouncementToAll(ws, email, announcementId, silent = false) {
     }
 
     const payload = {
-        type: 'admin_announcement',
+        type: 'ADMIN_ANNOUNCEMENT',
         data: formatAnnouncement(announcement)
     };
 
@@ -3514,6 +3681,54 @@ function createUserAccount(uuid, username, passwordHash) {
     }
 }
 
+// Mojang UUID validation cache (24 hour TTL)
+const mojangUuidCache = new Map();
+const MOJANG_CACHE_TTL = 24 * 60 * 60 * 1000; // 24 hours
+
+/**
+ * Validate that a Minecraft UUID is an official Java Edition UUID or a Floodgate (Bedrock) UUID.
+ * Cracked UUIDs will fail validation.
+ * @returns {boolean} true if valid official UUID, false if cracked/invalid
+ */
+async function validateMinecraftUuid(username, uuid) {
+    if (!username || !uuid) return false;
+
+    // Floodgate (Bedrock) UUIDs start with 00000000-0000-0000-0009-
+    const uuidNoDashes = uuid.replace(/-/g, '');
+    if (uuidNoDashes.startsWith('00000000000000000009')) {
+        return true; // Floodgate UUID — accept without Mojang API check
+    }
+
+    // Check cache
+    const cacheKey = username.toLowerCase();
+    const cached = mojangUuidCache.get(cacheKey);
+    if (cached && Date.now() - cached.timestamp < MOJANG_CACHE_TTL) {
+        return cached.uuid === uuidNoDashes;
+    }
+
+    // Query Mojang API
+    try {
+        const res = await fetch(`https://api.mojang.com/users/profiles/minecraft/${encodeURIComponent(username)}`);
+        if (res.status === 204 || res.status === 404) {
+            // No such user — cracked account
+            mojangUuidCache.set(cacheKey, { uuid: null, timestamp: Date.now() });
+            return false;
+        }
+        if (!res.ok) {
+            // API error — don't block, assume valid
+            console.warn('[Auth] Mojang API returned status:', res.status);
+            return true;
+        }
+        const data = await res.json();
+        const mojangUuid = (data.id || '').toLowerCase();
+        mojangUuidCache.set(cacheKey, { uuid: mojangUuid, timestamp: Date.now() });
+        return mojangUuid === uuidNoDashes.toLowerCase();
+    } catch (e) {
+        console.warn('[Auth] Mojang API error:', e.message);
+        return true; // Don't block on API errors
+    }
+}
+
 /**
  * Create a session and return the raw token.
  */
@@ -3580,6 +3795,135 @@ function revokeAllSessions(uuid) {
         for (const [id, session] of inMemoryUserSessions) {
             if (session.minecraft_uuid === uuid) inMemoryUserSessions.delete(id);
         }
+    }
+}
+
+// ============================================================================
+// TOTP (Time-based One-Time Password) Implementation — RFC 6238
+// ============================================================================
+
+/**
+ * Generate a random TOTP secret (base32 encoded, 20 bytes).
+ */
+function generateTotpSecret() {
+    const bytes = crypto.randomBytes(20);
+    const base32chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ234567';
+    let secret = '';
+    for (let i = 0; i < bytes.length; i++) {
+        secret += base32chars[bytes[i] % 32];
+    }
+    return secret;
+}
+
+/**
+ * Decode a base32-encoded string to a Buffer.
+ */
+function base32Decode(str) {
+    const base32chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ234567';
+    let bits = '';
+    for (const c of str.toUpperCase()) {
+        const val = base32chars.indexOf(c);
+        if (val === -1) continue;
+        bits += val.toString(2).padStart(5, '0');
+    }
+    const bytes = new Uint8Array(Math.floor(bits.length / 8));
+    for (let i = 0; i < bytes.length; i++) {
+        bytes[i] = parseInt(bits.slice(i * 8, i * 8 + 8), 2);
+    }
+    return Buffer.from(bytes);
+}
+
+/**
+ * Generate a TOTP code for the current time step.
+ */
+function generateTotp(secret, timeStep = 30, digits = 6) {
+    const time = Math.floor(Date.now() / 1000 / timeStep);
+    const timeBuffer = Buffer.alloc(8);
+    timeBuffer.writeUInt32BE(0, 0);
+    timeBuffer.writeUInt32BE(time, 4);
+    const key = base32Decode(secret);
+    const hmac = crypto.createHmac('sha1', key).update(timeBuffer).digest();
+    const offset = hmac[hmac.length - 1] & 0xf;
+    const code = ((hmac[offset] & 0x7f) << 24 | hmac[offset + 1] << 16 | hmac[offset + 2] << 8 | hmac[offset + 3]) % Math.pow(10, digits);
+    return code.toString().padStart(digits, '0');
+}
+
+/**
+ * Verify a TOTP code, checking a window of time steps for clock drift.
+ */
+function verifyTotp(secret, code, window = 1) {
+    const timeStep = 30;
+    for (let i = -window; i <= window; i++) {
+        const time = Math.floor(Date.now() / 1000 / timeStep) + i;
+        const timeBuffer = Buffer.alloc(8);
+        timeBuffer.writeUInt32BE(0, 0);
+        timeBuffer.writeUInt32BE(time, 4);
+        const key = base32Decode(secret);
+        const hmac = crypto.createHmac('sha1', key).update(timeBuffer).digest();
+        const offset = hmac[hmac.length - 1] & 0xf;
+        const expected = ((hmac[offset] & 0x7f) << 24 | hmac[offset + 1] << 16 | hmac[offset + 2] << 8 | hmac[offset + 3]) % 1000000;
+        if (expected.toString().padStart(6, '0') === code) return true;
+    }
+    return false;
+}
+
+// ============================================================================
+// Admin Session Helpers
+// ============================================================================
+
+/**
+ * Create an admin session and return the raw token.
+ */
+function createAdminSession(uuid, ipAddress, fullyAuthenticated = false) {
+    const rawToken = crypto.randomBytes(32).toString('hex');
+    const sessionId = crypto.createHash('sha256').update(rawToken).digest('hex');
+    const now = Date.now();
+    const expiresAt = now + 8 * 60 * 60 * 1000; // 8 hours
+
+    if (db) {
+        try {
+            db.prepare('INSERT INTO admin_sessions (session_id, minecraft_uuid, created_at, expires_at, fully_authenticated, ip_address) VALUES (?, ?, ?, ?, ?, ?)')
+                .run(sessionId, uuid, now, expiresAt, fullyAuthenticated ? 1 : 0, ipAddress || '');
+        } catch (e) { console.error('[Admin] Session create error:', e.message); }
+    } else {
+        inMemoryAdminSessions.set(sessionId, { minecraft_uuid: uuid, created_at: now, expires_at: expiresAt, fully_authenticated: fullyAuthenticated ? 1 : 0, ip_address: ipAddress || '' });
+    }
+    return rawToken;
+}
+
+/**
+ * Validate an admin session token. Returns session data or null.
+ */
+function validateAdminSession(rawToken, requireFullAuth = true) {
+    const sessionId = crypto.createHash('sha256').update(rawToken).digest('hex');
+    let session = null;
+    if (db) {
+        try {
+            session = db.prepare('SELECT * FROM admin_sessions WHERE session_id = ? AND expires_at > ?').get(sessionId, Date.now());
+        } catch (e) {}
+    } else {
+        session = inMemoryAdminSessions.get(sessionId);
+        if (session && session.expires_at <= Date.now()) session = null;
+    }
+    if (!session) return null;
+    if (requireFullAuth && !session.fully_authenticated) return null;
+    // Check UUID is still in admin list
+    if (!ADMIN_UUIDS.has(session.minecraft_uuid)) return null;
+    return session;
+}
+
+/**
+ * Upgrade an admin session to fully authenticated (after 2FA).
+ */
+function upgradeAdminSession(rawToken) {
+    const sessionId = crypto.createHash('sha256').update(rawToken).digest('hex');
+    if (db) {
+        try {
+            db.prepare('UPDATE admin_sessions SET fully_authenticated = 1 WHERE session_id = ?').run(sessionId);
+        } catch (e) {}
+    } else {
+        const session = inMemoryAdminSessions.get(sessionId);
+        if (session) session.fully_authenticated = 1;
     }
 }
 
@@ -3688,6 +4032,14 @@ async function handleLinkRegister(req, res) {
             return jsonResponse(res, 400, { error: 'Password must be at least 8 characters' });
         }
 
+        // Validate UUID against Mojang API (reject cracked accounts)
+        const isValidUuid = await validateMinecraftUuid(linkCode.minecraft_username, linkCode.minecraft_uuid);
+        if (!isValidUuid) {
+            return jsonResponse(res, 403, {
+                error: 'Cracked accounts are not supported for password authentication. Use legacy token auth instead.'
+            });
+        }
+
         try {
             // Hash password with Argon2id
             const passwordHash = await argon2.hash(body.password, {
@@ -3790,6 +4142,27 @@ async function handlePasswordLogin(req, res) {
 
         if (!argon2) {
             return jsonResponse(res, 503, { error: 'Password authentication is not available on this server' });
+        }
+
+        // Verify Cloudflare Turnstile token (if secret key is configured)
+        const turnstileSecret = process.env.TURNSTILE_SECRET_KEY;
+        if (turnstileSecret && body.turnstileToken) {
+            try {
+                const turnstileRes = await fetch('https://challenges.cloudflare.com/turnstile/v0/siteverify', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ secret: turnstileSecret, response: body.turnstileToken })
+                });
+                const turnstileData = await turnstileRes.json();
+                if (!turnstileData.success) {
+                    return jsonResponse(res, 403, { error: 'Verification failed. Please try again.' });
+                }
+            } catch (e) {
+                console.error('[Auth] Turnstile verification error:', e.message);
+                // Don't block login if Turnstile API is unreachable
+            }
+        } else if (turnstileSecret && !body.turnstileToken) {
+            return jsonResponse(res, 403, { error: 'Verification required.' });
         }
 
         // Look up account by username (case-insensitive)
@@ -4014,6 +4387,197 @@ async function handlePasswordChange(req, res) {
         } catch (e) {
             console.error('[Auth] Password change error:', e.message);
             jsonResponse(res, 500, { error: 'Failed to change password' });
+        }
+    });
+}
+
+// ============================================================================
+// Admin Auth Endpoint Handlers
+// ============================================================================
+
+/**
+ * Handle POST /api/admin/auth — Admin login (username + password, validates UUID is in ADMIN_UUIDS).
+ */
+async function handleAdminAuth(req, res) {
+    readJsonBody(req, async (body) => {
+        if (!body || !body.username || !body.password) {
+            return jsonResponse(res, 400, { error: 'Username and password required' });
+        }
+        if (!argon2) return jsonResponse(res, 503, { error: 'Not available' });
+
+        // Look up account
+        let account = null;
+        if (db) {
+            try { account = db.prepare('SELECT * FROM user_accounts WHERE LOWER(minecraft_username) = LOWER(?)').get(body.username); } catch (e) {}
+        } else {
+            for (const [, acc] of inMemoryUserAccounts) {
+                if (acc.minecraft_username.toLowerCase() === body.username.toLowerCase()) { account = acc; break; }
+            }
+        }
+        if (!account) return jsonResponse(res, 401, { error: 'Invalid credentials' });
+
+        // Verify UUID is admin
+        if (!ADMIN_UUIDS.has(account.minecraft_uuid)) {
+            return jsonResponse(res, 403, { error: 'Access denied' });
+        }
+
+        // Verify password
+        try {
+            const valid = await argon2.verify(account.password_hash, body.password);
+            if (!valid) return jsonResponse(res, 401, { error: 'Invalid credentials' });
+        } catch (e) {
+            return jsonResponse(res, 500, { error: 'Authentication error' });
+        }
+
+        // Check if 2FA is set up
+        let adminAccount = null;
+        if (db) {
+            try { adminAccount = db.prepare('SELECT * FROM admin_accounts WHERE minecraft_uuid = ?').get(account.minecraft_uuid); } catch (e) {}
+        } else {
+            adminAccount = inMemoryAdminAccounts.get(account.minecraft_uuid);
+        }
+
+        const has2FA = adminAccount && adminAccount.totp_verified;
+        const clientIp = req.headers['cf-connecting-ip'] || req.headers['x-forwarded-for'] || req.socket?.remoteAddress || '';
+        const token = createAdminSession(account.minecraft_uuid, clientIp, !has2FA);
+
+        // Update last login
+        if (db) {
+            try {
+                const now = Date.now();
+                db.prepare('INSERT INTO admin_accounts (minecraft_uuid, created_at, last_login) VALUES (?, ?, ?) ON CONFLICT(minecraft_uuid) DO UPDATE SET last_login = ?')
+                    .run(account.minecraft_uuid, now, now, now);
+            } catch (e) {}
+        }
+
+        jsonResponse(res, 200, {
+            success: true,
+            token,
+            uuid: account.minecraft_uuid,
+            username: account.minecraft_username,
+            requires2FA: !!has2FA,
+            has2FASetup: !!adminAccount?.totp_verified
+        });
+    });
+}
+
+/**
+ * Handle POST /api/admin/auth/2fa — Verify TOTP code for admin session.
+ */
+async function handleAdmin2FA(req, res) {
+    readJsonBody(req, async (body) => {
+        if (!body || !body.token || !body.code) {
+            return jsonResponse(res, 400, { error: 'Token and TOTP code required' });
+        }
+
+        const session = validateAdminSession(body.token, false);
+        if (!session) return jsonResponse(res, 401, { error: 'Invalid or expired session' });
+
+        let adminAccount = null;
+        if (db) {
+            try { adminAccount = db.prepare('SELECT * FROM admin_accounts WHERE minecraft_uuid = ?').get(session.minecraft_uuid); } catch (e) {}
+        } else {
+            adminAccount = inMemoryAdminAccounts.get(session.minecraft_uuid);
+        }
+
+        if (!adminAccount || !adminAccount.totp_secret) {
+            return jsonResponse(res, 400, { error: '2FA not set up' });
+        }
+
+        if (!verifyTotp(adminAccount.totp_secret, body.code)) {
+            return jsonResponse(res, 401, { error: 'Invalid verification code' });
+        }
+
+        upgradeAdminSession(body.token);
+        jsonResponse(res, 200, { success: true });
+    });
+}
+
+/**
+ * Handle POST /api/admin/2fa/setup — Get TOTP setup QR data (requires admin session).
+ */
+async function handleAdmin2FASetup(req, res) {
+    readJsonBody(req, async (body) => {
+        if (!body || !body.token) return jsonResponse(res, 400, { error: 'Token required' });
+
+        const session = validateAdminSession(body.token, false);
+        if (!session) return jsonResponse(res, 401, { error: 'Invalid session' });
+
+        // Generate new TOTP secret
+        const secret = generateTotpSecret();
+
+        // Store secret (not yet verified)
+        if (db) {
+            try {
+                db.prepare('INSERT INTO admin_accounts (minecraft_uuid, totp_secret, totp_verified, created_at) VALUES (?, ?, 0, ?) ON CONFLICT(minecraft_uuid) DO UPDATE SET totp_secret = ?, totp_verified = 0')
+                    .run(session.minecraft_uuid, secret, Date.now(), secret);
+            } catch (e) { console.error('[Admin] 2FA setup error:', e.message); }
+        } else {
+            inMemoryAdminAccounts.set(session.minecraft_uuid, {
+                ...(inMemoryAdminAccounts.get(session.minecraft_uuid) || {}),
+                minecraft_uuid: session.minecraft_uuid,
+                totp_secret: secret,
+                totp_verified: 0,
+                created_at: Date.now()
+            });
+        }
+
+        // Return otpauth URL for QR code generation
+        const otpauthUrl = `otpauth://totp/ModereX%20Admin?secret=${secret}&issuer=ModereX&digits=6&period=30`;
+        jsonResponse(res, 200, { success: true, secret, otpauthUrl });
+    });
+}
+
+/**
+ * Handle POST /api/admin/2fa/verify — Confirm initial 2FA setup with verification code.
+ */
+async function handleAdmin2FAVerify(req, res) {
+    readJsonBody(req, async (body) => {
+        if (!body || !body.token || !body.code) {
+            return jsonResponse(res, 400, { error: 'Token and code required' });
+        }
+
+        const session = validateAdminSession(body.token, false);
+        if (!session) return jsonResponse(res, 401, { error: 'Invalid session' });
+
+        let adminAccount = null;
+        if (db) {
+            try { adminAccount = db.prepare('SELECT * FROM admin_accounts WHERE minecraft_uuid = ?').get(session.minecraft_uuid); } catch (e) {}
+        } else {
+            adminAccount = inMemoryAdminAccounts.get(session.minecraft_uuid);
+        }
+
+        if (!adminAccount || !adminAccount.totp_secret) {
+            return jsonResponse(res, 400, { error: '2FA not set up. Call /api/admin/2fa/setup first.' });
+        }
+
+        if (!verifyTotp(adminAccount.totp_secret, body.code)) {
+            return jsonResponse(res, 401, { error: 'Invalid code. Please try again.' });
+        }
+
+        // Mark 2FA as verified
+        if (db) {
+            try { db.prepare('UPDATE admin_accounts SET totp_verified = 1 WHERE minecraft_uuid = ?').run(session.minecraft_uuid); } catch (e) {}
+        } else {
+            adminAccount.totp_verified = 1;
+        }
+
+        upgradeAdminSession(body.token);
+        jsonResponse(res, 200, { success: true, message: '2FA enabled successfully' });
+    });
+}
+
+/**
+ * Handle POST /api/admin/session/validate — Validate admin session.
+ */
+async function handleAdminSessionValidate(req, res) {
+    readJsonBody(req, async (body) => {
+        if (!body || !body.token) return jsonResponse(res, 400, { error: 'Token required' });
+        const session = validateAdminSession(body.token, true);
+        if (session) {
+            jsonResponse(res, 200, { valid: true, uuid: session.minecraft_uuid });
+        } else {
+            jsonResponse(res, 200, { valid: false });
         }
     });
 }
