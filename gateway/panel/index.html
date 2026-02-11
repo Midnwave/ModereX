@@ -1402,6 +1402,22 @@
             </div>
           </div>
 
+          <!-- Dev Build Tester Promo Banner -->
+          <div class="promo-banner" id="devTesterBanner" style="display:flex">
+            <div class="promo-banner-content">
+              <i class="fa-solid fa-star promo-banner-icon"></i>
+              <div class="promo-banner-text">
+                <strong>Dev Build Tester Applications Now Open!</strong>
+                <span>Help shape the future of ModereX — apply to become a tester today.</span>
+              </div>
+              <div class="promo-banner-actions">
+                <a href="https://discord.com/channels/1131588549892907089/1309211930665156668" target="_blank" class="btn primary small">Apply Now</a>
+                <a href="https://discord.gg/jQGMhKA5m6" target="_blank" class="btn small">Discord</a>
+              </div>
+            </div>
+            <button class="promo-banner-close" onclick="dismissPromoBanner()" title="Dismiss"><i class="fa-solid fa-xmark"></i></button>
+          </div>
+
           <div class="panel pad">
             <!-- Primary Stats -->
             <div class="grid cols-4">
@@ -4499,5 +4515,22 @@
   <script src="js/extensions.js"></script>
   <script src="js/replay3d-terrain.js"></script>
   <script src="js/replay3d.js"></script>
+  <script>
+    // Promo banner dismiss with localStorage persistence
+    function dismissPromoBanner() {
+      const banner = document.getElementById('devTesterBanner');
+      if (banner) { banner.style.display = 'none'; }
+      try { localStorage.setItem('mx_promo_dismissed', Date.now()); } catch(e) {}
+    }
+    (function() {
+      try {
+        const dismissed = localStorage.getItem('mx_promo_dismissed');
+        if (dismissed) {
+          const banner = document.getElementById('devTesterBanner');
+          if (banner) banner.style.display = 'none';
+        }
+      } catch(e) {}
+    })();
+  </script>
 </body>
 </html>

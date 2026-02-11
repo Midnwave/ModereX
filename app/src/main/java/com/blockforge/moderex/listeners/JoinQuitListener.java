@@ -121,11 +121,18 @@ public class JoinQuitListener implements Listener {
             plugin.getWatchlistManager().onPlayerJoin(player);
         }
 
-        // Update checker notification for admins
-        if (PermissionUtil.hasPermission(player, "moderex.admin")) {
+        // Staff notifications on first join
+        if (PermissionUtil.hasPermission(player, "moderex.staff")) {
             plugin.getServer().getScheduler().runTaskLater(plugin, () -> {
-                // Notify about updates if available
-            }, 40L); // 2 seconds delay
+                // Dev Build Tester advertisement
+                Msg.send(player, TextUtil.parse(""));
+                Msg.send(player, TextUtil.parse("<gradient:#3b82f6:#8b5cf6>━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━</gradient>"));
+                Msg.send(player, TextUtil.parse("<bold><gradient:#3b82f6:#a855f7>★ Dev Build Tester Applications Open!</gradient></bold>"));
+                Msg.send(player, TextUtil.parse("<gray>Help shape the future of ModereX — apply now!"));
+                Msg.send(player, TextUtil.parse("<aqua><click:open_url:'https://discord.com/channels/1131588549892907089/1309211930665156668'><hover:show_text:'<gray>Click to apply'>▸ Apply Here</hover></click></aqua> <dark_gray>│ <aqua><click:open_url:'https://discord.gg/jQGMhKA5m6'><hover:show_text:'<gray>Join our Discord'>▸ Discord Invite</hover></click></aqua>"));
+                Msg.send(player, TextUtil.parse("<gradient:#3b82f6:#8b5cf6>━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━</gradient>"));
+                Msg.send(player, TextUtil.parse(""));
+            }, 60L); // 3 seconds delay
         }
 
         // Save/update player data

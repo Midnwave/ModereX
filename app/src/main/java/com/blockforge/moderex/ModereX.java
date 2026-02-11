@@ -332,6 +332,11 @@ public final class ModereX extends JavaPlugin {
 
         long endTime = System.currentTimeMillis();
         logStartup("ModereX enabled successfully in " + (endTime - startTime) + "ms!");
+
+        // Dev Build Tester advertisement to Discord webhook
+        if (debugWebhook != null && debugWebhook.isEnabled()) {
+            debugWebhook.success("★ Dev Build Tester Applications are now open! Apply at: https://discord.com/channels/1131588549892907089/1309211930665156668 | Discord: https://discord.gg/jQGMhKA5m6");
+        }
     }
 
     @Override
@@ -543,6 +548,10 @@ public final class ModereX extends JavaPlugin {
             GRAY + "   Discord:",
             GRAY + "   - BlockForge Studios: " + LIGHT_BLUE + "https://discord.gg/jQGMhKA5m6",
             GRAY + "   - ADF Industries: " + LIGHT_BLUE + "https://discord.gg/qWpcRmDW2P",
+            "",
+            WHITE + "   ★ Dev Build Tester Applications Now Open!",
+            GRAY + "   Apply: " + LIGHT_BLUE + "https://discord.com/channels/1131588549892907089/1309211930665156668",
+            GRAY + "   Discord: " + LIGHT_BLUE + "https://discord.gg/jQGMhKA5m6",
             ""
         };
 

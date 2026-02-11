@@ -14,6 +14,30 @@
 
 window.MX_CHANGELOGS = [
   {
+    build: 315,
+    version: "2.0dev-315",
+    date: "2026-02-10",
+    title: "Dev Tester Ads, Turnstile Fix & Server Switch Fix",
+    sections: [
+      {
+        type: "new",
+        title: "New Features",
+        items: [
+          "**Dev Build Tester Ads** - Tester application promotions on server start, staff join, update command, Discord webhook, and web panel dashboard",
+          "**Website Announcement Bar** - Dismissible promo bar on the landing page for dev tester applications"
+        ]
+      },
+      {
+        type: "fixed",
+        title: "Bug Fixes",
+        items: [
+          "**Server Switch** - Fixed persistent redirect loop after authenticating on gateway panel (use WebSocket switch instead of page reload)",
+          "**Cloudflare Turnstile** - Fixed error 400020 by using valid Cloudflare test site key"
+        ]
+      }
+    ]
+  },
+  {
     build: 313,
     version: "2.0dev-313",
     date: "2026-02-10",
