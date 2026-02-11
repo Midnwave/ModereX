@@ -12492,3 +12492,82 @@ html {
 .mx-modal-footer .btn {
   min-width: 80px;
 }
+
+/* Promo Banner */
+.promo-banner {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 20px;
+  margin-bottom: 16px;
+  background: linear-gradient(135deg, rgba(59,130,246,0.15), rgba(139,92,246,0.15));
+  border: 1px solid rgba(99,102,241,0.3);
+  border-radius: 12px;
+  animation: promoPulse 4s ease-in-out infinite;
+}
+
+@keyframes promoPulse {
+  0%, 100% { border-color: rgba(59,130,246,0.3); }
+  50% { border-color: rgba(139,92,246,0.5); }
+}
+
+.promo-banner-content {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  flex: 1;
+  flex-wrap: wrap;
+}
+
+.promo-banner-icon {
+  font-size: 20px;
+  color: var(--warn);
+  animation: promoStar 2s ease-in-out infinite;
+}
+
+@keyframes promoStar {
+  0%, 100% { transform: scale(1); opacity: 1; }
+  50% { transform: scale(1.2); opacity: 0.8; }
+}
+
+.promo-banner-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.promo-banner-text strong {
+  color: #fff;
+  font-size: 14px;
+}
+
+.promo-banner-text span {
+  color: var(--text-secondary);
+  font-size: 12px;
+}
+
+.promo-banner-actions {
+  display: flex;
+  gap: 8px;
+  margin-left: auto;
+}
+
+.promo-banner-actions .btn.small {
+  padding: 6px 14px;
+  font-size: 12px;
+}
+
+.promo-banner-close {
+  background: none;
+  border: none;
+  color: var(--text-secondary);
+  cursor: pointer;
+  padding: 4px 8px;
+  border-radius: 6px;
+  transition: all 0.2s;
+}
+
+.promo-banner-close:hover {
+  background: rgba(255,255,255,0.1);
+  color: #fff;
+}

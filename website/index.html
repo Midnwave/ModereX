@@ -34,6 +34,18 @@
     <link rel="stylesheet" href="css/styles.css">
 </head>
 <body>
+    <!-- Dev Build Tester Announcement Bar -->
+    <div class="announcement-bar" id="devTesterBar">
+        <div class="announcement-bar-content">
+            <i class="fas fa-star"></i>
+            <span><strong>Dev Build Tester Applications</strong> are now open!</span>
+            <a href="https://discord.com/channels/1131588549892907089/1309211930665156668" target="_blank" class="announcement-bar-link">Apply Now <i class="fas fa-arrow-right"></i></a>
+            <a href="https://discord.gg/jQGMhKA5m6" target="_blank" class="announcement-bar-link">Join Discord <i class="fab fa-discord"></i></a>
+        </div>
+        <button class="announcement-bar-close" onclick="this.parentElement.style.display='none';try{localStorage.setItem('mx_site_promo_dismissed','1')}catch(e){}"><i class="fas fa-xmark"></i></button>
+    </div>
+    <script>try{if(localStorage.getItem('mx_site_promo_dismissed'))document.getElementById('devTesterBar').style.display='none'}catch(e){}</script>
+
     <!-- Navigation -->
     <nav class="navbar">
         <div class="container nav-container">

@@ -192,6 +192,13 @@ public class MxCommand extends BaseCommand {
                         sendMessage(sender, "<gray>" + line);
                     }
                 }
+                // Dev Build Tester advertisement
+                sendMessage(sender, "");
+                sendMessage(sender, "<gradient:#3b82f6:#8b5cf6>━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━</gradient>");
+                sendMessage(sender, "<bold><gradient:#3b82f6:#a855f7>★ Dev Build Tester Applications Open!</gradient></bold>");
+                sendMessage(sender, "<gray>Help shape the future of ModereX — apply now!");
+                sendMessage(sender, "<aqua><click:open_url:'https://discord.com/channels/1131588549892907089/1309211930665156668'><hover:show_text:'<gray>Click to apply'>▸ Apply Here</hover></click></aqua> <dark_gray>│ <aqua><click:open_url:'https://discord.gg/jQGMhKA5m6'><hover:show_text:'<gray>Join our Discord'>▸ Discord Invite</hover></click></aqua>");
+                sendMessage(sender, "<gradient:#3b82f6:#8b5cf6>━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━</gradient>");
             });
         });
     }

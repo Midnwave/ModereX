@@ -4,7 +4,7 @@
 
 const GATEWAY_URL = 'https://neighbors-steps-unable-stop.trycloudflare.com';
 const SESSION_KEY = 'mx_website_session';
-const TURNSTILE_SITE_KEY = '0x0000000000000000000000'; // TODO: Replace with real site key from Cloudflare dashboard
+const TURNSTILE_SITE_KEY = '1x00000000000000000000AA'; // Cloudflare test key (always passes) — replace with real key for production
 
 let allReviews = [];
 let showingAllReviews = false;
