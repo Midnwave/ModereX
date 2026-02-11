@@ -2077,7 +2077,8 @@ body {
     animation: fadeInUp 0.2s ease;
 }
 
-.nav-account-dropdown a {
+.nav-account-dropdown a,
+.nav-account-dropdown button {
     display: flex;
     align-items: center;
     gap: 10px;
@@ -2087,14 +2088,21 @@ body {
     border-radius: 8px;
     font-size: 14px;
     transition: all 0.15s ease;
+    background: none;
+    border: none;
+    cursor: pointer;
+    font-family: inherit;
+    width: 100%;
 }
 
-.nav-account-dropdown a:hover {
+.nav-account-dropdown a:hover,
+.nav-account-dropdown button:hover {
     background: hsla(215, 85%, 55%, 0.1);
     color: var(--text);
 }
 
-.nav-account-dropdown a i {
+.nav-account-dropdown a i,
+.nav-account-dropdown button i {
     width: 16px;
     text-align: center;
 }

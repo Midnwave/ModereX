@@ -14,6 +14,31 @@
 
 window.MX_CHANGELOGS = [
   {
+    build: 319,
+    version: "2.0dev-319",
+    date: "2026-02-10",
+    title: "Website Account Dropdown & Admin Panel Fixes",
+    sections: [
+      {
+        type: "fixed",
+        title: "Bug Fixes",
+        items: [
+          "**Account Dropdown** - Fixed dropdown not showing on website (CSS class mismatch between JS and CSS)",
+          "**Dropdown Styling** - Log Out button now properly styled to match Admin Panel link",
+          "**Admin User Actions** - Fixed UUID not being sent to gateway for user details, password reset, and account delete"
+        ]
+      },
+      {
+        type: "improved",
+        title: "Improvements",
+        items: [
+          "**Admin Button** - Admin accounts see Admin Panel link in account dropdown",
+          "**Click Outside** - Clicking outside the account dropdown properly closes it"
+        ]
+      }
+    ]
+  },
+  {
     build: 318,
     version: "2.0dev-318",
     date: "2026-02-10",
