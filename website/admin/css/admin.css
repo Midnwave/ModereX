@@ -212,10 +212,10 @@ body {
     margin-left: var(--sidebar-width);
     display: flex;
     flex-direction: column;
-    min-height: 100vh;
+    height: 100vh;
     position: relative;
     z-index: 1;
-    overflow-y: auto;
+    overflow: hidden;
 }
 
 .main-header {
@@ -1380,8 +1380,6 @@ body {
 
 .licenses-table {
     overflow-x: auto;
-    overflow-y: auto;
-    max-height: 520px;
 }
 
 .licenses-table table {
@@ -1399,9 +1397,6 @@ body {
     text-transform: uppercase;
     letter-spacing: 0.6px;
     border-bottom: 1px solid var(--border);
-    position: sticky;
-    top: 0;
-    z-index: 1;
 }
 
 .licenses-table td {
