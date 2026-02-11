@@ -2,9 +2,18 @@
 // ModereX Landing Page - Enhanced JavaScript
 // ============================================
 
-const GATEWAY_URL = 'https://neighbors-steps-unable-stop.trycloudflare.com';
+function getGatewayUrl() {
+    const hostname = window.location.hostname.toLowerCase();
+    if (hostname.endsWith('.trycloudflare.com')) return `https://${window.location.host}`;
+    const stored = localStorage.getItem('moderex_gateway_url');
+    if (stored) return stored.replace(/\/+$/, '');
+    if (hostname === 'moderex.net' || hostname.endsWith('.moderex.net')) return 'https://gateway.moderex.net';
+    if (hostname.endsWith('.pages.dev')) return 'https://gateway.moderex.net';
+    return `https://${hostname}`;
+}
+const GATEWAY_URL = getGatewayUrl();
 const SESSION_KEY = 'mx_website_session';
-const TURNSTILE_SITE_KEY = '1x00000000000000000000AA'; // Cloudflare test key (always passes) — replace with real key for production
+const TURNSTILE_SITE_KEY = ''; // Set your Cloudflare Turnstile site key here (leave empty to disable)
 
 let allReviews = [];
 let showingAllReviews = false;
@@ -692,9 +701,14 @@ function clearSession() {
 
 async function initAuth() {
     const session = getSession();
-    if (session && session.token) {
-        const valid = await validateSession(session.token);
-        if (valid) {
+    const token = session?.sessionToken || session?.token;
+    if (session && token) {
+        const result = await validateSession(token);
+        if (result) {
+            if (result.isAdmin !== undefined) {
+                session.isAdmin = result.isAdmin;
+                saveSession(session);
+            }
             updateNavAuth(true);
         } else {
             clearSession();
@@ -710,12 +724,13 @@ async function validateSession(token) {
         const res = await fetch(GATEWAY_URL + '/api/auth/session/validate', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ token })
+            body: JSON.stringify({ sessionToken: token })
         });
-        if (!res.ok) return false;
+        if (!res.ok) return null;
         const data = await res.json();
-        return data.valid === true;
-    } catch { return false; }
+        if (data.valid === true) return data;
+        return null;
+    } catch { return null; }
 }
 
 async function loginWithPassword(username, password, cfTurnstileToken) {
@@ -748,6 +763,10 @@ function updateNavAuth(loggedIn) {
         if (username && session) {
             username.textContent = session.username;
         }
+        const adminBtn = document.getElementById('navAdminBtn');
+        if (adminBtn) {
+            adminBtn.style.display = session && session.isAdmin ? '' : 'none';
+        }
     } else {
         signInBtn.style.display = '';
         accountEl.style.display = 'none';
@@ -760,8 +779,19 @@ function toggleAccountDropdown() {
     if (dropdown) dropdown.classList.toggle('show');
 }
 
-function logout() {
+async function logout() {
+    const session = getSession();
+    if (session && session.sessionToken) {
+        try {
+            await fetch(GATEWAY_URL + '/api/auth/session/revoke-all', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ sessionToken: session.sessionToken })
+            });
+        } catch (e) { /* Best effort */ }
+    }
     clearSession();
+    localStorage.removeItem('mx_promo_dismissed');
     updateNavAuth(false);
     const dropdown = document.getElementById('navAccountDropdown');
     if (dropdown) dropdown.classList.remove('show');
@@ -790,36 +820,59 @@ function hideSignInModal() {
 // Cloudflare Turnstile
 // ============================================
 
+function isTurnstileEnabled() {
+    return TURNSTILE_SITE_KEY && TURNSTILE_SITE_KEY.length > 10;
+}
+
 function onTurnstileLoad() {
+    if (!isTurnstileEnabled()) {
+        // Turnstile not configured — enable sign-in button directly
+        const btn = document.getElementById('signInSubmitBtn');
+        if (btn) btn.disabled = false;
+        const container = document.getElementById('turnstileWidget');
+        if (container) container.style.display = 'none';
+        return;
+    }
     const container = document.getElementById('turnstileWidget');
     if (!container || !window.turnstile) return;
-    turnstileWidgetId = turnstile.render(container, {
-        sitekey: TURNSTILE_SITE_KEY,
-        theme: 'dark',
-        callback: function(token) {
-            turnstileToken = token;
-            const btn = document.getElementById('signInSubmitBtn');
-            if (btn) btn.disabled = false;
-        },
-        'expired-callback': function() {
-            turnstileToken = null;
-            const btn = document.getElementById('signInSubmitBtn');
-            if (btn) btn.disabled = true;
-        },
-        'error-callback': function() {
-            turnstileToken = null;
-            const btn = document.getElementById('signInSubmitBtn');
-            if (btn) btn.disabled = true;
-        }
-    });
+    try {
+        turnstileWidgetId = turnstile.render(container, {
+            sitekey: TURNSTILE_SITE_KEY,
+            theme: 'dark',
+            callback: function(token) {
+                turnstileToken = token;
+                const btn = document.getElementById('signInSubmitBtn');
+                if (btn) btn.disabled = false;
+            },
+            'expired-callback': function() {
+                turnstileToken = null;
+                const btn = document.getElementById('signInSubmitBtn');
+                if (btn) btn.disabled = true;
+            },
+            'error-callback': function() {
+                // Turnstile failed — allow sign-in anyway (server validates if key configured)
+                console.warn('[Turnstile] Widget error — allowing sign-in without verification');
+                const btn = document.getElementById('signInSubmitBtn');
+                if (btn) btn.disabled = false;
+            }
+        });
+    } catch (e) {
+        console.warn('[Turnstile] Failed to render:', e);
+        const btn = document.getElementById('signInSubmitBtn');
+        if (btn) btn.disabled = false;
+    }
 }
 
 function resetTurnstile() {
     turnstileToken = null;
     const btn = document.getElementById('signInSubmitBtn');
+    if (!isTurnstileEnabled()) {
+        if (btn) btn.disabled = false;
+        return;
+    }
     if (btn) btn.disabled = true;
     if (turnstileWidgetId !== null && window.turnstile) {
-        turnstile.reset(turnstileWidgetId);
+        try { turnstile.reset(turnstileWidgetId); } catch (e) {}
     }
 }
 
@@ -836,7 +889,7 @@ async function handleSignIn(e) {
         return;
     }
 
-    if (!turnstileToken) {
+    if (isTurnstileEnabled() && !turnstileToken) {
         errorEl.textContent = 'Please complete the verification.';
         errorEl.style.display = 'block';
         return;
@@ -849,9 +902,10 @@ async function handleSignIn(e) {
     try {
         const data = await loginWithPassword(username, password, turnstileToken);
         saveSession({
-            token: data.token,
+            sessionToken: data.sessionToken,
             username: data.username || username,
-            uuid: data.uuid || ''
+            uuid: data.uuid || '',
+            isAdmin: data.isAdmin || false
         });
         hideSignInModal();
         updateNavAuth(true);

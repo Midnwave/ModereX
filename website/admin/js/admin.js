@@ -44,7 +44,7 @@
             <div style="background:#1e1e1e;padding:30px;border-radius:8px;max-width:500px;color:#fff;">
                 <h2 style="margin-top:0;color:#4CAF50;">Configure Gateway</h2>
                 <p>Enter your ModereX gateway tunnel URL:</p>
-                <input type="text" id="gateway-url-input" placeholder="wss://belly-maternity-counties-control.trycloudflare.com"
+                <input type="text" id="gateway-url-input" placeholder="wss://folks-optimization-meetup-enemies.trycloudflare.com"
                     value="${localStorage.getItem('moderex_gateway_url') || ''}"
                     style="width:100%;padding:10px;margin:10px 0;background:#2d2d2d;border:1px solid #444;color:#fff;border-radius:4px;">
                 <button id="save-gateway-btn" style="background:#4CAF50;color:#fff;border:none;padding:10px 20px;border-radius:4px;cursor:pointer;">
@@ -1730,18 +1730,18 @@
         }
 
         container.innerHTML = filtered.map(u => `
-            <tr class="users-row" onclick="showUserDetails('${u.minecraft_uuid}')">
+            <tr class="users-row" data-action="show-details" data-uuid="${u.minecraft_uuid}">
                 <td><img src="https://mc-heads.net/avatar/${u.minecraft_uuid}/24" class="users-avatar" alt="" onerror="this.src='https://mc-heads.net/avatar/MHF_Steve/24'"></td>
                 <td><strong>${escapeHtml(u.minecraft_username)}</strong></td>
-                <td class="users-uuid" onclick="event.stopPropagation();this.classList.toggle('revealed')">${u.minecraft_uuid}</td>
+                <td class="users-uuid" data-action="toggle-uuid">${u.minecraft_uuid}</td>
                 <td>${u.created_at ? new Date(u.created_at).toLocaleDateString() : 'N/A'}</td>
                 <td>${u.last_login ? new Date(u.last_login).toLocaleDateString() : 'Never'}</td>
                 <td>${u.sessionCount || 0}</td>
                 <td class="users-actions">
-                    <button class="btn btn-sm btn-outline" onclick="event.stopPropagation();confirmResetPassword('${u.minecraft_uuid}', '${escapeHtml(u.minecraft_username)}')" title="Reset Password">
+                    <button class="btn btn-sm btn-outline" data-action="reset-password" data-uuid="${u.minecraft_uuid}" data-username="${escapeHtml(u.minecraft_username)}" title="Reset Password">
                         <i class="fas fa-key"></i>
                     </button>
-                    <button class="btn btn-sm btn-danger" onclick="event.stopPropagation();confirmDeleteAccount('${u.minecraft_uuid}', '${escapeHtml(u.minecraft_username)}')" title="Delete Account">
+                    <button class="btn btn-sm btn-danger" data-action="delete-account" data-uuid="${u.minecraft_uuid}" data-username="${escapeHtml(u.minecraft_username)}" title="Delete Account">
                         <i class="fas fa-trash"></i>
                     </button>
                 </td>
@@ -1811,13 +1811,13 @@
         overlay.classList.add('show');
     }
 
-    window.showUserDetails = function(uuid) {
+    function showUserDetails(uuid) {
         if (ws && ws.readyState === WebSocket.OPEN) {
             ws.send(JSON.stringify({ type: 'get_user_details', uuid }));
         }
-    };
+    }
 
-    window.confirmResetPassword = async function(uuid, username) {
+    async function confirmResetPassword(uuid, username) {
         const confirmed = await showConfirm({
             title: 'Reset Password',
             message: `Reset password for ${username}?\n\nThey will need to re-link in-game to set a new password. All active sessions will be terminated.`,
@@ -1829,9 +1829,9 @@
         if (confirmed) {
             ws.send(JSON.stringify({ type: 'admin_reset_password', uuid }));
         }
-    };
+    }
 
-    window.confirmDeleteAccount = async function(uuid, username) {
+    async function confirmDeleteAccount(uuid, username) {
         const confirmed = await showConfirm({
             title: 'Delete Account',
             message: `DELETE account for ${username}?\n\nThis removes their account, sessions, settings, and reviews. This cannot be undone.`,
@@ -1843,15 +1843,43 @@
         if (confirmed) {
             ws.send(JSON.stringify({ type: 'admin_delete_account', uuid }));
         }
-    };
+    }
 
-    // Expose for inline HTML handlers (oninput="renderUsers(allUsers)")
-    window.renderUsers = function(users) { renderUsers(users || allUsers); };
-    Object.defineProperty(window, 'allUsers', {
-        get: () => allUsers,
-        set: (v) => { allUsers = v; },
-        configurable: true
+    // Event delegation for users table actions (no global function exposure)
+    document.addEventListener('click', (e) => {
+        const actionEl = e.target.closest('[data-action]');
+        if (!actionEl) return;
+
+        const action = actionEl.dataset.action;
+        const uuid = actionEl.dataset.uuid;
+        const username = actionEl.dataset.username;
+
+        if (action === 'toggle-uuid') {
+            e.stopPropagation();
+            actionEl.classList.toggle('revealed');
+            return;
+        }
+        if (action === 'reset-password' && uuid) {
+            e.stopPropagation();
+            confirmResetPassword(uuid, username);
+            return;
+        }
+        if (action === 'delete-account' && uuid) {
+            e.stopPropagation();
+            confirmDeleteAccount(uuid, username);
+            return;
+        }
+        if (action === 'show-details' && uuid) {
+            showUserDetails(uuid);
+            return;
+        }
     });
+
+    // Users search input (no inline oninput handler)
+    const usersSearchInput = document.getElementById('usersSearch');
+    if (usersSearchInput) {
+        usersSearchInput.addEventListener('input', () => renderUsers(allUsers));
+    }
 
     // ========================================
     // Utilities

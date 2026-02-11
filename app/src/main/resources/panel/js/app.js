@@ -5559,7 +5559,17 @@
       console.log(`[Replay3D] Terrain loaded: ${count} chunks`);
 
       if (progressFill) progressFill.style.width = '100%';
-      if (loadText) loadText.textContent = 'Terrain ready!';
+
+      // Slide-fade the completion text
+      if (loadText) {
+        loadText.style.opacity = '0';
+        loadText.style.transform = 'translateY(6px)';
+        setTimeout(() => {
+          loadText.textContent = 'Terrain ready!';
+          loadText.style.opacity = '1';
+          loadText.style.transform = 'translateY(0)';
+        }, 200);
+      }
 
       // Remove fallback ground
       activeReplay3DViewer.removeFallbackGround();
@@ -5568,7 +5578,7 @@
       setTimeout(() => {
         const loadingEl = document.getElementById('r3dLoading');
         if (loadingEl) loadingEl.classList.add('hidden');
-      }, 400);
+      }, 600);
     }).catch((err) => {
       console.error('[Replay3D] Failed to load terrain:', err);
       activeReplay3DViewer.showFallbackGround();
