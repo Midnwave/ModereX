@@ -14,6 +14,24 @@
 
 window.MX_CHANGELOGS = [
   {
+    build: 318,
+    version: "2.0dev-318",
+    date: "2026-02-10",
+    title: "Website Auth Fixes & Gateway .env Loading",
+    sections: [
+      {
+        type: "fixed",
+        title: "Bug Fixes",
+        items: [
+          "**Website Reviews** - Fixed session token key mismatch preventing reviews from logged-in users",
+          "**Gateway .env Loading** - Gateway now reads .env file for ADMIN_UUIDS and other config (was ignoring it)",
+          "**Turnstile Error 400020** - Turnstile script only loads when site key is configured (no more console spam)",
+          "**Browser Cache** - Added cache-busting version parameter to script tags"
+        ]
+      }
+    ]
+  },
+  {
     build: 317,
     version: "2.0dev-317",
     date: "2026-02-10",

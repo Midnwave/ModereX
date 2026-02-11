@@ -700,6 +700,21 @@ function clearSession() {
 }
 
 async function initAuth() {
+    // Load Turnstile script dynamically only when site key is configured
+    if (isTurnstileEnabled()) {
+        const script = document.createElement('script');
+        script.src = 'https://challenges.cloudflare.com/turnstile/v0/api.js?onload=onTurnstileLoad';
+        script.async = true;
+        script.defer = true;
+        document.body.appendChild(script);
+    } else {
+        // No Turnstile — enable sign-in button directly
+        const btn = document.getElementById('signInSubmitBtn');
+        if (btn) btn.disabled = false;
+        const container = document.getElementById('turnstileWidget');
+        if (container) container.style.display = 'none';
+    }
+
     const session = getSession();
     const token = session?.sessionToken || session?.token;
     if (session && token) {
@@ -1009,7 +1024,7 @@ function updateReviewSubmitArea() {
     if (!area) return;
 
     const session = getSession();
-    if (!session || !session.token) {
+    if (!session || !session.sessionToken) {
         area.innerHTML = `
             <div style="text-align:center;">
                 <button class="btn btn-primary" onclick="showSignInModal()">
@@ -1059,7 +1074,7 @@ function updateReviewSubmitArea() {
 
 async function submitReview() {
     const session = getSession();
-    if (!session || !session.token) {
+    if (!session || !session.sessionToken) {
         showSignInModal();
         return;
     }
@@ -1085,7 +1100,7 @@ async function submitReview() {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
-                'Authorization': 'Bearer ' + session.token
+                'Authorization': 'Bearer ' + session.sessionToken
             },
             body: JSON.stringify({ rating: selectedRating, description })
         });
