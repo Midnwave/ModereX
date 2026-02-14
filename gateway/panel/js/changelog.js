@@ -14,8 +14,8 @@
 
 window.MX_CHANGELOGS = [
   {
-    build: 324,
-    version: "2.0dev-324",
+    build: 325,
+    version: "2.0dev-325",
     date: "2026-02-14",
     title: "Permission System Overhaul & Staff Audit Log",
     sections: [
