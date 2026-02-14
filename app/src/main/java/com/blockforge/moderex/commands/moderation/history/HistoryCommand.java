@@ -37,7 +37,7 @@ public class HistoryCommand extends BaseCommand {
     private static final int ITEMS_PER_PAGE = 8;
 
     public HistoryCommand(ModereX plugin) {
-        super(plugin, "moderex.history", false);
+        super(plugin, "moderex.logs", false);
     }
 
     @Override
@@ -275,39 +275,39 @@ public class HistoryCommand extends BaseCommand {
 
     /**
      * Get list of punishment types the sender has permission to view history for.
-     * Checks for specific permissions like moderex.history.bans, moderex.history.warns, etc.
-     * Falls back to moderex.history.* for all types.
+     * Checks for specific permissions like moderex.logs.bans, moderex.logs.warns, etc.
+     * Falls back to moderex.logs.* for all types.
      */
     private List<PunishmentType> getPermittedTypes(CommandSender sender) {
         List<PunishmentType> permitted = new ArrayList<>();
 
         // Check for wildcard permission first
-        if (PermissionUtil.hasPermission(sender, "moderex.history.*")) {
+        if (PermissionUtil.hasPermission(sender, "moderex.logs.*")) {
             return Arrays.asList(PunishmentType.values());
         }
 
         // Check individual permissions
-        if (PermissionUtil.hasPermission(sender, "moderex.history.bans") || PermissionUtil.hasPermission(sender, "moderex.checkban")) {
+        if (PermissionUtil.hasPermission(sender, "moderex.logs.bans") || PermissionUtil.hasPermission(sender, "moderex.checkban")) {
             permitted.add(PunishmentType.BAN);
         }
-        if (PermissionUtil.hasPermission(sender, "moderex.history.mutes") || PermissionUtil.hasPermission(sender, "moderex.checkmute")) {
+        if (PermissionUtil.hasPermission(sender, "moderex.logs.mutes") || PermissionUtil.hasPermission(sender, "moderex.checkmute")) {
             permitted.add(PunishmentType.MUTE);
         }
-        if (PermissionUtil.hasPermission(sender, "moderex.history.warns") || PermissionUtil.hasPermission(sender, "moderex.checkwarn")) {
+        if (PermissionUtil.hasPermission(sender, "moderex.logs.warns") || PermissionUtil.hasPermission(sender, "moderex.checkwarn")) {
             permitted.add(PunishmentType.WARN);
         }
-        if (PermissionUtil.hasPermission(sender, "moderex.history.kicks")) {
+        if (PermissionUtil.hasPermission(sender, "moderex.logs.kicks")) {
             permitted.add(PunishmentType.KICK);
         }
-        if (PermissionUtil.hasPermission(sender, "moderex.history.ipbans")) {
+        if (PermissionUtil.hasPermission(sender, "moderex.logs.ipbans")) {
             permitted.add(PunishmentType.IPBAN);
         }
-        if (PermissionUtil.hasPermission(sender, "moderex.history.ipmutes")) {
+        if (PermissionUtil.hasPermission(sender, "moderex.logs.ipmutes")) {
             permitted.add(PunishmentType.IPMUTE);
         }
 
-        // Legacy: if they have base moderex.history permission, give them all
-        if (permitted.isEmpty() && PermissionUtil.hasPermission(sender, "moderex.history")) {
+        // Legacy: if they have base moderex.logs permission, give them all
+        if (permitted.isEmpty() && PermissionUtil.hasPermission(sender, "moderex.logs")) {
             return Arrays.asList(PunishmentType.values());
         }
 

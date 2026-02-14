@@ -122,12 +122,12 @@ commands:
     usage: /<command> <user|id>
     permission: moderex.checkwarn
 
-  # History Commands
+  # Activity Log Commands
   history:
-    description: View punishment history for a player
+    description: View punishment history and activity logs for a player
     usage: /<command> <user> [type]
-    permission: moderex.history
-    aliases: [hist]
+    permission: moderex.logs
+    aliases: [hist, log]
 
   staffhistory:
     description: View punishments executed by a staff member
@@ -412,7 +412,8 @@ permissions:
       moderex.bypass.*: true
       moderex.alerts.*: true
       moderex.info.*: true
-      moderex.history.*: true
+      moderex.logs.*: true
+      moderex.stafflogs.*: true
       moderex.flag.*: true
       moderex.automod.*: true
       moderex.template.*: true
@@ -441,7 +442,7 @@ permissions:
       moderex.unmute: true
       moderex.unwarn: true
       moderex.punish: true
-      moderex.history: true
+      moderex.logs: true
       moderex.staffhistory: true
       moderex.checkban: true
       moderex.checkmute: true
@@ -632,9 +633,9 @@ permissions:
     description: Check player warnings
     default: op
 
-  # History Permissions
-  moderex.history:
-    description: View punishment history
+  # Activity Log Permissions
+  moderex.logs:
+    description: View punishment history and activity logs
     default: op
 
   moderex.staffhistory:
@@ -888,101 +889,147 @@ permissions:
     description: View previous usernames for a player
     default: op
 
-  # ==================== HISTORY PERMISSIONS ====================
-  moderex.history.*:
-    description: View all punishment and log history
+  # ==================== ACTIVITY LOG PERMISSIONS ====================
+  moderex.logs.*:
+    description: View all activity logs and punishment history
     default: op
     children:
-      moderex.history.warns: true
-      moderex.history.kicks: true
-      moderex.history.bans: true
-      moderex.history.mutes: true
-      moderex.history.pardons: true
-      moderex.history.nick: true
-      moderex.history.automod: true
-      moderex.history.commands: true
-      moderex.history.chat: true
-      moderex.history.sessions: true
+      moderex.logs.warns: true
+      moderex.logs.kicks: true
+      moderex.logs.bans: true
+      moderex.logs.mutes: true
+      moderex.logs.pardons: true
+      moderex.logs.nick: true
+      moderex.logs.automod: true
+      moderex.logs.commands: true
+      moderex.logs.chat: true
+      moderex.logs.sessions: true
 
-  moderex.history.warns:
-    description: View warning history for a player
+  moderex.logs.warns:
+    description: View warning logs for a player
     default: op
 
-  moderex.history.kicks:
-    description: View kick history for a player
+  moderex.logs.kicks:
+    description: View kick logs for a player
     default: op
 
-  moderex.history.bans:
-    description: View ban history for a player
+  moderex.logs.bans:
+    description: View ban logs for a player
     default: op
 
-  moderex.history.mutes:
-    description: View mute history for a player
+  moderex.logs.mutes:
+    description: View mute logs for a player
     default: op
 
-  moderex.history.pardons:
-    description: View pardon history for a player
+  moderex.logs.pardons:
+    description: View pardon logs for a player
     default: op
 
-  moderex.history.nick:
-    description: View nickname history for a player
+  moderex.logs.nick:
+    description: View nickname change logs for a player
     default: op
 
-  moderex.history.automod:
+  moderex.logs.automod:
     description: View automod flag logs for a player
     default: op
 
-  moderex.history.commands:
-    description: View past commands ran by a player
+  moderex.logs.commands:
+    description: View command execution logs for a player
     default: op
 
-  moderex.history.chat:
-    description: View past chat history for a player
+  moderex.logs.chat:
+    description: View chat message logs for a player
     default: op
 
-  moderex.history.sessions:
-    description: View player session history (join/leave activity)
+  moderex.logs.sessions:
+    description: View session logs (join/leave activity) for a player
     default: op
 
-  # ==================== WATCHLIST HISTORY PERMISSIONS ====================
-  moderex.history.watchlist.*:
-    description: View all watchlist player history
+  # ==================== WATCHLIST LOG PERMISSIONS ====================
+  moderex.logs.watchlist.*:
+    description: View all watchlist player activity logs
     default: op
     children:
-      moderex.history.watchlist.warns: true
-      moderex.history.watchlist.kicks: true
-      moderex.history.watchlist.bans: true
-      moderex.history.watchlist.mutes: true
-      moderex.history.watchlist.automod: true
-      moderex.history.watchlist.commands: true
-      moderex.history.watchlist.chat: true
+      moderex.logs.watchlist.warns: true
+      moderex.logs.watchlist.kicks: true
+      moderex.logs.watchlist.bans: true
+      moderex.logs.watchlist.mutes: true
+      moderex.logs.watchlist.automod: true
+      moderex.logs.watchlist.commands: true
+      moderex.logs.watchlist.chat: true
 
-  moderex.history.watchlist.warns:
-    description: View watchlist player warning history
+  moderex.logs.watchlist.warns:
+    description: View watchlist player warning logs
     default: op
 
-  moderex.history.watchlist.kicks:
-    description: View watchlist player kick history
+  moderex.logs.watchlist.kicks:
+    description: View watchlist player kick logs
     default: op
 
-  moderex.history.watchlist.bans:
-    description: View watchlist player ban history
+  moderex.logs.watchlist.bans:
+    description: View watchlist player ban logs
     default: op
 
-  moderex.history.watchlist.mutes:
-    description: View watchlist player mute history
+  moderex.logs.watchlist.mutes:
+    description: View watchlist player mute logs
     default: op
 
-  moderex.history.watchlist.automod:
-    description: View watchlist player automod history
+  moderex.logs.watchlist.automod:
+    description: View watchlist player automod logs
     default: op
 
-  moderex.history.watchlist.commands:
-    description: View watchlist player command history
+  moderex.logs.watchlist.commands:
+    description: View watchlist player command logs
     default: op
 
-  moderex.history.watchlist.chat:
-    description: View watchlist player chat history
+  moderex.logs.watchlist.chat:
+    description: View watchlist player chat logs
+    default: op
+
+  # ==================== STAFF AUDIT LOG PERMISSIONS ====================
+  moderex.stafflogs.*:
+    description: View all staff action audit logs
+    default: op
+    children:
+      moderex.stafflogs.automod: true
+      moderex.stafflogs.templates: true
+      moderex.stafflogs.config: true
+      moderex.stafflogs.punishments: true
+      moderex.stafflogs.permissions: true
+      moderex.stafflogs.webpanel: true
+      moderex.stafflogs.commands: true
+      moderex.stafflogs.export: true
+
+  moderex.stafflogs.automod:
+    description: View automod rule creation/modification/deletion logs
+    default: op
+
+  moderex.stafflogs.templates:
+    description: View punishment template creation/modification/deletion logs
+    default: op
+
+  moderex.stafflogs.config:
+    description: View server configuration change logs
+    default: op
+
+  moderex.stafflogs.punishments:
+    description: View staff punishment action logs
+    default: op
+
+  moderex.stafflogs.permissions:
+    description: View rank and permission change logs
+    default: op
+
+  moderex.stafflogs.webpanel:
+    description: View web panel administrative action logs
+    default: op
+
+  moderex.stafflogs.commands:
+    description: View staff admin command execution logs
+    default: op
+
+  moderex.stafflogs.export:
+    description: Export audit logs to file
     default: op
 
   # ==================== COMMAND PERMISSIONS ====================

@@ -350,6 +350,7 @@
           <div class="sb-item" data-page="watchlist"><i class="fa-solid fa-eye"></i> Watchlist</div>
           <div class="sb-item" data-page="replay"><i class="fa-solid fa-film"></i> Replays</div>
           <div class="sb-item" data-page="activitylog"><i class="fa-solid fa-scroll"></i> Activity Log</div>
+          <div class="sb-item" data-page="auditlog"><i class="fa-solid fa-clipboard-list"></i> Audit Log</div>
           <div class="sb-item" data-page="status"><i class="fa-solid fa-server"></i> Server Status</div>
         </div>
 
@@ -744,7 +745,7 @@
                         <li><strong>Identity</strong> &mdash; Username, UUID, IP address (requires <code>moderex.info.ip</code>)</li>
                         <li><strong>Punishment History</strong> &mdash; All past and active bans, mutes, warns, kicks</li>
                         <li><strong>Nickname History</strong> &mdash; Previous names the player has used</li>
-                        <li><strong>Chat & Command Logs</strong> &mdash; Recent messages and commands (requires <code>moderex.history.chat</code> / <code>moderex.history.commands</code>)</li>
+                        <li><strong>Chat & Command Logs</strong> &mdash; Recent messages and commands (requires <code>moderex.logs.chat</code> / <code>moderex.logs.commands</code>)</li>
                         <li><strong>Session History</strong> &mdash; Join/leave timestamps and play duration</li>
                         <li><strong>Automod Triggers</strong> &mdash; Rules this player has triggered</li>
                       </ul>
@@ -1215,7 +1216,7 @@
                         <li><code>moderex.kick</code> &mdash; Kick players</li>
                         <li><code>moderex.unban</code> / <code>moderex.unmute</code> / <code>moderex.unwarn</code> &mdash; Revoke punishments</li>
                         <li><code>moderex.info.ip</code> &mdash; View player IP addresses</li>
-                        <li><code>moderex.history.*</code> &mdash; View chat, command, and session history</li>
+                        <li><code>moderex.logs.*</code> &mdash; View chat, command, and session history</li>
                         <li><code>moderex.staffchat</code> &mdash; Access staff chat</li>
                         <li><code>moderex.admin.*</code> &mdash; Configuration and admin features</li>
                       </ul>
@@ -1990,6 +1991,61 @@
               <div class="activity-log-item" style="text-align:center;padding:40px;color:var(--text-secondary)">
                 <i class="fa-solid fa-spinner fa-spin" style="font-size:24px;margin-bottom:12px"></i>
                 <p style="margin:0">Loading activity logs...</p>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- Audit Log Page -->
+        <section class="page" id="page-auditlog">
+          <div class="page-head">
+            <div class="page-title">
+              <h1>Audit Log</h1>
+              <p>Staff action history and configuration changes.</p>
+            </div>
+            <div style="display:flex;gap:10px;align-items:center">
+              <button class="btn" onclick="refreshAuditLog()"><i class="fa-solid fa-sync"></i> Refresh</button>
+              <button class="btn" onclick="exportAuditLog()"><i class="fa-solid fa-download"></i> Export</button>
+            </div>
+          </div>
+
+          <div class="panel pad">
+            <div class="toolbar" style="margin-top:0">
+              <div class="left">
+                <div class="gsearch" style="width:100%;max-width:300px">
+                  <i class="fa-solid fa-magnifying-glass"></i>
+                  <input type="text" id="auditLogStaffSearch" placeholder="Filter by staff..." autocomplete="off">
+                </div>
+                <select class="input" id="auditLogTypeFilter" onchange="refreshAuditLog()">
+                  <option value="all">All Actions</option>
+                  <option value="automod">Automod Changes</option>
+                  <option value="templates">Template Changes</option>
+                  <option value="config">Configuration</option>
+                  <option value="punishments">Punishments</option>
+                  <option value="permissions">Permissions</option>
+                  <option value="ranks">Ranks</option>
+                </select>
+              </div>
+              <div class="right">
+                <input type="date" class="input" id="auditLogDateFrom" onchange="refreshAuditLog()" style="width:150px">
+                <input type="date" class="input" id="auditLogDateTo" onchange="refreshAuditLog()" style="width:150px">
+                <select class="input" id="auditLogPageSize" style="width:110px" onchange="fetchAuditLog(1)">
+                  <option value="50">50 / page</option>
+                  <option value="100" selected>100 / page</option>
+                  <option value="200">200 / page</option>
+                </select>
+                <div class="page-controls">
+                  <button class="mini" id="auditPrev" onclick="auditPrevPage()"><i class="fa-solid fa-chevron-left"></i></button>
+                  <span class="chip" id="auditPageInfo">1 / 1</span>
+                  <button class="mini" id="auditNext" onclick="auditNextPage()"><i class="fa-solid fa-chevron-right"></i></button>
+                </div>
+              </div>
+            </div>
+
+            <div class="audit-log-box" id="auditLogBox" style="margin-top:16px">
+              <div class="audit-log-item" style="text-align:center;padding:40px;color:var(--text-secondary)">
+                <i class="fa-solid fa-spinner fa-spin" style="font-size:24px;margin-bottom:12px"></i>
+                <p style="margin:0">Loading audit logs...</p>
               </div>
             </div>
           </div>

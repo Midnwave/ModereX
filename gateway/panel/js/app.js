@@ -34,20 +34,37 @@
    */
   function hasPermission(perm) {
     const permissions = state.permissions || [];
+    let granted = false;
+
     // Direct match
-    if (permissions.includes(perm)) return true;
+    if (permissions.includes(perm)) {
+      granted = true;
+    }
     // Check wildcard permissions (e.g., moderex.admin.* includes moderex.admin.automod)
-    const parts = perm.split('.');
-    for (let i = parts.length - 1; i >= 1; i--) {
-      const wildcard = parts.slice(0, i).join('.') + '.*';
-      if (permissions.includes(wildcard)) return true;
+    else {
+      const parts = perm.split('.');
+      for (let i = parts.length - 1; i >= 1; i--) {
+        const wildcard = parts.slice(0, i).join('.') + '.*';
+        if (permissions.includes(wildcard)) {
+          granted = true;
+          break;
+        }
+      }
+      // Check parent permission (e.g., moderex.admin includes moderex.admin.automod)
+      if (!granted && parts.length > 2) {
+        const parent = parts.slice(0, -1).join('.');
+        if (permissions.includes(parent)) {
+          granted = true;
+        }
+      }
     }
-    // Check parent permission (e.g., moderex.admin includes moderex.admin.automod)
-    if (parts.length > 2) {
-      const parent = parts.slice(0, -1).join('.');
-      if (permissions.includes(parent)) return true;
+
+    // Debug mode logging
+    if (window.MX_DEBUG_MODE) {
+      console.log(`[Permission] ${perm}: ${granted ? '✓ ALLOWED' : '✗ DENIED'}`);
     }
-    return false;
+
+    return granted;
   }
 
   // Expose hasPermission globally
@@ -83,11 +100,11 @@
    * Maps old view types to new permission names:
    * - ip -> moderex.info.ip
    * - uuid -> moderex.info.uuid
-   * - nicknames -> moderex.info.nick or moderex.history.nick
-   * - commandhistory -> moderex.history.commands
-   * - chathistory -> moderex.history.chat
-   * - automod -> moderex.history.automod
-   * - punishments -> moderex.history.* (or specific history types)
+   * - nicknames -> moderex.info.nick or moderex.logs.nick
+   * - commandhistory -> moderex.logs.commands
+   * - chathistory -> moderex.logs.chat
+   * - automod -> moderex.logs.automod
+   * - punishments -> moderex.logs.* (or specific history types)
    * @param {string} viewType - The type of data to check
    * @returns {boolean} true if user can view this data type
    */
@@ -96,18 +113,18 @@
     const permissionMap = {
       'ip': 'moderex.info.ip',
       'uuid': 'moderex.info.uuid',
-      'nicknames': ['moderex.info.nick', 'moderex.history.nick'],
-      'nick': ['moderex.info.nick', 'moderex.history.nick'],
-      'commandhistory': 'moderex.history.commands',
-      'commands': 'moderex.history.commands',
-      'chathistory': 'moderex.history.chat',
-      'chat': 'moderex.history.chat',
-      'automod': 'moderex.history.automod',
-      'punishments': 'moderex.history.*',
-      'bans': 'moderex.history.bans',
-      'mutes': 'moderex.history.mutes',
-      'warns': 'moderex.history.warns',
-      'kicks': 'moderex.history.kicks',
+      'nicknames': ['moderex.info.nick', 'moderex.logs.nick'],
+      'nick': ['moderex.info.nick', 'moderex.logs.nick'],
+      'commandhistory': 'moderex.logs.commands',
+      'commands': 'moderex.logs.commands',
+      'chathistory': 'moderex.logs.chat',
+      'chat': 'moderex.logs.chat',
+      'automod': 'moderex.logs.automod',
+      'punishments': 'moderex.logs.*',
+      'bans': 'moderex.logs.bans',
+      'mutes': 'moderex.logs.mutes',
+      'warns': 'moderex.logs.warns',
+      'kicks': 'moderex.logs.kicks',
       'joindate': 'moderex.info.joindate',
       'time': 'moderex.info.time',
       'namehistory': 'moderex.info.namehistory'
@@ -213,7 +230,9 @@
         // Add small lock indicator badge at top-right
         const indicator = document.createElement('div');
         indicator.className = 'config-lock-indicator';
-        indicator.innerHTML = '<i class="fa-solid fa-lock"></i> <span>Read-only</span>';
+        // Show permission name in debug mode
+        const indicatorText = window.MX_DEBUG_MODE ? `<span style="font-size:10px">${perm}</span>` : '<span>Read-only</span>';
+        indicator.innerHTML = `<i class="fa-solid fa-lock"></i> ${indicatorText}`;
         indicator.title = 'You need ' + perm + ' to modify these settings';
         card.style.position = 'relative';
         card.appendChild(indicator);
@@ -467,14 +486,14 @@
    */
   function canViewHistoryType(type) {
     // Check for wildcard first
-    if (hasPermission('moderex.history.*')) return true;
+    if (hasPermission('moderex.logs.*')) return true;
 
     switch (type?.toUpperCase()) {
-      case 'BAN': return hasPermission('moderex.history.bans');
-      case 'MUTE': return hasPermission('moderex.history.mutes');
-      case 'WARN': return hasPermission('moderex.history.warns');
-      case 'KICK': return hasPermission('moderex.history.kicks');
-      case 'PARDON': return hasPermission('moderex.history.pardons');
+      case 'BAN': return hasPermission('moderex.logs.bans');
+      case 'MUTE': return hasPermission('moderex.logs.mutes');
+      case 'WARN': return hasPermission('moderex.logs.warns');
+      case 'KICK': return hasPermission('moderex.logs.kicks');
+      case 'PARDON': return hasPermission('moderex.logs.pardons');
       default: return false;
     }
   }
@@ -495,11 +514,11 @@
    * @returns {boolean} true if user can view at least one history type
    */
   function canViewAnyHistory() {
-    return hasPermission('moderex.history.*') ||
-      hasPermission('moderex.history.bans') ||
-      hasPermission('moderex.history.mutes') ||
-      hasPermission('moderex.history.warns') ||
-      hasPermission('moderex.history.kicks');
+    return hasPermission('moderex.logs.*') ||
+      hasPermission('moderex.logs.bans') ||
+      hasPermission('moderex.logs.mutes') ||
+      hasPermission('moderex.logs.warns') ||
+      hasPermission('moderex.logs.kicks');
   }
 
   /**
@@ -1127,6 +1146,10 @@
     if (page === 'activitylog') {
       // Fetch activity logs from database when opening page
       fetchActivityLogs(1);
+    }
+    if (page === 'auditlog') {
+      // Fetch audit logs from database when opening page
+      fetchAuditLog(1);
     }
     if (page === 'automod') {
       // Request fresh automod rules from server when opening automod page
@@ -2470,7 +2493,7 @@
     if (!cmdEl) return;
 
     // Check permission first
-    const canViewCommands = window.hasPermission ? window.hasPermission('moderex.history.commands') : true;
+    const canViewCommands = window.hasPermission ? window.hasPermission('moderex.logs.commands') : true;
     if (!canViewCommands) {
       cmdEl.innerHTML = `<div class="drawer-row"><div class="meta"><small><i class="fa-solid fa-lock"></i> No permission to view commands</small></div></div>`;
       return;
@@ -2495,7 +2518,7 @@
     const el = dom().drawerAutomod;
     if (!el) return;
 
-    const canViewAutomod = window.hasPermission ? window.hasPermission('moderex.history.automod') : true;
+    const canViewAutomod = window.hasPermission ? window.hasPermission('moderex.logs.automod') : true;
     if (!canViewAutomod) {
       el.innerHTML = `<div class="drawer-row"><div class="meta"><small><i class="fa-solid fa-lock"></i> No permission to view automod logs</small></div></div>`;
       return;
@@ -2573,7 +2596,7 @@
     const sessionContainer = dom().drawerSessions;
     if (!sessionSection || !sessionContainer) return;
 
-    const canViewSessions = window.hasPermission ? window.hasPermission('moderex.history.sessions') : true;
+    const canViewSessions = window.hasPermission ? window.hasPermission('moderex.logs.sessions') : true;
     if (!canViewSessions) {
       sessionSection.style.display = '';
       sessionContainer.innerHTML = `<div class="drawer-row"><div class="meta"><small style="color:var(--muted)"><i class="fa-solid fa-lock"></i> No permission to view sessions</small></div></div>`;
@@ -2704,13 +2727,13 @@
         ${banBtn}
       </div>
       <div class="action-cluster">
-        ${hasPermission('moderex.history.chat')
+        ${hasPermission('moderex.logs.chat')
           ? `<button class="action-btn" onclick="openChatLogs('${p.id}')"><i class="fa-solid fa-comments"></i> Chat Logs</button>`
           : `<button class="action-btn btn-disabled" disabled title="You lack permission to view chat logs"><i class="fa-solid fa-lock"></i> Chat Logs</button>`}
-        ${hasPermission('moderex.history.commands')
+        ${hasPermission('moderex.logs.commands')
           ? `<button class="action-btn" onclick="openCommandHistory('${p.id}')"><i class="fa-solid fa-terminal"></i> Commands</button>`
           : `<button class="action-btn btn-disabled" disabled title="You lack permission to view command history"><i class="fa-solid fa-lock"></i> Commands</button>`}
-        ${hasPermission('moderex.history.automod')
+        ${hasPermission('moderex.logs.automod')
           ? `<button class="action-btn compact" onclick="openAutomodLogs('${p.id}')"><i class="fa-solid fa-robot"></i> Automod</button>`
           : `<button class="action-btn compact btn-disabled" disabled title="You lack permission to view automod logs"><i class="fa-solid fa-lock"></i> Automod</button>`}
       </div>
@@ -2757,11 +2780,11 @@
       `).join('') : `<div class="drawer-row"><div class="meta"><small>No violations.</small></div></div>`;
     }
 
-    // Pardons section - requires moderex.history.pardons permission
+    // Pardons section - requires moderex.logs.pardons permission
     const pardonsAll = violationsAll.filter(v => v.revoked && v.revokedBy);
     const pardons = pardonsAll.filter(v => canViewHistoryType(v.type)); // Also check type permission
 
-    if (!hasPermission('moderex.history.pardons')) {
+    if (!hasPermission('moderex.logs.pardons')) {
       dom().drawerPardons.innerHTML = `<div class="drawer-row"><div class="meta"><small style="color:var(--muted)"><i class="fa-solid fa-lock"></i> No permission to view pardons</small></div></div>`;
     } else {
       dom().drawerPardons.innerHTML = pardons.length ? pardons.map(v => `
@@ -2832,8 +2855,8 @@
       }
     }
 
-    // Recent Commands section - requires moderex.history.commands permission
-    const canViewCommands = window.hasPermission ? window.hasPermission('moderex.history.commands') : true;
+    // Recent Commands section - requires moderex.logs.commands permission
+    const canViewCommands = window.hasPermission ? window.hasPermission('moderex.logs.commands') : true;
     if (!canViewCommands) {
       dom().drawerRecent.innerHTML = `<div class="drawer-row"><div class="meta"><small><i class="fa-solid fa-lock"></i> No permission to view commands</small></div></div>`;
     } else if (needsDetailsLoad && !p.recentCommands?.length) {
@@ -2855,8 +2878,8 @@
       ` : `<div class="drawer-row"><div class="meta"><small>No commands.</small></div></div>`;
     }
 
-    // Automod Logs section - requires moderex.history.automod permission
-    const canViewAutomod = window.hasPermission ? window.hasPermission('moderex.history.automod') : true;
+    // Automod Logs section - requires moderex.logs.automod permission
+    const canViewAutomod = window.hasPermission ? window.hasPermission('moderex.logs.automod') : true;
     if (!canViewAutomod) {
       dom().drawerAutomod.innerHTML = `<div class="drawer-row"><div class="meta"><small><i class="fa-solid fa-lock"></i> No permission to view automod logs</small></div></div>`;
     } else if (needsDetailsLoad && !p.automodLogs) {
@@ -2887,8 +2910,8 @@
       ` : `<div class="drawer-row"><div class="meta"><small>No automod logs.</small></div></div>`;
     }
 
-    // Session History section - requires moderex.history.sessions permission
-    const canViewSessions = window.hasPermission ? window.hasPermission('moderex.history.sessions') : true;
+    // Session History section - requires moderex.logs.sessions permission
+    const canViewSessions = window.hasPermission ? window.hasPermission('moderex.logs.sessions') : true;
     const sessionSection = document.getElementById('drawerSessionSection');
     if (sessionSection) {
       if (!canViewSessions) {
@@ -5660,7 +5683,7 @@
 
   window.openCommandHistory = function(playerId) {
     // Check permission first
-    if (window.hasPermission && !window.hasPermission('moderex.history.commands')) {
+    if (window.hasPermission && !window.hasPermission('moderex.logs.commands')) {
       toast('error', 'Permission Denied', 'You do not have permission to view command history.');
       return;
     }
@@ -5863,8 +5886,8 @@
   };
 
   window.openAutomodLogs = function(playerId) {
-    // Check permission first - must match backend (moderex.history.automod)
-    if (window.hasPermission && !window.hasPermission('moderex.history.automod')) {
+    // Check permission first - must match backend (moderex.logs.automod)
+    if (window.hasPermission && !window.hasPermission('moderex.logs.automod')) {
       toast('error', 'Permission Denied', 'You do not have permission to view automod logs.');
       return;
     }
@@ -8024,6 +8047,217 @@
       }
     }
   }
+
+  // ===== AUDIT LOG (Staff Actions) =====
+
+  /**
+   * Fetch audit log from database with current filters
+   */
+  window.fetchAuditLog = function(page = 1) {
+    const ws = window.MX?.ws;
+    if (!ws || !ws.isConnected()) {
+      console.warn('[AuditLog] WebSocket not connected');
+      return;
+    }
+
+    const pageSize = parseInt(document.getElementById('auditLogPageSize')?.value || '100', 10);
+    const staffFilter = document.getElementById('auditLogStaffSearch')?.value || '';
+    const typeFilter = document.getElementById('auditLogTypeFilter')?.value || 'all';
+    const dateFrom = document.getElementById('auditLogDateFrom')?.value || '';
+    const dateTo = document.getElementById('auditLogDateTo')?.value || '';
+
+    ws.send('GET_AUDIT_LOG', {
+      page,
+      limit: pageSize,
+      staff: staffFilter,
+      typeFilter: typeFilter,
+      before: dateTo || null,
+      after: dateFrom || null
+    });
+  };
+
+  window.refreshAuditLog = function() {
+    fetchAuditLog(1);
+  };
+
+  window.auditPrevPage = function() {
+    const currentPage = state.auditLog?.page || 1;
+    if (currentPage > 1) {
+      fetchAuditLog(currentPage - 1);
+    }
+  };
+
+  window.auditNextPage = function() {
+    const currentPage = state.auditLog?.page || 1;
+    const totalPages = state.auditLog?.totalPages || 1;
+    if (currentPage < totalPages) {
+      fetchAuditLog(currentPage + 1);
+    }
+  };
+
+  /**
+   * Render audit logs to the page
+   */
+  function renderAuditLog() {
+    const box = document.getElementById('auditLogBox');
+    const pageInfo = document.getElementById('auditPageInfo');
+    if (!box) return;
+
+    const logs = state.auditLog?.logs || [];
+    const total = state.auditLog?.total || 0;
+    const page = state.auditLog?.page || 1;
+    const totalPages = state.auditLog?.totalPages || 1;
+
+    if (pageInfo) {
+      pageInfo.textContent = `${page} / ${totalPages}`;
+    }
+
+    if (logs.length === 0) {
+      box.innerHTML = `
+        <div class="audit-log-item" style="text-align:center;padding:40px;color:var(--text-secondary)">
+          <i class="fa-solid fa-clipboard-list" style="font-size:32px;margin-bottom:12px;opacity:0.5"></i>
+          <p style="margin:0">No audit logs found</p>
+          <p style="margin:8px 0 0 0;font-size:12px">Try adjusting your filters or date range</p>
+        </div>
+      `;
+      return;
+    }
+
+    box.innerHTML = logs.map(log => {
+      const actionClass = getAuditActionClass(log.actionType);
+      const actionLabel = getAuditActionLabel(log.actionType);
+      const timestamp = fmtLong(log.timestamp);
+      const extra = log.extra ? ` <span style="color:var(--text-tertiary);font-size:11px">(${escapeHtml(log.extra)})</span>` : '';
+
+      return `
+        <div class="audit-log-item">
+          <div class="audit-log-left">
+            <div style="display:flex;align-items:center;gap:8px">
+              <i class="fa-solid fa-user" style="color:var(--text-tertiary);font-size:12px"></i>
+              <b>${escapeHtml(log.staffName || 'Unknown')}</b>
+            </div>
+            <small>${escapeHtml(log.content || '')}${extra}</small>
+          </div>
+          <div class="audit-log-right">
+            <span class="audit-action ${actionClass}">${actionLabel}</span>
+            <span style="font-size:11px;color:var(--text-secondary)">${timestamp}</span>
+          </div>
+        </div>
+      `;
+    }).join('');
+  }
+
+  function getAuditActionClass(actionType) {
+    if (!actionType) return '';
+    if (actionType.includes('CREATE') || actionType.includes('GRANT')) return 'create';
+    if (actionType.includes('DELETE') || actionType.includes('REVOKE')) return 'delete';
+    if (actionType.includes('UPDATE') || actionType.includes('EDIT') || actionType.includes('CONFIG')) return 'update';
+    if (actionType.includes('PUNISHMENT')) return 'punishment';
+    if (actionType.includes('PARDON')) return 'pardon';
+    return 'action';
+  }
+
+  function getAuditActionLabel(actionType) {
+    if (!actionType) return 'Unknown';
+
+    const labels = {
+      // Automod
+      'STAFF_AUTOMOD_CREATE': 'Automod Created',
+      'STAFF_AUTOMOD_UPDATE': 'Automod Updated',
+      'STAFF_AUTOMOD_DELETE': 'Automod Deleted',
+      // Templates
+      'STAFF_TEMPLATE_CREATE': 'Template Created',
+      'STAFF_TEMPLATE_UPDATE': 'Template Updated',
+      'STAFF_TEMPLATE_DELETE': 'Template Deleted',
+      // Config
+      'STAFF_CONFIG_MUTE': 'Mute Config',
+      'STAFF_CONFIG_WARN': 'Warning Config',
+      'STAFF_CONFIG_ANTICHEAT': 'Anticheat Config',
+      'STAFF_CONFIG_ACTIVITYLOG': 'Activity Log Config',
+      'STAFF_CONFIG_EVIDENCE': 'Evidence Config',
+      // Ranks
+      'STAFF_RANK_CREATE': 'Rank Created',
+      'STAFF_RANK_DELETE': 'Rank Deleted',
+      'STAFF_RANK_EDIT': 'Rank Edited',
+      // Permissions
+      'STAFF_PERMISSION_GRANT': 'Permission Granted',
+      'STAFF_PERMISSION_REVOKE': 'Permission Revoked',
+      'STAFF_LUCKPERMS_SYNC': 'LuckPerms Sync',
+      // Punishments
+      'STAFF_PUNISHMENT': 'Punished',
+      'STAFF_PARDON': 'Pardoned',
+      'STAFF_WEBPANEL_PUNISHMENT': 'Panel Punishment',
+      'STAFF_WEBPANEL_PARDON': 'Panel Pardon',
+      // Web Panel
+      'STAFF_WEBPANEL_CONFIG': 'Panel Config',
+      'STAFF_WEBPANEL_WATCHLIST': 'Panel Watchlist',
+      'STAFF_WEBPANEL_CMDBLACKLIST': 'Panel Cmd Blacklist',
+      // Commands
+      'STAFF_WATCHLIST_ADD': 'Watchlist Add',
+      'STAFF_WATCHLIST_REMOVE': 'Watchlist Remove',
+      'STAFF_WATCHLIST_NOTE': 'Watchlist Note',
+      'STAFF_CMD_BLACKLIST': 'Cmd Blacklist',
+      'STAFF_CMD_UNBLACKLIST': 'Cmd Unblacklist',
+      'STAFF_DISGUISE_START': 'Disguised',
+      'STAFF_DISGUISE_END': 'Undisguised',
+      'STAFF_VANISH_ENABLE': 'Vanished',
+      'STAFF_VANISH_DISABLE': 'Unvanished',
+      'STAFF_REPLAY_START': 'Replay Start',
+      'STAFF_REPLAY_STOP': 'Replay Stop',
+      'STAFF_SLOWMODE_UPDATE': 'Slowmode',
+      'STAFF_CHAT_LOCK': 'Chat Lock',
+      'STAFF_LOCKDOWN': 'Lockdown',
+      'STAFF_CLEAR_CHAT': 'Clear Chat',
+      'STAFF_KICK_ALL': 'Kick All'
+    };
+
+    return labels[actionType] || actionType.replace(/_/g, ' ').replace(/STAFF /g, '').toLowerCase().replace(/\b\w/g, c => c.toUpperCase());
+  }
+
+  /**
+   * Export audit log to CSV
+   */
+  window.exportAuditLog = function() {
+    if (!hasPermission('moderex.stafflogs.export')) {
+      ui.toast('Permission denied: moderex.stafflogs.export', 'error');
+      return;
+    }
+
+    const logs = state.auditLog?.logs || [];
+    if (logs.length === 0) {
+      ui.toast('No audit logs to export', 'error');
+      return;
+    }
+
+    // Build CSV content
+    const headers = ['Timestamp', 'Staff Member', 'Action', 'Details', 'Extra', 'Server'];
+    const rows = logs.map(log => [
+      new Date(log.timestamp).toISOString(),
+      log.staffName || 'Unknown',
+      getAuditActionLabel(log.actionType),
+      log.content || '',
+      log.extra || '',
+      log.server || ''
+    ]);
+
+    const csvContent = [
+      headers.join(','),
+      ...rows.map(row => row.map(cell => `"${String(cell).replace(/"/g, '""')}"`).join(','))
+    ].join('\n');
+
+    // Create download
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    const url = URL.createObjectURL(blob);
+    link.setAttribute('href', url);
+    link.setAttribute('download', `moderex-audit-log-${Date.now()}.csv`);
+    link.style.visibility = 'hidden';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+
+    ui.toast('Audit log exported successfully', 'success');
+  };
 
   // ===== ACTIVITY LOG CONFIGURATION =====
   window.toggleActivityLogEnabled = function() {
@@ -10240,6 +10474,12 @@
       state.settings.soundEnabled = data.soundEnabled ?? true;
       state.settings.deviceTrustEnabled = data.deviceTrustEnabled ?? false;
 
+      // Store debug mode flag (comes from server settings, not user settings)
+      if (data.debugMode !== undefined) {
+        window.MX_DEBUG_MODE = data.debugMode;
+        console.log('[Debug Mode]', window.MX_DEBUG_MODE ? 'ENABLED' : 'DISABLED');
+      }
+
       // Store staff notification settings for sync
       state.staffSettings = state.staffSettings || {};
       state.staffSettings.commandAlerts = data.commandAlerts ?? 'WATCHLIST_ONLY';
@@ -10380,6 +10620,17 @@
     ws.on('EVIDENCE_ACTIVITY_LOGS_DATA', (data) => {
       if (!isLiveMode) return;
       handleEvidenceActivityLogsData(data);
+    });
+
+    // Handle audit log data (staff actions)
+    ws.on('AUDIT_LOG_DATA', (data) => {
+      if (!isLiveMode) return;
+      state.auditLog = state.auditLog || {};
+      state.auditLog.logs = data.logs || [];
+      state.auditLog.total = data.total || 0;
+      state.auditLog.page = data.page || 1;
+      state.auditLog.totalPages = data.totalPages || 1;
+      renderAuditLog();
     });
 
     // Handle anticheat alerts data (list of all checks)
@@ -10723,8 +10974,8 @@
 
     ws.on('AUTOMOD_TRIGGER', (data) => {
       if (!isLiveMode) return;
-      // Check for moderex.history.automod permission
-      if (window.hasPermission && !window.hasPermission('moderex.history.automod')) return;
+      // Check for moderex.logs.automod permission
+      if (window.hasPermission && !window.hasPermission('moderex.logs.automod')) return;
       const player = state.players.find(p => p.uuid === data.playerUuid);
       logEvent('WARN', 'automod', `Automod | ${data.rule}`, `${data.playerName}: ${data.message}`, { playerId: player?.id, kind: 'automod', type: 'AUTOMOD' });
       showPanelAlert('automod', `Automod Alert: ${data.playerName}`, `Triggered: ${data.rule} | "${data.message}"`, { playerId: player?.id, playerName: data.playerName, severity: 'warn' });
@@ -10732,8 +10983,8 @@
 
     ws.on('AUTOMOD_TRIGGERED', (data) => {
       if (!isLiveMode) return;
-      // Check for moderex.history.automod permission
-      if (window.hasPermission && !window.hasPermission('moderex.history.automod')) return;
+      // Check for moderex.logs.automod permission
+      if (window.hasPermission && !window.hasPermission('moderex.logs.automod')) return;
       const player = state.players.find(p => p.uuid === data.playerUuid);
       logEvent('WARN', 'automod', `Automod | ${data.rule}`, `${data.playerName}: ${data.message}`, { playerId: player?.id, kind: 'automod', type: 'AUTOMOD' });
       showPanelAlert('automod', `Automod Alert: ${data.playerName}`, `Triggered: ${data.rule} | "${data.message}"`, { playerId: player?.id, playerName: data.playerName, severity: 'warn' });
@@ -10742,8 +10993,8 @@
     // Handle AUTOMOD_ALERT (from broadcastAutomodAlert in Java backend)
     ws.on('AUTOMOD_ALERT', (data) => {
       if (!isLiveMode) return;
-      // Check for moderex.history.automod permission
-      if (window.hasPermission && !window.hasPermission('moderex.history.automod')) return;
+      // Check for moderex.logs.automod permission
+      if (window.hasPermission && !window.hasPermission('moderex.logs.automod')) return;
       const player = state.players.find(p => p.uuid === data.playerUuid);
       logEvent('WARN', 'automod', `Automod | ${data.rule}`, `${data.playerName}: ${data.message}`, { playerId: player?.id, kind: 'automod', type: 'AUTOMOD' });
       showPanelAlert('automod', `Automod Alert: ${data.playerName}`, `Triggered: ${data.rule} | "${data.message}"`, { playerId: player?.id, playerName: data.playerName, severity: 'warn' });
@@ -13464,7 +13715,7 @@
     {
       name: 'History & Logs', icon: 'fa-scroll', color: 'var(--gold)',
       perms: [
-        { node: 'moderex.history', desc: 'View punishment history' },
+        { node: 'moderex.logs', desc: 'View punishment history' },
         { node: 'moderex.staffhistory', desc: 'View staff history' },
         { node: 'moderex.checkban', desc: 'Check bans' },
         { node: 'moderex.checkmute', desc: 'Check mutes' },
@@ -14570,7 +14821,7 @@
     const PERM_CATEGORIES = [
       { name: 'General', icon: 'fa-shield-halved', permissions: ['moderex.webpanel', 'moderex.staff', 'moderex.admin', 'moderex.info.basic', 'moderex.info.ip', 'moderex.info.nick', 'moderex.info.alts'] },
       { name: 'Moderation', icon: 'fa-gavel', permissions: ['moderex.command.ban', 'moderex.command.tempban', 'moderex.command.mute', 'moderex.command.tempmute', 'moderex.command.warn', 'moderex.command.kick', 'moderex.command.unban', 'moderex.command.unmute', 'moderex.command.unwarn'] },
-      { name: 'History', icon: 'fa-clock-rotate-left', permissions: ['moderex.history.view', 'moderex.history.chat', 'moderex.history.commands', 'moderex.history.nick', 'moderex.history.sessions', 'moderex.history.items', 'moderex.history.signs'] },
+      { name: 'History', icon: 'fa-clock-rotate-left', permissions: ['moderex.logs.view', 'moderex.logs.chat', 'moderex.logs.commands', 'moderex.logs.nick', 'moderex.logs.sessions', 'moderex.logs.items', 'moderex.logs.signs'] },
       { name: 'Automod', icon: 'fa-robot', permissions: ['moderex.automod.*', 'moderex.automod.manage', 'moderex.automod.toggle', 'moderex.automod.bypass'] },
       { name: 'Anticheat', icon: 'fa-bug-slash', permissions: ['moderex.anticheat.*', 'moderex.anticheat.alerts', 'moderex.anticheat.manage'] },
       { name: 'Staff Tools', icon: 'fa-screwdriver-wrench', permissions: ['moderex.staffchat', 'moderex.vanish', 'moderex.disguise', 'moderex.staffmode', 'moderex.watchlist', 'moderex.replays.view', 'moderex.replays.configure'] },

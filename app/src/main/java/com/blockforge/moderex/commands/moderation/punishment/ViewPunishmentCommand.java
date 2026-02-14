@@ -157,7 +157,7 @@ public class ViewPunishmentCommand extends BaseCommand {
         Msg.send(sender, TextUtil.parse("<dark_gray>└──────────────────┘"));
 
         // Add clickable action buttons for players
-        if (sender instanceof Player && PermissionUtil.hasPermission(sender, "moderex.history")) {
+        if (sender instanceof Player && PermissionUtil.hasPermission(sender, "moderex.logs")) {
             Component buttons = TextUtil.parse("<dark_gray>  ")
                 .append(TextUtil.parse("<gray>[<aqua>Player History<gray>]")
                     .clickEvent(ClickEvent.runCommand("/history " + p.getPlayerName()))

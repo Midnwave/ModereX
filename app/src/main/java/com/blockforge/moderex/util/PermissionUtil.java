@@ -74,7 +74,7 @@ public class PermissionUtil {
 
         // Build wildcard paths from the permission
         // e.g., "moderex.command.ban" -> check "moderex.command.*"
-        // e.g., "moderex.history.watchlist.bans" -> check "moderex.history.*", "moderex.history.watchlist.*"
+        // e.g., "moderex.logs.watchlist.bans" -> check "moderex.logs.*", "moderex.logs.watchlist.*"
         String[] parts = permission.split("\\.");
         StringBuilder wildcardPath = new StringBuilder();
 
@@ -234,5 +234,54 @@ public class PermissionUtil {
         // Offline player - can't check weight effectively without LuckPerms
         // Allow action on offline players by default
         return true;
+    }
+
+    // --- Debug Mode Permission Hints ---
+
+    /**
+     * Check if debug mode is enabled in config.
+     * Debug mode shows permission requirements in error messages and GUI tooltips.
+     */
+    public static boolean isDebugMode() {
+        try {
+            com.blockforge.moderex.ModereX plugin = com.blockforge.moderex.ModereX.getInstance();
+            if (plugin == null || plugin.getConfig() == null) {
+                return false;
+            }
+            return plugin.getConfig().getBoolean("general.debug", false);
+        } catch (Exception e) {
+            return false;
+        }
+    }
+
+    /**
+     * Send a permission denied message to a command sender.
+     * In debug mode, also shows which permission is required.
+     *
+     * @param sender The command sender who was denied
+     * @param permission The permission that was required
+     */
+    public static void sendPermissionDenied(CommandSender sender, String permission) {
+        sender.sendMessage("§cYou don't have permission to do that!");
+
+        if (isDebugMode() && permission != null && !permission.isEmpty()) {
+            sender.sendMessage("§7§oRequired permission: §e" + permission);
+        }
+    }
+
+    /**
+     * Send a permission denied message with a custom message.
+     * In debug mode, also shows which permission is required.
+     *
+     * @param sender The command sender who was denied
+     * @param permission The permission that was required
+     * @param customMessage Custom denial message (overrides default)
+     */
+    public static void sendPermissionDenied(CommandSender sender, String permission, String customMessage) {
+        sender.sendMessage(customMessage);
+
+        if (isDebugMode() && permission != null && !permission.isEmpty()) {
+            sender.sendMessage("§7§oRequired permission: §e" + permission);
+        }
     }
 }

@@ -6244,6 +6244,69 @@ textarea.input {
 .activity-type.session { background: rgba(var(--ok-rgb), 0.15); color: var(--ok); }
 .activity-type.nick { background: rgba(var(--primary-rgb), 0.15); color: var(--primary-light); }
 
+/* Audit log styles */
+.audit-log-item {
+  padding: 12px 14px;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 14px;
+  transition: all var(--transition);
+}
+
+.audit-log-item:hover {
+  background: rgba(255, 255, 255, 0.02);
+}
+
+.audit-log-item:last-child {
+  border-bottom: none;
+}
+
+.audit-log-left {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+  flex: 1;
+}
+
+.audit-log-left b {
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.audit-log-left small {
+  font-size: 12px;
+  color: var(--text-secondary);
+  line-height: 1.4;
+}
+
+.audit-log-right {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  align-items: flex-end;
+}
+
+/* Audit action badges */
+.audit-action {
+  padding: 3px 8px;
+  border-radius: 4px;
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+  white-space: nowrap;
+}
+
+.audit-action.create { background: rgba(var(--ok-rgb), 0.15); color: var(--ok); }
+.audit-action.delete { background: rgba(var(--bad-rgb), 0.15); color: var(--bad); }
+.audit-action.update { background: rgba(var(--primary-rgb), 0.15); color: var(--primary-light); }
+.audit-action.punishment { background: rgba(var(--orange-rgb), 0.15); color: var(--orange); }
+.audit-action.pardon { background: rgba(var(--ok-rgb), 0.15); color: var(--ok); }
+.audit-action.action { background: rgba(var(--accent-rgb), 0.15); color: var(--accent-light); }
+
 /* Search suggestions dropdown */
 .search-suggestions {
   position: absolute;

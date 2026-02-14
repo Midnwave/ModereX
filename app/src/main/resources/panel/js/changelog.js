@@ -14,6 +14,61 @@
 
 window.MX_CHANGELOGS = [
   {
+    build: 324,
+    version: "2.0dev-324",
+    date: "2026-02-14",
+    title: "Permission System Overhaul & Staff Audit Log",
+    sections: [
+      {
+        type: "new",
+        title: "New Features",
+        items: [
+          "**Staff Audit Log** - New audit log tab tracks all staff actions (automod changes, template edits, config updates, rank changes)",
+          "**Permission Rename** - Activity log permissions renamed from moderex.history.* to moderex.logs.* (more intuitive)",
+          "**Granular Audit Permissions** - 8 new moderex.stafflogs.* permissions for viewing specific staff action types",
+          "**Audit Log Export** - Export audit logs to CSV with moderex.stafflogs.export permission",
+          "**Debug Mode Hints** - Debug mode now shows required permissions in error messages and locked features (config.yml: general.debug)"
+        ]
+      },
+      {
+        type: "improved",
+        title: "Improvements",
+        items: [
+          "**Staff Action Logging** - All web panel admin actions now logged: automod (3 actions), templates (3 actions), config (5 sections), ranks (3 actions), permissions (2 actions)",
+          "**Permission Logging** - 21 new activity types track staff configuration changes and administrative actions",
+          "**Permission Hints** - When debug mode enabled, config page locked features show exact permission required",
+          "**Permission Debugging** - Enhanced hasPermission() logs all permission checks when debug mode enabled"
+        ]
+      },
+      {
+        type: "permissions",
+        title: "New Permissions",
+        items: [
+          "**moderex.logs.*** - Renamed from moderex.history.* (includes .chat, .commands, .automod, .bans, .mutes, .warns, .kicks, .nick, .sessions)",
+          "**moderex.stafflogs.*** - View all staff action logs",
+          "**moderex.stafflogs.automod** - View automod rule changes",
+          "**moderex.stafflogs.templates** - View template changes",
+          "**moderex.stafflogs.config** - View configuration changes",
+          "**moderex.stafflogs.punishments** - View punishment actions",
+          "**moderex.stafflogs.permissions** - View rank/permission changes",
+          "**moderex.stafflogs.webpanel** - View web panel actions",
+          "**moderex.stafflogs.commands** - View admin command usage",
+          "**moderex.stafflogs.export** - Export audit logs to CSV"
+        ]
+      },
+      {
+        type: "technical",
+        title: "Technical Changes",
+        items: [
+          "**Backend** - Added GET_AUDIT_LOG WebSocket handler with permission-based filtering",
+          "**Database** - Activity log now stores 21 additional staff action types",
+          "**Permission Validation** - All web panel handlers verified for proper permission checks",
+          "**Debug Mode API** - Added PermissionUtil.isDebugMode() and sendPermissionDenied() helpers"
+        ]
+      }
+    ]
+  },
+  {
     build: 323,
     version: "2.0dev-323",
     date: "2026-02-11",

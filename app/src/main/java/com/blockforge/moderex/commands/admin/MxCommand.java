@@ -407,7 +407,7 @@ public class MxCommand extends BaseCommand {
         String[][] infoPerms = {{"moderex.check","Check command"},{"moderex.check.ip","See IP in /check"},{"moderex.command.seen","Seen command"},{"moderex.command.seen.ip","See IP in /seen"},{"moderex.info.uuid","See UUID in GUI"},{"moderex.info.ip","See IP in GUI"}};
         for (String[] p : infoPerms) dbgPerm(sender, target, p[0], p[1]);
         sendMessage(sender, ""); sendMessage(sender, "<gold><bold>History & Logs</bold>");
-        String[][] histPerms = {{"moderex.history","History (all)"},{"moderex.history.bans","History: Bans"},{"moderex.history.mutes","History: Mutes"},{"moderex.history.warns","History: Warns"},{"moderex.history.kicks","History: Kicks"},{"moderex.command.viewpunishment","View Punishment"},{"moderex.log","Activity Log"}};
+        String[][] histPerms = {{"moderex.logs","History (all)"},{"moderex.logs.bans","History: Bans"},{"moderex.logs.mutes","History: Mutes"},{"moderex.logs.warns","History: Warns"},{"moderex.logs.kicks","History: Kicks"},{"moderex.command.viewpunishment","View Punishment"},{"moderex.log","Activity Log"}};
         for (String[] p : histPerms) dbgPerm(sender, target, p[0], p[1]);
         sendMessage(sender, ""); sendMessage(sender, "<gold><bold>Staff Tools</bold>");
         String[][] staffPerms = {{"moderex.command.vanish","Vanish"},{"moderex.command.vanish.others","Vanish Others"},{"moderex.staff.inspect","Staff Inspect"},{"moderex.staff.inspect.modify","Modify Inventory"},{"moderex.staffmode","Staff Mode"},{"moderex.command.fly","Fly"},{"moderex.command.echest","Ender Chest"},{"moderex.command.invsee","Invsee"},{"moderex.staffchat","Staff Chat"}};
@@ -435,7 +435,7 @@ public class MxCommand extends BaseCommand {
         sendMessage(sender, "<gray>  Simulating what this player can access");
         sendMessage(sender, "");
         sendMessage(sender, "<gold><bold>Commands</bold>");
-        String[][] cmds = {{"moderex.ban","/ban"},{"moderex.tempban","/tempban"},{"moderex.mute","/mute"},{"moderex.tempmute","/tempmute"},{"moderex.warn","/warn"},{"moderex.kick","/kick"},{"moderex.ipban","/ipban"},{"moderex.ipmute","/ipmute"},{"moderex.unban","/unban"},{"moderex.unmute","/unmute"},{"moderex.unwarn","/unwarn"},{"moderex.check","/check"},{"moderex.command.seen","/seen"},{"moderex.history","/history"},{"moderex.command.viewpunishment","/viewpunishment"},{"moderex.command.vanish","/vanish"},{"moderex.command.fly","/fly"},{"moderex.command.echest","/echest"},{"moderex.command.invsee","/invsee"},{"moderex.staffchat","/staffchat"},{"moderex.log","/log"},{"moderex.command.admin","/mx (admin)"},{"moderex.command.punish","/punish GUI"}};
+        String[][] cmds = {{"moderex.ban","/ban"},{"moderex.tempban","/tempban"},{"moderex.mute","/mute"},{"moderex.tempmute","/tempmute"},{"moderex.warn","/warn"},{"moderex.kick","/kick"},{"moderex.ipban","/ipban"},{"moderex.ipmute","/ipmute"},{"moderex.unban","/unban"},{"moderex.unmute","/unmute"},{"moderex.unwarn","/unwarn"},{"moderex.check","/check"},{"moderex.command.seen","/seen"},{"moderex.logs","/history"},{"moderex.command.viewpunishment","/viewpunishment"},{"moderex.command.vanish","/vanish"},{"moderex.command.fly","/fly"},{"moderex.command.echest","/echest"},{"moderex.command.invsee","/invsee"},{"moderex.staffchat","/staffchat"},{"moderex.log","/log"},{"moderex.command.admin","/mx (admin)"},{"moderex.command.punish","/punish GUI"}};
         for (String[] c : cmds) dbgSim(sender, target, c[0], c[1], null);
         sendMessage(sender, ""); sendMessage(sender, "<gold><bold>Info Visibility</bold>");
         dbgVis(sender, target, "moderex.check.ip", "IP Address"); dbgVis(sender, target, "moderex.info.uuid", "UUID in GUI"); dbgVis(sender, target, "moderex.info.ip", "IP in GUI");
@@ -731,7 +731,7 @@ public class MxCommand extends BaseCommand {
         sendMessage(player, "<gray>Type permissions to add/remove:");
         sendMessage(player, "  <green>+moderex.ban <gray>- Add a permission");
         sendMessage(player, "  <red>-moderex.ban <gray>- Remove a permission");
-        sendMessage(player, "  <yellow>+moderex.history.* <gray>- Add wildcard");
+        sendMessage(player, "  <yellow>+moderex.logs.* <gray>- Add wildcard");
         sendMessage(player, "  <aqua>op / !op <gray>- Toggle OP status");
         sendMessage(player, "  <gold>run <gray>- Execute tests with current set");
         sendMessage(player, "  <red>done <gray>- Exit custom mode");

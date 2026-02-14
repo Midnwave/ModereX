@@ -73,7 +73,34 @@ public class ActivityLogEntry {
         STAFF_LOCKDOWN("staff_lockdown", "s:lockdown"),
         STAFF_AUTOMOD_UPDATE("staff_automod_update", "s:automod"),
         STAFF_CLEAR_CHAT("staff_clear_chat", "s:clearchat"),
-        STAFF_KICK_ALL("staff_kick_all", "s:kickall");
+        STAFF_KICK_ALL("staff_kick_all", "s:kickall"),
+
+        // Staff Configuration Actions
+        STAFF_AUTOMOD_CREATE("staff_automod_create", "s:+automod"),
+        STAFF_AUTOMOD_DELETE("staff_automod_delete", "s:-automod"),
+        STAFF_TEMPLATE_CREATE("staff_template_create", "s:+template"),
+        STAFF_TEMPLATE_UPDATE("staff_template_update", "s:template"),
+        STAFF_TEMPLATE_DELETE("staff_template_delete", "s:-template"),
+        STAFF_CONFIG_MUTE("staff_config_mute", "s:cfg_mute"),
+        STAFF_CONFIG_WARN("staff_config_warn", "s:cfg_warn"),
+        STAFF_CONFIG_ANTICHEAT("staff_config_anticheat", "s:cfg_ac"),
+        STAFF_CONFIG_ACTIVITYLOG("staff_config_activitylog", "s:cfg_log"),
+        STAFF_CONFIG_EVIDENCE("staff_config_evidence", "s:cfg_evidence"),
+
+        // Staff Permission Actions
+        STAFF_RANK_CREATE("staff_rank_create", "s:+rank"),
+        STAFF_RANK_DELETE("staff_rank_delete", "s:-rank"),
+        STAFF_RANK_EDIT("staff_rank_edit", "s:rank"),
+        STAFF_PERMISSION_GRANT("staff_permission_grant", "s:+perm"),
+        STAFF_PERMISSION_REVOKE("staff_permission_revoke", "s:-perm"),
+        STAFF_LUCKPERMS_SYNC("staff_luckperms_sync", "s:lp_sync"),
+
+        // Web Panel Actions
+        STAFF_WEBPANEL_PUNISHMENT("staff_webpanel_punishment", "s:wp_punish"),
+        STAFF_WEBPANEL_PARDON("staff_webpanel_pardon", "s:wp_pardon"),
+        STAFF_WEBPANEL_CONFIG("staff_webpanel_config", "s:wp_cfg"),
+        STAFF_WEBPANEL_WATCHLIST("staff_webpanel_watchlist", "s:wp_watch"),
+        STAFF_WEBPANEL_CMDBLACKLIST("staff_webpanel_cmdblacklist", "s:wp_cmdbl");
 
         private final String key;
         private final String shortKey;
@@ -259,6 +286,30 @@ public class ActivityLogEntry {
             case STAFF_AUTOMOD_UPDATE -> "Automod Update";
             case STAFF_CLEAR_CHAT -> "Clear Chat";
             case STAFF_KICK_ALL -> "Kick All";
+            // Staff Configuration Actions
+            case STAFF_AUTOMOD_CREATE -> "Automod Created";
+            case STAFF_AUTOMOD_DELETE -> "Automod Deleted";
+            case STAFF_TEMPLATE_CREATE -> "Template Created";
+            case STAFF_TEMPLATE_UPDATE -> "Template Updated";
+            case STAFF_TEMPLATE_DELETE -> "Template Deleted";
+            case STAFF_CONFIG_MUTE -> "Mute Config";
+            case STAFF_CONFIG_WARN -> "Warning Config";
+            case STAFF_CONFIG_ANTICHEAT -> "Anticheat Config";
+            case STAFF_CONFIG_ACTIVITYLOG -> "Activity Log Config";
+            case STAFF_CONFIG_EVIDENCE -> "Evidence Config";
+            // Staff Permission Actions
+            case STAFF_RANK_CREATE -> "Rank Created";
+            case STAFF_RANK_DELETE -> "Rank Deleted";
+            case STAFF_RANK_EDIT -> "Rank Edited";
+            case STAFF_PERMISSION_GRANT -> "Permission Granted";
+            case STAFF_PERMISSION_REVOKE -> "Permission Revoked";
+            case STAFF_LUCKPERMS_SYNC -> "LuckPerms Sync";
+            // Web Panel Actions
+            case STAFF_WEBPANEL_PUNISHMENT -> "Panel Punishment";
+            case STAFF_WEBPANEL_PARDON -> "Panel Pardon";
+            case STAFF_WEBPANEL_CONFIG -> "Panel Config";
+            case STAFF_WEBPANEL_WATCHLIST -> "Panel Watchlist";
+            case STAFF_WEBPANEL_CMDBLACKLIST -> "Panel Cmd Blacklist";
         };
     }
 
@@ -310,6 +361,30 @@ public class ActivityLogEntry {
             case STAFF_AUTOMOD_UPDATE -> "<gold>";
             case STAFF_CLEAR_CHAT -> "<gray>";
             case STAFF_KICK_ALL -> "<dark_red>";
+            // Staff Configuration Actions
+            case STAFF_AUTOMOD_CREATE -> "<green>";
+            case STAFF_AUTOMOD_DELETE -> "<red>";
+            case STAFF_TEMPLATE_CREATE -> "<green>";
+            case STAFF_TEMPLATE_UPDATE -> "<gold>";
+            case STAFF_TEMPLATE_DELETE -> "<red>";
+            case STAFF_CONFIG_MUTE -> "<aqua>";
+            case STAFF_CONFIG_WARN -> "<yellow>";
+            case STAFF_CONFIG_ANTICHEAT -> "<light_purple>";
+            case STAFF_CONFIG_ACTIVITYLOG -> "<blue>";
+            case STAFF_CONFIG_EVIDENCE -> "<dark_aqua>";
+            // Staff Permission Actions
+            case STAFF_RANK_CREATE -> "<green>";
+            case STAFF_RANK_DELETE -> "<red>";
+            case STAFF_RANK_EDIT -> "<gold>";
+            case STAFF_PERMISSION_GRANT -> "<green>";
+            case STAFF_PERMISSION_REVOKE -> "<red>";
+            case STAFF_LUCKPERMS_SYNC -> "<aqua>";
+            // Web Panel Actions
+            case STAFF_WEBPANEL_PUNISHMENT -> "<dark_red>";
+            case STAFF_WEBPANEL_PARDON -> "<green>";
+            case STAFF_WEBPANEL_CONFIG -> "<gold>";
+            case STAFF_WEBPANEL_WATCHLIST -> "<gold>";
+            case STAFF_WEBPANEL_CMDBLACKLIST -> "<red>";
         };
     }
 

@@ -82,10 +82,10 @@ public class PermissionTestEngine {
             "moderex.info.joindate", "moderex.info.time", "moderex.info.namehistory",
 
             // History viewing
-            "moderex.history", "moderex.history.bans", "moderex.history.mutes",
-            "moderex.history.warns", "moderex.history.kicks", "moderex.history.pardons",
-            "moderex.history.nick", "moderex.history.automod",
-            "moderex.history.commands", "moderex.history.chat", "moderex.history.sessions",
+            "moderex.logs", "moderex.logs.bans", "moderex.logs.mutes",
+            "moderex.logs.warns", "moderex.logs.kicks", "moderex.logs.pardons",
+            "moderex.logs.nick", "moderex.logs.automod",
+            "moderex.logs.commands", "moderex.logs.chat", "moderex.logs.sessions",
 
             // Check/inspect commands
             "moderex.check", "moderex.check.ip",
@@ -182,7 +182,7 @@ public class PermissionTestEngine {
             Map.entry("/unmute", "moderex.unmute"),
             Map.entry("/unwarn", "moderex.unwarn"),
             Map.entry("/check", "moderex.check"),
-            Map.entry("/history", "moderex.history"),
+            Map.entry("/history", "moderex.logs"),
             Map.entry("/staffhistory", "moderex.staffhistory"),
             Map.entry("/banlist", "moderex.banlist"),
             Map.entry("/mutelist", "moderex.mutelist"),
@@ -241,16 +241,16 @@ public class PermissionTestEngine {
             Map.entry("Player IP Address", "moderex.info.ip"),
             Map.entry("Player UUID", "moderex.info.uuid"),
             Map.entry("Player Nickname", "moderex.info.nick"),
-            Map.entry("Ban History", "moderex.history.bans"),
-            Map.entry("Mute History", "moderex.history.mutes"),
-            Map.entry("Warn History", "moderex.history.warns"),
-            Map.entry("Kick History", "moderex.history.kicks"),
-            Map.entry("Pardon History", "moderex.history.pardons"),
-            Map.entry("Command History", "moderex.history.commands"),
-            Map.entry("Chat History", "moderex.history.chat"),
-            Map.entry("Automod Logs", "moderex.history.automod"),
-            Map.entry("Session History", "moderex.history.sessions"),
-            Map.entry("Nickname History", "moderex.history.nick"),
+            Map.entry("Ban History", "moderex.logs.bans"),
+            Map.entry("Mute History", "moderex.logs.mutes"),
+            Map.entry("Warn History", "moderex.logs.warns"),
+            Map.entry("Kick History", "moderex.logs.kicks"),
+            Map.entry("Pardon History", "moderex.logs.pardons"),
+            Map.entry("Command History", "moderex.logs.commands"),
+            Map.entry("Chat History", "moderex.logs.chat"),
+            Map.entry("Automod Logs", "moderex.logs.automod"),
+            Map.entry("Session History", "moderex.logs.sessions"),
+            Map.entry("Nickname History", "moderex.logs.nick"),
             Map.entry("Automod Create", "moderex.automod.create"),
             Map.entry("Automod Edit", "moderex.automod.edit"),
             Map.entry("Automod Delete", "moderex.automod.delete"),
@@ -759,7 +759,7 @@ public class PermissionTestEngine {
         List<String> controls = new ArrayList<>();
         // Pick 3 permissions from different categories that should NOT be granted
         String[] candidates = {
-                "moderex.ban", "moderex.info.ip", "moderex.history.bans",
+                "moderex.ban", "moderex.info.ip", "moderex.logs.bans",
                 "moderex.admin", "moderex.webpanel", "moderex.automod.edit",
                 "moderex.template.create", "moderex.bypass.mute", "moderex.staffchat"
         };

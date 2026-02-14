@@ -497,24 +497,24 @@ public class PermissionManager {
 
         // Helper
         createDefaultRank("helper", "Helper", "<#55ff55>[Helper]", null, 10, true, now,
-                "moderex.webpanel", "moderex.info.basic", "moderex.history.view");
+                "moderex.webpanel", "moderex.info.basic", "moderex.logs.view");
 
         // Moderator
         createDefaultRank("moderator", "Moderator", "<#55ffff>[Mod]", null, 20, false, now,
                 "moderex.webpanel", "moderex.command.ban", "moderex.command.tempban",
                 "moderex.command.mute", "moderex.command.tempmute",
                 "moderex.command.warn", "moderex.command.kick",
-                "moderex.info.*", "moderex.history.*");
+                "moderex.info.*", "moderex.logs.*");
 
         // Admin
         createDefaultRank("admin", "Admin", "<#ff5555>[Admin]", null, 30, false, now,
                 "moderex.webpanel", "moderex.command.*", "moderex.info.*",
-                "moderex.history.*", "moderex.admin.*", "moderex.automod.*");
+                "moderex.logs.*", "moderex.admin.*", "moderex.automod.*");
 
         // Developer
         createDefaultRank("developer", "Developer", "<#aa00ff>[Dev]", null, 40, false, now,
                 "moderex.webpanel", "moderex.command.*", "moderex.info.*",
-                "moderex.history.*", "moderex.admin.*", "moderex.automod.*",
+                "moderex.logs.*", "moderex.admin.*", "moderex.automod.*",
                 "moderex.anticheat.*", "moderex.monitoring.*");
 
         // Owner

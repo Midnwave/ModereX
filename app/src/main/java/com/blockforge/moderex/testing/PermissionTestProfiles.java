@@ -69,11 +69,11 @@ public class PermissionTestProfiles {
                         "moderex.webpanel",
                         "moderex.staff",
                         "moderex.check",
-                        "moderex.history",
-                        "moderex.history.bans",
-                        "moderex.history.mutes",
-                        "moderex.history.warns",
-                        "moderex.history.kicks",
+                        "moderex.logs",
+                        "moderex.logs.bans",
+                        "moderex.logs.mutes",
+                        "moderex.logs.warns",
+                        "moderex.logs.kicks",
                         "moderex.info.uuid",
                         "moderex.info.nick",
                         "moderex.warnings",
@@ -90,13 +90,13 @@ public class PermissionTestProfiles {
                         "moderex.webpanel",
                         "moderex.staff",
                         "moderex.check",
-                        "moderex.history",
+                        "moderex.logs",
                         "moderex.warnings",
                         "moderex.command.seen",
                         // Info wildcards
                         "moderex.info.*",
                         // History wildcard
-                        "moderex.history.*",
+                        "moderex.logs.*",
                         // Punishment commands
                         "moderex.ban",
                         "moderex.tempban",
@@ -135,11 +135,11 @@ public class PermissionTestProfiles {
                         "moderex.staff",
                         "moderex.admin",
                         "moderex.check",
-                        "moderex.history",
+                        "moderex.logs",
                         "moderex.warnings",
                         "moderex.command.seen",
                         "moderex.info.*",
-                        "moderex.history.*",
+                        "moderex.logs.*",
                         "moderex.ban",
                         "moderex.tempban",
                         "moderex.ipban",
@@ -210,9 +210,9 @@ public class PermissionTestProfiles {
     public static TestProfile historyPartial() {
         return new TestProfile("HISTORY_PARTIAL", "Edge case - partial history access",
                 Set.of(
-                        "moderex.history",
-                        "moderex.history.bans",
-                        "moderex.history.mutes"
+                        "moderex.logs",
+                        "moderex.logs.bans",
+                        "moderex.logs.mutes"
                 ), false);
     }
 
@@ -232,15 +232,15 @@ public class PermissionTestProfiles {
                 Set.of(
                         "moderex.webpanel",
                         "moderex.staff",
-                        "moderex.history.bans",
+                        "moderex.logs.bans",
                         "moderex.info.uuid"
                 ), false);
     }
 
-    /** Tests category wildcard resolution. moderex.history.* should grant all history sub-perms. */
+    /** Tests category wildcard resolution. moderex.logs.* should grant all history sub-perms. */
     public static TestProfile categoryWildcard() {
         return new TestProfile("CATEGORY_WILDCARD", "Tests category wildcard resolution",
-                Set.of("moderex.history.*"), false);
+                Set.of("moderex.logs.*"), false);
     }
 
     /** Tests weight system - has weight.10 which limits who they can punish. */

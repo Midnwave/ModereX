@@ -1958,13 +1958,13 @@
       // Check if user has permission to view this alert type
       const alertType = (a.type || '').toLowerCase();
       const permMap = {
-        'warn': 'moderex.history.watchlist.warns',
-        'kick': 'moderex.history.watchlist.kicks',
-        'ban': 'moderex.history.watchlist.bans',
-        'mute': 'moderex.history.watchlist.mutes',
-        'automod': 'moderex.history.watchlist.automod',
-        'command': 'moderex.history.watchlist.commands',
-        'chat': 'moderex.history.watchlist.chat'
+        'warn': 'moderex.logs.watchlist.warns',
+        'kick': 'moderex.logs.watchlist.kicks',
+        'ban': 'moderex.logs.watchlist.bans',
+        'mute': 'moderex.logs.watchlist.mutes',
+        'automod': 'moderex.logs.watchlist.automod',
+        'command': 'moderex.logs.watchlist.commands',
+        'chat': 'moderex.logs.watchlist.chat'
       };
       const perm = permMap[alertType];
       if (perm && window.hasPermission && !window.hasPermission(perm)) {

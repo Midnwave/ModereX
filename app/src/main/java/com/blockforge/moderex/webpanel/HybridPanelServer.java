@@ -2501,6 +2501,7 @@ public class HybridPanelServer implements com.blockforge.moderex.gateway.Gateway
             case "GET_AUTOMOD_LOGS" -> sendAutomodLogs(conn, data, session);
             case "GET_ACTIVITY_LOGS" -> sendActivityLogs(conn, data, session);
             case "GET_EVIDENCE_ACTIVITY_LOGS" -> sendEvidenceActivityLogs(conn, data, session);
+            case "GET_AUDIT_LOG" -> sendAuditLog(conn, data, session);
             case "GET_AUTOMOD_RULES" -> sendAutomodRules(conn);
             case "UPDATE_AUTOMOD_RULE" -> updateAutomodRule(conn, data, session);
             case "CREATE_AUTOMOD_RULE" -> createAutomodRule(conn, data, session);
@@ -2697,11 +2698,11 @@ public class HybridPanelServer implements com.blockforge.moderex.gateway.Gateway
         UUID viewerUuid = session != null ? session.playerUuid : null;
         boolean canViewIp = hasViewPermission(viewerUuid, "moderex.info.ip");
         boolean canViewNicknames = hasViewPermission(viewerUuid, "moderex.info.nick") ||
-                                   hasViewPermission(viewerUuid, "moderex.history.nick");
-        boolean canViewCommands = hasViewPermission(viewerUuid, "moderex.history.commands");
-        boolean canViewChat = hasViewPermission(viewerUuid, "moderex.history.chat");
-        boolean canViewAutomod = hasViewPermission(viewerUuid, "moderex.history.automod");
-        boolean canViewSessions = hasViewPermission(viewerUuid, "moderex.history.sessions");
+                                   hasViewPermission(viewerUuid, "moderex.logs.nick");
+        boolean canViewCommands = hasViewPermission(viewerUuid, "moderex.logs.commands");
+        boolean canViewChat = hasViewPermission(viewerUuid, "moderex.logs.chat");
+        boolean canViewAutomod = hasViewPermission(viewerUuid, "moderex.logs.automod");
+        boolean canViewSessions = hasViewPermission(viewerUuid, "moderex.logs.sessions");
 
         try {
             UUID playerUuid = UUID.fromString(uuidStr);
@@ -2938,10 +2939,10 @@ public class HybridPanelServer implements com.blockforge.moderex.gateway.Gateway
         UUID viewerUuid = session.playerUuid;
 
         // Check which punishment types the user can view
-        boolean canViewBans = hasViewPermission(viewerUuid, "moderex.history.bans");
-        boolean canViewMutes = hasViewPermission(viewerUuid, "moderex.history.mutes");
-        boolean canViewWarns = hasViewPermission(viewerUuid, "moderex.history.warns");
-        boolean canViewKicks = hasViewPermission(viewerUuid, "moderex.history.kicks");
+        boolean canViewBans = hasViewPermission(viewerUuid, "moderex.logs.bans");
+        boolean canViewMutes = hasViewPermission(viewerUuid, "moderex.logs.mutes");
+        boolean canViewWarns = hasViewPermission(viewerUuid, "moderex.logs.warns");
+        boolean canViewKicks = hasViewPermission(viewerUuid, "moderex.logs.kicks");
 
         // If user has no history permissions, send empty list
         if (!canViewBans && !canViewMutes && !canViewWarns && !canViewKicks) {
@@ -2982,7 +2983,7 @@ public class HybridPanelServer implements com.blockforge.moderex.gateway.Gateway
 
     private void sendCommandHistory(WebSocketConnection conn, JsonObject filters, WebPanelSession session) {
         // Permission check
-        if (!hasViewPermission(session.playerUuid, "moderex.history.commands")) {
+        if (!hasViewPermission(session.playerUuid, "moderex.logs.commands")) {
             plugin.logDebug("[WebPanel] Permission denied for " + session.playerName + " to view command history");
             sendError(conn, "PERMISSION_DENIED", "You do not have permission to view command history.");
             return;
@@ -3057,7 +3058,7 @@ public class HybridPanelServer implements com.blockforge.moderex.gateway.Gateway
 
     private void sendChatLogs(WebSocketConnection conn, JsonObject filters, WebPanelSession session) {
         // Permission check
-        if (!hasViewPermission(session.playerUuid, "moderex.history.chat")) {
+        if (!hasViewPermission(session.playerUuid, "moderex.logs.chat")) {
             plugin.logDebug("[WebPanel] Permission denied for " + session.playerName + " to view chat logs");
             sendError(conn, "PERMISSION_DENIED", "You do not have permission to view chat logs.");
             return;
@@ -3116,7 +3117,7 @@ public class HybridPanelServer implements com.blockforge.moderex.gateway.Gateway
 
     private void sendAutomodLogs(WebSocketConnection conn, JsonObject filters, WebPanelSession session) {
         // Permission check
-        if (!hasViewPermission(session.playerUuid, "moderex.history.automod")) {
+        if (!hasViewPermission(session.playerUuid, "moderex.logs.automod")) {
             plugin.logDebug("[WebPanel] Permission denied for " + session.playerName + " to view automod logs");
             sendError(conn, "PERMISSION_DENIED", "You do not have permission to view automod logs.");
             return;
@@ -3238,46 +3239,46 @@ public class HybridPanelServer implements com.blockforge.moderex.gateway.Gateway
                 UUID userUuid = session.playerUuid;
 
                 // Chat logs
-                if (hasViewPermission(userUuid, "moderex.history.chat")) {
+                if (hasViewPermission(userUuid, "moderex.logs.chat")) {
                     allowedTypes.add("CHAT");
                 }
                 // Command logs
-                if (hasViewPermission(userUuid, "moderex.history.commands")) {
+                if (hasViewPermission(userUuid, "moderex.logs.commands")) {
                     allowedTypes.add("COMMAND");
                 }
                 // Ban logs
-                if (hasViewPermission(userUuid, "moderex.history.bans")) {
+                if (hasViewPermission(userUuid, "moderex.logs.bans")) {
                     allowedTypes.add("PUNISHMENT_BAN");
                     allowedTypes.add("PUNISHMENT_UNBAN");
                     allowedTypes.add("PUNISHMENT_IPBAN");
                 }
                 // Mute logs
-                if (hasViewPermission(userUuid, "moderex.history.mutes")) {
+                if (hasViewPermission(userUuid, "moderex.logs.mutes")) {
                     allowedTypes.add("PUNISHMENT_MUTE");
                     allowedTypes.add("PUNISHMENT_UNMUTE");
                     allowedTypes.add("PUNISHMENT_IPMUTE");
                 }
                 // Warn logs
-                if (hasViewPermission(userUuid, "moderex.history.warns")) {
+                if (hasViewPermission(userUuid, "moderex.logs.warns")) {
                     allowedTypes.add("PUNISHMENT_WARN");
                     allowedTypes.add("PUNISHMENT_UNWARN");
                 }
                 // Kick logs
-                if (hasViewPermission(userUuid, "moderex.history.kicks")) {
+                if (hasViewPermission(userUuid, "moderex.logs.kicks")) {
                     allowedTypes.add("PUNISHMENT_KICK");
                 }
                 // Automod logs
-                if (hasViewPermission(userUuid, "moderex.history.automod")) {
+                if (hasViewPermission(userUuid, "moderex.logs.automod")) {
                     allowedTypes.add("AUTOMOD_TRIGGER");
                     allowedTypes.add("ANTICHEAT_ALERT");
                 }
                 // Nickname logs
-                if (hasViewPermission(userUuid, "moderex.history.nick")) {
+                if (hasViewPermission(userUuid, "moderex.logs.nick")) {
                     allowedTypes.add("NICKNAME_CHANGE");
                     allowedTypes.add("USERNAME_CHANGE");
                 }
                 // Session logs
-                if (hasViewPermission(userUuid, "moderex.history.sessions")) {
+                if (hasViewPermission(userUuid, "moderex.logs.sessions")) {
                     allowedTypes.add("SESSION_JOIN");
                     allowedTypes.add("SESSION_QUIT");
                 }
@@ -3487,13 +3488,13 @@ public class HybridPanelServer implements com.blockforge.moderex.gateway.Gateway
                 List<String> allowedTypes = new java.util.ArrayList<>();
                 UUID userUuid = session.playerUuid;
 
-                if (hasViewPermission(userUuid, "moderex.history.chat")) {
+                if (hasViewPermission(userUuid, "moderex.logs.chat")) {
                     allowedTypes.add("CHAT");
                 }
-                if (hasViewPermission(userUuid, "moderex.history.commands")) {
+                if (hasViewPermission(userUuid, "moderex.logs.commands")) {
                     allowedTypes.add("COMMAND");
                 }
-                if (hasViewPermission(userUuid, "moderex.history.automod")) {
+                if (hasViewPermission(userUuid, "moderex.logs.automod")) {
                     allowedTypes.add("AUTOMOD_TRIGGER");
                     allowedTypes.add("ANTICHEAT_ALERT");
                 }
@@ -3606,6 +3607,254 @@ public class HybridPanelServer implements com.blockforge.moderex.gateway.Gateway
         response.addProperty("type", "EVIDENCE_ACTIVITY_LOGS_DATA");
         JsonObject data = new JsonObject();
         data.add("logs", new JsonArray());
+        response.add("data", data);
+        conn.send(GSON.toJson(response));
+    }
+
+    /**
+     * Send audit log (staff actions) to the web panel.
+     */
+    private void sendAuditLog(WebSocketConnection conn, JsonObject filters, WebPanelSession session) {
+        plugin.getServer().getScheduler().runTaskAsynchronously(plugin, () -> {
+            try {
+                if (plugin.getActivityLogManager() == null || !plugin.getActivityLogManager().isEnabled()) {
+                    sendEmptyAuditLog(conn);
+                    return;
+                }
+
+                // Build list of allowed staff action types based on permissions
+                List<String> allowedTypes = new java.util.ArrayList<>();
+                UUID userUuid = session.playerUuid;
+
+                // Automod changes
+                if (hasViewPermission(userUuid, "moderex.stafflogs.automod")) {
+                    allowedTypes.add("STAFF_AUTOMOD_CREATE");
+                    allowedTypes.add("STAFF_AUTOMOD_UPDATE");
+                    allowedTypes.add("STAFF_AUTOMOD_DELETE");
+                }
+
+                // Template changes
+                if (hasViewPermission(userUuid, "moderex.stafflogs.templates")) {
+                    allowedTypes.add("STAFF_TEMPLATE_CREATE");
+                    allowedTypes.add("STAFF_TEMPLATE_UPDATE");
+                    allowedTypes.add("STAFF_TEMPLATE_DELETE");
+                }
+
+                // Config changes
+                if (hasViewPermission(userUuid, "moderex.stafflogs.config")) {
+                    allowedTypes.add("STAFF_CONFIG_MUTE");
+                    allowedTypes.add("STAFF_CONFIG_WARN");
+                    allowedTypes.add("STAFF_CONFIG_ANTICHEAT");
+                    allowedTypes.add("STAFF_CONFIG_ACTIVITYLOG");
+                    allowedTypes.add("STAFF_CONFIG_EVIDENCE");
+                }
+
+                // Rank changes
+                if (hasViewPermission(userUuid, "moderex.stafflogs.permissions")) {
+                    allowedTypes.add("STAFF_RANK_CREATE");
+                    allowedTypes.add("STAFF_RANK_DELETE");
+                    allowedTypes.add("STAFF_RANK_EDIT");
+                    allowedTypes.add("STAFF_PERMISSION_GRANT");
+                    allowedTypes.add("STAFF_PERMISSION_REVOKE");
+                    allowedTypes.add("STAFF_LUCKPERMS_SYNC");
+                }
+
+                // Punishment actions
+                if (hasViewPermission(userUuid, "moderex.stafflogs.punishments")) {
+                    allowedTypes.add("STAFF_PUNISHMENT");
+                    allowedTypes.add("STAFF_PARDON");
+                    allowedTypes.add("STAFF_WEBPANEL_PUNISHMENT");
+                    allowedTypes.add("STAFF_WEBPANEL_PARDON");
+                }
+
+                // Web panel and command actions
+                if (hasViewPermission(userUuid, "moderex.stafflogs.webpanel")) {
+                    allowedTypes.add("STAFF_WEBPANEL_CONFIG");
+                    allowedTypes.add("STAFF_WEBPANEL_WATCHLIST");
+                    allowedTypes.add("STAFF_WEBPANEL_CMDBLACKLIST");
+                }
+
+                if (hasViewPermission(userUuid, "moderex.stafflogs.commands")) {
+                    allowedTypes.add("STAFF_WATCHLIST_ADD");
+                    allowedTypes.add("STAFF_WATCHLIST_REMOVE");
+                    allowedTypes.add("STAFF_WATCHLIST_NOTE");
+                    allowedTypes.add("STAFF_CMD_BLACKLIST");
+                    allowedTypes.add("STAFF_CMD_UNBLACKLIST");
+                    allowedTypes.add("STAFF_DISGUISE_START");
+                    allowedTypes.add("STAFF_DISGUISE_END");
+                    allowedTypes.add("STAFF_VANISH_ENABLE");
+                    allowedTypes.add("STAFF_VANISH_DISABLE");
+                    allowedTypes.add("STAFF_REPLAY_START");
+                    allowedTypes.add("STAFF_REPLAY_STOP");
+                    allowedTypes.add("STAFF_SLOWMODE_UPDATE");
+                    allowedTypes.add("STAFF_CHAT_LOCK");
+                    allowedTypes.add("STAFF_LOCKDOWN");
+                    allowedTypes.add("STAFF_CLEAR_CHAT");
+                    allowedTypes.add("STAFF_KICK_ALL");
+                }
+
+                // If no permissions, return empty
+                if (allowedTypes.isEmpty()) {
+                    sendEmptyAuditLog(conn);
+                    return;
+                }
+
+                // Parse filters
+                int page = filters.has("page") ? filters.get("page").getAsInt() : 1;
+                int limit = filters.has("limit") ? filters.get("limit").getAsInt() : 100;
+                String staffFilter = filters.has("staff") ? filters.get("staff").getAsString().trim() : "";
+                String typeFilter = filters.has("typeFilter") ? filters.get("typeFilter").getAsString().trim() : "all";
+                String beforeDate = filters.has("before") && !filters.get("before").isJsonNull() ? filters.get("before").getAsString().trim() : "";
+                String afterDate = filters.has("after") && !filters.get("after").isJsonNull() ? filters.get("after").getAsString().trim() : "";
+                int offset = (page - 1) * limit;
+
+                // Filter by type if specified
+                List<String> typesToQuery = new java.util.ArrayList<>(allowedTypes);
+                if (!typeFilter.equals("all")) {
+                    List<String> filteredTypes = new java.util.ArrayList<>();
+                    switch (typeFilter) {
+                        case "automod" -> {
+                            filteredTypes.add("STAFF_AUTOMOD_CREATE");
+                            filteredTypes.add("STAFF_AUTOMOD_UPDATE");
+                            filteredTypes.add("STAFF_AUTOMOD_DELETE");
+                        }
+                        case "templates" -> {
+                            filteredTypes.add("STAFF_TEMPLATE_CREATE");
+                            filteredTypes.add("STAFF_TEMPLATE_UPDATE");
+                            filteredTypes.add("STAFF_TEMPLATE_DELETE");
+                        }
+                        case "config" -> {
+                            filteredTypes.add("STAFF_CONFIG_MUTE");
+                            filteredTypes.add("STAFF_CONFIG_WARN");
+                            filteredTypes.add("STAFF_CONFIG_ANTICHEAT");
+                            filteredTypes.add("STAFF_CONFIG_ACTIVITYLOG");
+                            filteredTypes.add("STAFF_CONFIG_EVIDENCE");
+                        }
+                        case "punishments" -> {
+                            filteredTypes.add("STAFF_PUNISHMENT");
+                            filteredTypes.add("STAFF_PARDON");
+                            filteredTypes.add("STAFF_WEBPANEL_PUNISHMENT");
+                            filteredTypes.add("STAFF_WEBPANEL_PARDON");
+                        }
+                        case "permissions", "ranks" -> {
+                            filteredTypes.add("STAFF_RANK_CREATE");
+                            filteredTypes.add("STAFF_RANK_DELETE");
+                            filteredTypes.add("STAFF_RANK_EDIT");
+                            filteredTypes.add("STAFF_PERMISSION_GRANT");
+                            filteredTypes.add("STAFF_PERMISSION_REVOKE");
+                        }
+                    }
+                    // Only include types user has permission for
+                    typesToQuery.retainAll(filteredTypes);
+                }
+
+                if (typesToQuery.isEmpty()) {
+                    sendEmptyAuditLog(conn);
+                    return;
+                }
+
+                // Build WHERE clause
+                StringBuilder whereClause = new StringBuilder("WHERE type IN (");
+                List<Object> params = new java.util.ArrayList<>();
+                for (int i = 0; i < typesToQuery.size(); i++) {
+                    whereClause.append(i > 0 ? ",?" : "?");
+                    params.add(typesToQuery.get(i));
+                }
+                whereClause.append(")");
+
+                // Add staff filter
+                if (!staffFilter.isEmpty()) {
+                    whereClause.append(" AND player_name LIKE ?");
+                    params.add("%" + staffFilter + "%");
+                }
+
+                // Add before date filter
+                if (!beforeDate.isEmpty()) {
+                    try {
+                        java.time.LocalDate date = java.time.LocalDate.parse(beforeDate);
+                        long beforeTimestamp = date.plusDays(1).atStartOfDay(java.time.ZoneId.systemDefault()).toInstant().toEpochMilli();
+                        whereClause.append(" AND timestamp < ?");
+                        params.add(beforeTimestamp);
+                    } catch (Exception e) {
+                        plugin.logDebug("[AuditLog] Invalid before date: " + beforeDate);
+                    }
+                }
+
+                // Add after date filter
+                if (!afterDate.isEmpty()) {
+                    try {
+                        java.time.LocalDate date = java.time.LocalDate.parse(afterDate);
+                        long afterTimestamp = date.atStartOfDay(java.time.ZoneId.systemDefault()).toInstant().toEpochMilli();
+                        whereClause.append(" AND timestamp >= ?");
+                        params.add(afterTimestamp);
+                    } catch (Exception e) {
+                        plugin.logDebug("[AuditLog] Invalid after date: " + afterDate);
+                    }
+                }
+
+                // Get total count
+                String countQuery = "SELECT COUNT(*) as count FROM moderex_activity_log " + whereClause;
+                int total = plugin.getDatabaseManager().query(countQuery, rs -> {
+                    if (rs.next()) {
+                        return rs.getInt("count");
+                    }
+                    return 0;
+                }, params.toArray());
+
+                // Get paginated data
+                String dataQuery = "SELECT * FROM moderex_activity_log " + whereClause +
+                        " ORDER BY timestamp DESC LIMIT ? OFFSET ?";
+                params.add(limit);
+                params.add(offset);
+
+                List<JsonObject> logs = plugin.getDatabaseManager().query(dataQuery, rs -> {
+                    List<JsonObject> list = new java.util.ArrayList<>();
+                    while (rs.next()) {
+                        JsonObject log = new JsonObject();
+                        log.addProperty("id", rs.getLong("id"));
+                        log.addProperty("timestamp", rs.getLong("timestamp"));
+                        log.addProperty("staffUuid", rs.getString("player_uuid"));
+                        log.addProperty("staffName", rs.getString("player_name"));
+                        log.addProperty("actionType", rs.getString("type"));
+                        log.addProperty("content", rs.getString("content"));
+                        log.addProperty("extra", rs.getString("extra"));
+                        log.addProperty("server", rs.getString("server"));
+                        list.add(log);
+                    }
+                    return list;
+                }, params.toArray());
+
+                // Build response
+                JsonObject response = new JsonObject();
+                response.addProperty("type", "AUDIT_LOG_DATA");
+
+                JsonObject data = new JsonObject();
+                JsonArray logsArray = new JsonArray();
+                for (JsonObject log : logs) {
+                    logsArray.add(log);
+                }
+                data.add("logs", logsArray);
+                data.addProperty("total", total);
+                data.addProperty("page", page);
+                data.addProperty("totalPages", (int) Math.ceil((double) total / limit));
+                response.add("data", data);
+                conn.send(GSON.toJson(response));
+
+            } catch (Exception e) {
+                plugin.logError("Failed to fetch audit log", e);
+                sendEmptyAuditLog(conn);
+            }
+        });
+    }
+
+    private void sendEmptyAuditLog(WebSocketConnection conn) {
+        JsonObject response = new JsonObject();
+        response.addProperty("type", "AUDIT_LOG_DATA");
+        JsonObject data = new JsonObject();
+        data.add("logs", new JsonArray());
+        data.addProperty("total", 0);
+        data.addProperty("page", 1);
+        data.addProperty("totalPages", 0);
         response.add("data", data);
         conn.send(GSON.toJson(response));
     }
@@ -3900,6 +4149,15 @@ public class HybridPanelServer implements com.blockforge.moderex.gateway.Gateway
                 throw saveEx;
             }
 
+            // Log activity
+            plugin.getActivityLogManager().log(
+                session.playerUuid,
+                session.playerName,
+                ActivityType.STAFF_AUTOMOD_UPDATE,
+                "Updated automod rule: " + rule.getName(),
+                "id=" + rule.getId()
+            );
+
             // Broadcast the updated rule to ALL connected clients (include who updated it so they can skip toast)
             broadcastSingleRuleUpdate(rule, session.playerName);
 
@@ -3953,6 +4211,15 @@ public class HybridPanelServer implements com.blockforge.moderex.gateway.Gateway
             // Save rule to database
             plugin.getAutomodManager().saveRule(rule);
 
+            // Log activity
+            plugin.getActivityLogManager().log(
+                session.playerUuid,
+                session.playerName,
+                ActivityType.STAFF_AUTOMOD_CREATE,
+                "Created automod rule: " + name,
+                "id=" + rule.getId()
+            );
+
             // Broadcast the new rule creation to ALL connected clients (include who created it so they can skip toast)
             broadcastRuleCreated(rule, session.playerName);
 
@@ -3990,6 +4257,15 @@ public class HybridPanelServer implements com.blockforge.moderex.gateway.Gateway
 
             // Delete rule from database
             plugin.getAutomodManager().deleteRule(ruleId);
+
+            // Log activity
+            plugin.getActivityLogManager().log(
+                session.playerUuid,
+                session.playerName,
+                ActivityType.STAFF_AUTOMOD_DELETE,
+                "Deleted automod rule: " + rule.getName(),
+                "id=" + ruleId
+            );
 
             // Broadcast deletion to ALL connected clients (include who deleted it so they can skip toast)
             broadcastRuleDeleted(ruleId, session.playerName);
@@ -4818,6 +5094,7 @@ public class HybridPanelServer implements com.blockforge.moderex.gateway.Gateway
         settings.addProperty("language", config.getLanguage());
         settings.addProperty("chatEnabled", config.isChatEnabled());
         settings.addProperty("defaultSlowmode", config.getDefaultSlowmodeSeconds());
+        settings.addProperty("debugMode", plugin.getConfig().getBoolean("general.debug", false));
         response.add("data", settings);
         conn.send(GSON.toJson(response));
     }
@@ -4976,16 +5253,16 @@ public class HybridPanelServer implements com.blockforge.moderex.gateway.Gateway
             "moderex.flag.skip",
 
             // History permissions
-            "moderex.history.*",
-            "moderex.history.warns",
-            "moderex.history.kicks",
-            "moderex.history.bans",
-            "moderex.history.mutes",
-            "moderex.history.pardons",
-            "moderex.history.nick",
-            "moderex.history.automod",
-            "moderex.history.commands",
-            "moderex.history.chat",
+            "moderex.logs.*",
+            "moderex.logs.warns",
+            "moderex.logs.kicks",
+            "moderex.logs.bans",
+            "moderex.logs.mutes",
+            "moderex.logs.pardons",
+            "moderex.logs.nick",
+            "moderex.logs.automod",
+            "moderex.logs.commands",
+            "moderex.logs.chat",
 
             // Player info permissions
             "moderex.info.ip",
@@ -5010,14 +5287,14 @@ public class HybridPanelServer implements com.blockforge.moderex.gateway.Gateway
             // Watchlist permissions
             "moderex.watchlist.add",
             "moderex.watchlist.remove",
-            "moderex.history.watchlist.*",
-            "moderex.history.watchlist.warns",
-            "moderex.history.watchlist.kicks",
-            "moderex.history.watchlist.bans",
-            "moderex.history.watchlist.mutes",
-            "moderex.history.watchlist.automod",
-            "moderex.history.watchlist.commands",
-            "moderex.history.watchlist.chat",
+            "moderex.logs.watchlist.*",
+            "moderex.logs.watchlist.warns",
+            "moderex.logs.watchlist.kicks",
+            "moderex.logs.watchlist.bans",
+            "moderex.logs.watchlist.mutes",
+            "moderex.logs.watchlist.automod",
+            "moderex.logs.watchlist.commands",
+            "moderex.logs.watchlist.chat",
 
             // Command blacklist permissions
             "moderex.cmdblacklist",
@@ -5144,7 +5421,7 @@ public class HybridPanelServer implements com.blockforge.moderex.gateway.Gateway
     /**
      * Check if user has a specific permission for viewing data.
      * Used to filter data sent to the frontend based on permissions.
-     * Supports both new permissions (moderex.info.*, moderex.history.*) and wildcards.
+     * Supports both new permissions (moderex.info.*, moderex.logs.*) and wildcards.
      */
     private boolean hasViewPermission(UUID uuid, String permission) {
         if (uuid == null) return false;
@@ -5227,6 +5504,15 @@ public class HybridPanelServer implements com.blockforge.moderex.gateway.Gateway
 
             com.blockforge.moderex.permissions.Rank rank = pm.createRank(name, displayName, prefix, suffix, weight, isDefault);
 
+            // Log activity
+            plugin.getActivityLogManager().log(
+                session.playerUuid,
+                session.playerName,
+                ActivityType.STAFF_RANK_CREATE,
+                "Created rank: " + name,
+                "displayName=" + displayName + ", weight=" + weight
+            );
+
             JsonObject response = new JsonObject();
             response.addProperty("type", "RANK_CREATED");
             response.add("rank", pm.rankToJson(rank));
@@ -5254,6 +5540,16 @@ public class HybridPanelServer implements com.blockforge.moderex.gateway.Gateway
 
             pm.updateRank(id, displayName, prefix, suffix, weight, isDefault);
 
+            // Log activity
+            com.blockforge.moderex.permissions.Rank updatedRank = pm.getRank(id);
+            plugin.getActivityLogManager().log(
+                session.playerUuid,
+                session.playerName,
+                ActivityType.STAFF_RANK_EDIT,
+                "Updated rank: " + (updatedRank != null ? updatedRank.getName() : String.valueOf(id)),
+                "id=" + id
+            );
+
             JsonObject response = new JsonObject();
             response.addProperty("type", "RANK_UPDATED");
             response.add("rank", pm.rankToJson(pm.getRank(id)));
@@ -5268,12 +5564,23 @@ public class HybridPanelServer implements com.blockforge.moderex.gateway.Gateway
         try {
             var pm = plugin.getPermissionManager();
             int id = data.has("id") ? data.get("id").getAsInt() : -1;
-            if (id < 0 || pm.getRank(id) == null) {
+            com.blockforge.moderex.permissions.Rank rank = pm.getRank(id);
+            if (id < 0 || rank == null) {
                 sendError(conn, "RANK_NOT_FOUND", "Rank not found");
                 return;
             }
 
+            String rankName = rank.getName();
             pm.deleteRank(id);
+
+            // Log activity
+            plugin.getActivityLogManager().log(
+                session.playerUuid,
+                session.playerName,
+                ActivityType.STAFF_RANK_DELETE,
+                "Deleted rank: " + rankName,
+                "id=" + id
+            );
 
             JsonObject response = new JsonObject();
             response.addProperty("type", "RANK_DELETED");
@@ -5320,6 +5627,16 @@ public class HybridPanelServer implements com.blockforge.moderex.gateway.Gateway
 
             pm.setRankPermission(rankId, permission, granted);
 
+            // Log activity
+            com.blockforge.moderex.permissions.Rank rank = pm.getRank(rankId);
+            plugin.getActivityLogManager().log(
+                session.playerUuid,
+                session.playerName,
+                granted ? ActivityType.STAFF_PERMISSION_GRANT : ActivityType.STAFF_PERMISSION_REVOKE,
+                (granted ? "Granted" : "Revoked") + " permission for rank " + (rank != null ? rank.getName() : String.valueOf(rankId)),
+                "permission=" + permission + ", rankId=" + rankId
+            );
+
             JsonObject response = new JsonObject();
             response.addProperty("type", "RANK_PERMISSION_SET");
             response.add("rank", pm.rankToJson(pm.getRank(rankId)));
@@ -5337,6 +5654,16 @@ public class HybridPanelServer implements com.blockforge.moderex.gateway.Gateway
             String permission = data.has("permission") ? data.get("permission").getAsString() : "";
 
             pm.removeRankPermission(rankId, permission);
+
+            // Log activity
+            com.blockforge.moderex.permissions.Rank rank = pm.getRank(rankId);
+            plugin.getActivityLogManager().log(
+                session.playerUuid,
+                session.playerName,
+                ActivityType.STAFF_PERMISSION_REVOKE,
+                "Removed permission from rank " + (rank != null ? rank.getName() : String.valueOf(rankId)),
+                "permission=" + permission + ", rankId=" + rankId
+            );
 
             JsonObject response = new JsonObject();
             response.addProperty("type", "RANK_PERMISSION_REMOVED");
@@ -5579,6 +5906,15 @@ public class HybridPanelServer implements com.blockforge.moderex.gateway.Gateway
 
             plugin.getTemplateManager().saveTemplate(template);
 
+            // Log activity
+            plugin.getActivityLogManager().log(
+                session.playerUuid,
+                session.playerName,
+                ActivityType.STAFF_TEMPLATE_CREATE,
+                "Created template: " + name,
+                "type=" + type + ", category=" + category
+            );
+
             // Broadcast update to all connected clients
             broadcastTemplates();
 
@@ -5626,6 +5962,15 @@ public class HybridPanelServer implements com.blockforge.moderex.gateway.Gateway
 
             plugin.getTemplateManager().saveTemplate(template);
 
+            // Log activity
+            plugin.getActivityLogManager().log(
+                session.playerUuid,
+                session.playerName,
+                ActivityType.STAFF_TEMPLATE_UPDATE,
+                "Updated template: " + template.getName(),
+                "id=" + id
+            );
+
             // Broadcast update to all connected clients
             broadcastTemplates();
 
@@ -5650,9 +5995,19 @@ public class HybridPanelServer implements com.blockforge.moderex.gateway.Gateway
 
         try {
             String id = data.get("id").getAsString();
+            com.blockforge.moderex.punishment.PunishmentTemplate template = plugin.getTemplateManager().getTemplate(id);
             boolean deleted = plugin.getTemplateManager().deleteTemplate(id);
 
             if (deleted) {
+                // Log activity
+                plugin.getActivityLogManager().log(
+                    session.playerUuid,
+                    session.playerName,
+                    ActivityType.STAFF_TEMPLATE_DELETE,
+                    "Deleted template: " + (template != null ? template.getName() : id),
+                    "id=" + id
+                );
+
                 // Broadcast update to all connected clients
                 broadcastTemplates();
 
@@ -5900,7 +6255,7 @@ public class HybridPanelServer implements com.blockforge.moderex.gateway.Gateway
                 "moderex.info.joindate", "moderex.info.time", "moderex.info.namehistory",
                 "moderex.check", "moderex.check.ip", "moderex.command.seen", "moderex.command.seen.ip",
                 "moderex.dupeip", "moderex.iphistory", "moderex.geoip",
-                "moderex.history", "moderex.staffhistory",
+                "moderex.logs", "moderex.staffhistory",
                 "moderex.checkban", "moderex.checkmute", "moderex.checkwarn",
                 "moderex.banlist", "moderex.mutelist", "moderex.warnlist",
                 "moderex.command.viewpunishment",
@@ -6832,6 +7187,16 @@ public class HybridPanelServer implements com.blockforge.moderex.gateway.Gateway
         if (data.has("staffCanSee")) settings.setMuteStaffCanSee(data.get("staffCanSee").getAsBoolean());
 
         plugin.saveConfig();
+
+        // Log activity
+        plugin.getActivityLogManager().log(
+            session.playerUuid,
+            session.playerName,
+            ActivityType.STAFF_CONFIG_MUTE,
+            "Updated mute settings",
+            null
+        );
+
         sendSuccess(conn, "Mute settings updated");
         broadcastServerSettings();
         plugin.getLogger().info("[WebPanel] " + session.playerName + " updated mute settings");
@@ -6887,6 +7252,16 @@ public class HybridPanelServer implements com.blockforge.moderex.gateway.Gateway
         }
 
         plugin.saveConfig();
+
+        // Log activity
+        plugin.getActivityLogManager().log(
+            session.playerUuid,
+            session.playerName,
+            ActivityType.STAFF_CONFIG_WARN,
+            "Updated warning settings",
+            null
+        );
+
         sendSuccess(conn, "Warning settings updated");
         broadcastServerSettings();
         plugin.getLogger().info("[WebPanel] " + session.playerName + " updated warning escalation settings");
@@ -6905,6 +7280,16 @@ public class HybridPanelServer implements com.blockforge.moderex.gateway.Gateway
         if (data.has("blockOriginalMessages")) settings.setAnticheatBlockOriginalMessages(data.get("blockOriginalMessages").getAsBoolean());
 
         plugin.saveConfig();
+
+        // Log activity
+        plugin.getActivityLogManager().log(
+            session.playerUuid,
+            session.playerName,
+            ActivityType.STAFF_CONFIG_ANTICHEAT,
+            "Updated anticheat settings",
+            null
+        );
+
         sendSuccess(conn, "Anticheat settings updated");
         broadcastServerSettings();
         plugin.getLogger().info("[WebPanel] " + session.playerName + " updated anticheat settings");
@@ -6943,6 +7328,16 @@ public class HybridPanelServer implements com.blockforge.moderex.gateway.Gateway
         if (data.has("retentionAnticheat")) settings.setRetentionAnticheat(data.get("retentionAnticheat").getAsLong());
 
         plugin.saveConfig();
+
+        // Log activity
+        plugin.getActivityLogManager().log(
+            session.playerUuid,
+            session.playerName,
+            ActivityType.STAFF_CONFIG_ACTIVITYLOG,
+            "Updated activity log settings",
+            null
+        );
+
         sendSuccess(conn, "Activity log settings updated");
         broadcastServerSettings();
         plugin.getLogger().info("[WebPanel] " + session.playerName + " updated activity log settings");
@@ -6962,6 +7357,16 @@ public class HybridPanelServer implements com.blockforge.moderex.gateway.Gateway
         if (data.has("requireEvidence")) settings.setEvidenceRequireEvidence(data.get("requireEvidence").getAsBoolean());
 
         plugin.saveConfig();
+
+        // Log activity
+        plugin.getActivityLogManager().log(
+            session.playerUuid,
+            session.playerName,
+            ActivityType.STAFF_CONFIG_EVIDENCE,
+            "Updated evidence settings",
+            null
+        );
+
         sendSuccess(conn, "Evidence settings updated");
         broadcastServerSettings();
         plugin.getLogger().info("[WebPanel] " + session.playerName + " updated evidence settings");
@@ -9673,7 +10078,7 @@ public class HybridPanelServer implements com.blockforge.moderex.gateway.Gateway
 
             // Permissions
             {"Permissions", "ip-permission", "IP Permission", "Test moderex.check.ip hides IP info"},
-            {"Permissions", "history-ip-perm", "History IP Perm", "Test moderex.history.ip for IP details"},
+            {"Permissions", "history-ip-perm", "History IP Perm", "Test moderex.logs.ip for IP details"},
 
             // Database
             {"Database", "sqlite-verify", "SQLite Tables", "Verify all tables exist and have data"},
@@ -10476,6 +10881,7 @@ public class HybridPanelServer implements com.blockforge.moderex.gateway.Gateway
                 case "GET_AUTOMOD_LOGS" -> sendAutomodLogs(wrapper, data, session);
                 case "GET_ACTIVITY_LOGS" -> sendActivityLogs(wrapper, data, session);
                 case "GET_EVIDENCE_ACTIVITY_LOGS" -> sendEvidenceActivityLogs(wrapper, data, session);
+                case "GET_AUDIT_LOG" -> sendAuditLog(wrapper, data, session);
 
                 // Automod rules
                 case "GET_AUTOMOD_RULES" -> sendAutomodRules(wrapper);
