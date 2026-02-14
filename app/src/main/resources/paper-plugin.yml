@@ -119,7 +119,8 @@ permissions:
       - moderex.bypass.*
       - moderex.alerts.*
       - moderex.info.*
-      - moderex.history.*
+      - moderex.logs.*
+      - moderex.stafflogs.*
       - moderex.flag.*
       - moderex.automod.*
       - moderex.template.*
@@ -148,7 +149,7 @@ permissions:
       - moderex.unmute
       - moderex.unwarn
       - moderex.punish
-      - moderex.history
+      - moderex.logs
       - moderex.staffhistory
       - moderex.checkban
       - moderex.checkmute
@@ -310,86 +311,132 @@ permissions:
     description: View previous usernames
     default: op
 
-  # ==================== HISTORY PERMISSIONS ====================
-  moderex.history.*:
-    description: View all punishment and log history
+  # ==================== ACTIVITY LOG PERMISSIONS ====================
+  moderex.logs.*:
+    description: View all activity logs and punishment history
     default: op
     children:
-      - moderex.history.warns
-      - moderex.history.kicks
-      - moderex.history.bans
-      - moderex.history.mutes
-      - moderex.history.pardons
-      - moderex.history.nick
-      - moderex.history.automod
-      - moderex.history.commands
-      - moderex.history.chat
-      - moderex.history.sessions
+      - moderex.logs.warns
+      - moderex.logs.kicks
+      - moderex.logs.bans
+      - moderex.logs.mutes
+      - moderex.logs.pardons
+      - moderex.logs.nick
+      - moderex.logs.automod
+      - moderex.logs.commands
+      - moderex.logs.chat
+      - moderex.logs.sessions
 
-  moderex.history.warns:
-    description: View warning history
+  moderex.logs.warns:
+    description: View warning logs
     default: op
-  moderex.history.kicks:
-    description: View kick history
+  moderex.logs.kicks:
+    description: View kick logs
     default: op
-  moderex.history.bans:
-    description: View ban history
+  moderex.logs.bans:
+    description: View ban logs
     default: op
-  moderex.history.mutes:
-    description: View mute history
+  moderex.logs.mutes:
+    description: View mute logs
     default: op
-  moderex.history.pardons:
-    description: View pardon history
+  moderex.logs.pardons:
+    description: View pardon logs
     default: op
-  moderex.history.nick:
-    description: View nickname history
+  moderex.logs.nick:
+    description: View nickname logs
     default: op
-  moderex.history.automod:
+  moderex.logs.automod:
     description: View automod logs
     default: op
-  moderex.history.commands:
+  moderex.logs.commands:
     description: View command history
     default: op
-  moderex.history.chat:
+  moderex.logs.chat:
     description: View chat history
     default: op
-  moderex.history.sessions:
+  moderex.logs.sessions:
     description: View player session history
     default: op
 
-  # ==================== WATCHLIST HISTORY ====================
-  moderex.history.watchlist.*:
-    description: View watchlist player history
+  # ==================== WATCHLIST ACTIVITY LOGS ====================
+  moderex.logs.watchlist.*:
+    description: View watchlist player activity logs
     default: op
     children:
-      - moderex.history.watchlist.warns
-      - moderex.history.watchlist.kicks
-      - moderex.history.watchlist.bans
-      - moderex.history.watchlist.mutes
-      - moderex.history.watchlist.automod
-      - moderex.history.watchlist.commands
-      - moderex.history.watchlist.chat
+      - moderex.logs.watchlist.warns
+      - moderex.logs.watchlist.kicks
+      - moderex.logs.watchlist.bans
+      - moderex.logs.watchlist.mutes
+      - moderex.logs.watchlist.automod
+      - moderex.logs.watchlist.commands
+      - moderex.logs.watchlist.chat
 
-  moderex.history.watchlist.warns:
-    description: View watchlist player warning history
+  moderex.logs.watchlist.warns:
+    description: View watchlist player warning logs
     default: op
-  moderex.history.watchlist.kicks:
-    description: View watchlist player kick history
+  moderex.logs.watchlist.kicks:
+    description: View watchlist player kick logs
     default: op
-  moderex.history.watchlist.bans:
-    description: View watchlist player ban history
+  moderex.logs.watchlist.bans:
+    description: View watchlist player ban logs
     default: op
-  moderex.history.watchlist.mutes:
-    description: View watchlist player mute history
+  moderex.logs.watchlist.mutes:
+    description: View watchlist player mute logs
     default: op
-  moderex.history.watchlist.automod:
-    description: View watchlist player automod history
+  moderex.logs.watchlist.automod:
+    description: View watchlist player automod logs
     default: op
-  moderex.history.watchlist.commands:
-    description: View watchlist player command history
+  moderex.logs.watchlist.commands:
+    description: View watchlist player command logs
     default: op
-  moderex.history.watchlist.chat:
-    description: View watchlist player chat history
+  moderex.logs.watchlist.chat:
+    description: View watchlist player chat logs
+    default: op
+
+  # ==================== STAFF AUDIT LOG PERMISSIONS ====================
+  moderex.stafflogs.*:
+    description: View all staff action audit logs
+    default: op
+    children:
+      - moderex.stafflogs.automod
+      - moderex.stafflogs.templates
+      - moderex.stafflogs.config
+      - moderex.stafflogs.punishments
+      - moderex.stafflogs.permissions
+      - moderex.stafflogs.webpanel
+      - moderex.stafflogs.commands
+      - moderex.stafflogs.export
+
+  moderex.stafflogs.automod:
+    description: View automod rule creation/modification/deletion logs
+    default: op
+
+  moderex.stafflogs.templates:
+    description: View punishment template creation/modification/deletion logs
+    default: op
+
+  moderex.stafflogs.config:
+    description: View server configuration change logs
+    default: op
+
+  moderex.stafflogs.punishments:
+    description: View staff punishment action logs
+    default: op
+
+  moderex.stafflogs.permissions:
+    description: View rank and permission change logs
+    default: op
+
+  moderex.stafflogs.webpanel:
+    description: View web panel administrative action logs
+    default: op
+
+  moderex.stafflogs.commands:
+    description: View staff admin command execution logs
+    default: op
+
+  moderex.stafflogs.export:
+    description: Export audit logs to file
     default: op
 
   # ==================== AUTOMOD PERMISSIONS ====================
@@ -432,9 +479,9 @@ permissions:
     description: Check player warnings
     default: op
 
-  # ==================== HISTORY COMMAND PERMISSIONS ====================
-  moderex.history:
-    description: View punishment history
+  # ==================== ACTIVITY LOG COMMAND PERMISSIONS ====================
+  moderex.logs:
+    description: View punishment history and activity logs
     default: op
   moderex.staffhistory:
     description: View staff action history
