@@ -318,8 +318,12 @@ public class AIModerationManager {
 
         var ollamaClient = plugin.getOllamaClient();
         stats.addProperty("aiAvailable", ollamaClient != null && ollamaClient.isAvailable());
+        stats.addProperty("model", "ModereX AI");
         stats.addProperty("moderationCallsRemaining",
                 ollamaClient != null ? ollamaClient.getModerationCallsRemaining() : 0);
+        stats.addProperty("moderationCallsUsed",
+                ollamaClient != null ? 30 - ollamaClient.getModerationCallsRemaining() : 0);
+        stats.addProperty("moderationCallsMax", 30);
         status.add("stats", stats);
 
         return status;

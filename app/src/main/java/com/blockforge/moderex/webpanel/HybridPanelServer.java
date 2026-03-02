@@ -325,8 +325,18 @@ public class HybridPanelServer implements com.blockforge.moderex.gateway.Gateway
             return;
         }
 
-        String aiEndpoint = plugin.getConfigManager().getSettings().getAiEndpoint();
-        String aiApiKey = plugin.getConfigManager().getSettings().getAiApiKey();
+        // Derive gateway HTTP URL for AI proxy
+        String gatewayWsUrl = plugin.getConfigManager().getSettings().getGatewayUrl();
+        String serverId = plugin.getServerIdentity().getServerId();
+        String secret = plugin.getConfigManager().getSettings().getGatewaySecret();
+        if (gatewayWsUrl == null || serverId == null || secret == null ||
+                gatewayWsUrl.isEmpty() || serverId.isEmpty() || secret.isEmpty()) {
+            sendHttpError(out, 503, "AI unavailable: gateway not configured");
+            return;
+        }
+
+        String gatewayHttpUrl = deriveGatewayHttpUrl(gatewayWsUrl) + "/api/ai/chat";
+
         // Read request body
         int contentLength = 0;
         try {
@@ -347,16 +357,13 @@ public class HybridPanelServer implements com.blockforge.moderex.gateway.Gateway
         }
         String requestBody = new String(bodyBytes, StandardCharsets.UTF_8);
 
-        // Forward to AI API (Ollama)
+        // Forward to gateway AI proxy
         try {
-            URL url = new URL(aiEndpoint);
+            URL url = new URL(gatewayHttpUrl);
             HttpURLConnection conn = (HttpURLConnection) url.openConnection();
             conn.setRequestMethod("POST");
             conn.setRequestProperty("Content-Type", "application/json");
-            // Only add Authorization header if API key is provided
-            if (aiApiKey != null && !aiApiKey.isEmpty()) {
-                conn.setRequestProperty("Authorization", "Bearer " + aiApiKey);
-            }
+            conn.setRequestProperty("Authorization", "Server " + serverId + ":" + secret);
             conn.setDoOutput(true);
             conn.setConnectTimeout(30000);
             conn.setReadTimeout(60000);
@@ -373,16 +380,26 @@ public class HybridPanelServer implements com.blockforge.moderex.gateway.Gateway
             if (responseCode >= 200 && responseCode < 300) {
                 sendJsonResponse(out, 200, responseBody);
             } else {
-                // Return the actual error from the API for debugging
-                plugin.logDebug("AI API error " + responseCode + ": " + responseBody);
+                plugin.logDebug("AI gateway error " + responseCode + ": " + responseBody);
                 JsonObject errorResponse = new JsonObject();
-                errorResponse.addProperty("error", "AI API returned " + responseCode);
-                errorResponse.addProperty("details", responseBody);
+                errorResponse.addProperty("error", "AI service returned " + responseCode);
                 sendJsonResponse(out, responseCode, GSON.toJson(errorResponse));
             }
         } catch (Exception e) {
-            plugin.logDebug("AI API error: " + e.getMessage());
+            plugin.logDebug("AI gateway error: " + e.getMessage());
             sendHttpError(out, 502, "AI service unavailable");
+        }
+    }
+
+    private String deriveGatewayHttpUrl(String gatewayWsUrl) {
+        try {
+            java.net.URI uri = java.net.URI.create(gatewayWsUrl);
+            String scheme = "wss".equalsIgnoreCase(uri.getScheme()) ? "https" : "http";
+            int port = uri.getPort();
+            if (port == -1) return scheme + "://" + uri.getHost();
+            return scheme + "://" + uri.getHost() + ":" + port;
+        } catch (Exception e) {
+            return "https://gateway.moderex.net";
         }
     }
 
@@ -1438,7 +1455,6 @@ public class HybridPanelServer implements com.blockforge.moderex.gateway.Gateway
 
         // AI configuration
         config.addProperty("aiEnabled", plugin.getConfigManager().getSettings().isAiEnabled());
-        config.addProperty("aiModel", plugin.getConfigManager().getSettings().getAiModel());
 
         sendJson(out, config);
     }

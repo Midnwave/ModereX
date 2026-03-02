@@ -16,8 +16,9 @@ import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicInteger;
 
 /**
- * HTTP client for Ollama cloud API, used by both rules AI descriptions and AI moderation.
- * Each MC server calls Ollama directly (not through gateway).
+ * AI client that routes through the ModereX gateway.
+ * MC servers never talk to the AI provider directly — all requests go through
+ * the gateway's /api/ai/chat endpoint, which handles model selection and auth.
  */
 public class OllamaClient {
 
@@ -47,7 +48,7 @@ public class OllamaClient {
 
     public void start() {
         rateLimitResetScheduler = Executors.newSingleThreadScheduledExecutor(r -> {
-            Thread t = new Thread(r, "ModereX-OllamaRateReset");
+            Thread t = new Thread(r, "ModereX-AIRateReset");
             t.setDaemon(true);
             return t;
         });
@@ -86,7 +87,7 @@ public class OllamaClient {
         String userPrompt = "Rule: " + ruleTitle + "\nDescription: " + ruleDescription +
                 "\n\nWrite a detailed, player-friendly explanation of this rule.";
 
-        return callOllama(systemPrompt, userPrompt).thenApply(response -> {
+        return callAI(systemPrompt, userPrompt).thenApply(response -> {
             if (response != null) {
                 responseCache.put(cacheKey, new CachedResponse(response));
                 descriptionCallsThisMinute.incrementAndGet();
@@ -113,7 +114,7 @@ public class OllamaClient {
                 "text to " + targetLanguage + ". Keep the same meaning and tone. " +
                 "Only output the translated text, nothing else.";
 
-        return callOllama(systemPrompt, text).thenApply(response -> {
+        return callAI(systemPrompt, text).thenApply(response -> {
             if (response != null) {
                 responseCache.put(cacheKey, new CachedResponse(response));
                 descriptionCallsThisMinute.incrementAndGet();
@@ -137,7 +138,7 @@ public class OllamaClient {
                 "\"confidence\": 0.0-1.0, \"reason\": \"brief reason\", " +
                 "\"category\": \"category of violation or NONE\"}";
 
-        return callOllama(systemPrompt, userPrompt).thenApply(response -> {
+        return callAI(systemPrompt, userPrompt).thenApply(response -> {
             if (response == null) {
                 return ModerationResult.ALLOW_FALLBACK;
             }
@@ -173,7 +174,7 @@ public class OllamaClient {
                 "\"confidence\": 0.0-1.0, \"reason\": \"brief reason\", " +
                 "\"category\": \"category of violation or NONE\"}";
 
-        return callOllama(systemPrompt, userPrompt).thenApply(response -> {
+        return callAI(systemPrompt, userPrompt).thenApply(response -> {
             if (response == null) {
                 return ModerationResult.ALLOW_FALLBACK;
             }
@@ -181,14 +182,29 @@ public class OllamaClient {
         });
     }
 
-    private CompletableFuture<String> callOllama(String systemPrompt, String userPrompt) {
+    /**
+     * Call AI through the gateway's /api/ai/chat proxy endpoint.
+     * The gateway handles model selection and provider authentication.
+     */
+    private CompletableFuture<String> callAI(String systemPrompt, String userPrompt) {
         var settings = plugin.getConfigManager().getSettings();
-        String endpoint = settings.getAiEndpoint();
-        String model = settings.getAiModel();
 
-        JsonObject requestBody = new JsonObject();
-        requestBody.addProperty("model", model);
-        requestBody.addProperty("stream", false);
+        // Build the gateway AI endpoint URL from the gateway WebSocket URL
+        // wss://gateway.moderex.net/server -> https://gateway.moderex.net/api/ai/chat
+        String gatewayHttpUrl = deriveGatewayHttpUrl(settings.getGatewayUrl());
+        if (gatewayHttpUrl == null) {
+            plugin.getLogger().warning("Cannot derive gateway HTTP URL from: " + settings.getGatewayUrl());
+            return CompletableFuture.completedFuture(null);
+        }
+        String aiEndpoint = gatewayHttpUrl + "/api/ai/chat";
+
+        // Build server auth: "Server serverId:secret"
+        String serverId = plugin.getServerIdentity().getServerId();
+        String secret = settings.getGatewaySecret();
+        if (serverId == null || serverId.isEmpty() || secret == null || secret.isEmpty()) {
+            plugin.getLogger().warning("AI unavailable: server ID or gateway secret not configured");
+            return CompletableFuture.completedFuture(null);
+        }
 
         JsonArray messages = new JsonArray();
 
@@ -202,32 +218,30 @@ public class OllamaClient {
         userMsg.addProperty("content", userPrompt);
         messages.add(userMsg);
 
+        JsonObject requestBody = new JsonObject();
         requestBody.add("messages", messages);
 
         return CompletableFuture.supplyAsync(() -> {
             try {
-                HttpRequest.Builder reqBuilder = HttpRequest.newBuilder()
-                        .uri(URI.create(endpoint))
+                HttpRequest request = HttpRequest.newBuilder()
+                        .uri(URI.create(aiEndpoint))
                         .header("Content-Type", "application/json")
+                        .header("Authorization", "Server " + serverId + ":" + secret)
                         .timeout(Duration.ofSeconds(30))
-                        .POST(HttpRequest.BodyPublishers.ofString(GSON.toJson(requestBody)));
-
-                String apiKey = settings.getAiApiKey();
-                if (apiKey != null && !apiKey.isEmpty()) {
-                    reqBuilder.header("Authorization", "Bearer " + apiKey);
-                }
+                        .POST(HttpRequest.BodyPublishers.ofString(GSON.toJson(requestBody)))
+                        .build();
 
                 HttpResponse<String> response = httpClient.send(
-                        reqBuilder.build(), HttpResponse.BodyHandlers.ofString());
+                        request, HttpResponse.BodyHandlers.ofString());
 
                 if (response.statusCode() != 200) {
-                    plugin.getLogger().warning("Ollama API returned status " + response.statusCode());
+                    plugin.getLogger().warning("AI gateway returned status " + response.statusCode());
                     return null;
                 }
 
                 JsonObject responseJson = JsonParser.parseString(response.body()).getAsJsonObject();
 
-                // Handle Ollama chat API response format
+                // Handle Ollama chat API response format (gateway forwards as-is)
                 if (responseJson.has("message")) {
                     return responseJson.getAsJsonObject("message").get("content").getAsString().trim();
                 }
@@ -241,10 +255,30 @@ public class OllamaClient {
 
                 return null;
             } catch (Exception e) {
-                plugin.logError("Ollama API call failed", e);
+                plugin.logError("AI gateway call failed", e);
                 return null;
             }
         });
+    }
+
+    /**
+     * Derive the HTTP(S) base URL from the gateway WebSocket URL.
+     * wss://host/path -> https://host
+     * ws://host/path -> http://host
+     */
+    private String deriveGatewayHttpUrl(String gatewayWsUrl) {
+        if (gatewayWsUrl == null || gatewayWsUrl.isEmpty()) return null;
+        try {
+            URI uri = URI.create(gatewayWsUrl);
+            String scheme = "wss".equalsIgnoreCase(uri.getScheme()) ? "https" : "http";
+            int port = uri.getPort();
+            if (port == -1) {
+                return scheme + "://" + uri.getHost();
+            }
+            return scheme + "://" + uri.getHost() + ":" + port;
+        } catch (Exception e) {
+            return null;
+        }
     }
 
     private ModerationResult parseModerationResult(String response) {
@@ -287,9 +321,14 @@ public class OllamaClient {
     }
 
     public boolean isAvailable() {
-        return plugin.getConfigManager().getSettings().isAiEnabled() &&
-                plugin.getConfigManager().getSettings().getAiEndpoint() != null &&
-                !plugin.getConfigManager().getSettings().getAiEndpoint().isEmpty();
+        var settings = plugin.getConfigManager().getSettings();
+        String serverId = plugin.getServerIdentity().getServerId();
+        return settings.isAiEnabled() &&
+                settings.getGatewayUrl() != null &&
+                !settings.getGatewayUrl().isEmpty() &&
+                serverId != null && !serverId.isEmpty() &&
+                settings.getGatewaySecret() != null &&
+                !settings.getGatewaySecret().isEmpty();
     }
 
     public int getDescriptionCallsRemaining() {

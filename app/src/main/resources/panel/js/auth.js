@@ -267,7 +267,7 @@
       // Update AI config if available
       if (window.MX && window.MX.ai) {
         window.MX.ai.enabled = config.aiEnabled !== undefined ? config.aiEnabled : true;
-        window.MX.ai.model = config.aiModel || 'devstral-2-123b-cloud';
+        window.MX.ai.model = config.aiModel || 'ModereX AI';
       }
 
       // Hide server section since auto-detected

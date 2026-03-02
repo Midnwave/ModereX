@@ -155,11 +155,8 @@ public class ConfigManager {
         }
         settings.setWebPanelAuthToken(authToken);
 
-        // AI Assistant settings (added in v5)
+        // AI settings (AI is routed through the gateway)
         settings.setAiEnabled(config.getBoolean("webpanel.ai.enabled", true));
-        settings.setAiEndpoint(config.getString("webpanel.ai.endpoint", "http://localhost:11434/api/chat"));
-        settings.setAiModel(config.getString("webpanel.ai.model", "devstral-2-123b-cloud"));
-        settings.setAiApiKey(config.getString("webpanel.ai.api-key", ""));
 
         // Rank colors for web panel
         java.util.Map<String, String> rankColors = new java.util.HashMap<>();

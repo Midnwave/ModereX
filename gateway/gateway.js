@@ -1087,6 +1087,86 @@ const server = http.createServer((req, res) => {
         return;
     }
 
+    // POST /api/ai/chat — AI proxy for MC servers (routes to Ollama cloud)
+    if (url.pathname === '/api/ai/chat' && req.method === 'POST') {
+        readJsonBody(req, async (body) => {
+            // Authenticate: require server secret in Authorization header
+            const authHeader = req.headers['authorization'];
+            if (!authHeader || !authHeader.startsWith('Server ')) {
+                return jsonResponse(res, 401, { error: 'Server authentication required' });
+            }
+
+            const serverAuth = authHeader.substring(7); // "serverId:secret"
+            const colonIdx = serverAuth.indexOf(':');
+            if (colonIdx === -1) {
+                return jsonResponse(res, 401, { error: 'Invalid server auth format' });
+            }
+
+            const serverId = serverAuth.substring(0, colonIdx);
+            const secret = serverAuth.substring(colonIdx + 1);
+
+            // Verify server is registered
+            try {
+                const row = db.prepare('SELECT secret_hash FROM server_secrets WHERE server_id = ?').get(serverId.toLowerCase());
+                if (!row) {
+                    return jsonResponse(res, 401, { error: 'Unknown server' });
+                }
+                // Verify secret hash matches
+                const crypto = require('crypto');
+                const hash = crypto.createHash('sha256').update(secret).digest('hex');
+                if (hash !== row.secret_hash) {
+                    return jsonResponse(res, 401, { error: 'Invalid server secret' });
+                }
+            } catch (e) {
+                console.error('[AI] Auth error:', e.message);
+                return jsonResponse(res, 500, { error: 'Auth verification failed' });
+            }
+
+            // Forward to Ollama cloud
+            if (!body || !body.messages || !Array.isArray(body.messages)) {
+                return jsonResponse(res, 400, { error: 'Invalid request: messages array required' });
+            }
+
+            try {
+                const ollamaEndpoint = process.env.OLLAMA_ENDPOINT || 'https://ollama.com/api/chat';
+                const ollamaModel = process.env.OLLAMA_MODEL || 'nemotron-3-nano:30b-cloud';
+                const ollamaApiKey = process.env.OLLAMA_API_KEY || '';
+
+                const requestBody = JSON.stringify({
+                    model: body.model || ollamaModel,
+                    messages: body.messages,
+                    stream: false
+                });
+
+                const headers = { 'Content-Type': 'application/json' };
+                if (ollamaApiKey) {
+                    headers['Authorization'] = `Bearer ${ollamaApiKey}`;
+                }
+
+                const fetch = globalThis.fetch || require('node-fetch');
+                const aiRes = await fetch(ollamaEndpoint, {
+                    method: 'POST',
+                    headers,
+                    body: requestBody,
+                    signal: AbortSignal.timeout(30000)
+                });
+
+                if (!aiRes.ok) {
+                    const errText = await aiRes.text();
+                    console.error(`[AI] Ollama returned ${aiRes.status}: ${errText.substring(0, 200)}`);
+                    return jsonResponse(res, 502, { error: 'AI service unavailable' });
+                }
+
+                const aiData = await aiRes.json();
+                jsonResponse(res, 200, aiData);
+            } catch (e) {
+                console.error('[AI] Proxy error:', e.message);
+                jsonResponse(res, 502, { error: 'AI service error' });
+            }
+        });
+        return;
+    }
+
     // Download licensed JAR files (admin-only, uses secret token in query)
     const downloadMatch = url.pathname.match(/^\/download\/(.+\.jar)$/);
     if (downloadMatch) {

@@ -25,11 +25,8 @@ public class Settings {
     private String webPanelServerName = "My Server"; // Server name shown in panel
     private String webPanelAuthToken = "";
 
-    // AI Assistant settings
+    // AI settings (AI is routed through the gateway — no provider config needed here)
     private boolean aiEnabled = true;
-    private String aiEndpoint = "http://localhost:11434/api/chat";
-    private String aiModel = "devstral-2-123b-cloud";
-    private String aiApiKey = "";
 
     // Proxy settings
     private boolean proxyEnabled = false;
@@ -471,30 +468,6 @@ public class Settings {
 
     public void setAiEnabled(boolean aiEnabled) {
         this.aiEnabled = aiEnabled;
-    }
-
-    public String getAiEndpoint() {
-        return aiEndpoint;
-    }
-
-    public void setAiEndpoint(String aiEndpoint) {
-        this.aiEndpoint = aiEndpoint;
-    }
-
-    public String getAiModel() {
-        return aiModel;
-    }
-
-    public void setAiModel(String aiModel) {
-        this.aiModel = aiModel;
-    }
-
-    public String getAiApiKey() {
-        return aiApiKey;
-    }
-
-    public void setAiApiKey(String aiApiKey) {
-        this.aiApiKey = aiApiKey;
     }
 
     public boolean isProxyEnabled() {
