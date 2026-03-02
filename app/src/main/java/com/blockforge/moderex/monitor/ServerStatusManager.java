@@ -7,9 +7,13 @@ import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
 import org.bukkit.Bukkit;
 import org.bukkit.Chunk;
+import org.bukkit.Material;
 import org.bukkit.World;
+import org.bukkit.block.Block;
+import org.bukkit.block.BlockFace;
 import org.bukkit.block.BlockState;
 import org.bukkit.entity.Entity;
+import org.bukkit.entity.EntityType;
 import org.bukkit.entity.Player;
 import org.bukkit.scheduler.BukkitTask;
 
@@ -32,6 +36,11 @@ public class ServerStatusManager {
     private long lastTickTime = System.currentTimeMillis();
     private double currentTps = 20.0;
     private double averageTps = 20.0;
+
+    // MSPT tracking (milliseconds per tick)
+    private double currentMspt = 50.0;
+    private final LinkedList<Double> msptHistory = new LinkedList<>();
+    private static final int MAX_MSPT_HISTORY = 60;
 
     // Performance data
     private double cpuUsage = 0.0;
@@ -109,7 +118,9 @@ public class ServerStatusManager {
 
         // Calculate TPS based on elapsed time
         if (elapsed > 0) {
-            double tickTps = 1000.0 / elapsed;
+            // Track MSPT (milliseconds per tick)
+            currentMspt = elapsed;
+
             tpsHistory.addLast(now);
 
             // Keep only last 20 seconds of history
@@ -158,12 +169,17 @@ public class ServerStatusManager {
             averageTps = Math.min(20.0, count / 5.0);
         }
 
-        // Calculate health score (0-100)
-        double tpsFactor = Math.min(1.0, currentTps / 20.0);
+        // Track MSPT history (1 sample per second from analyzePerformance)
+        msptHistory.addLast(currentMspt);
+        while (msptHistory.size() > MAX_MSPT_HISTORY) msptHistory.removeFirst();
+
+        // Calculate health score (0-100) with exponential TPS curve for stricter scoring
+        double tpsNormalized = Math.min(1.0, currentTps / 20.0);
+        double tpsFactor = Math.pow(tpsNormalized, 2.5); // Exponential drop-off: 15 TPS = 0.41, 10 TPS = 0.18
         double memFactor = maxMemory > 0 ? 1.0 - ((double) usedMemory / maxMemory) : 1.0;
         double entityFactor = entityCount < 5000 ? 1.0 : Math.max(0.0, 1.0 - (entityCount - 5000) / 15000.0);
         double chunkFactor = loadedChunks < 1000 ? 1.0 : Math.max(0.0, 1.0 - (loadedChunks - 1000) / 9000.0);
-        healthScore = (int) Math.round(tpsFactor * 40 + memFactor * 30 + entityFactor * 20 + chunkFactor * 10);
+        healthScore = (int) Math.round(tpsFactor * 50 + memFactor * 25 + entityFactor * 15 + chunkFactor * 10);
 
         // Track GC metrics
         long now = System.currentTimeMillis();
@@ -215,32 +231,10 @@ public class ServerStatusManager {
 
         for (World world : Bukkit.getWorlds()) {
             for (Chunk chunk : world.getLoadedChunks()) {
-                int entities = chunk.getEntities().length;
-                int tileEntities = chunk.getTileEntities().length;
-
-                boolean isLaggy = false;
-                List<String> reasons = new ArrayList<>();
-
-                if (entities >= chunkEntityThreshold) {
-                    isLaggy = true;
-                    reasons.add(entities + " entities");
-                }
-
-                if (tileEntities >= chunkTileEntityThreshold) {
-                    isLaggy = true;
-                    reasons.add(tileEntities + " tile entities");
-                }
-
-                if (isLaggy) {
+                LaggyChunk analysis = analyzeChunkDetail(chunk, world.getName());
+                if (analysis != null) {
                     String key = world.getName() + ":" + chunk.getX() + ":" + chunk.getZ();
-                    laggyChunks.put(key, new LaggyChunk(
-                            world.getName(),
-                            chunk.getX(),
-                            chunk.getZ(),
-                            entities,
-                            tileEntities,
-                            String.join(", ", reasons)
-                    ));
+                    laggyChunks.put(key, analysis);
                 }
             }
         }
@@ -347,9 +341,12 @@ public class ServerStatusManager {
     public JsonObject getStatusJson() {
         JsonObject status = new JsonObject();
 
-        // TPS
+        // TPS & MSPT
         status.addProperty("tps", Math.round(currentTps * 10) / 10.0);
         status.addProperty("averageTps", Math.round(averageTps * 10) / 10.0);
+        status.addProperty("mspt", Math.round(currentMspt * 10) / 10.0);
+        double avgMspt = msptHistory.stream().mapToDouble(d -> d).average().orElse(50.0);
+        status.addProperty("averageMspt", Math.round(avgMspt * 10) / 10.0);
 
         // Memory
         status.addProperty("usedMemory", usedMemory / (1024 * 1024)); // MB
@@ -462,7 +459,7 @@ public class ServerStatusManager {
         }
         status.add("worlds", worlds);
 
-        // Laggy chunks
+        // Laggy chunks with detailed analysis
         JsonArray laggy = new JsonArray();
         for (LaggyChunk chunk : laggyChunks.values()) {
             JsonObject c = new JsonObject();
@@ -472,6 +469,24 @@ public class ServerStatusManager {
             c.addProperty("entities", chunk.entities);
             c.addProperty("tileEntities", chunk.tileEntities);
             c.addProperty("reason", chunk.reason);
+            c.addProperty("redstoneScore", chunk.redstoneScore);
+            c.addProperty("hopperChainLength", chunk.hopperChainLength);
+            c.addProperty("fluidFlows", chunk.fluidFlows);
+
+            // Entity type breakdown
+            if (chunk.entityTypeBreakdown != null) {
+                JsonObject entityBreakdown = new JsonObject();
+                chunk.entityTypeBreakdown.forEach(entityBreakdown::addProperty);
+                c.add("entityTypeBreakdown", entityBreakdown);
+            }
+
+            // Tile entity type breakdown
+            if (chunk.tileEntityTypeBreakdown != null) {
+                JsonObject tileBreakdown = new JsonObject();
+                chunk.tileEntityTypeBreakdown.forEach(tileBreakdown::addProperty);
+                c.add("tileEntityTypeBreakdown", tileBreakdown);
+            }
+
             laggy.add(c);
         }
         status.add("laggyChunks", laggy);
@@ -522,19 +537,136 @@ public class ServerStatusManager {
     }
 
     public double getCurrentTps() { return currentTps; }
+    public double getCurrentMspt() { return currentMspt; }
+    public double getAverageMspt() { return msptHistory.stream().mapToDouble(d -> d).average().orElse(50.0); }
     public double getCpuUsage() { return cpuUsage; }
     public long getUsedMemory() { return usedMemory; }
     public long getMaxMemory() { return maxMemory; }
     public int getHealthScore() { return healthScore; }
+    public int getEntityCount() { return entityCount; }
+    public int getLoadedChunks() { return loadedChunks; }
 
     public void setTpsWarningThreshold(double val) { this.tpsWarningThreshold = val; }
     public void setTpsCriticalThreshold(double val) { this.tpsCriticalThreshold = val; }
     public void setTpsEmergencyThreshold(double val) { this.tpsEmergencyThreshold = val; }
 
     // Inner classes
-    record LaggyChunk(String world, int x, int z, int entities, int tileEntities, String reason) {}
+    record LaggyChunk(String world, int x, int z, int entities, int tileEntities, String reason,
+                      Map<String, Integer> entityTypeBreakdown, Map<String, Integer> tileEntityTypeBreakdown,
+                      int redstoneScore, int hopperChainLength, int fluidFlows) {}
     record PlayerLagInfo(UUID playerUuid, String playerName, int nearbyEntities, int nearbyRedstone, boolean potentialLagMachine) {}
     record LagAlert(String type, String message, UUID playerUuid, long timestamp) {}
     record GcSnapshot(long timestamp, long totalCollections, long totalTimeMs, long pauseMs) {}
     record MemorySnapshot(long timestamp, long usedMb, long maxMb, long edenMb, long oldGenMb) {}
+
+    /**
+     * Analyze a single chunk in detail for the expanded chunk lag viewer.
+     */
+    private LaggyChunk analyzeChunkDetail(Chunk chunk, String worldName) {
+        Entity[] entities = chunk.getEntities();
+        BlockState[] tileEntities = chunk.getTileEntities();
+
+        // Entity type breakdown
+        Map<String, Integer> entityTypes = new HashMap<>();
+        for (Entity entity : entities) {
+            entityTypes.merge(entity.getType().name(), 1, Integer::sum);
+        }
+
+        // Tile entity type breakdown
+        Map<String, Integer> tileTypes = new HashMap<>();
+        for (BlockState tile : tileEntities) {
+            tileTypes.merge(tile.getType().name(), 1, Integer::sum);
+        }
+
+        // Redstone complexity score
+        int redstoneScore = 0;
+        for (BlockState tile : tileEntities) {
+            if (isRedstoneTile(tile)) {
+                redstoneScore++;
+            }
+        }
+
+        // Hopper chain detection - find longest chain
+        int maxHopperChain = 0;
+        Set<String> visitedHoppers = new HashSet<>();
+        for (BlockState tile : tileEntities) {
+            if (tile.getType() == Material.HOPPER) {
+                String key = tile.getX() + ":" + tile.getY() + ":" + tile.getZ();
+                if (!visitedHoppers.contains(key)) {
+                    int chainLen = traceHopperChain(tile.getBlock(), visitedHoppers);
+                    maxHopperChain = Math.max(maxHopperChain, chainLen);
+                }
+            }
+        }
+
+        // Fluid flow detection
+        int fluidFlows = 0;
+        // Check a sample of blocks for flowing fluids (full scan would be too expensive)
+        World world = chunk.getWorld();
+        int baseX = chunk.getX() << 4;
+        int baseZ = chunk.getZ() << 4;
+        for (int x = 0; x < 16; x += 2) {
+            for (int z = 0; z < 16; z += 2) {
+                for (int y = world.getMinHeight(); y < world.getMaxHeight(); y += 4) {
+                    Block block = chunk.getBlock(x, y, z);
+                    Material type = block.getType();
+                    if (type == Material.WATER || type == Material.LAVA) {
+                        // Check if it's a flowing (non-source) block via block data level
+                        if (block.getBlockData() instanceof org.bukkit.block.data.Levelled levelled) {
+                            if (levelled.getLevel() > 0) {
+                                fluidFlows++;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        // Build reason string
+        List<String> reasons = new ArrayList<>();
+        if (entities.length >= chunkEntityThreshold) reasons.add(entities.length + " entities");
+        if (tileEntities.length >= chunkTileEntityThreshold) reasons.add(tileEntities.length + " tile entities");
+        if (redstoneScore > 20) reasons.add(redstoneScore + " redstone components");
+        if (maxHopperChain > 5) reasons.add("hopper chain (" + maxHopperChain + ")");
+        if (fluidFlows > 10) reasons.add(fluidFlows + " fluid flows");
+
+        boolean isLaggy = entities.length >= chunkEntityThreshold ||
+                tileEntities.length >= chunkTileEntityThreshold ||
+                redstoneScore > 20 || maxHopperChain > 5;
+
+        if (!isLaggy) return null;
+
+        return new LaggyChunk(worldName, chunk.getX(), chunk.getZ(),
+                entities.length, tileEntities.length, String.join(", ", reasons),
+                entityTypes, tileTypes, redstoneScore, maxHopperChain, fluidFlows);
+    }
+
+    /**
+     * Trace a hopper chain using BFS, returning chain length.
+     */
+    private int traceHopperChain(Block start, Set<String> visited) {
+        Queue<Block> queue = new LinkedList<>();
+        queue.add(start);
+        int chainLength = 0;
+
+        while (!queue.isEmpty() && chainLength < 50) {
+            Block current = queue.poll();
+            String key = current.getX() + ":" + current.getY() + ":" + current.getZ();
+            if (visited.contains(key)) continue;
+            visited.add(key);
+            chainLength++;
+
+            // Check adjacent blocks for more hoppers
+            for (BlockFace face : new BlockFace[]{BlockFace.NORTH, BlockFace.SOUTH, BlockFace.EAST, BlockFace.WEST, BlockFace.UP, BlockFace.DOWN}) {
+                Block neighbor = current.getRelative(face);
+                if (neighbor.getType() == Material.HOPPER) {
+                    String nKey = neighbor.getX() + ":" + neighbor.getY() + ":" + neighbor.getZ();
+                    if (!visited.contains(nKey)) {
+                        queue.add(neighbor);
+                    }
+                }
+            }
+        }
+        return chainLength;
+    }
 }
