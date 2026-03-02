@@ -23,7 +23,7 @@ window.MX_CHANGELOGS = [
         type: "new",
         title: "New Features",
         items: [
-          "**AI Moderation** - Content moderation powered by Ollama cloud AI with per-content-type toggles (chat, PM, signs, books, anvil, nicknames, commands)",
+          "**AI Moderation** - Content moderation powered by AI with per-content-type toggles (chat, PM, signs, books, anvil, nicknames, commands)",
           "**Moderation Presets** - Family Server, Teen, Mature, and Custom presets with configurable confidence thresholds",
           "**AI Test Panel** - Test AI moderation directly from the web panel before deploying",
           "**Raid Protection** - Join velocity detection, per-IP rate limiting, bot score analysis, and subnet tracking",
@@ -79,7 +79,7 @@ window.MX_CHANGELOGS = [
         items: [
           "New database tables: `moderex_rule_acceptances`, `moderex_ai_moderation_log`, `moderex_raid_events`, `moderex_ip_reputation`, `moderex_throttle_history`",
           "Added `ai_description`, `ai_language`, `translations` columns to `moderex_rules` table",
-          "Ollama client shared between rules AI descriptions and AI moderation (rate limited: 10 desc/min, 30 mod/min)",
+          "AI client shared between rules descriptions and moderation (rate limited: 10 desc/min, 30 mod/min)",
           "AI moderation batching: queues messages, processes in batches of 5 every 500ms",
           "Gateway DDoS: per-IP (5 max), per-/24 subnet (20 max), global velocity (50/sec), message rate (30/sec), 64KB message limit"
         ]

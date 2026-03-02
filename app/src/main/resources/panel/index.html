@@ -331,39 +331,47 @@
         </div>
 
         <div class="sb-group">
-          <div class="sb-label">Server</div>
+          <div class="sb-label">Overview</div>
           <div class="sb-item active" data-page="dashboard"><i class="fa-solid fa-gauge-high"></i> Dashboard</div>
-          <div class="sb-item" data-page="performance"><i class="fa-solid fa-chart-line"></i> Performance</div>
-          <div class="sb-item" data-page="security"><i class="fa-solid fa-shield"></i> Security</div>
-          <div class="sb-item" data-page="rules"><i class="fa-solid fa-scroll"></i> Rules</div>
-          <div class="sb-item" data-page="actions"><i class="fa-solid fa-sliders"></i> Settings</div>
         </div>
 
         <div class="sb-group">
           <div class="sb-label">Enforcement</div>
+          <div class="sb-item" data-page="players"><i class="fa-solid fa-users"></i> Player Management</div>
           <div class="sb-item" data-page="punishments"><i class="fa-solid fa-gavel"></i> Punishments</div>
-          <div class="sb-item" data-page="automod"><i class="fa-solid fa-robot"></i> Automod</div>
-          <div class="sb-item" data-page="aimoderation"><i class="fa-solid fa-brain"></i> AI Moderation</div>
-          <div class="sb-item" data-page="anticheat"><i class="fa-solid fa-shield-halved"></i> Anticheat</div>
-          <div class="sb-item" data-page="cmdblacklist"><i class="fa-solid fa-ban"></i> Cmd Blacklist</div>
+          <div class="sb-item" data-page="templates"><i class="fa-solid fa-bookmark"></i> Templates</div>
         </div>
 
         <div class="sb-group">
           <div class="sb-label">Monitoring</div>
-          <div class="sb-item" data-page="activitylog"><i class="fa-solid fa-scroll"></i> Activity Logs</div>
-          <div class="sb-item" data-page="auditlog"><i class="fa-solid fa-clipboard-list"></i> Audit Log</div>
+          <div class="sb-item" data-page="automod"><i class="fa-solid fa-robot"></i> Automod Rules</div>
+          <div class="sb-item" data-page="aimoderation"><i class="fa-solid fa-brain"></i> AI Moderation</div>
+          <div class="sb-item" data-page="cmdblacklist"><i class="fa-solid fa-ban"></i> Cmd Blacklist</div>
+          <div class="sb-item" data-page="anticheat"><i class="fa-solid fa-shield-halved"></i> Anticheat</div>
           <div class="sb-item" data-page="watchlist"><i class="fa-solid fa-eye"></i> Watchlist</div>
           <div class="sb-item" data-page="replay"><i class="fa-solid fa-film"></i> Replays</div>
+          <div class="sb-item" data-page="activitylog"><i class="fa-solid fa-scroll"></i> Activity Log</div>
+          <div class="sb-item" data-page="auditlog"><i class="fa-solid fa-clipboard-list"></i> Audit Log</div>
+          <div class="sb-item" data-page="performance"><i class="fa-solid fa-chart-line"></i> Performance</div>
+          <div class="sb-item" data-page="security"><i class="fa-solid fa-shield"></i> Security</div>
+        </div>
+
+        <div class="sb-group">
+          <div class="sb-label">Communication</div>
           <div class="sb-item" data-page="staffchat"><i class="fa-solid fa-comments"></i> Staff Chat</div>
         </div>
 
         <div class="sb-group">
-          <div class="sb-label">Admin</div>
-          <div class="sb-item" data-page="players"><i class="fa-solid fa-users"></i> Players</div>
-          <div class="sb-item" data-page="templates"><i class="fa-solid fa-bookmark"></i> Templates</div>
-          <div class="sb-item" data-page="integrations"><i class="fa-solid fa-plug"></i> Integrations</div>
-          <div class="sb-item" data-page="messages"><i class="fa-solid fa-language"></i> Messages</div>
+          <div class="sb-label">Server</div>
+          <div class="sb-item" data-page="rules"><i class="fa-solid fa-scroll"></i> Server Rules</div>
+        </div>
+
+        <div class="sb-group">
+          <div class="sb-label">Configuration</div>
           <div class="sb-item" data-page="mysettings"><i class="fa-solid fa-user-gear"></i> My Settings</div>
+          <div class="sb-item" data-page="messages"><i class="fa-solid fa-language"></i> Messages</div>
+          <div class="sb-item" data-page="actions"><i class="fa-solid fa-sliders"></i> Configuration</div>
+          <div class="sb-item" data-page="integrations"><i class="fa-solid fa-plug"></i> Integrations</div>
           <div class="sb-item" data-page="permissions" id="sbPermissions"><i class="fa-solid fa-shield-halved"></i> Permissions</div>
         </div>
 
@@ -3486,7 +3494,7 @@
           <div class="page-head">
             <div class="page-title">
               <h1>AI Moderation</h1>
-              <p>Content moderation powered by AI. Uses Ollama cloud models to analyze player content.</p>
+              <p>Content moderation powered by AI. Automatically analyzes player content for violations.</p>
             </div>
             <div class="page-actions">
               <button class="btn" onclick="testAiModeration()"><i class="fa-solid fa-flask"></i> Test</button>

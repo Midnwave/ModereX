@@ -9381,7 +9381,7 @@
     { id: 'punishments', name: 'Punishments', icon: 'fa-gavel', keywords: ['bans', 'mutes', 'kicks', 'warns', 'cases'] },
     { id: 'templates', name: 'Templates', icon: 'fa-bookmark', keywords: ['presets', 'quick', 'saved'] },
     { id: 'automod', name: 'Automod', icon: 'fa-robot', keywords: ['filter', 'chat', 'spam', 'swear'], permission: 'moderex.automod' },
-    { id: 'aimoderation', name: 'AI Moderation', icon: 'fa-brain', keywords: ['ai', 'ollama', 'moderate', 'content', 'filter'], permission: 'moderex.admin.ai' },
+    { id: 'aimoderation', name: 'AI Moderation', icon: 'fa-brain', keywords: ['ai', 'moderate', 'content', 'filter'], permission: 'moderex.admin.ai' },
     { id: 'anticheat', name: 'Anticheat', icon: 'fa-shield-halved', keywords: ['hacks', 'cheats', 'alerts'], permission: 'moderex.anticheat' },
     { id: 'cmdblacklist', name: 'Cmd Blacklist', icon: 'fa-ban', keywords: ['command', 'block', 'blacklist'] },
     { id: 'watchlist', name: 'Watchlist', icon: 'fa-eye', keywords: ['monitor', 'watch', 'track'], permission: 'moderex.watchlist' },
