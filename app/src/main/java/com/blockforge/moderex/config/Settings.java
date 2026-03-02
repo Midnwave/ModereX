@@ -299,6 +299,29 @@ public class Settings {
     private boolean gatewayDebugLogging = false;
     private String gatewaySecret = ""; // Auto-generated shared secret for gateway authentication
 
+    // Raid protection settings
+    private boolean raidProtectionEnabled = true;
+    private int raidJoinVelocityThreshold = 15;
+    private boolean raidVpnDetectionEnabled = false;
+    private boolean raidCaptchaEnabled = false;
+    private boolean raidAutoLockdownEnabled = false;
+    private int raidAutoLockdownThreshold = 30;
+    private int raidBotScoreThreshold = 60;
+
+    // Memory management settings
+    private double memoryPressureLevel1 = 70.0;
+    private double memoryPressureLevel2 = 80.0;
+    private double memoryPressureLevel3 = 90.0;
+    private double memoryPressureLevel4 = 95.0;
+
+    // AI moderation settings
+    private String aiModerationPreset = "CUSTOM";
+    private double aiModerationConfidenceThreshold = 0.7;
+
+    // Rules acceptance settings
+    private boolean rulesAcceptanceRequired = false;
+    private boolean rulesShowOnJoin = true;
+
     // Config version for migration
     private int configVersion = 2;
 
@@ -1486,4 +1509,42 @@ public class Settings {
     public void setFirstJoinMessagesEnabled(boolean firstJoinMessagesEnabled) {
         this.firstJoinMessagesEnabled = firstJoinMessagesEnabled;
     }
+
+    // Raid protection getters/setters
+    public boolean isRaidProtectionEnabled() { return raidProtectionEnabled; }
+    public void setRaidProtectionEnabled(boolean v) { this.raidProtectionEnabled = v; }
+    public int getRaidJoinVelocityThreshold() { return raidJoinVelocityThreshold; }
+    public void setRaidJoinVelocityThreshold(int v) { this.raidJoinVelocityThreshold = v; }
+    public boolean isRaidVpnDetectionEnabled() { return raidVpnDetectionEnabled; }
+    public void setRaidVpnDetectionEnabled(boolean v) { this.raidVpnDetectionEnabled = v; }
+    public boolean isRaidCaptchaEnabled() { return raidCaptchaEnabled; }
+    public void setRaidCaptchaEnabled(boolean v) { this.raidCaptchaEnabled = v; }
+    public boolean isRaidAutoLockdownEnabled() { return raidAutoLockdownEnabled; }
+    public void setRaidAutoLockdownEnabled(boolean v) { this.raidAutoLockdownEnabled = v; }
+    public int getRaidAutoLockdownThreshold() { return raidAutoLockdownThreshold; }
+    public void setRaidAutoLockdownThreshold(int v) { this.raidAutoLockdownThreshold = v; }
+    public int getRaidBotScoreThreshold() { return raidBotScoreThreshold; }
+    public void setRaidBotScoreThreshold(int v) { this.raidBotScoreThreshold = v; }
+
+    // Memory management getters/setters
+    public double getMemoryPressureLevel1() { return memoryPressureLevel1; }
+    public void setMemoryPressureLevel1(double v) { this.memoryPressureLevel1 = v; }
+    public double getMemoryPressureLevel2() { return memoryPressureLevel2; }
+    public void setMemoryPressureLevel2(double v) { this.memoryPressureLevel2 = v; }
+    public double getMemoryPressureLevel3() { return memoryPressureLevel3; }
+    public void setMemoryPressureLevel3(double v) { this.memoryPressureLevel3 = v; }
+    public double getMemoryPressureLevel4() { return memoryPressureLevel4; }
+    public void setMemoryPressureLevel4(double v) { this.memoryPressureLevel4 = v; }
+
+    // AI moderation getters/setters
+    public String getAiModerationPreset() { return aiModerationPreset; }
+    public void setAiModerationPreset(String v) { this.aiModerationPreset = v; }
+    public double getAiModerationConfidenceThreshold() { return aiModerationConfidenceThreshold; }
+    public void setAiModerationConfidenceThreshold(double v) { this.aiModerationConfidenceThreshold = v; }
+
+    // Rules acceptance getters/setters
+    public boolean isRulesAcceptanceRequired() { return rulesAcceptanceRequired; }
+    public void setRulesAcceptanceRequired(boolean v) { this.rulesAcceptanceRequired = v; }
+    public boolean isRulesShowOnJoin() { return rulesShowOnJoin; }
+    public void setRulesShowOnJoin(boolean v) { this.rulesShowOnJoin = v; }
 }

@@ -71,9 +71,17 @@ public final class ModereX extends JavaPlugin {
     private ActivityLogManager activityLogManager;
     private TemplateManager templateManager;
     private com.blockforge.moderex.monitor.ServerStatusManager serverStatusManager;
+    private com.blockforge.moderex.monitor.PerformanceSettingsManager performanceSettingsManager;
+    private com.blockforge.moderex.monitor.TpsThrottleManager tpsThrottleManager;
+    private com.blockforge.moderex.monitor.MemoryManager memoryManager;
     private StaffSettingsManager staffSettingsManager;
     private com.blockforge.moderex.resourcepack.ResourcePackManager resourcePackManager;
     private com.blockforge.moderex.rules.RulesManager rulesManager;
+    private com.blockforge.moderex.rules.RuleAcceptanceManager ruleAcceptanceManager;
+    private com.blockforge.moderex.rules.CodeOfConductManager codeOfConductManager;
+    private com.blockforge.moderex.ai.OllamaClient ollamaClient;
+    private com.blockforge.moderex.ai.AIModerationManager aiModerationManager;
+    private com.blockforge.moderex.security.RaidProtectionManager raidProtectionManager;
     private com.blockforge.moderex.automod.AfkManager afkManager;
     private DebugWebhook debugWebhook;
     private WebPanelDebugger webPanelDebugger;
@@ -229,6 +237,28 @@ public final class ModereX extends JavaPlugin {
         this.rulesManager = new com.blockforge.moderex.rules.RulesManager(this);
         rulesManager.initialize();
 
+        logStartup("Initializing rule acceptance tracking...");
+        this.ruleAcceptanceManager = new com.blockforge.moderex.rules.RuleAcceptanceManager(this);
+        ruleAcceptanceManager.initialize();
+
+        logStartup("Initializing Code of Conduct...");
+        this.codeOfConductManager = new com.blockforge.moderex.rules.CodeOfConductManager(this);
+        codeOfConductManager.initialize();
+
+        logStartup("Initializing AI client...");
+        this.ollamaClient = new com.blockforge.moderex.ai.OllamaClient(this);
+        ollamaClient.start();
+
+        logStartup("Initializing AI moderation...");
+        this.aiModerationManager = new com.blockforge.moderex.ai.AIModerationManager(this);
+        aiModerationManager.initialize();
+        aiModerationManager.start();
+
+        logStartup("Initializing raid protection...");
+        this.raidProtectionManager = new com.blockforge.moderex.security.RaidProtectionManager(this);
+        raidProtectionManager.initialize();
+        raidProtectionManager.start();
+
         logStartup("Initializing replay system...");
         this.blockLogManager = new BlockLogManager(this);
         this.fakeBlockManager = new FakeBlockManager(this);
@@ -258,6 +288,19 @@ public final class ModereX extends JavaPlugin {
         if (configManager.getSettings().isServerStatusEnabled()) {
             serverStatusManager.start();
         }
+
+        logStartup("Initializing performance settings manager...");
+        this.performanceSettingsManager = new com.blockforge.moderex.monitor.PerformanceSettingsManager(this);
+        performanceSettingsManager.initialize();
+
+        logStartup("Initializing TPS throttle system...");
+        this.tpsThrottleManager = new com.blockforge.moderex.monitor.TpsThrottleManager(this);
+        tpsThrottleManager.createTable();
+        tpsThrottleManager.start();
+
+        logStartup("Initializing memory management system...");
+        this.memoryManager = new com.blockforge.moderex.monitor.MemoryManager(this);
+        memoryManager.start();
 
         logStartup("Initializing template system...");
         this.templateManager = new TemplateManager(this);
@@ -401,6 +444,35 @@ public final class ModereX extends JavaPlugin {
         // Stop AFK manager
         if (afkManager != null) {
             afkManager.stop();
+        }
+
+        // Stop raid protection
+        if (raidProtectionManager != null) {
+            raidProtectionManager.stop();
+        }
+
+        // Stop AI moderation
+        if (aiModerationManager != null) {
+            aiModerationManager.stop();
+        }
+
+        // Stop AI client
+        if (ollamaClient != null) {
+            ollamaClient.shutdown();
+        }
+
+        // Stop performance managers
+        if (memoryManager != null) {
+            memoryManager.stop();
+        }
+        if (tpsThrottleManager != null) {
+            tpsThrottleManager.stop();
+        }
+        if (performanceSettingsManager != null) {
+            performanceSettingsManager.stop();
+        }
+        if (serverStatusManager != null) {
+            serverStatusManager.stop();
         }
 
         // Close database connections
@@ -671,6 +743,26 @@ public final class ModereX extends JavaPlugin {
         return rulesManager;
     }
 
+    public com.blockforge.moderex.rules.RuleAcceptanceManager getRuleAcceptanceManager() {
+        return ruleAcceptanceManager;
+    }
+
+    public com.blockforge.moderex.rules.CodeOfConductManager getCodeOfConductManager() {
+        return codeOfConductManager;
+    }
+
+    public com.blockforge.moderex.ai.OllamaClient getOllamaClient() {
+        return ollamaClient;
+    }
+
+    public com.blockforge.moderex.ai.AIModerationManager getAiModerationManager() {
+        return aiModerationManager;
+    }
+
+    public com.blockforge.moderex.security.RaidProtectionManager getRaidProtectionManager() {
+        return raidProtectionManager;
+    }
+
     public com.blockforge.moderex.player.PlayerProfileManager getPlayerProfileManager() {
         return playerProfileManager;
     }
@@ -773,6 +865,18 @@ public final class ModereX extends JavaPlugin {
 
     public com.blockforge.moderex.monitor.ServerStatusManager getServerStatusManager() {
         return serverStatusManager;
+    }
+
+    public com.blockforge.moderex.monitor.PerformanceSettingsManager getPerformanceSettingsManager() {
+        return performanceSettingsManager;
+    }
+
+    public com.blockforge.moderex.monitor.TpsThrottleManager getTpsThrottleManager() {
+        return tpsThrottleManager;
+    }
+
+    public com.blockforge.moderex.monitor.MemoryManager getMemoryManager() {
+        return memoryManager;
     }
 
     public LicenseManager getLicenseManager() {

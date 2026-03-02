@@ -425,6 +425,11 @@ permissions:
       moderex.status.*: true
       moderex.staff: true
       moderex.admin: true
+      moderex.admin.performance: true
+      moderex.admin.throttle: true
+      moderex.admin.security: true
+      moderex.admin.ai: true
+      moderex.admin.rules: true
 
   moderex.command.*:
     description: Access to all ModereX commands
@@ -490,6 +495,8 @@ permissions:
       moderex.bypass.mute: true
       moderex.bypass.afk: true
       moderex.bypass.slowmode: true
+      moderex.bypass.raidprotection: true
+      moderex.bypass.captcha: true
 
   # Core Punishment Permissions
   moderex.ban:
@@ -1418,6 +1425,10 @@ permissions:
       moderex.notify.status: true
       moderex.notify.pm: true
       moderex.notify.staffrollback: true
+      moderex.notify.throttle: true
+      moderex.notify.raid: true
+      moderex.notify.memory: true
+      moderex.notify.aimod: true
 
   moderex.notify.punishments:
     description: Receive punishment notifications
@@ -1517,4 +1528,51 @@ permissions:
 
   moderex.bypass.slowmode:
     description: Bypass chat slowmode
+    default: op
+
+  # ==================== PERFORMANCE & SERVER MANAGEMENT ====================
+  moderex.admin.performance:
+    description: Access Performance tab and modify server performance settings
+    default: op
+
+  moderex.admin.throttle:
+    description: Manual TPS throttle engage/disengage
+    default: op
+
+  moderex.admin.security:
+    description: Access Security tab and manage raid protection
+    default: op
+
+  moderex.admin.ai:
+    description: Access AI Moderation tab and configure AI settings
+    default: op
+
+  moderex.admin.rules:
+    description: Manage server rules and generate AI descriptions
+    default: op
+
+  # ==================== NOTIFICATION PERMISSIONS (NEW) ====================
+  moderex.notify.throttle:
+    description: Receive TPS throttle engage/disengage notifications
+    default: op
+
+  moderex.notify.raid:
+    description: Receive raid detection and protection alerts
+    default: op
+
+  moderex.notify.memory:
+    description: Receive memory pressure alerts
+    default: op
+
+  moderex.notify.aimod:
+    description: Receive AI moderation flag notifications
+    default: op
+
+  # ==================== BYPASS PERMISSIONS (NEW) ====================
+  moderex.bypass.raidprotection:
+    description: Bypass raid protection checks on join
+    default: op
+
+  moderex.bypass.captcha:
+    description: Bypass CAPTCHA verification on join
     default: op
