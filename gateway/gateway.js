@@ -76,9 +76,147 @@ const inMemoryAnnouncements = new Map();
 // In-memory fallback for server secrets
 const inMemoryServerSecrets = new Map();
 
-// CPU usage tracking
+// CPU usage tracking - sampled periodically to avoid race conditions
 let lastCpuUsage = process.cpuUsage();
 let lastCpuCheck = Date.now();
+let currentCpuPercent = 0;
+
+// Sample CPU usage every 5 seconds (avoids race condition between health and metrics calls)
+setInterval(() => {
+    const currentUsage = process.cpuUsage();
+    const currentTime = Date.now();
+    const elapsedTime = currentTime - lastCpuCheck;
+    if (elapsedTime > 0) {
+        const userDiff = currentUsage.user - lastCpuUsage.user;
+        const systemDiff = currentUsage.system - lastCpuUsage.system;
+        const totalCpuTime = userDiff + systemDiff;
+        currentCpuPercent = Math.min(Math.round((totalCpuTime / (elapsedTime * 1000)) * 100), 100);
+    }
+    lastCpuUsage = currentUsage;
+    lastCpuCheck = currentTime;
+}, 5000);
+
+// ============================================================================
+// DDoS Protection
+// ============================================================================
+const ddosProtection = {
+    // Per-IP connection tracking
+    connectionsByIp: new Map(),       // ip -> Set of WebSocket connections
+    connectionTimestamps: new Map(),  // ip -> [timestamps of recent connections]
+    bannedIps: new Set(),
+    ipMessageCounts: new Map(),       // ip -> { count, lastReset }
+
+    // Per-/24 subnet tracking
+    subnetConnections: new Map(),     // subnet -> connection count
+
+    // Limits
+    maxConnectionsPerIp: 5,
+    maxConnectionsPerSubnet: 20,
+    maxNewConnectionsPerSecond: 50,   // Global velocity limit
+    maxMessagesPerSecond: 30,         // Per-connection message rate
+    maxMessageSize: 65536,            // 64KB
+    banDurationMs: 300000,            // 5 minute ban
+
+    // Global velocity tracking
+    recentConnectionTimestamps: [],
+
+    getSubnet(ip) {
+        const parts = ip.split('.');
+        return parts.length >= 3 ? `${parts[0]}.${parts[1]}.${parts[2]}` : ip;
+    },
+
+    checkConnection(ip) {
+        // Check if IP is banned
+        if (this.bannedIps.has(ip)) return false;
+
+        // Check per-IP limit
+        const ipConns = this.connectionsByIp.get(ip);
+        if (ipConns && ipConns.size >= this.maxConnectionsPerIp) {
+            console.warn(`[DDoS] IP ${ip} exceeded connection limit (${ipConns.size})`);
+            return false;
+        }
+
+        // Check /24 subnet limit
+        const subnet = this.getSubnet(ip);
+        const subnetCount = this.subnetConnections.get(subnet) || 0;
+        if (subnetCount >= this.maxConnectionsPerSubnet) {
+            console.warn(`[DDoS] Subnet ${subnet} exceeded connection limit (${subnetCount})`);
+            return false;
+        }
+
+        // Check global connection velocity
+        const now = Date.now();
+        this.recentConnectionTimestamps = this.recentConnectionTimestamps.filter(t => now - t < 1000);
+        if (this.recentConnectionTimestamps.length >= this.maxNewConnectionsPerSecond) {
+            console.warn(`[DDoS] Global connection velocity exceeded (${this.recentConnectionTimestamps.length}/sec)`);
+            return false;
+        }
+        this.recentConnectionTimestamps.push(now);
+
+        return true;
+    },
+
+    trackConnection(ip, ws) {
+        if (!this.connectionsByIp.has(ip)) {
+            this.connectionsByIp.set(ip, new Set());
+        }
+        this.connectionsByIp.get(ip).add(ws);
+
+        const subnet = this.getSubnet(ip);
+        this.subnetConnections.set(subnet, (this.subnetConnections.get(subnet) || 0) + 1);
+    },
+
+    removeConnection(ip, ws) {
+        const ipConns = this.connectionsByIp.get(ip);
+        if (ipConns) {
+            ipConns.delete(ws);
+            if (ipConns.size === 0) this.connectionsByIp.delete(ip);
+        }
+
+        const subnet = this.getSubnet(ip);
+        const count = (this.subnetConnections.get(subnet) || 1) - 1;
+        if (count <= 0) this.subnetConnections.delete(subnet);
+        else this.subnetConnections.set(subnet, count);
+    },
+
+    checkMessageRate(ip) {
+        const now = Date.now();
+        let tracker = this.ipMessageCounts.get(ip);
+        if (!tracker || now - tracker.lastReset > 1000) {
+            tracker = { count: 0, lastReset: now };
+            this.ipMessageCounts.set(ip, tracker);
+        }
+        tracker.count++;
+
+        if (tracker.count > this.maxMessagesPerSecond) {
+            console.warn(`[DDoS] IP ${ip} exceeded message rate (${tracker.count}/sec)`);
+            this.banIp(ip, 'Message rate exceeded');
+            return false;
+        }
+        return true;
+    },
+
+    banIp(ip, reason) {
+        this.bannedIps.add(ip);
+        console.warn(`[DDoS] Banned IP ${ip}: ${reason}`);
+
+        // Auto-unban after duration
+        setTimeout(() => {
+            this.bannedIps.delete(ip);
+            console.log(`[DDoS] Unbanned IP ${ip}`);
+        }, this.banDurationMs);
+    }
+};
+
+// Clean up stale DDoS tracking data every 60 seconds
+setInterval(() => {
+    const now = Date.now();
+    ddosProtection.recentConnectionTimestamps = ddosProtection.recentConnectionTimestamps.filter(t => now - t < 5000);
+    // Clean old message rate trackers
+    for (const [ip, tracker] of ddosProtection.ipMessageCounts) {
+        if (now - tracker.lastReset > 10000) ddosProtection.ipMessageCounts.delete(ip);
+    }
+}, 60000);
 
 // In-memory fallback for global tokens
 const inMemoryGlobalTokens = new Map();
@@ -1053,6 +1191,19 @@ wss.on('connection', (ws, req) => {
         ? req.headers['cf-connecting-ip']
         : req.socket.remoteAddress;
 
+    // DDoS protection check
+    if (!ddosProtection.checkConnection(clientIp)) {
+        console.warn(`[DDoS] Rejected connection from ${clientIp}`);
+        ws.close(1008, 'Rate limited');
+        return;
+    }
+    ddosProtection.trackConnection(clientIp, ws);
+
+    // Track disconnection for DDoS cleanup
+    ws.on('close', () => {
+        ddosProtection.removeConnection(clientIp, ws);
+    });
+
     console.log(`[WS] New connection from ${clientIp} - ${url.pathname}`);
 
     // Determine connection type from URL path
@@ -1474,6 +1625,18 @@ function handleBrowserConnection(ws, prefix, clientIp) {
 
     ws.on('message', (data) => {
         try {
+            // DDoS: Message size check
+            if (data.length > ddosProtection.maxMessageSize) {
+                ws.send(JSON.stringify({ type: 'error', code: 'MESSAGE_TOO_LARGE', message: 'Message exceeds size limit' }));
+                return;
+            }
+
+            // DDoS: Per-IP message rate check
+            if (!ddosProtection.checkMessageRate(clientIp)) {
+                ws.close(1008, 'Rate limited');
+                return;
+            }
+
             // Per-connection message rate limiting
             if (isMessageRateLimited(ws)) {
                 ws.send(JSON.stringify({
@@ -3299,25 +3462,8 @@ function sendGatewayHealth(ws) {
  * Calculate CPU usage percentage.
  */
 function calculateCpuUsage() {
-    const currentUsage = process.cpuUsage();
-    const currentTime = Date.now();
-    const elapsedTime = currentTime - lastCpuCheck;
-
-    if (elapsedTime === 0) return 0;
-
-    // Calculate microseconds of CPU time used
-    const userDiff = currentUsage.user - lastCpuUsage.user;
-    const systemDiff = currentUsage.system - lastCpuUsage.system;
-    const totalCpuTime = userDiff + systemDiff;
-
-    // Convert to percentage (elapsed time is in ms, CPU time is in microseconds)
-    const cpuPercent = Math.round((totalCpuTime / (elapsedTime * 1000)) * 100);
-
-    // Update for next calculation
-    lastCpuUsage = currentUsage;
-    lastCpuCheck = currentTime;
-
-    return Math.min(cpuPercent, 100); // Cap at 100%
+    // Returns cached value from periodic sampler (no side effects, no race conditions)
+    return currentCpuPercent;
 }
 
 function sendServerList(ws) {
