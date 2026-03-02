@@ -14,6 +14,79 @@
 
 window.MX_CHANGELOGS = [
   {
+    build: 400,
+    version: "2.0dev-400",
+    date: "2026-03-01",
+    title: "AI Moderation, Security Suite & Performance Overhaul",
+    sections: [
+      {
+        type: "new",
+        title: "New Features",
+        items: [
+          "**AI Moderation** - Content moderation powered by Ollama cloud AI with per-content-type toggles (chat, PM, signs, books, anvil, nicknames, commands)",
+          "**Moderation Presets** - Family Server, Teen, Mature, and Custom presets with configurable confidence thresholds",
+          "**AI Test Panel** - Test AI moderation directly from the web panel before deploying",
+          "**Raid Protection** - Join velocity detection, per-IP rate limiting, bot score analysis, and subnet tracking",
+          "**CAPTCHA System** - Chat-based math CAPTCHA verification for suspicious joins during raids",
+          "**VPN/Proxy Detection** - Automatic detection and blocking of VPN/proxy connections during raids",
+          "**Auto-Lockdown** - Automatic whitelist-only mode when join velocity exceeds threshold, with auto-recovery",
+          "**IP Reputation System** - Persistent IP scoring with auto-decay, auto-ban at threshold, and manual unblock",
+          "**DDoS Gateway Protection** - Per-IP and subnet connection limits, message rate limiting, auto-ban for abusive connections",
+          "**Server Rules & Code of Conduct** - Full rules management with AI-generated descriptions and translations",
+          "**Rule Acceptance Tracking** - Track who accepted rules, when, which version, via chat buttons (Java) or book (Bedrock)",
+          "**Code of Conduct Integration** - Auto-generates `codeofconduct/en_us.txt` for 1.21.2+ servers from your rules",
+          "**TPS Throttle System** - 10 configurable auto-engage actions when TPS drops (mob cap, hoppers, redstone, view distance, etc.)",
+          "**Memory Manager** - 4-level pressure response from GC hints to emergency entity culling, with leak detection",
+          "**Performance Settings** - 30+ configurable settings (entity limits, redstone tick rate, hopper transfer, view distance, etc.)",
+          "**Security Page** - New web panel page with raid status, lockdown controls, IP management, and protection settings",
+          "**AI Moderation Page** - New web panel page with AI status, presets, content type toggles, filter rules, and decision log"
+        ]
+      },
+      {
+        type: "improved",
+        title: "Improvements",
+        items: [
+          "**Health Scoring** - Exponential TPS curve (`tps/20^2.5`) with weights: TPS 50%, Memory 25%, Entity 15%, Chunk 10%",
+          "**MSPT Tracking** - Milliseconds-per-tick with 60-sample rolling history, displayed in performance dashboard",
+          "**Spark Detection** - Fixed detection on Paper servers: now checks plugin manager, service registry, AND command map",
+          "**Instant Page Load** - Performance page renders cached data immediately, fetches fresh data in background",
+          "**Chunk Lag Viewer** - Detailed entity type breakdown, tile entity analysis, redstone complexity score, hopper chain detection",
+          "**Gateway CPU Fix** - Fixed race condition where concurrent CPU reads could report 0% (now uses 5s periodic sampling)",
+          "**Sidebar Restructure** - Categorized navigation: Server, Enforcement, Monitoring, Admin, Developer groups",
+          "**GC Recommendations** - Analyzes JVM flags and suggests Aikar's flags if missing"
+        ]
+      },
+      {
+        type: "permissions",
+        title: "New Permissions",
+        items: [
+          "`moderex.admin.performance` - Access Performance tab and modify settings",
+          "`moderex.admin.throttle` - Manual throttle engage/disengage",
+          "`moderex.admin.security` - Access Security tab and raid protection",
+          "`moderex.admin.ai` - Access AI Moderation tab",
+          "`moderex.admin.rules` - Manage rules and generate AI descriptions",
+          "`moderex.notify.throttle` - Receive throttle notifications",
+          "`moderex.notify.raid` - Receive raid alerts",
+          "`moderex.notify.memory` - Receive memory pressure alerts",
+          "`moderex.notify.aimod` - Receive AI moderation alerts",
+          "`moderex.bypass.raidprotection` - Bypass raid protection",
+          "`moderex.bypass.captcha` - Bypass CAPTCHA verification"
+        ]
+      },
+      {
+        type: "technical",
+        title: "Technical",
+        items: [
+          "New database tables: `moderex_rule_acceptances`, `moderex_ai_moderation_log`, `moderex_raid_events`, `moderex_ip_reputation`, `moderex_throttle_history`",
+          "Added `ai_description`, `ai_language`, `translations` columns to `moderex_rules` table",
+          "Ollama client shared between rules AI descriptions and AI moderation (rate limited: 10 desc/min, 30 mod/min)",
+          "AI moderation batching: queues messages, processes in batches of 5 every 500ms",
+          "Gateway DDoS: per-IP (5 max), per-/24 subnet (20 max), global velocity (50/sec), message rate (30/sec), 64KB message limit"
+        ]
+      }
+    ]
+  },
+  {
     build: 325,
     version: "2.0dev-325",
     date: "2026-02-14",
