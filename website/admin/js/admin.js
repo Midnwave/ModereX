@@ -45,9 +45,9 @@
                 <h2 style="margin-top:0;color:#4CAF50;">Configure Gateway</h2>
                 <p>Enter your ModereX gateway tunnel URL:</p>
 <<<<<<< HEAD
-                <input type="text" id="gateway-url-input" placeholder="wss://behind-promise-precipitation-biographies.trycloudflare.com"
+                <input type="text" id="gateway-url-input" placeholder="wss://prohibited-according-typing-carry.trycloudflare.com"
 =======
-                <input type="text" id="gateway-url-input" placeholder="wss://childrens-logs-presence-aircraft.trycloudflare.com"
+                <input type="text" id="gateway-url-input" placeholder="wss://prohibited-according-typing-carry.trycloudflare.com"
 >>>>>>> 5e31685477ba204198cdc8506486963f0f5e000d
                     value="${localStorage.getItem('moderex_gateway_url') || ''}"
                     style="width:100%;padding:10px;margin:10px 0;background:#2d2d2d;border:1px solid #444;color:#fff;border-radius:4px;">
