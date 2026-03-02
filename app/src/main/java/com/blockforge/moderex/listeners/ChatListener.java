@@ -139,6 +139,25 @@ public class ChatListener implements Listener {
             return;
         }
 
+        // AI moderation check (async - notifies staff if flagged after message is sent)
+        var aiManager = plugin.getAiModerationManager();
+        if (aiManager != null && aiManager.isContentTypeEnabled(
+                com.blockforge.moderex.ai.ContentType.CHAT_MESSAGE)) {
+            aiManager.submitForBatchModeration(player, message,
+                    com.blockforge.moderex.ai.ContentType.CHAT_MESSAGE, aiResult -> {
+                if (aiResult.shouldBlock() || aiResult.shouldFlag()) {
+                    for (org.bukkit.entity.Player staff : org.bukkit.Bukkit.getOnlinePlayers()) {
+                        if (PermissionUtil.hasPermission(staff, "moderex.notify.aimod")) {
+                            Msg.send(staff, com.blockforge.moderex.util.TextUtil.parse(
+                                    "<dark_gray>[<gradient:#f43f5e:#ec4899>AI</gradient>] <gray>" +
+                                    player.getName() + ": <white>" + message +
+                                    " <dark_gray>(" + aiResult.getReason() + ")"));
+                        }
+                    }
+                }
+            });
+        }
+
         String finalMessage = result.isModified() ? result.getModifiedMessage() : message;
 
         if (result.isModified()) {

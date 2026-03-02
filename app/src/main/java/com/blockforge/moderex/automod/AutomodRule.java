@@ -51,6 +51,10 @@ public class AutomodRule {
     private int afkTimeoutMinutes = 15;         // Minutes before kick
     private boolean afkKickEnabled = false;
 
+    // === AI Moderation Settings ===
+    private boolean useAiModeration = false;    // Whether to use AI for this rule
+    private Set<com.blockforge.moderex.ai.ContentType> aiContentTypes = java.util.EnumSet.noneOf(com.blockforge.moderex.ai.ContentType.class);
+
     // === Replay Recording Settings ===
     private boolean recordReplay = false;       // Whether to record a replay when rule triggers
     private int replayDurationSeconds = 60;     // Duration to record (10-300 seconds)
@@ -269,6 +273,14 @@ public class AutomodRule {
         json.addProperty("recordReplay", recordReplay);
         json.addProperty("replayDurationSeconds", replayDurationSeconds);
 
+        // AI moderation settings
+        json.addProperty("useAiModeration", useAiModeration);
+        com.google.gson.JsonArray aiTypes = new com.google.gson.JsonArray();
+        for (com.blockforge.moderex.ai.ContentType ct : aiContentTypes) {
+            aiTypes.add(ct.name());
+        }
+        json.add("aiContentTypes", aiTypes);
+
         // Flag action
         json.addProperty("flagAction", flagAction != null ? flagAction.name() : null);
         json.addProperty("flagMessage", flagMessage);
@@ -342,6 +354,17 @@ public class AutomodRule {
             // Replay recording settings
             if (json.has("recordReplay")) recordReplay = json.get("recordReplay").getAsBoolean();
             if (json.has("replayDurationSeconds")) replayDurationSeconds = json.get("replayDurationSeconds").getAsInt();
+
+            // AI moderation settings
+            if (json.has("useAiModeration")) useAiModeration = json.get("useAiModeration").getAsBoolean();
+            if (json.has("aiContentTypes")) {
+                aiContentTypes = java.util.EnumSet.noneOf(com.blockforge.moderex.ai.ContentType.class);
+                json.getAsJsonArray("aiContentTypes").forEach(e -> {
+                    try {
+                        aiContentTypes.add(com.blockforge.moderex.ai.ContentType.valueOf(e.getAsString()));
+                    } catch (IllegalArgumentException ignored) {}
+                });
+            }
 
             // Flag action
             if (json.has("flagAction") && !json.get("flagAction").isJsonNull()) {
@@ -470,6 +493,13 @@ public class AutomodRule {
 
     public int getReplayDurationSeconds() { return replayDurationSeconds; }
     public void setReplayDurationSeconds(int seconds) { this.replayDurationSeconds = Math.max(10, Math.min(300, seconds)); }
+
+    // AI moderation settings
+    public boolean isUseAiModeration() { return useAiModeration; }
+    public void setUseAiModeration(boolean useAiModeration) { this.useAiModeration = useAiModeration; }
+
+    public Set<com.blockforge.moderex.ai.ContentType> getAiContentTypes() { return aiContentTypes; }
+    public void setAiContentTypes(Set<com.blockforge.moderex.ai.ContentType> aiContentTypes) { this.aiContentTypes = aiContentTypes; }
 
     // Punishment settings
     public AutoPunishment getAutoPunishment() { return autoPunishment; }

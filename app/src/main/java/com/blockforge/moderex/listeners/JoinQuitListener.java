@@ -31,6 +31,15 @@ public class JoinQuitListener implements Listener {
         UUID uuid = event.getUniqueId();
         String ip = event.getAddress().getHostAddress();
 
+        // Raid protection check (before ban checks - blocks bots early)
+        var raidManager = plugin.getRaidProtectionManager();
+        if (raidManager != null) {
+            var result = raidManager.checkPreLogin(event);
+            if (result != AsyncPlayerPreLoginEvent.Result.ALLOWED) {
+                return; // Already disallowed by raid protection
+            }
+        }
+
         // Check if banned
         Punishment ban = plugin.getPunishmentManager().getActivePunishment(uuid, PunishmentType.BAN);
         if (ban != null && !ban.isExpired()) {
@@ -133,6 +142,19 @@ public class JoinQuitListener implements Listener {
                 Msg.send(player, TextUtil.parse("<gradient:#3b82f6:#8b5cf6>━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━</gradient>"));
                 Msg.send(player, TextUtil.parse(""));
             }, 60L); // 3 seconds delay
+        }
+
+        // Check if player needs to accept rules
+        if (plugin.getRuleAcceptanceManager() != null && plugin.getCodeOfConductManager() != null) {
+            plugin.getRuleAcceptanceManager().hasAccepted(uuid).thenAccept(accepted -> {
+                if (!accepted) {
+                    plugin.getServer().getScheduler().runTaskLater(plugin, () -> {
+                        if (player.isOnline()) {
+                            plugin.getCodeOfConductManager().presentRules(player);
+                        }
+                    }, 40L); // 2 second delay after join
+                }
+            });
         }
 
         // Save/update player data
