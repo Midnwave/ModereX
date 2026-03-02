@@ -2557,6 +2557,29 @@ public class HybridPanelServer implements com.blockforge.moderex.gateway.Gateway
             case "GET_REPLAY" -> sendReplayData(conn, data);
             case "GET_REPLAY_SETTINGS" -> sendReplaySettings(conn);
             case "GET_SERVER_STATUS" -> sendServerStatus(conn);
+            case "GET_PERFORMANCE_SETTINGS" -> sendPerformanceSettings(conn);
+            case "UPDATE_PERFORMANCE_SETTINGS" -> updatePerformanceSettings(conn, data, session);
+            case "GET_THROTTLE_STATUS" -> sendThrottleStatus(conn);
+            case "UPDATE_THROTTLE_CONFIG" -> updateThrottleConfig(conn, data, session);
+            case "MANUAL_THROTTLE_ENGAGE" -> manualThrottleEngage(conn, data, session);
+            case "MANUAL_THROTTLE_DISENGAGE" -> manualThrottleDisengage(conn, data, session);
+            case "GET_MEMORY_STATUS" -> sendMemoryStatus(conn);
+            case "GET_GC_RECOMMENDATIONS" -> sendGcRecommendations(conn);
+            case "TRIGGER_GC" -> triggerGc(conn, session);
+            case "UPDATE_MEMORY_THRESHOLDS" -> updateMemoryThresholds(conn, data, session);
+            case "GET_SECURITY_STATUS" -> sendSecurityStatus(conn);
+            case "UPDATE_RAID_SETTINGS" -> updateRaidSettings(conn, data, session);
+            case "MANUAL_LOCKDOWN_TOGGLE" -> toggleLockdown(conn, session);
+            case "UNBLOCK_IP" -> unblockIp(conn, data, session);
+            case "GET_AI_MODERATION_STATUS" -> sendAiModerationStatus(conn);
+            case "UPDATE_AI_MODERATION_PRESET" -> updateAiModerationPreset(conn, data, session);
+            case "UPDATE_AI_MODERATION_CONTENT_TYPES" -> updateAiModerationContentTypes(conn, data, session);
+            case "SAVE_AI_MODERATION_SETTINGS" -> saveAiModerationSettings(conn, data, session);
+            case "TEST_AI_MODERATION" -> testAiModeration(conn, data, session);
+            case "GET_AI_MODERATION_LOG" -> sendAiModerationLog(conn, data);
+            case "GENERATE_AI_DESCRIPTION" -> generateAiDescription(conn, data, session);
+            case "TRANSLATE_RULE" -> translateRule(conn, data, session);
+            case "GET_RULE_ACCEPTANCES" -> sendRuleAcceptances(conn);
             case "TELEPORT_TO_CHUNK" -> teleportToChunk(conn, data, session);
             case "TELEPORT_TO_PLAYER" -> teleportToPlayerByName(conn, data, session);
             case "GET_LUCKPERMS_STATUS" -> sendLuckPermsStatus(conn);
@@ -9016,6 +9039,13 @@ public class HybridPanelServer implements com.blockforge.moderex.gateway.Gateway
         broadcast(GSON.toJson(json));
     }
 
+    public void broadcastMessage(String type, JsonObject data) {
+        JsonObject json = new JsonObject();
+        json.addProperty("type", type);
+        json.add("data", data);
+        broadcast(GSON.toJson(json));
+    }
+
     // ==================== Teleport Actions ====================
 
     private void teleportToChunk(WebSocketConnection conn, JsonObject data, WebPanelSession session) {
@@ -10943,6 +10973,29 @@ public class HybridPanelServer implements com.blockforge.moderex.gateway.Gateway
                 // Stats and status
                 case "GET_STATS" -> sendStats(wrapper);
                 case "GET_SERVER_STATUS" -> sendServerStatus(wrapper);
+                case "GET_PERFORMANCE_SETTINGS" -> sendPerformanceSettings(wrapper);
+                case "UPDATE_PERFORMANCE_SETTINGS" -> updatePerformanceSettings(wrapper, data, session);
+                case "GET_THROTTLE_STATUS" -> sendThrottleStatus(wrapper);
+                case "UPDATE_THROTTLE_CONFIG" -> updateThrottleConfig(wrapper, data, session);
+                case "MANUAL_THROTTLE_ENGAGE" -> manualThrottleEngage(wrapper, data, session);
+                case "MANUAL_THROTTLE_DISENGAGE" -> manualThrottleDisengage(wrapper, data, session);
+                case "GET_MEMORY_STATUS" -> sendMemoryStatus(wrapper);
+                case "GET_GC_RECOMMENDATIONS" -> sendGcRecommendations(wrapper);
+                case "TRIGGER_GC" -> triggerGc(wrapper, session);
+                case "UPDATE_MEMORY_THRESHOLDS" -> updateMemoryThresholds(wrapper, data, session);
+                case "GET_SECURITY_STATUS" -> sendSecurityStatus(wrapper);
+                case "UPDATE_RAID_SETTINGS" -> updateRaidSettings(wrapper, data, session);
+                case "MANUAL_LOCKDOWN_TOGGLE" -> toggleLockdown(wrapper, session);
+                case "UNBLOCK_IP" -> unblockIp(wrapper, data, session);
+                case "GET_AI_MODERATION_STATUS" -> sendAiModerationStatus(wrapper);
+                case "UPDATE_AI_MODERATION_PRESET" -> updateAiModerationPreset(wrapper, data, session);
+                case "UPDATE_AI_MODERATION_CONTENT_TYPES" -> updateAiModerationContentTypes(wrapper, data, session);
+                case "SAVE_AI_MODERATION_SETTINGS" -> saveAiModerationSettings(wrapper, data, session);
+                case "TEST_AI_MODERATION" -> testAiModeration(wrapper, data, session);
+                case "GET_AI_MODERATION_LOG" -> sendAiModerationLog(wrapper, data);
+                case "GENERATE_AI_DESCRIPTION" -> generateAiDescription(wrapper, data, session);
+                case "TRANSLATE_RULE" -> translateRule(wrapper, data, session);
+                case "GET_RULE_ACCEPTANCES" -> sendRuleAcceptances(wrapper);
                 case "TELEPORT_TO_CHUNK" -> teleportToChunk(wrapper, data, session);
                 case "TELEPORT_TO_PLAYER" -> teleportToPlayerByName(wrapper, data, session);
                 case "GET_LUCKPERMS_STATUS" -> sendLuckPermsStatus(wrapper);
@@ -11266,5 +11319,410 @@ public class HybridPanelServer implements com.blockforge.moderex.gateway.Gateway
             plugin.logError("[Evidence] WebSocket file retrieval error: " + e.getMessage(), e);
             sendError(conn, "RETRIEVAL_FAILED", "Failed to retrieve evidence: " + e.getMessage());
         }
+    }
+
+    // ==================== Performance Settings Handlers ====================
+
+    private void sendPerformanceSettings(WebSocketConnection conn) {
+        var mgr = plugin.getPerformanceSettingsManager();
+        if (mgr == null) { sendError(conn, "NOT_AVAILABLE", "Performance settings not available"); return; }
+        JsonObject response = new JsonObject();
+        response.addProperty("type", "PERFORMANCE_SETTINGS_DATA");
+        response.add("data", mgr.toJson());
+        conn.send(GSON.toJson(response));
+    }
+
+    private void updatePerformanceSettings(WebSocketConnection conn, JsonObject data, WebPanelSession session) {
+        if (!hasViewPermission(session.playerUuid, "moderex.admin.performance")) {
+            sendError(conn, "NO_PERMISSION", "No permission to modify performance settings"); return;
+        }
+        var mgr = plugin.getPerformanceSettingsManager();
+        if (mgr == null) { sendError(conn, "NOT_AVAILABLE", "Performance settings not available"); return; }
+        mgr.updateFromJson(data);
+        sendPerformanceSettings(conn);
+    }
+
+    // ==================== TPS Throttle Handlers ====================
+
+    private void sendThrottleStatus(WebSocketConnection conn) {
+        var mgr = plugin.getTpsThrottleManager();
+        if (mgr == null) { sendError(conn, "NOT_AVAILABLE", "Throttle system not available"); return; }
+        JsonObject response = new JsonObject();
+        response.addProperty("type", "THROTTLE_STATUS_DATA");
+        response.add("data", mgr.getStatusJson());
+        conn.send(GSON.toJson(response));
+    }
+
+    private void updateThrottleConfig(WebSocketConnection conn, JsonObject data, WebPanelSession session) {
+        if (!hasViewPermission(session.playerUuid, "moderex.admin.throttle")) {
+            sendError(conn, "NO_PERMISSION", "No permission to modify throttle config"); return;
+        }
+        var mgr = plugin.getTpsThrottleManager();
+        if (mgr == null) return;
+        String action = data.has("action") ? data.get("action").getAsString() : null;
+        if (action != null) {
+            mgr.updateConfig(action, data);
+        }
+        sendThrottleStatus(conn);
+    }
+
+    private void manualThrottleEngage(WebSocketConnection conn, JsonObject data, WebPanelSession session) {
+        if (!hasViewPermission(session.playerUuid, "moderex.admin.throttle")) {
+            sendError(conn, "NO_PERMISSION", "No permission"); return;
+        }
+        var mgr = plugin.getTpsThrottleManager();
+        if (mgr == null) return;
+        String actionName = data.has("action") ? data.get("action").getAsString() : null;
+        if (actionName != null) {
+            try {
+                mgr.manualEngage(com.blockforge.moderex.monitor.ThrottleAction.valueOf(actionName));
+            } catch (IllegalArgumentException ignored) {}
+        }
+        sendThrottleStatus(conn);
+    }
+
+    private void manualThrottleDisengage(WebSocketConnection conn, JsonObject data, WebPanelSession session) {
+        if (!hasViewPermission(session.playerUuid, "moderex.admin.throttle")) {
+            sendError(conn, "NO_PERMISSION", "No permission"); return;
+        }
+        var mgr = plugin.getTpsThrottleManager();
+        if (mgr == null) return;
+        String actionName = data.has("action") ? data.get("action").getAsString() : null;
+        if (actionName != null) {
+            try {
+                mgr.manualDisengage(com.blockforge.moderex.monitor.ThrottleAction.valueOf(actionName));
+            } catch (IllegalArgumentException ignored) {}
+        }
+        sendThrottleStatus(conn);
+    }
+
+    // ==================== Memory Management Handlers ====================
+
+    private void sendMemoryStatus(WebSocketConnection conn) {
+        var mgr = plugin.getMemoryManager();
+        if (mgr == null) { sendError(conn, "NOT_AVAILABLE", "Memory manager not available"); return; }
+        JsonObject response = new JsonObject();
+        response.addProperty("type", "MEMORY_STATUS_DATA");
+        response.add("data", mgr.getStatusJson());
+        conn.send(GSON.toJson(response));
+    }
+
+    private void sendGcRecommendations(WebSocketConnection conn) {
+        var mgr = plugin.getMemoryManager();
+        if (mgr == null) return;
+        JsonObject response = new JsonObject();
+        response.addProperty("type", "GC_RECOMMENDATIONS_DATA");
+        response.add("data", mgr.getGcRecommendations());
+        conn.send(GSON.toJson(response));
+    }
+
+    private void triggerGc(WebSocketConnection conn, WebPanelSession session) {
+        if (!hasViewPermission(session.playerUuid, "moderex.admin.performance")) {
+            sendError(conn, "NO_PERMISSION", "No permission"); return;
+        }
+        System.gc();
+        JsonObject response = new JsonObject();
+        response.addProperty("type", "GC_TRIGGERED");
+        response.addProperty("success", true);
+        conn.send(GSON.toJson(response));
+    }
+
+    private void updateMemoryThresholds(WebSocketConnection conn, JsonObject data, WebPanelSession session) {
+        if (!hasViewPermission(session.playerUuid, "moderex.admin.performance")) {
+            sendError(conn, "NO_PERMISSION", "No permission"); return;
+        }
+        var mgr = plugin.getMemoryManager();
+        if (mgr == null) return;
+        mgr.updateThresholds(data);
+        sendMemoryStatus(conn);
+    }
+
+    // ==================== Security / Raid Protection Handlers ====================
+
+    private void sendSecurityStatus(WebSocketConnection conn) {
+        var raidManager = plugin.getRaidProtectionManager();
+        JsonObject response = new JsonObject();
+        response.addProperty("type", "SECURITY_STATUS_DATA");
+        if (raidManager != null) {
+            response.add("data", raidManager.toStatusJson());
+        } else {
+            JsonObject data = new JsonObject();
+            data.addProperty("raidActive", false);
+            data.addProperty("globalLockdown", false);
+            response.add("data", data);
+        }
+        conn.send(GSON.toJson(response));
+    }
+
+    private void updateRaidSettings(WebSocketConnection conn, JsonObject data, WebPanelSession session) {
+        if (!hasViewPermission(session.playerUuid, "moderex.admin.security")) {
+            sendError(conn, "NO_PERMISSION", "No permission"); return;
+        }
+        var raidManager = plugin.getRaidProtectionManager();
+        if (raidManager != null) {
+            raidManager.updateFromJson(data);
+        }
+        sendSecurityStatus(conn);
+    }
+
+    private void toggleLockdown(WebSocketConnection conn, WebPanelSession session) {
+        if (!hasViewPermission(session.playerUuid, "moderex.admin.security")) {
+            sendError(conn, "NO_PERMISSION", "No permission"); return;
+        }
+        var raidManager = plugin.getRaidProtectionManager();
+        if (raidManager != null) {
+            boolean currentlyLocked = plugin.isGlobalLockdown();
+            raidManager.toggleLockdown(!currentlyLocked);
+        }
+        sendSecurityStatus(conn);
+    }
+
+    private void unblockIp(WebSocketConnection conn, JsonObject data, WebPanelSession session) {
+        if (!hasViewPermission(session.playerUuid, "moderex.admin.security")) {
+            sendError(conn, "NO_PERMISSION", "No permission"); return;
+        }
+        var raidManager = plugin.getRaidProtectionManager();
+        if (raidManager != null && data.has("ip")) {
+            raidManager.unblockIp(data.get("ip").getAsString());
+        }
+        sendSecurityStatus(conn);
+    }
+
+    // ==================== AI Moderation Handlers ====================
+
+    private void sendAiModerationStatus(WebSocketConnection conn) {
+        var aiManager = plugin.getAiModerationManager();
+        JsonObject response = new JsonObject();
+        response.addProperty("type", "AI_MODERATION_STATUS_DATA");
+        if (aiManager != null) {
+            response.add("data", aiManager.toStatusJson());
+        } else {
+            JsonObject data = new JsonObject();
+            data.addProperty("enabled", false);
+            response.add("data", data);
+        }
+        conn.send(GSON.toJson(response));
+    }
+
+    private void updateAiModerationPreset(WebSocketConnection conn, JsonObject data, WebPanelSession session) {
+        if (!hasViewPermission(session.playerUuid, "moderex.admin.ai")) {
+            sendError(conn, "NO_PERMISSION", "No permission"); return;
+        }
+        var aiManager = plugin.getAiModerationManager();
+        if (aiManager != null && data.has("preset")) {
+            try {
+                aiManager.setPreset(com.blockforge.moderex.ai.ModerationPreset.valueOf(data.get("preset").getAsString()));
+            } catch (IllegalArgumentException ignored) {}
+        }
+        sendAiModerationStatus(conn);
+    }
+
+    private void updateAiModerationContentTypes(WebSocketConnection conn, JsonObject data, WebPanelSession session) {
+        if (!hasViewPermission(session.playerUuid, "moderex.admin.ai")) {
+            sendError(conn, "NO_PERMISSION", "No permission"); return;
+        }
+        var aiManager = plugin.getAiModerationManager();
+        if (aiManager != null && data.has("contentTypes")) {
+            JsonObject types = data.getAsJsonObject("contentTypes");
+            for (com.blockforge.moderex.ai.ContentType ct : com.blockforge.moderex.ai.ContentType.values()) {
+                if (types.has(ct.name())) {
+                    aiManager.setContentTypeEnabled(ct, types.get(ct.name()).getAsBoolean());
+                }
+            }
+        }
+        sendAiModerationStatus(conn);
+    }
+
+    private void saveAiModerationSettings(WebSocketConnection conn, JsonObject data, WebPanelSession session) {
+        if (!hasViewPermission(session.playerUuid, "moderex.admin.ai")) {
+            sendError(conn, "NO_PERMISSION", "No permission"); return;
+        }
+        var aiManager = plugin.getAiModerationManager();
+        if (aiManager != null) {
+            aiManager.updateFromJson(data);
+        }
+        sendAiModerationStatus(conn);
+    }
+
+    private void testAiModeration(WebSocketConnection conn, JsonObject data, WebPanelSession session) {
+        if (!hasViewPermission(session.playerUuid, "moderex.admin.ai")) {
+            sendError(conn, "NO_PERMISSION", "No permission"); return;
+        }
+
+        var ollamaClient = plugin.getOllamaClient();
+        if (ollamaClient == null || !ollamaClient.isAvailable()) {
+            JsonObject response = new JsonObject();
+            response.addProperty("type", "AI_MODERATION_TEST_RESULT");
+            JsonObject result = new JsonObject();
+            result.addProperty("action", "ALLOW");
+            result.addProperty("confidence", 0.0);
+            result.addProperty("reason", "AI is not configured. Please set up the Ollama endpoint in settings.");
+            result.addProperty("category", "NONE");
+            response.add("data", result);
+            conn.send(GSON.toJson(response));
+            return;
+        }
+
+        String content = data.has("content") ? data.get("content").getAsString() : "";
+        String systemPrompt = "You are a Minecraft server chat moderator AI. " +
+                "Analyze player messages for rule violations including: profanity, harassment, spam, " +
+                "advertising, inappropriate content, threats, and toxicity. " +
+                "Be strict but fair. Consider gaming context.";
+
+        ollamaClient.testModeration(content, systemPrompt)
+                .thenAccept(moderationResult -> {
+                    JsonObject response = new JsonObject();
+                    response.addProperty("type", "AI_MODERATION_TEST_RESULT");
+                    JsonObject result = new JsonObject();
+                    result.addProperty("action", moderationResult.getAction().name());
+                    result.addProperty("confidence", moderationResult.getConfidence());
+                    result.addProperty("reason", moderationResult.getReason());
+                    result.addProperty("category", moderationResult.getCategory());
+                    response.add("data", result);
+                    conn.send(GSON.toJson(response));
+                });
+    }
+
+    private void sendAiModerationLog(WebSocketConnection conn, JsonObject data) {
+        var aiManager = plugin.getAiModerationManager();
+        if (aiManager == null) {
+            JsonObject response = new JsonObject();
+            response.addProperty("type", "AI_MODERATION_LOG_DATA");
+            response.add("entries", new JsonArray());
+            response.addProperty("total", 0);
+            conn.send(GSON.toJson(response));
+            return;
+        }
+
+        int page = data != null && data.has("page") ? data.get("page").getAsInt() : 0;
+        int pageSize = data != null && data.has("pageSize") ? data.get("pageSize").getAsInt() : 50;
+
+        aiManager.getLogEntries(page, pageSize).thenAccept(logData -> {
+            JsonObject response = new JsonObject();
+            response.addProperty("type", "AI_MODERATION_LOG_DATA");
+            response.add("entries", logData.getAsJsonArray("entries"));
+            response.addProperty("total", logData.get("total").getAsInt());
+            conn.send(GSON.toJson(response));
+        });
+    }
+
+    // ==================== Rules AI Description Handlers ====================
+
+    private void generateAiDescription(WebSocketConnection conn, JsonObject data, WebPanelSession session) {
+        if (!hasViewPermission(session.playerUuid, "moderex.admin.rules")) {
+            sendError(conn, "NO_PERMISSION", "No permission"); return;
+        }
+
+        var ollamaClient = plugin.getOllamaClient();
+        if (ollamaClient == null || !ollamaClient.isAvailable()) {
+            JsonObject response = new JsonObject();
+            response.addProperty("type", "AI_DESCRIPTION_RESULT");
+            response.addProperty("ruleId", data.has("ruleId") ? data.get("ruleId").getAsInt() : 0);
+            response.addProperty("error", "AI is not configured. Please set up the Ollama endpoint in settings.");
+            conn.send(GSON.toJson(response));
+            return;
+        }
+
+        int ruleId = data.has("ruleId") ? data.get("ruleId").getAsInt() : 0;
+        var rule = plugin.getRulesManager().getRule(ruleId);
+        if (rule == null) {
+            sendError(conn, "RULE_NOT_FOUND", "Rule not found"); return;
+        }
+
+        ollamaClient.generateRuleDescription(rule.getTitle(), rule.getDescription())
+                .thenAccept(description -> {
+                    if (description != null) {
+                        rule.setAiDescription(description);
+                        rule.setAiLanguage("en");
+                        plugin.getRulesManager().saveRule(rule);
+
+                        // Regenerate CoC file if supported
+                        if (plugin.getCodeOfConductManager() != null) {
+                            plugin.getCodeOfConductManager().onRulesChanged();
+                        }
+                    }
+
+                    JsonObject response = new JsonObject();
+                    response.addProperty("type", "AI_DESCRIPTION_RESULT");
+                    response.addProperty("ruleId", ruleId);
+                    response.addProperty("description", description != null ? description : "Failed to generate description");
+                    conn.send(GSON.toJson(response));
+                });
+    }
+
+    private void translateRule(WebSocketConnection conn, JsonObject data, WebPanelSession session) {
+        if (!hasViewPermission(session.playerUuid, "moderex.admin.rules")) {
+            sendError(conn, "NO_PERMISSION", "No permission"); return;
+        }
+
+        var ollamaClient = plugin.getOllamaClient();
+        if (ollamaClient == null || !ollamaClient.isAvailable()) {
+            JsonObject response = new JsonObject();
+            response.addProperty("type", "RULE_TRANSLATION_RESULT");
+            response.addProperty("ruleId", data.has("ruleId") ? data.get("ruleId").getAsInt() : 0);
+            response.addProperty("error", "AI is not configured. Please set up the Ollama endpoint in settings.");
+            conn.send(GSON.toJson(response));
+            return;
+        }
+
+        int ruleId = data.has("ruleId") ? data.get("ruleId").getAsInt() : 0;
+        String targetLanguage = data.has("language") ? data.get("language").getAsString() : "Spanish";
+        var rule = plugin.getRulesManager().getRule(ruleId);
+        if (rule == null) {
+            sendError(conn, "RULE_NOT_FOUND", "Rule not found"); return;
+        }
+
+        String textToTranslate = rule.getAiDescription() != null ? rule.getAiDescription() : rule.getDescription();
+        ollamaClient.translateRule(textToTranslate, targetLanguage)
+                .thenAccept(translation -> {
+                    if (translation != null) {
+                        // Store translation in the rule's translations JSON
+                        String existing = rule.getTranslations();
+                        JsonObject translations = (existing != null && !existing.isEmpty()) ?
+                                com.google.gson.JsonParser.parseString(existing).getAsJsonObject() :
+                                new JsonObject();
+                        translations.addProperty(targetLanguage.toLowerCase(), translation);
+                        rule.setTranslations(GSON.toJson(translations));
+                        plugin.getRulesManager().saveRule(rule);
+                    }
+
+                    JsonObject response = new JsonObject();
+                    response.addProperty("type", "RULE_TRANSLATION_RESULT");
+                    response.addProperty("ruleId", ruleId);
+                    response.addProperty("language", targetLanguage);
+                    response.addProperty("translation", translation != null ? translation : "Failed to translate");
+                    conn.send(GSON.toJson(response));
+                });
+    }
+
+    private void sendRuleAcceptances(WebSocketConnection conn) {
+        var acceptanceManager = plugin.getRuleAcceptanceManager();
+        if (acceptanceManager == null) {
+            JsonObject response = new JsonObject();
+            response.addProperty("type", "RULE_ACCEPTANCES_DATA");
+            response.add("acceptances", new JsonArray());
+            response.addProperty("total", 0);
+            conn.send(GSON.toJson(response));
+            return;
+        }
+
+        acceptanceManager.getAcceptances(100).thenAccept(acceptances -> {
+            JsonObject response = new JsonObject();
+            response.addProperty("type", "RULE_ACCEPTANCES_DATA");
+            JsonArray arr = new JsonArray();
+            for (var acceptance : acceptances) {
+                JsonObject entry = new JsonObject();
+                entry.addProperty("playerUuid", (String) acceptance.get("playerUuid"));
+                entry.addProperty("playerName", (String) acceptance.get("playerName"));
+                entry.addProperty("rulesVersion", (Integer) acceptance.get("rulesVersion"));
+                entry.addProperty("acceptedAt", (Long) acceptance.get("acceptedAt"));
+                entry.addProperty("method", (String) acceptance.get("method"));
+                arr.add(entry);
+            }
+            response.add("acceptances", arr);
+            response.addProperty("total", acceptances.size());
+            response.addProperty("currentVersion", acceptanceManager.getCurrentRulesVersion());
+            conn.send(GSON.toJson(response));
+        });
     }
 }
