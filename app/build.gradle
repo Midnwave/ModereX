@@ -21,6 +21,7 @@ repositories {
     maven { url 'https://maven.citizensnpcs.co/repo' }
     maven { url 'https://maven.playpro.com' }
     maven { url 'https://repo.alessiodp.com/releases/' }
+    maven { url 'https://oss.sonatype.org/content/repositories/snapshots' }
     // Local libs folder for optional anticheat API JARs
     flatDir { dirs '../libs' }
 }
@@ -74,6 +75,9 @@ dependencies {
 
     // Netty (provided by Minecraft server, used for same-port HTTP handling)
     compileOnly 'io.netty:netty-all:4.1.97.Final'
+
+    // Spark API for profiler integration (Paper 1.20.4+ bundles Spark)
+    compileOnly 'me.lucko:spark-api:0.1-SNAPSHOT'
 
     // Optional: Anticheat API JARs in /libs folder for direct API access
     // ModereX uses reflection by default, so these are NOT required

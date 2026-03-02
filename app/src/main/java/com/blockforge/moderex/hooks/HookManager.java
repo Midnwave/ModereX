@@ -104,19 +104,18 @@ public class HookManager {
             }
         }
 
-        // Hook into Spark (profiler)
-        if (isPluginEnabled("spark")) {
-            try {
-                sparkHook = new SparkHook(plugin);
-                if (sparkHook.isAvailable()) {
-                    plugin.getLogger().info("Hooked into Spark " + sparkHook.getVersion() + " for advanced profiling.");
-                } else {
-                    sparkHook = null;
-                }
-            } catch (Exception e) {
-                plugin.logDebug("[Spark] Exception during hook: " + e.getMessage());
+        // Hook into Spark (profiler) - try always since Paper 1.20.4+ bundles Spark
+        try {
+            sparkHook = new SparkHook(plugin);
+            if (sparkHook.isAvailable()) {
+                plugin.getLogger().info("Hooked into Spark " + sparkHook.getVersion() +
+                        " via " + sparkHook.getDetectionMethod() + " for advanced profiling.");
+            } else {
                 sparkHook = null;
             }
+        } catch (Exception e) {
+            plugin.logDebug("[Spark] Exception during hook: " + e.getMessage());
+            sparkHook = null;
         }
 
         // Hook into Simple Voice Chat
