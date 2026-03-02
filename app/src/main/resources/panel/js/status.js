@@ -16,6 +16,9 @@
   let tpsGraphCtx = null;
   let statusUpdateInterval = null;
 
+  // Cached status data for instant rendering
+  let cachedStatusData = null;
+
   // Initialize on page load
   window.initServerStatus = function() {
     const canvas = document.getElementById('tpsGraph');
@@ -27,7 +30,12 @@
       canvas.height = 200;
     }
 
-    // Request initial status
+    // Show cached data immediately (no blocking wait)
+    if (cachedStatusData) {
+      window.handleServerStatus(cachedStatusData);
+    }
+
+    // Request fresh data in background
     refreshServerStatus();
 
     // Set up periodic refresh (every 1 second)
@@ -57,8 +65,11 @@
   window.handleServerStatus = function(data) {
     if (!data) return;
 
-    // Update TPS
-    updateTps(data.tps, data.averageTps);
+    // Cache for instant rendering on next page visit
+    cachedStatusData = data;
+
+    // Update TPS & MSPT
+    updateTps(data.tps, data.averageTps, data.mspt, data.averageMspt);
 
     // Update Memory
     updateMemory(data.usedMemory, data.maxMemory, data.memoryPercent);
@@ -157,7 +168,7 @@
     return Math.max(0, Math.min(100, score));
   }
 
-  function updateTps(tps, avgTps) {
+  function updateTps(tps, avgTps, mspt, avgMspt) {
     const tpsEl = document.getElementById('statusTps');
     const trendEl = document.getElementById('statusTpsTrend');
     const tpsBarEl = document.getElementById('statusTpsBar');
@@ -173,6 +184,23 @@
       } else {
         tpsEl.style.color = 'var(--bad)';
       }
+    }
+
+    // Update MSPT display
+    const msptEl = document.getElementById('statusMspt');
+    if (msptEl && mspt !== undefined) {
+      msptEl.textContent = (mspt || 50.0).toFixed(1) + 'ms';
+      if (mspt <= 50) {
+        msptEl.style.color = 'var(--ok)';
+      } else if (mspt <= 75) {
+        msptEl.style.color = 'var(--warn)';
+      } else {
+        msptEl.style.color = 'var(--bad)';
+      }
+    }
+    const avgMsptEl = document.getElementById('statusAvgMspt');
+    if (avgMsptEl && avgMspt !== undefined) {
+      avgMsptEl.textContent = (avgMspt || 50.0).toFixed(1) + 'ms';
     }
 
     // Update TPS progress bar

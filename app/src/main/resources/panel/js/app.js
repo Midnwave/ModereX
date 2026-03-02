@@ -1123,15 +1123,24 @@
 
   // ===== NAVIGATION =====
   window.go = function(page) {
+    // Redirect old status page to performance
+    if (page === 'status') page = 'performance';
+
     // Show loading line for page transition
     if (window.showLoadingLine) window.showLoadingLine();
 
     // Cleanup previous page if needed
-    if (window.cleanupServerStatus && state.currentPage === 'status') {
+    if (window.cleanupServerStatus && (state.currentPage === 'status' || state.currentPage === 'performance')) {
       window.cleanupServerStatus();
     }
     if (window.cleanupReplayViewer && state.currentPage === 'replay') {
       window.cleanupReplayViewer();
+    }
+    if (window.cleanupSecurityPage && state.currentPage === 'security') {
+      window.cleanupSecurityPage();
+    }
+    if (window.cleanupAiModerationPage && state.currentPage === 'aimoderation') {
+      window.cleanupAiModerationPage();
     }
 
     state.currentPage = page;
@@ -1186,7 +1195,9 @@
       }
       if (window.loadDevChecklist) window.loadDevChecklist();
     }
-    if (page === 'status' && window.initServerStatus) window.initServerStatus();
+    if (page === 'performance' && window.initServerStatus) window.initServerStatus();
+    if (page === 'security' && window.initSecurityPage) window.initSecurityPage();
+    if (page === 'aimoderation' && window.initAiModerationPage) window.initAiModerationPage();
     if (page === 'replay') {
       // Request replays from server
       const ws = window.MX?.ws;
@@ -9363,18 +9374,23 @@
   // Pages that can be searched (with optional permission requirements)
   const searchablePages = [
     { id: 'dashboard', name: 'Dashboard', icon: 'fa-gauge-high', keywords: ['home', 'overview', 'stats', 'activity'] },
-    { id: 'players', name: 'Player Management', icon: 'fa-users', keywords: ['users', 'list', 'online'] },
+    { id: 'performance', name: 'Performance', icon: 'fa-chart-line', keywords: ['server', 'status', 'tps', 'mspt', 'health', 'throttle', 'memory', 'chunks', 'lag'] },
+    { id: 'security', name: 'Security', icon: 'fa-shield', keywords: ['ddos', 'raid', 'protection', 'ip', 'ban', 'lockdown'] },
+    { id: 'rules', name: 'Rules', icon: 'fa-scroll', keywords: ['server rules', 'code of conduct', 'coc'] },
+    { id: 'players', name: 'Players', icon: 'fa-users', keywords: ['users', 'list', 'online', 'management'] },
     { id: 'punishments', name: 'Punishments', icon: 'fa-gavel', keywords: ['bans', 'mutes', 'kicks', 'warns', 'cases'] },
     { id: 'templates', name: 'Templates', icon: 'fa-bookmark', keywords: ['presets', 'quick', 'saved'] },
-    { id: 'automod', name: 'Automod Rules', icon: 'fa-robot', keywords: ['filter', 'chat', 'spam', 'swear'], permission: 'moderex.automod' },
+    { id: 'automod', name: 'Automod', icon: 'fa-robot', keywords: ['filter', 'chat', 'spam', 'swear'], permission: 'moderex.automod' },
+    { id: 'aimoderation', name: 'AI Moderation', icon: 'fa-brain', keywords: ['ai', 'ollama', 'moderate', 'content', 'filter'], permission: 'moderex.admin.ai' },
     { id: 'anticheat', name: 'Anticheat', icon: 'fa-shield-halved', keywords: ['hacks', 'cheats', 'alerts'], permission: 'moderex.anticheat' },
+    { id: 'cmdblacklist', name: 'Cmd Blacklist', icon: 'fa-ban', keywords: ['command', 'block', 'blacklist'] },
     { id: 'watchlist', name: 'Watchlist', icon: 'fa-eye', keywords: ['monitor', 'watch', 'track'], permission: 'moderex.watchlist' },
     { id: 'replay', name: 'Replays', icon: 'fa-film', keywords: ['recording', 'playback', 'session'], permission: 'moderex.replays.view' },
-    { id: 'activitylog', name: 'Activity Log', icon: 'fa-scroll', keywords: ['history', 'events', 'database', 'chat', 'commands'], permission: 'moderex.activitylog' },
+    { id: 'activitylog', name: 'Activity Logs', icon: 'fa-scroll', keywords: ['history', 'events', 'database', 'chat', 'commands'], permission: 'moderex.activitylog' },
     { id: 'staffchat', name: 'Staff Chat', icon: 'fa-comments', keywords: ['team', 'message', 'communicate'], permission: 'moderex.staffchat' },
     { id: 'mysettings', name: 'My Settings', icon: 'fa-user-gear', keywords: ['preferences', 'sounds', 'notifications'] },
     { id: 'messages', name: 'Messages', icon: 'fa-language', keywords: ['lang', 'text', 'translate'] },
-    { id: 'actions', name: 'Configuration', icon: 'fa-bolt', keywords: ['quick', 'chat', 'kick all', 'config', 'settings'] },
+    { id: 'actions', name: 'Settings', icon: 'fa-sliders', keywords: ['quick', 'chat', 'kick all', 'config', 'settings', 'configuration'] },
     { id: 'integrations', name: 'Integrations', icon: 'fa-plug', keywords: ['luckperms', 'plugins', 'hooks'] },
     { id: 'devtools', name: 'Developer Tools', icon: 'fa-code', keywords: ['dev', 'debug', 'test', 'stress', 'developer'] }
   ];
@@ -14543,6 +14559,14 @@
    * Show the changelog modal if there are unread changelogs
    */
   window.showChangelogModal = function() {
+    // Don't show changelog if another modal/overlay is active (e.g., ToS, rules acceptance)
+    const existingOverlay = document.querySelector('.modal-overlay, .tos-overlay, .rules-overlay, #tosOverlay, #rulesOverlay');
+    if (existingOverlay) {
+      // Retry after a delay — wait for the higher-priority modal to close
+      setTimeout(() => window.showChangelogModal(), 3000);
+      return;
+    }
+
     const changelogs = window.MX_CHANGELOGS || [];
     const readBuilds = changelogState.readBuilds || [];
     const unread = changelogs.filter(log => !readBuilds.includes(log.build));
@@ -14552,10 +14576,26 @@
       return;
     }
 
-    // Sort by build number ascending (earliest/oldest versions first)
-    unread.sort((a, b) => a.build - b.build);
+    // Sort by build number descending (newest first) and limit to last 3
+    unread.sort((a, b) => b.build - a.build);
+    const toShow = unread.slice(0, 3);
 
-    changelogState.unreadChangelogs = unread;
+    // Re-sort ascending for display (oldest first so user reads chronologically)
+    toShow.sort((a, b) => a.build - b.build);
+
+    // Mark any older unread changelogs as read automatically
+    const skipped = unread.slice(3);
+    for (const log of skipped) {
+      if (!changelogState.readBuilds.includes(log.build)) {
+        changelogState.readBuilds.push(log.build);
+        const ws = window.MX?.ws;
+        if (ws && ws.isConnected()) {
+          ws.send('MARK_CHANGELOG_READ', { build: log.build });
+        }
+      }
+    }
+
+    changelogState.unreadChangelogs = toShow;
     changelogState.currentIndex = 0;
     renderChangelogModal();
   };
@@ -14754,7 +14794,7 @@
       if (changelogState.readBuilds !== undefined) {
         window.showChangelogModal();
       }
-    }, 1500); // Delay to let UI settle
+    }, 4000); // Delay longer to let UI settle and higher-priority modals (ToS, rules) show first
   };
 
   // ===== INITIALIZATION =====

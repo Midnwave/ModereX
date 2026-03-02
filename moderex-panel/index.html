@@ -331,45 +331,39 @@
         </div>
 
         <div class="sb-group">
-          <div class="sb-label">Overview</div>
+          <div class="sb-label">Server</div>
           <div class="sb-item active" data-page="dashboard"><i class="fa-solid fa-gauge-high"></i> Dashboard</div>
-        </div>
-        
-        <div class="sb-group">
-          <div class="sb-label">Enforcement</div>
-          <div class="sb-item" data-page="players"><i class="fa-solid fa-users"></i> Player Management</div>
-          <div class="sb-item" data-page="punishments"><i class="fa-solid fa-gavel"></i> Punishments</div>
-          <div class="sb-item" data-page="templates"><i class="fa-solid fa-bookmark"></i> Templates</div>
-        </div>
-        
-        <div class="sb-group">
-          <div class="sb-label">Monitoring</div>
-          <div class="sb-item" data-page="automod"><i class="fa-solid fa-robot"></i> Automod Rules</div>
-          <div class="sb-item" data-page="cmdblacklist"><i class="fa-solid fa-ban"></i> Cmd Blacklist</div>
-          <div class="sb-item" data-page="anticheat"><i class="fa-solid fa-shield-halved"></i> Anticheat</div>
-          <div class="sb-item" data-page="watchlist"><i class="fa-solid fa-eye"></i> Watchlist</div>
-          <div class="sb-item" data-page="replay"><i class="fa-solid fa-film"></i> Replays</div>
-          <div class="sb-item" data-page="activitylog"><i class="fa-solid fa-scroll"></i> Activity Log</div>
-          <div class="sb-item" data-page="auditlog"><i class="fa-solid fa-clipboard-list"></i> Audit Log</div>
-          <div class="sb-item" data-page="status"><i class="fa-solid fa-server"></i> Server Status</div>
+          <div class="sb-item" data-page="performance"><i class="fa-solid fa-chart-line"></i> Performance</div>
+          <div class="sb-item" data-page="security"><i class="fa-solid fa-shield"></i> Security</div>
+          <div class="sb-item" data-page="rules"><i class="fa-solid fa-scroll"></i> Rules</div>
+          <div class="sb-item" data-page="actions"><i class="fa-solid fa-sliders"></i> Settings</div>
         </div>
 
         <div class="sb-group">
-          <div class="sb-label">Communication</div>
+          <div class="sb-label">Enforcement</div>
+          <div class="sb-item" data-page="punishments"><i class="fa-solid fa-gavel"></i> Punishments</div>
+          <div class="sb-item" data-page="automod"><i class="fa-solid fa-robot"></i> Automod</div>
+          <div class="sb-item" data-page="aimoderation"><i class="fa-solid fa-brain"></i> AI Moderation</div>
+          <div class="sb-item" data-page="anticheat"><i class="fa-solid fa-shield-halved"></i> Anticheat</div>
+          <div class="sb-item" data-page="cmdblacklist"><i class="fa-solid fa-ban"></i> Cmd Blacklist</div>
+        </div>
+
+        <div class="sb-group">
+          <div class="sb-label">Monitoring</div>
+          <div class="sb-item" data-page="activitylog"><i class="fa-solid fa-scroll"></i> Activity Logs</div>
+          <div class="sb-item" data-page="auditlog"><i class="fa-solid fa-clipboard-list"></i> Audit Log</div>
+          <div class="sb-item" data-page="watchlist"><i class="fa-solid fa-eye"></i> Watchlist</div>
+          <div class="sb-item" data-page="replay"><i class="fa-solid fa-film"></i> Replays</div>
           <div class="sb-item" data-page="staffchat"><i class="fa-solid fa-comments"></i> Staff Chat</div>
         </div>
 
         <div class="sb-group">
-          <div class="sb-label">Server</div>
-          <div class="sb-item" data-page="rules"><i class="fa-solid fa-scroll"></i> Server Rules</div>
-        </div>
-
-        <div class="sb-group">
-          <div class="sb-label">Configuration</div>
-          <div class="sb-item" data-page="mysettings"><i class="fa-solid fa-user-gear"></i> My Settings</div>
-          <div class="sb-item" data-page="messages"><i class="fa-solid fa-language"></i> Messages</div>
-          <div class="sb-item" data-page="actions"><i class="fa-solid fa-sliders"></i> Configuration</div>
+          <div class="sb-label">Admin</div>
+          <div class="sb-item" data-page="players"><i class="fa-solid fa-users"></i> Players</div>
+          <div class="sb-item" data-page="templates"><i class="fa-solid fa-bookmark"></i> Templates</div>
           <div class="sb-item" data-page="integrations"><i class="fa-solid fa-plug"></i> Integrations</div>
+          <div class="sb-item" data-page="messages"><i class="fa-solid fa-language"></i> Messages</div>
+          <div class="sb-item" data-page="mysettings"><i class="fa-solid fa-user-gear"></i> My Settings</div>
           <div class="sb-item" data-page="permissions" id="sbPermissions"><i class="fa-solid fa-shield-halved"></i> Permissions</div>
         </div>
 
@@ -2051,8 +2045,8 @@
           </div>
         </section>
 
-        <!-- Server Status Page - Anti-Lag Monitoring System -->
-        <section class="page" id="page-status">
+        <!-- Performance Page (formerly Server Status) - Anti-Lag Monitoring System -->
+        <section class="page" id="page-performance">
           <div class="page-head">
             <div class="page-title">
               <h1>Anti-Lag Monitoring</h1>
@@ -3396,6 +3390,252 @@
           </div>
         </section>
 
+        <!-- Security Page -->
+        <section class="page" id="page-security">
+          <div class="page-head">
+            <div class="page-title">
+              <h1>Security</h1>
+              <p>DDoS protection, raid defense, and IP reputation management.</p>
+            </div>
+            <div class="page-actions">
+              <button class="btn danger" id="lockdownToggleBtn" onclick="toggleLockdown()"><i class="fa-solid fa-lock"></i> Lockdown</button>
+            </div>
+          </div>
+
+          <div class="panel pad">
+            <div class="card" id="raidStatusCard">
+              <h3><i class="fa-solid fa-shield-halved" style="color:var(--success)"></i> Raid Status</h3>
+              <div id="raidStatusContent" style="margin-top:14px">
+                <div class="stat-row">
+                  <span class="stat-label">Status</span>
+                  <span class="badge ok" id="raidStatusBadge">Normal</span>
+                </div>
+                <div class="stat-row">
+                  <span class="stat-label">Lockdown</span>
+                  <span class="badge" id="lockdownBadge">Disabled</span>
+                </div>
+                <div class="stat-row">
+                  <span class="stat-label">Recent Joins (30s)</span>
+                  <span id="recentJoinCount">0</span>
+                </div>
+                <div class="stat-row">
+                  <span class="stat-label">Blocked IPs</span>
+                  <span id="blockedIpCount">0</span>
+                </div>
+              </div>
+            </div>
+
+            <div class="card">
+              <h3><i class="fa-solid fa-shield" style="color:var(--primary-light)"></i> Raid Protection</h3>
+              <div class="grid cols-2" style="margin-top:14px;gap:16px">
+                <div>
+                  <div class="hintline" style="margin-top:0">Join Velocity Threshold</div>
+                  <input type="number" class="input" id="raidJoinThreshold" placeholder="10" value="10" min="3" max="100">
+                  <div style="font-size:11px;color:var(--text-secondary);margin-top:4px">Joins within window to trigger raid alert</div>
+                </div>
+                <div>
+                  <div class="hintline" style="margin-top:0">Detection Window (seconds)</div>
+                  <input type="number" class="input" id="raidWindowSeconds" placeholder="30" value="30" min="5" max="300">
+                </div>
+                <div>
+                  <div class="hintline" style="margin-top:0">Min Account Age (days)</div>
+                  <input type="number" class="input" id="raidMinAccountAge" placeholder="0" value="0" min="0">
+                  <div style="font-size:11px;color:var(--text-secondary);margin-top:4px">0 = disabled</div>
+                </div>
+              </div>
+              <div style="margin-top:16px;display:flex;flex-wrap:wrap;gap:16px">
+                <div class="toggle-wrap">
+                  <button class="toggle" id="raidAutoLockdownToggle" onclick="toggleRaidSetting('autoLockdown')" aria-pressed="false"><span class="toggle-thumb"></span></button>
+                  <div class="toggle-meta"><div class="toggle-title">Auto Lockdown</div><div class="toggle-sub">Automatically enable whitelist on raid</div></div>
+                </div>
+                <div class="toggle-wrap">
+                  <button class="toggle" id="raidVpnDetectionToggle" onclick="toggleRaidSetting('vpnDetection')" aria-pressed="false"><span class="toggle-thumb"></span></button>
+                  <div class="toggle-meta"><div class="toggle-title">VPN Detection</div><div class="toggle-sub">Block VPN/proxy connections during raids</div></div>
+                </div>
+                <div class="toggle-wrap">
+                  <button class="toggle" id="raidCaptchaToggle" onclick="toggleRaidSetting('captcha')" aria-pressed="false"><span class="toggle-thumb"></span></button>
+                  <div class="toggle-meta"><div class="toggle-title">CAPTCHA Verification</div><div class="toggle-sub">Require math CAPTCHA during raid mode</div></div>
+                </div>
+                <div class="toggle-wrap">
+                  <button class="toggle" id="raidGeoBlockToggle" onclick="toggleRaidSetting('geoBlock')" aria-pressed="false"><span class="toggle-thumb"></span></button>
+                  <div class="toggle-meta"><div class="toggle-title">Geographic Blocking</div><div class="toggle-sub">Block connections from specified countries</div></div>
+                </div>
+              </div>
+              <div style="margin-top:16px;display:flex;gap:8px">
+                <button class="btn primary" onclick="saveRaidSettings()"><i class="fa-solid fa-floppy-disk"></i> Save Settings</button>
+              </div>
+            </div>
+
+            <div class="card">
+              <h3><i class="fa-solid fa-network-wired" style="color:var(--warn)"></i> IP Management</h3>
+              <div style="margin-top:14px">
+                <div class="flex-between" style="margin-bottom:12px">
+                  <input type="text" class="input" id="ipSearchInput" placeholder="Search IPs..." style="max-width:300px" oninput="filterIpList()">
+                  <button class="btn mini" onclick="refreshIpList()"><i class="fa-solid fa-refresh"></i> Refresh</button>
+                </div>
+                <div id="ipReputationTable" style="max-height:400px;overflow-y:auto">
+                  <div style="color:var(--text-secondary);font-size:13px">Loading IP data...</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- AI Moderation Page -->
+        <section class="page" id="page-aimoderation">
+          <div class="page-head">
+            <div class="page-title">
+              <h1>AI Moderation</h1>
+              <p>Content moderation powered by AI. Uses Ollama cloud models to analyze player content.</p>
+            </div>
+            <div class="page-actions">
+              <button class="btn" onclick="testAiModeration()"><i class="fa-solid fa-flask"></i> Test</button>
+            </div>
+          </div>
+
+          <div class="panel pad">
+            <div class="card" id="aiStatusCard">
+              <h3><i class="fa-solid fa-brain" style="color:var(--primary-light)"></i> AI Status</h3>
+              <div id="aiStatusContent" style="margin-top:14px">
+                <div class="stat-row">
+                  <span class="stat-label">Status</span>
+                  <span class="badge" id="aiStatusBadge">Checking...</span>
+                </div>
+                <div class="stat-row">
+                  <span class="stat-label">Model</span>
+                  <span id="aiModelName">-</span>
+                </div>
+                <div class="stat-row">
+                  <span class="stat-label">Calls This Minute</span>
+                  <span id="aiCallsMinute">0 / 30</span>
+                </div>
+                <div class="stat-row">
+                  <span class="stat-label">Total Moderated</span>
+                  <span id="aiTotalModerated">0</span>
+                </div>
+              </div>
+            </div>
+
+            <div class="card">
+              <h3><i class="fa-solid fa-sliders" style="color:var(--accent-light)"></i> Moderation Preset</h3>
+              <div style="margin-top:14px">
+                <select class="input" id="aiPresetSelect" onchange="changeAiPreset()" style="max-width:300px">
+                  <option value="custom">Custom</option>
+                  <option value="family">Family Server (Strictest)</option>
+                  <option value="teen">Teen Friendly</option>
+                  <option value="mature">Mature Community</option>
+                  <option value="competitive">Competitive/PvP</option>
+                  <option value="creative">Creative/Building</option>
+                  <option value="roleplay">Roleplay</option>
+                  <option value="educational">Educational</option>
+                  <option value="minimal">Minimal (Safety Only)</option>
+                </select>
+              </div>
+            </div>
+
+            <div class="card">
+              <h3><i class="fa-solid fa-filter" style="color:var(--warn)"></i> Content Types</h3>
+              <p>Select which content types to moderate with AI.</p>
+              <div style="margin-top:14px;display:flex;flex-wrap:wrap;gap:16px">
+                <div class="toggle-wrap">
+                  <button class="toggle" id="aiChatToggle" onclick="toggleAiContentType('chat')" aria-pressed="true"><span class="toggle-thumb"></span></button>
+                  <div class="toggle-meta"><div class="toggle-title">Chat Messages</div><div class="toggle-sub">Public and global chat</div></div>
+                </div>
+                <div class="toggle-wrap">
+                  <button class="toggle" id="aiPmToggle" onclick="toggleAiContentType('pm')" aria-pressed="false"><span class="toggle-thumb"></span></button>
+                  <div class="toggle-meta"><div class="toggle-title">Private Messages</div><div class="toggle-sub">Player-to-player messages</div></div>
+                </div>
+                <div class="toggle-wrap">
+                  <button class="toggle" id="aiCommandToggle" onclick="toggleAiContentType('command')" aria-pressed="false"><span class="toggle-thumb"></span></button>
+                  <div class="toggle-meta"><div class="toggle-title">Commands</div><div class="toggle-sub">Command arguments (e.g. /msg, /rename)</div></div>
+                </div>
+                <div class="toggle-wrap">
+                  <button class="toggle" id="aiSignToggle" onclick="toggleAiContentType('sign')" aria-pressed="false"><span class="toggle-thumb"></span></button>
+                  <div class="toggle-meta"><div class="toggle-title">Signs</div><div class="toggle-sub">Sign text content</div></div>
+                </div>
+                <div class="toggle-wrap">
+                  <button class="toggle" id="aiBookToggle" onclick="toggleAiContentType('book')" aria-pressed="false"><span class="toggle-thumb"></span></button>
+                  <div class="toggle-meta"><div class="toggle-title">Books</div><div class="toggle-sub">Written book content</div></div>
+                </div>
+                <div class="toggle-wrap">
+                  <button class="toggle" id="aiNicknameToggle" onclick="toggleAiContentType('nickname')" aria-pressed="false"><span class="toggle-thumb"></span></button>
+                  <div class="toggle-meta"><div class="toggle-title">Nicknames</div><div class="toggle-sub">Player nickname changes</div></div>
+                </div>
+                <div class="toggle-wrap">
+                  <button class="toggle" id="aiAnvilToggle" onclick="toggleAiContentType('anvil')" aria-pressed="false"><span class="toggle-thumb"></span></button>
+                  <div class="toggle-meta"><div class="toggle-title">Anvil Renames</div><div class="toggle-sub">Item renaming via anvil</div></div>
+                </div>
+              </div>
+            </div>
+
+            <div class="card">
+              <h3><i class="fa-solid fa-shield-halved" style="color:var(--danger)"></i> Filter Rules</h3>
+              <p>Configure what the AI should flag or block.</p>
+              <div style="margin-top:14px;display:flex;flex-wrap:wrap;gap:16px">
+                <div class="toggle-wrap">
+                  <button class="toggle" id="aiFilterProfanity" onclick="toggleAiFilter('profanity')" aria-pressed="true"><span class="toggle-thumb"></span></button>
+                  <div class="toggle-meta"><div class="toggle-title">Profanity</div></div>
+                </div>
+                <div class="toggle-wrap">
+                  <button class="toggle" id="aiFilterHate" onclick="toggleAiFilter('hateSpeech')" aria-pressed="true"><span class="toggle-thumb"></span></button>
+                  <div class="toggle-meta"><div class="toggle-title">Hate Speech</div></div>
+                </div>
+                <div class="toggle-wrap">
+                  <button class="toggle" id="aiFilterSexual" onclick="toggleAiFilter('sexualContent')" aria-pressed="true"><span class="toggle-thumb"></span></button>
+                  <div class="toggle-meta"><div class="toggle-title">Sexual Content</div></div>
+                </div>
+                <div class="toggle-wrap">
+                  <button class="toggle" id="aiFilterViolence" onclick="toggleAiFilter('violence')" aria-pressed="false"><span class="toggle-thumb"></span></button>
+                  <div class="toggle-meta"><div class="toggle-title">Violence</div></div>
+                </div>
+                <div class="toggle-wrap">
+                  <button class="toggle" id="aiFilterPersonalInfo" onclick="toggleAiFilter('personalInfo')" aria-pressed="true"><span class="toggle-thumb"></span></button>
+                  <div class="toggle-meta"><div class="toggle-title">Personal Info</div></div>
+                </div>
+                <div class="toggle-wrap">
+                  <button class="toggle" id="aiFilterAdvertising" onclick="toggleAiFilter('advertising')" aria-pressed="true"><span class="toggle-thumb"></span></button>
+                  <div class="toggle-meta"><div class="toggle-title">Advertising</div></div>
+                </div>
+                <div class="toggle-wrap">
+                  <button class="toggle" id="aiFilterSpam" onclick="toggleAiFilter('spam')" aria-pressed="true"><span class="toggle-thumb"></span></button>
+                  <div class="toggle-meta"><div class="toggle-title">Spam</div></div>
+                </div>
+                <div class="toggle-wrap">
+                  <button class="toggle" id="aiFilterThreats" onclick="toggleAiFilter('threats')" aria-pressed="true"><span class="toggle-thumb"></span></button>
+                  <div class="toggle-meta"><div class="toggle-title">Threats</div></div>
+                </div>
+                <div class="toggle-wrap">
+                  <button class="toggle" id="aiFilterDiscrimination" onclick="toggleAiFilter('discrimination')" aria-pressed="true"><span class="toggle-thumb"></span></button>
+                  <div class="toggle-meta"><div class="toggle-title">Discrimination</div></div>
+                </div>
+                <div class="toggle-wrap">
+                  <button class="toggle" id="aiFilterSelfHarm" onclick="toggleAiFilter('selfHarm')" aria-pressed="true"><span class="toggle-thumb"></span></button>
+                  <div class="toggle-meta"><div class="toggle-title">Self Harm</div></div>
+                </div>
+              </div>
+              <div style="margin-top:16px;display:flex;gap:8px">
+                <button class="btn primary" onclick="saveAiModerationSettings()"><i class="fa-solid fa-floppy-disk"></i> Save Settings</button>
+              </div>
+            </div>
+
+            <div class="card">
+              <h3><i class="fa-solid fa-gauge" style="color:var(--primary-light)"></i> Confidence Threshold</h3>
+              <div style="margin-top:14px">
+                <div class="hintline" style="margin-top:0">Minimum confidence to take action (<span id="aiConfidenceValue">70</span>%)</div>
+                <input type="range" class="slider" id="aiConfidenceSlider" min="30" max="99" value="70" oninput="document.getElementById('aiConfidenceValue').textContent=this.value">
+                <div style="font-size:11px;color:var(--text-secondary);margin-top:4px">Lower = more aggressive filtering, higher = fewer false positives</div>
+              </div>
+            </div>
+
+            <div class="card">
+              <h3><i class="fa-solid fa-clipboard-list" style="color:var(--accent-light)"></i> Recent Decisions</h3>
+              <div id="aiModerationLog" style="margin-top:14px;max-height:400px;overflow-y:auto">
+                <div style="color:var(--text-secondary);font-size:13px">No moderation decisions yet.</div>
+              </div>
+            </div>
+          </div>
+        </section>
+
         <!-- Integrations Page -->
         <section class="page" id="page-integrations">
           <div class="page-head">
@@ -4568,6 +4808,8 @@
   <script src="js/changelog.js"></script>
   <script src="js/app.js"></script>
   <script src="js/status.js"></script>
+  <script src="js/security.js"></script>
+  <script src="js/aimoderation.js"></script>
   <script src="js/extensions.js"></script>
   <script src="js/replay3d-terrain.js"></script>
   <script src="js/replay3d.js"></script>
