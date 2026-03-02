@@ -16,6 +16,9 @@
   let tpsGraphCtx = null;
   let statusUpdateInterval = null;
 
+  // Cached status data for instant rendering
+  let cachedStatusData = null;
+
   // Initialize on page load
   window.initServerStatus = function() {
     const canvas = document.getElementById('tpsGraph');
@@ -27,7 +30,12 @@
       canvas.height = 200;
     }
 
-    // Request initial status
+    // Show cached data immediately (no blocking wait)
+    if (cachedStatusData) {
+      window.handleServerStatus(cachedStatusData);
+    }
+
+    // Request fresh data in background
     refreshServerStatus();
 
     // Set up periodic refresh (every 1 second)
@@ -57,8 +65,11 @@
   window.handleServerStatus = function(data) {
     if (!data) return;
 
-    // Update TPS
-    updateTps(data.tps, data.averageTps);
+    // Cache for instant rendering on next page visit
+    cachedStatusData = data;
+
+    // Update TPS & MSPT
+    updateTps(data.tps, data.averageTps, data.mspt, data.averageMspt);
 
     // Update Memory
     updateMemory(data.usedMemory, data.maxMemory, data.memoryPercent);
@@ -157,7 +168,7 @@
     return Math.max(0, Math.min(100, score));
   }
 
-  function updateTps(tps, avgTps) {
+  function updateTps(tps, avgTps, mspt, avgMspt) {
     const tpsEl = document.getElementById('statusTps');
     const trendEl = document.getElementById('statusTpsTrend');
     const tpsBarEl = document.getElementById('statusTpsBar');
@@ -173,6 +184,23 @@
       } else {
         tpsEl.style.color = 'var(--bad)';
       }
+    }
+
+    // Update MSPT display
+    const msptEl = document.getElementById('statusMspt');
+    if (msptEl && mspt !== undefined) {
+      msptEl.textContent = (mspt || 50.0).toFixed(1) + 'ms';
+      if (mspt <= 50) {
+        msptEl.style.color = 'var(--ok)';
+      } else if (mspt <= 75) {
+        msptEl.style.color = 'var(--warn)';
+      } else {
+        msptEl.style.color = 'var(--bad)';
+      }
+    }
+    const avgMsptEl = document.getElementById('statusAvgMspt');
+    if (avgMsptEl && avgMspt !== undefined) {
+      avgMsptEl.textContent = (avgMspt || 50.0).toFixed(1) + 'ms';
     }
 
     // Update TPS progress bar
@@ -792,6 +820,15 @@
       updateAlertHistory(data);
     });
 
+    // New performance handlers
+    ws.on('THROTTLE_STATUS_DATA', (data) => updateThrottleStatus(data));
+    ws.on('THROTTLE_STATUS_UPDATE', (data) => updateThrottleStatus(data));
+    ws.on('MEMORY_STATUS_DATA', (data) => updateMemoryStatus(data));
+    ws.on('MEMORY_STATUS_UPDATE', (data) => updateMemoryStatus(data));
+    ws.on('GC_RECOMMENDATIONS_DATA', (data) => updateGcRecommendations(data));
+    ws.on('GC_TRIGGERED', () => { if (window.toast) window.toast('success', 'GC Triggered', 'Garbage collection requested.'); });
+    ws.on('PERFORMANCE_SETTINGS_DATA', (data) => updatePerformanceSettingsUI(data));
+
     console.log('[ModereX Status] Handlers registered');
   }
 
@@ -817,6 +854,13 @@
       requestDiagnostics();
     } else if (tabName === 'alerts') {
       requestAlertHistory();
+    } else if (tabName === 'throttle') {
+      requestThrottleStatus();
+    } else if (tabName === 'memory') {
+      requestMemoryStatus();
+      requestGcRecommendations();
+    } else if (tabName === 'tuning') {
+      requestPerformanceSettings();
     }
   };
 
@@ -1344,6 +1388,374 @@
     }
   }
 
+  // ====== TPS THROTTLE ======
+
+  function requestThrottleStatus() {
+    const ws = window.MX?.ws;
+    if (ws && ws.isConnected()) ws.send('GET_THROTTLE_STATUS', {});
+  }
+
+  const THROTTLE_DESCRIPTIONS = {
+    REDUCE_MOB_CAP: 'Lowers monster spawn limits',
+    SLOW_HOPPER_TRANSFER: 'Reduces hopper transfer speed',
+    REDUCE_RANDOM_TICK_SPEED: 'Lowers crop/grass growth speed',
+    REDUCE_MOB_AI_RANGE: 'Decreases mob activation range',
+    REDUCE_CHUNK_LOAD_RATE: 'Throttles chunk loading speed',
+    DISABLE_MOB_SPAWNING: 'Completely stops mob spawning',
+    INCREASE_ENTITY_DESPAWN_RATES: 'Entities despawn faster',
+    REDUCE_VIEW_DISTANCE: 'Lowers server view distance',
+    PAUSE_REDSTONE_UPDATES: 'Disables redstone tick updates',
+    KILL_EXCESS_ENTITIES: 'Removes distant non-named mobs'
+  };
+
+  function updateThrottleStatus(data) {
+    const container = document.getElementById('throttleActionCards');
+    const overrideBadge = document.getElementById('throttleOverrideBadge');
+    if (!container) return;
+
+    if (overrideBadge) {
+      overrideBadge.style.display = data.manualOverride ? 'inline-flex' : 'none';
+    }
+
+    const actions = data.actions || [];
+    if (!actions.length) {
+      container.innerHTML = '<div style="color:var(--text-secondary)">No throttle actions configured.</div>';
+      return;
+    }
+
+    let html = '';
+    for (const a of actions) {
+      const name = a.name || a.action || '';
+      const displayName = name.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+      const desc = THROTTLE_DESCRIPTIONS[name] || '';
+      const engaged = a.currentlyEngaged || false;
+      const statusColor = engaged ? 'var(--danger)' : 'var(--ok)';
+      const statusText = engaged ? 'ENGAGED' : 'Idle';
+
+      html += `<div class="panel pad" data-throttle="${name}">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+          <div>
+            <h3 style="margin:0;font-size:14px">${displayName}</h3>
+            <small style="color:var(--text-secondary)">${desc}</small>
+          </div>
+          <div style="display:flex;gap:8px;align-items:center">
+            <span class="badge" style="background:${statusColor}">${statusText}</span>
+            <button class="toggle-btn ${a.enabled ? 'on' : ''}" id="throttleEnable_${name}" onclick="toggleThrottleEnabled('${name}')" aria-pressed="${a.enabled}">${a.enabled ? 'ON' : 'OFF'}</button>
+          </div>
+        </div>
+        <div class="grid cols-2" style="gap:8px">
+          <div class="config-item">
+            <label>Engage TPS <span style="float:right" id="throttleEngage_${name}_val">${a.engageTpsThreshold || 15}</span></label>
+            <input type="range" class="slider" id="throttleEngage_${name}" min="1" max="20" step="0.5" value="${a.engageTpsThreshold || 15}" oninput="document.getElementById('throttleEngage_${name}_val').textContent=this.value">
+          </div>
+          <div class="config-item">
+            <label>Disengage TPS <span style="float:right" id="throttleDisengage_${name}_val">${a.disengageTpsThreshold || 18}</span></label>
+            <input type="range" class="slider" id="throttleDisengage_${name}" min="1" max="20" step="0.5" value="${a.disengageTpsThreshold || 18}" oninput="document.getElementById('throttleDisengage_${name}_val').textContent=this.value">
+          </div>
+          <div class="config-item">
+            <label>Cooldown (sec)</label>
+            <input type="number" class="input" id="throttleCooldown_${name}" value="${a.cooldownSeconds || 60}" min="5" max="600" style="width:100%">
+          </div>
+          <div class="config-item">
+            <label>Intensity <span style="float:right" id="throttleIntensity_${name}_val">${Math.round((a.intensity || 0.5) * 100)}%</span></label>
+            <input type="range" class="slider" id="throttleIntensity_${name}" min="0" max="100" value="${Math.round((a.intensity || 0.5) * 100)}" oninput="document.getElementById('throttleIntensity_${name}_val').textContent=this.value+'%'">
+          </div>
+        </div>
+        <div style="display:flex;gap:8px;margin-top:12px">
+          <button class="btn mini primary" onclick="saveThrottleConfig('${name}')"><i class="fa-solid fa-save"></i> Save</button>
+          ${engaged
+            ? `<button class="btn mini danger" onclick="disengageThrottle('${name}')"><i class="fa-solid fa-stop"></i> Disengage</button>`
+            : `<button class="btn mini" onclick="engageThrottle('${name}')"><i class="fa-solid fa-play"></i> Engage</button>`
+          }
+        </div>
+      </div>`;
+    }
+    container.innerHTML = html;
+  }
+
+  window.toggleThrottleEnabled = function(name) {
+    const btn = document.getElementById('throttleEnable_' + name);
+    if (!btn) return;
+    const on = btn.getAttribute('aria-pressed') !== 'true';
+    btn.setAttribute('aria-pressed', on);
+    btn.classList.toggle('on', on);
+    btn.textContent = on ? 'ON' : 'OFF';
+  };
+
+  window.saveThrottleConfig = function(name) {
+    const ws = window.MX?.ws;
+    if (!ws || !ws.isConnected()) return;
+    const enableBtn = document.getElementById('throttleEnable_' + name);
+    ws.send('UPDATE_THROTTLE_CONFIG', {
+      action: name,
+      enabled: enableBtn?.getAttribute('aria-pressed') === 'true',
+      engageTpsThreshold: parseFloat(document.getElementById('throttleEngage_' + name)?.value || '15'),
+      disengageTpsThreshold: parseFloat(document.getElementById('throttleDisengage_' + name)?.value || '18'),
+      cooldownSeconds: parseInt(document.getElementById('throttleCooldown_' + name)?.value || '60'),
+      intensity: parseInt(document.getElementById('throttleIntensity_' + name)?.value || '50') / 100
+    });
+    if (window.toast) window.toast('success', 'Saved', displayName(name) + ' config updated.');
+  };
+
+  window.engageThrottle = function(name) {
+    const ws = window.MX?.ws;
+    if (ws && ws.isConnected()) {
+      ws.send('MANUAL_THROTTLE_ENGAGE', { action: name });
+      if (window.toast) window.toast('info', 'Engaging', displayName(name));
+    }
+  };
+
+  window.disengageThrottle = function(name) {
+    const ws = window.MX?.ws;
+    if (ws && ws.isConnected()) {
+      ws.send('MANUAL_THROTTLE_DISENGAGE', { action: name });
+      if (window.toast) window.toast('info', 'Disengaging', displayName(name));
+    }
+  };
+
+  function displayName(name) {
+    return (name || '').replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+  }
+
+  // ====== MEMORY MANAGEMENT ======
+
+  function requestMemoryStatus() {
+    const ws = window.MX?.ws;
+    if (ws && ws.isConnected()) ws.send('GET_MEMORY_STATUS', {});
+  }
+
+  function requestGcRecommendations() {
+    const ws = window.MX?.ws;
+    if (ws && ws.isConnected()) ws.send('GET_GC_RECOMMENDATIONS', {});
+  }
+
+  function updateMemoryStatus(data) {
+    if (!data) return;
+
+    // Pressure level
+    const levelEl = document.getElementById('memPressureLevel');
+    const iconEl = document.getElementById('pressureIcon');
+    if (levelEl) {
+      const level = data.pressureLevel || 0;
+      levelEl.textContent = 'Level ' + level;
+      const colors = ['var(--ok)', 'var(--ok)', 'var(--warn)', 'var(--bad)', 'var(--danger)'];
+      if (iconEl) iconEl.style.color = colors[level] || 'var(--ok)';
+    }
+
+    // Heap stats
+    const usedMax = document.getElementById('memUsedMax');
+    if (usedMax) usedMax.textContent = (data.usedMb || 0) + ' / ' + (data.maxMb || 0) + ' MB';
+
+    const heapBar = document.getElementById('memHeapBar');
+    if (heapBar) heapBar.style.width = (data.heapPercent || 0) + '%';
+
+    const heapPct = document.getElementById('memHeapPercent');
+    if (heapPct) heapPct.textContent = Math.round(data.heapPercent || 0) + '%';
+
+    // Leak detection
+    const leakEl = document.getElementById('memLeakStatus');
+    if (leakEl) {
+      leakEl.textContent = data.leakDetected ? 'Leak Detected!' : 'No Leak';
+      leakEl.style.color = data.leakDetected ? 'var(--danger)' : '';
+    }
+
+    // Pressure thresholds
+    if (data.level1Threshold !== undefined) setSlider('memThresh1', 'memThresh1Val', Math.round(data.level1Threshold));
+    if (data.level2Threshold !== undefined) setSlider('memThresh2', 'memThresh2Val', Math.round(data.level2Threshold));
+    if (data.level3Threshold !== undefined) setSlider('memThresh3', 'memThresh3Val', Math.round(data.level3Threshold));
+    if (data.level4Threshold !== undefined) setSlider('memThresh4', 'memThresh4Val', Math.round(data.level4Threshold));
+
+    // Memory pools
+    const poolList = document.getElementById('memPoolList');
+    if (poolList && data.memoryPools) {
+      let html = '<table class="data-table" style="width:100%"><thead><tr><th>Pool</th><th>Used</th><th>Max</th><th>%</th></tr></thead><tbody>';
+      for (const p of data.memoryPools) {
+        const pct = p.max > 0 ? Math.round(p.used / p.max * 100) : 0;
+        const color = pct > 90 ? 'var(--danger)' : pct > 70 ? 'var(--warn)' : '';
+        html += `<tr><td>${p.name}</td><td>${p.used} MB</td><td>${p.max} MB</td><td style="color:${color}">${pct}%</td></tr>`;
+      }
+      html += '</tbody></table>';
+      poolList.innerHTML = html;
+    }
+
+    // GC collectors
+    const gcList = document.getElementById('memGcCollectors');
+    if (gcList && data.gcCollectors) {
+      let html = '<table class="data-table" style="width:100%"><thead><tr><th>Collector</th><th>Collections</th><th>Total Pause</th></tr></thead><tbody>';
+      for (const gc of data.gcCollectors) {
+        html += `<tr><td>${gc.name}</td><td>${gc.count}</td><td>${gc.timeMs} ms</td></tr>`;
+      }
+      html += '</tbody></table>';
+      gcList.innerHTML = html;
+    }
+  }
+
+  function setSlider(sliderId, labelId, value) {
+    const slider = document.getElementById(sliderId);
+    const label = document.getElementById(labelId);
+    if (slider && document.activeElement !== slider) slider.value = value;
+    if (label) label.textContent = value + '%';
+  }
+
+  function updateGcRecommendations(data) {
+    const container = document.getElementById('memGcRecommendations');
+    if (!container || !data) return;
+
+    let html = '';
+    html += `<div class="stat-row"><span class="stat-label">Current GC</span><span><code>${data.currentGc || 'Unknown'}</code></span></div>`;
+    html += `<div class="stat-row"><span class="stat-label">Max Heap</span><span>${data.maxHeapMb || 0} MB</span></div>`;
+
+    if (data.jvmFlags && data.jvmFlags.length) {
+      html += `<div style="margin:12px 0 8px;font-weight:600;font-size:13px">JVM Flags</div>`;
+      html += `<code style="font-size:11px;word-break:break-all;display:block;padding:8px;background:rgba(0,0,0,0.2);border-radius:var(--radius)">${data.jvmFlags.join(' ')}</code>`;
+    }
+
+    if (data.tips && data.tips.length) {
+      html += `<div style="margin:16px 0 8px;font-weight:600;font-size:13px">Recommendations</div>`;
+      for (const tip of data.tips) {
+        html += `<div style="padding:6px 0;border-bottom:1px solid var(--border);font-size:13px;color:var(--text-secondary)"><i class="fa-solid fa-lightbulb" style="color:var(--warn);margin-right:8px"></i>${tip}</div>`;
+      }
+    } else {
+      html += `<div style="margin-top:12px;color:var(--ok);font-size:13px"><i class="fa-solid fa-check-circle"></i> GC configuration looks good!</div>`;
+    }
+
+    container.innerHTML = html;
+  }
+
+  window.saveMemoryThresholds = function() {
+    const ws = window.MX?.ws;
+    if (!ws || !ws.isConnected()) return;
+    ws.send('UPDATE_MEMORY_THRESHOLDS', {
+      level1Threshold: parseInt(document.getElementById('memThresh1')?.value || '70'),
+      level2Threshold: parseInt(document.getElementById('memThresh2')?.value || '80'),
+      level3Threshold: parseInt(document.getElementById('memThresh3')?.value || '90'),
+      level4Threshold: parseInt(document.getElementById('memThresh4')?.value || '95')
+    });
+    if (window.toast) window.toast('success', 'Saved', 'Memory pressure thresholds updated.');
+  };
+
+  window.triggerGc = function() {
+    const ws = window.MX?.ws;
+    if (ws && ws.isConnected()) ws.send('TRIGGER_GC', {});
+  };
+
+  // ====== PERFORMANCE TUNING ======
+
+  function requestPerformanceSettings() {
+    const ws = window.MX?.ws;
+    if (ws && ws.isConnected()) ws.send('GET_PERFORMANCE_SETTINGS', {});
+  }
+
+  function updatePerformanceSettingsUI(data) {
+    if (!data) return;
+
+    function setVal(id, labelId, val, defaultVal, defaultLabel) {
+      const slider = document.getElementById(id);
+      const label = document.getElementById(labelId);
+      if (slider && document.activeElement !== slider) slider.value = val;
+      if (label) {
+        if (val == defaultVal) {
+          label.textContent = val + ' (' + (defaultLabel || 'default') + ')';
+        } else {
+          label.textContent = val;
+        }
+      }
+    }
+
+    setVal('tuneViewDist', 'tuneViewDistVal', data.viewDistance ?? -1, -1, 'default');
+    setVal('tuneSimDist', 'tuneSimDistVal', data.simulationDistance ?? -1, -1, 'default');
+    if (document.getElementById('tuneMonsterVal')) document.getElementById('tuneMonsterVal').textContent = data.monsterSpawnLimit ?? 70;
+    if (document.getElementById('tuneMonster') && document.activeElement !== document.getElementById('tuneMonster')) document.getElementById('tuneMonster').value = data.monsterSpawnLimit ?? 70;
+    if (document.getElementById('tuneAnimalVal')) document.getElementById('tuneAnimalVal').textContent = data.animalSpawnLimit ?? 10;
+    if (document.getElementById('tuneAnimal') && document.activeElement !== document.getElementById('tuneAnimal')) document.getElementById('tuneAnimal').value = data.animalSpawnLimit ?? 10;
+    if (document.getElementById('tuneWaterVal')) document.getElementById('tuneWaterVal').textContent = data.waterAnimalSpawnLimit ?? 5;
+    if (document.getElementById('tuneWater') && document.activeElement !== document.getElementById('tuneWater')) document.getElementById('tuneWater').value = data.waterAnimalSpawnLimit ?? 5;
+    if (document.getElementById('tuneAmbientVal')) document.getElementById('tuneAmbientVal').textContent = data.ambientSpawnLimit ?? 15;
+    if (document.getElementById('tuneAmbient') && document.activeElement !== document.getElementById('tuneAmbient')) document.getElementById('tuneAmbient').value = data.ambientSpawnLimit ?? 15;
+
+    const mobMult = data.mobSpawnMultiplier ?? 1.0;
+    if (document.getElementById('tuneMobMultVal')) document.getElementById('tuneMobMultVal').textContent = mobMult.toFixed(1) + 'x';
+    if (document.getElementById('tuneMobMult') && document.activeElement !== document.getElementById('tuneMobMult')) document.getElementById('tuneMobMult').value = Math.round(mobMult * 100);
+
+    if (document.getElementById('tuneRtickVal')) document.getElementById('tuneRtickVal').textContent = data.randomTickSpeed ?? 3;
+    if (document.getElementById('tuneRtick') && document.activeElement !== document.getElementById('tuneRtick')) document.getElementById('tuneRtick').value = data.randomTickSpeed ?? 3;
+    if (document.getElementById('tuneHopperVal')) document.getElementById('tuneHopperVal').textContent = data.hopperTransferRate ?? 8;
+    if (document.getElementById('tuneHopper') && document.activeElement !== document.getElementById('tuneHopper')) document.getElementById('tuneHopper').value = data.hopperTransferRate ?? 8;
+    if (document.getElementById('tuneDespawnVal')) document.getElementById('tuneDespawnVal').textContent = data.itemDespawnRate ?? 6000;
+    if (document.getElementById('tuneDespawn') && document.activeElement !== document.getElementById('tuneDespawn')) document.getElementById('tuneDespawn').value = data.itemDespawnRate ?? 6000;
+    setVal('tuneAutosave', 'tuneAutosaveVal', data.maxAutoSaveChunksPerTick ?? -1, -1, 'default');
+    setVal('tuneEntLimit', 'tuneEntLimitVal', data.entityLimitPerChunk ?? -1, -1, 'unlimited');
+    setVal('tuneTileLimit', 'tuneTileLimitVal', data.tileEntityLimitPerChunk ?? -1, -1, 'unlimited');
+
+    // Toggles
+    updateTuneToggle('tuneFireSpread', data.disableFireSpread || false);
+    updateTuneToggle('tuneIceFormation', data.disableIceFormation || false);
+  }
+
+  function updateTuneToggle(id, active) {
+    const btn = document.getElementById(id);
+    if (!btn) return;
+    btn.setAttribute('aria-pressed', active ? 'true' : 'false');
+    btn.classList.toggle('on', active);
+    btn.textContent = active ? 'ON' : 'OFF';
+  }
+
+  window.toggleTuneBool = function(id) {
+    const btn = document.getElementById(id);
+    if (!btn) return;
+    const on = btn.getAttribute('aria-pressed') !== 'true';
+    btn.setAttribute('aria-pressed', on);
+    btn.classList.toggle('on', on);
+    btn.textContent = on ? 'ON' : 'OFF';
+  };
+
+  window.updateTuneLabel = function(labelId, value, defaultVal, defaultLabel) {
+    const el = document.getElementById(labelId);
+    if (!el) return;
+    if (parseInt(value) === defaultVal) {
+      el.textContent = value + ' (' + (defaultLabel || 'default') + ')';
+    } else {
+      el.textContent = value;
+    }
+  };
+
+  window.savePerformanceSettings = function() {
+    const ws = window.MX?.ws;
+    if (!ws || !ws.isConnected()) return;
+    ws.send('UPDATE_PERFORMANCE_SETTINGS', {
+      viewDistance: parseInt(document.getElementById('tuneViewDist')?.value || '-1'),
+      simulationDistance: parseInt(document.getElementById('tuneSimDist')?.value || '-1'),
+      monsterSpawnLimit: parseInt(document.getElementById('tuneMonster')?.value || '70'),
+      animalSpawnLimit: parseInt(document.getElementById('tuneAnimal')?.value || '10'),
+      waterAnimalSpawnLimit: parseInt(document.getElementById('tuneWater')?.value || '5'),
+      ambientSpawnLimit: parseInt(document.getElementById('tuneAmbient')?.value || '15'),
+      mobSpawnMultiplier: parseInt(document.getElementById('tuneMobMult')?.value || '100') / 100,
+      randomTickSpeed: parseInt(document.getElementById('tuneRtick')?.value || '3'),
+      hopperTransferRate: parseInt(document.getElementById('tuneHopper')?.value || '8'),
+      itemDespawnRate: parseInt(document.getElementById('tuneDespawn')?.value || '6000'),
+      maxAutoSaveChunksPerTick: parseInt(document.getElementById('tuneAutosave')?.value || '-1'),
+      entityLimitPerChunk: parseInt(document.getElementById('tuneEntLimit')?.value || '-1'),
+      tileEntityLimitPerChunk: parseInt(document.getElementById('tuneTileLimit')?.value || '-1'),
+      disableFireSpread: document.getElementById('tuneFireSpread')?.getAttribute('aria-pressed') === 'true',
+      disableIceFormation: document.getElementById('tuneIceFormation')?.getAttribute('aria-pressed') === 'true'
+    });
+    if (window.toast) window.toast('success', 'Applied', 'Performance settings applied to server.');
+  };
+
+  window.resetPerformanceDefaults = function() {
+    const ws = window.MX?.ws;
+    if (!ws || !ws.isConnected()) return;
+    ws.send('UPDATE_PERFORMANCE_SETTINGS', {
+      viewDistance: -1, simulationDistance: -1, randomTickSpeed: 3,
+      monsterSpawnLimit: 70, animalSpawnLimit: 10, waterAnimalSpawnLimit: 5,
+      ambientSpawnLimit: 15, mobSpawnMultiplier: 1.0, hopperTransferRate: 8,
+      entityLimitPerChunk: -1, tileEntityLimitPerChunk: -1, itemDespawnRate: 6000,
+      disableFireSpread: false, disableIceFormation: false, maxAutoSaveChunksPerTick: -1
+    });
+    if (window.toast) window.toast('success', 'Reset', 'Performance settings reset to vanilla defaults.');
+  };
+
   registerHandlers();
   console.log('[ModereX Status] Module loaded');
 })();
+
