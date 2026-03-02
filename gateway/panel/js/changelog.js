@@ -14,8 +14,8 @@
 
 window.MX_CHANGELOGS = [
   {
-    build: 400,
-    version: "2.0dev-400",
+    build: 328,
+    version: "2.0dev-328",
     date: "2026-03-01",
     title: "AI Moderation, Security Suite & Performance Overhaul",
     sections: [
