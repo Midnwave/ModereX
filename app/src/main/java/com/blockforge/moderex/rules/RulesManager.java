@@ -46,7 +46,10 @@ public class RulesManager {
                         category VARCHAR(64),
                         enabled BOOLEAN DEFAULT TRUE,
                         created_at BIGINT,
-                        updated_at BIGINT
+                        updated_at BIGINT,
+                        ai_description TEXT,
+                        ai_language VARCHAR(10),
+                        translations TEXT
                     )
                 """;
             } else {
@@ -59,14 +62,31 @@ public class RulesManager {
                         category VARCHAR(64),
                         enabled BOOLEAN DEFAULT TRUE,
                         created_at BIGINT,
-                        updated_at BIGINT
+                        updated_at BIGINT,
+                        ai_description TEXT,
+                        ai_language VARCHAR(10),
+                        translations TEXT
                     )
                 """;
             }
             plugin.getDatabaseManager().update(sql);
+            migrateSchema();
         } catch (SQLException e) {
             plugin.logError("Failed to create rules table", e);
         }
+    }
+
+    private void migrateSchema() {
+        // Add AI columns to existing tables (safe to run multiple times)
+        try {
+            plugin.getDatabaseManager().update("ALTER TABLE moderex_rules ADD COLUMN ai_description TEXT");
+        } catch (SQLException ignored) { /* Column already exists */ }
+        try {
+            plugin.getDatabaseManager().update("ALTER TABLE moderex_rules ADD COLUMN ai_language VARCHAR(10)");
+        } catch (SQLException ignored) { /* Column already exists */ }
+        try {
+            plugin.getDatabaseManager().update("ALTER TABLE moderex_rules ADD COLUMN translations TEXT");
+        } catch (SQLException ignored) { /* Column already exists */ }
     }
 
     private void loadRules() {
@@ -85,6 +105,9 @@ public class RulesManager {
                     rule.setEnabled(rs.getBoolean("enabled"));
                     rule.setCreatedAt(rs.getLong("created_at"));
                     rule.setUpdatedAt(rs.getLong("updated_at"));
+                    rule.setAiDescription(rs.getString("ai_description"));
+                    rule.setAiLanguage(rs.getString("ai_language"));
+                    rule.setTranslations(rs.getString("translations"));
                     rules.add(rule);
                 }
                 return null;
@@ -139,8 +162,8 @@ public class RulesManager {
                     // Insert new rule - get the generated ID
                     var conn = plugin.getDatabaseManager().getDataSource().getConnection();
                     try (var stmt = conn.prepareStatement("""
-                        INSERT INTO moderex_rules (rule_order, title, description, category, enabled, created_at, updated_at)
-                        VALUES (?, ?, ?, ?, ?, ?, ?)
+                        INSERT INTO moderex_rules (rule_order, title, description, category, enabled, created_at, updated_at, ai_description, ai_language, translations)
+                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                     """, Statement.RETURN_GENERATED_KEYS)) {
                         stmt.setInt(1, rule.getOrder());
                         stmt.setString(2, rule.getTitle());
@@ -149,6 +172,9 @@ public class RulesManager {
                         stmt.setBoolean(5, rule.isEnabled());
                         stmt.setLong(6, rule.getCreatedAt());
                         stmt.setLong(7, rule.getUpdatedAt());
+                        stmt.setString(8, rule.getAiDescription());
+                        stmt.setString(9, rule.getAiLanguage());
+                        stmt.setString(10, rule.getTranslations());
                         stmt.executeUpdate();
 
                         var rs = stmt.getGeneratedKeys();
@@ -162,9 +188,12 @@ public class RulesManager {
                     // Update existing rule
                     plugin.getDatabaseManager().update("""
                         UPDATE moderex_rules SET rule_order = ?, title = ?, description = ?, category = ?,
-                        enabled = ?, updated_at = ? WHERE id = ?
+                        enabled = ?, updated_at = ?, ai_description = ?, ai_language = ?, translations = ?
+                        WHERE id = ?
                     """, rule.getOrder(), rule.getTitle(), rule.getDescription(),
-                        rule.getCategory(), rule.isEnabled(), System.currentTimeMillis(), rule.getId());
+                        rule.getCategory(), rule.isEnabled(), System.currentTimeMillis(),
+                        rule.getAiDescription(), rule.getAiLanguage(), rule.getTranslations(),
+                        rule.getId());
 
                     // Update in cache
                     rules.removeIf(r -> r.getId() == rule.getId());

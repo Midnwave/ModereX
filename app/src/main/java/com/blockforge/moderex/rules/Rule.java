@@ -14,6 +14,11 @@ public class Rule {
     private long createdAt;
     private long updatedAt;
 
+    // AI-generated fields
+    private String aiDescription;
+    private String aiLanguage;
+    private String translations; // JSON map of language -> translated description
+
     public Rule() {
         this.enabled = true;
         this.createdAt = System.currentTimeMillis();
@@ -99,6 +104,31 @@ public class Rule {
 
     public void setUpdatedAt(long updatedAt) {
         this.updatedAt = updatedAt;
+    }
+
+    public String getAiDescription() {
+        return aiDescription;
+    }
+
+    public void setAiDescription(String aiDescription) {
+        this.aiDescription = aiDescription;
+        this.updatedAt = System.currentTimeMillis();
+    }
+
+    public String getAiLanguage() {
+        return aiLanguage;
+    }
+
+    public void setAiLanguage(String aiLanguage) {
+        this.aiLanguage = aiLanguage;
+    }
+
+    public String getTranslations() {
+        return translations;
+    }
+
+    public void setTranslations(String translations) {
+        this.translations = translations;
     }
 
     @Override
