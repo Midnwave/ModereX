@@ -430,6 +430,12 @@ permissions:
       moderex.admin.security: true
       moderex.admin.ai: true
       moderex.admin.rules: true
+      moderex.ai.*: true
+      moderex.security: true
+      moderex.security.lockdown: true
+      moderex.security.tokens: true
+      moderex.rules.manage: true
+      moderex.rules.ai: true
 
   moderex.command.*:
     description: Access to all ModereX commands
@@ -1575,4 +1581,62 @@ permissions:
 
   moderex.bypass.captcha:
     description: Bypass CAPTCHA verification on join
+    default: op
+
+  # ==================== AI MODERATION PERMISSIONS ====================
+  moderex.ai.*:
+    description: Full access to AI moderation features
+    default: op
+    children:
+      moderex.ai.manage: true
+      moderex.ai.bypass: true
+      moderex.ai.analytics: true
+      moderex.ai.review: true
+      moderex.ai.sandbox: true
+      moderex.ai.skin: true
+
+  moderex.ai.manage:
+    description: Configure AI moderation settings, presets, and escalation
+    default: op
+
+  moderex.ai.bypass:
+    description: Bypass AI moderation checks on all content
+    default: false
+
+  moderex.ai.analytics:
+    description: View AI moderation analytics, risk scores, and reports
+    default: op
+
+  moderex.ai.review:
+    description: Access the AI review queue (approve, dismiss, undo)
+    default: op
+
+  moderex.ai.sandbox:
+    description: Use AI sandbox testing and dry-run mode
+    default: op
+
+  moderex.ai.skin:
+    description: Manage skin scanning settings and view flagged skins
+    default: op
+
+  # ==================== SECURITY PERMISSIONS ====================
+  moderex.security:
+    description: Access security settings GUI (/mx security)
+    default: op
+
+  moderex.security.lockdown:
+    description: Toggle emergency lockdown mode
+    default: op
+
+  moderex.security.tokens:
+    description: Manage and revoke web panel tokens
+    default: op
+
+  # ==================== RULES MANAGEMENT PERMISSIONS ====================
+  moderex.rules.manage:
+    description: Edit, create, and delete server rules (/mx rules)
+    default: op
+
+  moderex.rules.ai:
+    description: Generate AI descriptions for rules
     default: op

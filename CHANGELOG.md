@@ -5,6 +5,74 @@ All notable changes to ModereX will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Dev Build 329] - 2026-03-11
+
+### Added
+- **AI Moderation Overhaul**: Complete rewrite of the AI moderation system
+  - 16 violation categories with per-category severity (NONE/LOW/MEDIUM/HIGH/CRITICAL)
+  - Escalation manager with configurable tiers (Warning → Mute 5m → Mute 30m → Tempban 1h → Tempban 1d)
+  - 500-message context window per player for AI pattern detection across messages
+  - Dry-run mode for testing AI moderation without actually blocking content
+  - 4 new moderation presets: Anarchy Server, Roleplay Server, Competitive Server, Educational Server
+  - Review queue for FLAG_FOR_REVIEW items with approve/dismiss/undo actions
+  - Discord webhook integration for moderation alerts (configurable severity threshold)
+  - Full analytics suite: hourly breakdown, category breakdown, top offenders, risk scores, trends
+  - Per-player violation history with paginated log viewer
+  - Auto-detect violation categories from AI response (profanity, slurs, harassment, toxicity, etc.)
+
+- **Skin Scanning**: Detect inappropriate player skins via Mojang API
+  - Auto-scan on join (configurable)
+  - Staff notifications for flagged skins
+  - Cached results (1-hour TTL)
+  - New permission: `moderex.ai.skin`
+
+- **In-Game Security GUI** (`/mx security`): Full security management from in-game
+  - Raid protection toggle
+  - Gateway connection status
+  - Emergency lockdown mode
+  - Web panel token management (revoke all tokens)
+  - Permission reference viewer (shows which permissions you have)
+  - New permissions: `moderex.security`, `moderex.security.lockdown`, `moderex.security.tokens`
+
+- **In-Game Rules Editor GUI** (`/mx rules`): Full CRUD for server rules
+  - Create, edit, delete, and reorder rules
+  - Toggle rules on/off
+  - Category cycling (General, Chat, Gameplay, PvP, Building, Community)
+  - Batch AI description generation for all rules
+  - Re-present rules to all online players
+  - New permissions: `moderex.rules.manage`, `moderex.rules.ai`
+
+- **Gateway Staff Link Reminder**: Staff with `moderex.staff` who haven't linked their account get a reminder every 30 minutes to run `/mx link`
+
+- **New AI Moderation Permissions**:
+  - `moderex.ai.*` — Full AI moderation access
+  - `moderex.ai.manage` — Configure presets, escalation, and settings
+  - `moderex.ai.bypass` — Bypass all AI moderation checks
+  - `moderex.ai.analytics` — View analytics and risk scores
+  - `moderex.ai.review` — Access review queue
+  - `moderex.ai.sandbox` — Use sandbox/dry-run testing
+  - `moderex.ai.skin` — Manage skin scanning
+
+### Changed
+- **OllamaClient → AIClient**: Renamed across entire codebase to remove Ollama branding
+  - Class: `OllamaClient` → `AIClient`
+  - Getter: `getOllamaClient()` → `getAIClient()`
+  - Gateway env vars: `OLLAMA_ENDPOINT` → `AI_ENDPOINT`, `OLLAMA_MODEL` → `AI_MODEL`, `OLLAMA_API_KEY` → `AI_API_KEY`
+  - All comments and error messages updated
+  - Default model unchanged: `nemotron-3-nano:30b-cloud`
+
+- **Web Panel Sidebar Reorganized**: Merged Communication and Server groups
+  - Staff Chat moved into Monitoring section
+  - Server Rules moved into Configuration section
+  - Cleaner sidebar with fewer top-level groups
+
+### Fixed
+- **Loading Bar Infinite Spin**: Fixed loading bar never hiding on first gateway connection
+  - `connected` and `server_online` WebSocket messages now properly reset the loading bar counter
+  - Also fixes the same issue on server reconnection
+
+---
+
 ## [Unreleased]
 
 ### Added
