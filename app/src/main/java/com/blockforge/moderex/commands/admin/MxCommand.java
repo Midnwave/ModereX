@@ -9,6 +9,8 @@ import com.blockforge.moderex.gui.AnticheatRulesGui;
 import com.blockforge.moderex.gui.AutomodGui;
 import com.blockforge.moderex.gui.MainMenuGui;
 import com.blockforge.moderex.gui.ReplayGui;
+import com.blockforge.moderex.gui.RulesEditorGui;
+import com.blockforge.moderex.gui.SecurityGui;
 import com.blockforge.moderex.gui.StaffSettingsGui;
 import com.blockforge.moderex.gui.TemplateGui;
 import com.blockforge.moderex.gui.punishment.PunishPlayerGui;
@@ -96,6 +98,8 @@ public class MxCommand extends BaseCommand {
             case "permtest" -> handlePermTest(sender, subArgs);
             case "panel" -> handlePanel(sender);
             case "gateway" -> handleGateway(sender, subArgs);
+            case "security" -> handleSecurity(sender);
+            case "rules", "ruleseditor" -> handleRulesEditor(sender);
 
             default -> sendMessage(sender, "<red>Unknown subcommand: " + subcommand + ". Use /mx help for a list.");
         }
@@ -2311,6 +2315,30 @@ public class MxCommand extends BaseCommand {
         sendMessage(sender, "<gradient:#a855f7:#ec4899>━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━</gradient>");
     }
 
+    private void handleSecurity(CommandSender sender) {
+        if (!(sender instanceof Player player)) {
+            sendMessage(sender, MessageKey.PLAYER_ONLY);
+            return;
+        }
+        if (!PermissionUtil.hasPermission(player, "moderex.security")) {
+            sendMessage(sender, MessageKey.NO_PERMISSION);
+            return;
+        }
+        plugin.getGuiManager().open(player, new SecurityGui(plugin));
+    }
+
+    private void handleRulesEditor(CommandSender sender) {
+        if (!(sender instanceof Player player)) {
+            sendMessage(sender, MessageKey.PLAYER_ONLY);
+            return;
+        }
+        if (!PermissionUtil.hasPermission(player, "moderex.rules.manage")) {
+            sendMessage(sender, MessageKey.NO_PERMISSION);
+            return;
+        }
+        plugin.getGuiManager().open(player, new RulesEditorGui(plugin));
+    }
+
     @Override
     protected List<String> tabComplete(CommandSender sender, String[] args) {
         if (args.length == 1) {
@@ -2369,6 +2397,13 @@ public class MxCommand extends BaseCommand {
                 completions.add("gettoken");
                 completions.add("revoketoken");
                 completions.add("sessions");
+            }
+            if (PermissionUtil.hasPermission(sender, "moderex.security")) {
+                completions.add("security");
+            }
+            if (PermissionUtil.hasPermission(sender, "moderex.rules.manage")) {
+                completions.add("rules");
+                completions.add("ruleseditor");
             }
             completions.add("version");
             completions.add("help");
