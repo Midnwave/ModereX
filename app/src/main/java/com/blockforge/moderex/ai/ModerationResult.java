@@ -12,6 +12,8 @@ public class ModerationResult {
     private double confidence = 0.0;
     private String reason = "";
     private String category = "NONE";
+    private ViolationCategory violationCategory = ViolationCategory.NONE;
+    private String detectedLanguage = "en";
 
     public ModerationResult() {
     }
@@ -55,6 +57,22 @@ public class ModerationResult {
         this.category = category;
     }
 
+    public ViolationCategory getViolationCategory() {
+        return violationCategory;
+    }
+
+    public void setViolationCategory(ViolationCategory violationCategory) {
+        this.violationCategory = violationCategory;
+    }
+
+    public String getDetectedLanguage() {
+        return detectedLanguage;
+    }
+
+    public void setDetectedLanguage(String detectedLanguage) {
+        this.detectedLanguage = detectedLanguage;
+    }
+
     public boolean shouldBlock() {
         return action == ModerationAction.BLOCK;
     }
@@ -70,6 +88,8 @@ public class ModerationResult {
     @Override
     public String toString() {
         return "ModerationResult{action=" + action + ", confidence=" + confidence +
-                ", reason='" + reason + "', category='" + category + "'}";
+                ", reason='" + reason + "', category='" + category +
+                "', violationCategory=" + violationCategory +
+                ", detectedLanguage='" + detectedLanguage + "'}";
     }
 }

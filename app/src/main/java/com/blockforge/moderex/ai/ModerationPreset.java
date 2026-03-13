@@ -38,6 +38,45 @@ public enum ModerationPreset {
             0.8,
             EnumSet.of(ContentType.CHAT_MESSAGE, ContentType.PRIVATE_MESSAGE, ContentType.NICKNAME)
     ),
+    ANARCHY_SERVER(
+            "Anarchy Server",
+            "Minimal filtering. Only blocks illegal content and real-world threats.",
+            "You are a minimal Minecraft server moderator for an anarchy server. " +
+            "ONLY block content that is illegal (CSAM, real threats to life, doxxing real addresses/phones) " +
+            "or could get the server shut down. Allow everything else including profanity, toxicity, and trash talk.",
+            0.9,
+            EnumSet.of(ContentType.CHAT_MESSAGE, ContentType.NICKNAME)
+    ),
+    ROLEPLAY_SERVER(
+            "Roleplay Server",
+            "Context-aware moderation for RP servers. Allows in-character conflict, blocks OOC toxicity.",
+            "You are a moderator for a Minecraft roleplay server. " +
+            "Allow in-character (IC) conflict, threats, and dramatic language as long as it's clearly roleplay. " +
+            "Block out-of-character (OOC) toxicity, real harassment, slurs, and personal attacks. " +
+            "Look for OOC markers like (( )), /ooc, or context clues that indicate real anger vs RP.",
+            0.7,
+            EnumSet.allOf(ContentType.class)
+    ),
+    COMPETITIVE_SERVER(
+            "Competitive Server",
+            "Allows trash talk and competitive banter, blocks targeted harassment and slurs.",
+            "You are a moderator for a competitive Minecraft server (PvP, tournaments). " +
+            "Allow competitive banter, trash talk, and taunting — these are normal in competitive play. " +
+            "Block targeted harassment, slurs, threats of real violence, doxxing, and cheating promotion. " +
+            "The line is: game-related taunts are fine, personal attacks are not.",
+            0.75,
+            EnumSet.of(ContentType.CHAT_MESSAGE, ContentType.PRIVATE_MESSAGE, ContentType.NICKNAME)
+    ),
+    EDUCATIONAL_SERVER(
+            "Educational Server",
+            "Moderate filtering with focus on respectful communication.",
+            "You are a moderator for an educational Minecraft server used by students. " +
+            "Block profanity, bullying, off-topic spam, inappropriate content, and disruptive behavior. " +
+            "Encourage respectful and constructive communication. " +
+            "Be moderately strict but allow educational discussions even on sensitive topics.",
+            0.55,
+            EnumSet.allOf(ContentType.class)
+    ),
     CUSTOM(
             "Custom",
             "Fully customizable moderation settings.",
