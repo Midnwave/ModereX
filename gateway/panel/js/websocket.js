@@ -656,6 +656,11 @@
         // Gateway confirmed connection to MC server
         // Gateway sends: { type, serverId, serverName, urlPrefix } (no data wrapper)
         console.log('[WS] Gateway connected to server:', message.serverName);
+        // Dismiss any pending loading bar — first connection often triggers this
+        if (pendingLoadingRequests > 0) {
+          pendingLoadingRequests = 0;
+        }
+        if (window.hideLoadingLine) window.hideLoadingLine();
         emit('gateway_connected', { serverId: message.serverId, serverName: message.serverName, urlPrefix: message.urlPrefix });
         return;
       }
@@ -671,6 +676,11 @@
       if (type === 'server_online') {
         // MC server reconnected to gateway
         console.log('[WS] Server came back online via gateway:', message.serverName);
+        // Clear stale loading state from before disconnect
+        if (pendingLoadingRequests > 0) {
+          pendingLoadingRequests = 0;
+        }
+        if (window.hideLoadingLine) window.hideLoadingLine();
         emit('server_online', { serverId: message.serverId, serverName: message.serverName });
         if (window.debugLog) window.debugLog('WS', 'Server back online', 'success');
         return;
