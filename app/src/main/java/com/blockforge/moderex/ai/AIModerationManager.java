@@ -13,7 +13,7 @@ import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicInteger;
 
 /**
- * Manages AI-powered content moderation using Ollama cloud API.
+ * Manages AI-powered content moderation.
  * Processes chat, signs, books, nicknames, anvil renames, and commands.
  */
 public class AIModerationManager {
@@ -38,13 +38,37 @@ public class AIModerationManager {
     private final AtomicInteger totalWarned = new AtomicInteger(0);
     private final AtomicInteger totalFlagged = new AtomicInteger(0);
 
+    // Analytics and Discord integration
+    private final ModerationAnalytics analytics;
+    private final DiscordWebhook discordWebhook;
+
+    // Escalation and context
+    private final EscalationManager escalationManager;
+    private final MessageContextWindow contextWindow;
+    private boolean contextEnabled = true;
+    private int contextMessageCount = 20; // last 20 messages sent to AI
+
+    // Review queue and sandbox/dry-run mode
+    private final ModerationReviewQueue reviewQueue;
+    private boolean dryRunMode = false;
+
+    // Skin scanning
+    private final SkinScanner skinScanner;
+
     public AIModerationManager(ModereX plugin) {
         this.plugin = plugin;
+        this.analytics = new ModerationAnalytics(plugin);
+        this.discordWebhook = new DiscordWebhook(plugin);
+        this.escalationManager = new EscalationManager(plugin);
+        this.contextWindow = new MessageContextWindow();
+        this.reviewQueue = new ModerationReviewQueue(plugin);
+        this.skinScanner = new SkinScanner(plugin);
     }
 
     public void initialize() {
         createTable();
         loadSettings();
+        reviewQueue.initialize();
     }
 
     public void start() {
@@ -130,15 +154,26 @@ public class AIModerationManager {
             return CompletableFuture.completedFuture(ModerationResult.ALLOW_FALLBACK);
         }
 
-        var ollamaClient = plugin.getOllamaClient();
-        if (ollamaClient == null || !ollamaClient.isAvailable()) {
+        var aiClient = plugin.getAIClient();
+        if (aiClient == null || !aiClient.isAvailable()) {
             return CompletableFuture.completedFuture(ModerationResult.ALLOW_FALLBACK);
         }
 
         totalChecked.incrementAndGet();
 
+        // Add message to context window
+        contextWindow.addMessage(player.getUniqueId(), content, contentType.getDisplayName());
+
+        // Build system prompt with optional context
         String systemPrompt = getEffectiveSystemPrompt();
-        return ollamaClient.moderateContent(content, contentType.getDisplayName(), systemPrompt)
+        if (contextEnabled) {
+            String context = contextWindow.getContextString(player.getUniqueId(), contextMessageCount);
+            if (!context.isEmpty()) {
+                systemPrompt = systemPrompt + "\n\n" + context;
+            }
+        }
+
+        return aiClient.moderateContent(content, contentType.getDisplayName(), systemPrompt)
                 .thenApply(result -> {
                     // Apply confidence threshold
                     if (result.getConfidence() < confidenceThreshold &&
@@ -147,6 +182,15 @@ public class AIModerationManager {
                         result = ModerationResult.ALLOW_FALLBACK;
                     }
 
+                    // Parse violation category from the category string
+                    ViolationCategory violationCat = ViolationCategory.fromString(result.getCategory());
+                    result.setViolationCategory(violationCat);
+
+                    // Run escalation logic
+                    EscalationManager.EscalatedAction escalated = escalationManager.recordAndEscalate(
+                            player.getUniqueId(), violationCat, result.getAction());
+                    result.setAction(escalated.action());
+
                     // Track statistics
                     switch (result.getAction()) {
                         case BLOCK -> totalBlocked.incrementAndGet();
@@ -154,8 +198,33 @@ public class AIModerationManager {
                         case FLAG_FOR_REVIEW -> totalFlagged.incrementAndGet();
                     }
 
+                    // Add FLAG_FOR_REVIEW items to review queue
+                    if (result.getAction() == ModerationAction.FLAG_FOR_REVIEW) {
+                        reviewQueue.addToQueue(player.getUniqueId().toString(), player.getName(),
+                                contentType, content, result);
+                    }
+
+                    // Dry-run mode: log but don't actually block
+                    if (dryRunMode && result.getAction() != ModerationAction.ALLOW) {
+                        ModerationResult dryResult = new ModerationResult(
+                                ModerationAction.ALLOW, result.getConfidence(),
+                                "[DRY RUN] " + result.getReason(), result.getCategory());
+                        // Log the original decision, then return the dry-run override
+                        logModerationDecision(player, contentType, content, result);
+
+                        // Send Discord webhook alert
+                        discordWebhook.sendAlert(player.getName(), player.getUniqueId().toString(),
+                                result, content, contentType.getDisplayName());
+
+                        return dryResult;
+                    }
+
                     // Log to database
                     logModerationDecision(player, contentType, content, result);
+
+                    // Send Discord webhook alert
+                    discordWebhook.sendAlert(player.getName(), player.getUniqueId().toString(),
+                            result, content, contentType.getDisplayName());
 
                     return result;
                 });
@@ -250,6 +319,19 @@ public class AIModerationManager {
         }
     }
 
+    public EscalationManager getEscalationManager() { return escalationManager; }
+    public MessageContextWindow getContextWindow() { return contextWindow; }
+    public void setContextEnabled(boolean enabled) { this.contextEnabled = enabled; }
+    public boolean isContextEnabled() { return contextEnabled; }
+    public void setContextMessageCount(int count) { this.contextMessageCount = Math.max(1, Math.min(50, count)); }
+    public int getContextMessageCount() { return contextMessageCount; }
+    public ModerationReviewQueue getReviewQueue() { return reviewQueue; }
+    public boolean isDryRunMode() { return dryRunMode; }
+    public void setDryRunMode(boolean dryRunMode) { this.dryRunMode = dryRunMode; }
+    public ModerationAnalytics getAnalytics() { return analytics; }
+    public DiscordWebhook getDiscordWebhook() { return discordWebhook; }
+    public SkinScanner getSkinScanner() { return skinScanner; }
+
     public void updateFromJson(JsonObject json) {
         if (json.has("preset")) {
             try {
@@ -269,6 +351,39 @@ public class AIModerationManager {
                     setContentTypeEnabled(ct, types.get(ct.name()).getAsBoolean());
                 }
             }
+        }
+        if (json.has("contextEnabled")) {
+            setContextEnabled(json.get("contextEnabled").getAsBoolean());
+        }
+        if (json.has("contextMessageCount")) {
+            setContextMessageCount(json.get("contextMessageCount").getAsInt());
+        }
+        if (json.has("dryRunMode")) {
+            setDryRunMode(json.get("dryRunMode").getAsBoolean());
+        }
+        if (json.has("escalationTiers")) {
+            JsonArray tiersArr = json.getAsJsonArray("escalationTiers");
+            List<EscalationManager.EscalationTier> newTiers = new ArrayList<>();
+            for (var element : tiersArr) {
+                JsonObject t = element.getAsJsonObject();
+                newTiers.add(new EscalationManager.EscalationTier(
+                        t.get("name").getAsString(),
+                        t.get("threshold").getAsInt(),
+                        ModerationAction.valueOf(t.get("action").getAsString()),
+                        t.has("punishmentType") && !t.get("punishmentType").getAsString().isEmpty()
+                                ? t.get("punishmentType").getAsString() : null,
+                        t.has("durationSeconds") ? t.get("durationSeconds").getAsLong() : 0
+                ));
+            }
+            if (!newTiers.isEmpty()) {
+                escalationManager.updateTiers(newTiers);
+            }
+        }
+        if (json.has("discord")) {
+            discordWebhook.updateFromJson(json.getAsJsonObject("discord"));
+        }
+        if (json.has("skinScanner")) {
+            skinScanner.updateFromJson(json.getAsJsonObject("skinScanner"));
         }
     }
 
@@ -309,6 +424,33 @@ public class AIModerationManager {
         }
         status.add("availableContentTypes", contentTypeList);
 
+        // Escalation tiers
+        status.add("escalation", escalationManager.toJson());
+
+        // Context window settings
+        JsonObject contextSettings = new JsonObject();
+        contextSettings.addProperty("enabled", contextEnabled);
+        contextSettings.addProperty("messageCount", contextMessageCount);
+        status.add("contextWindow", contextSettings);
+
+        // Dry-run mode and review queue
+        status.addProperty("dryRunMode", dryRunMode);
+        status.add("reviewQueue", reviewQueue.toJson());
+
+        // Violation categories
+        JsonArray categories = new JsonArray();
+        for (ViolationCategory cat : ViolationCategory.values()) {
+            if (cat == ViolationCategory.NONE) continue;
+            JsonObject c = new JsonObject();
+            c.addProperty("id", cat.name());
+            c.addProperty("name", cat.getDisplayName());
+            c.addProperty("description", cat.getDescription());
+            c.addProperty("defaultSeverity", cat.getDefaultSeverity().name());
+            c.addProperty("severityLevel", cat.getDefaultSeverity().getLevel());
+            categories.add(c);
+        }
+        status.add("violationCategories", categories);
+
         // Statistics
         JsonObject stats = new JsonObject();
         stats.addProperty("totalChecked", totalChecked.get());
@@ -316,15 +458,21 @@ public class AIModerationManager {
         stats.addProperty("totalWarned", totalWarned.get());
         stats.addProperty("totalFlagged", totalFlagged.get());
 
-        var ollamaClient = plugin.getOllamaClient();
-        stats.addProperty("aiAvailable", ollamaClient != null && ollamaClient.isAvailable());
+        var aiClient = plugin.getAIClient();
+        stats.addProperty("aiAvailable", aiClient != null && aiClient.isAvailable());
         stats.addProperty("model", "ModereX AI");
         stats.addProperty("moderationCallsRemaining",
-                ollamaClient != null ? ollamaClient.getModerationCallsRemaining() : 0);
+                aiClient != null ? aiClient.getModerationCallsRemaining() : 0);
         stats.addProperty("moderationCallsUsed",
-                ollamaClient != null ? 30 - ollamaClient.getModerationCallsRemaining() : 0);
+                aiClient != null ? 30 - aiClient.getModerationCallsRemaining() : 0);
         stats.addProperty("moderationCallsMax", 30);
         status.add("stats", stats);
+
+        // Discord webhook status
+        status.add("discord", discordWebhook.toJson());
+
+        // Skin scanner status
+        status.add("skinScanner", skinScanner.toStatusJson());
 
         return status;
     }

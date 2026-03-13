@@ -11565,14 +11565,14 @@ public class HybridPanelServer implements com.blockforge.moderex.gateway.Gateway
             sendError(conn, "NO_PERMISSION", "No permission"); return;
         }
 
-        var ollamaClient = plugin.getOllamaClient();
-        if (ollamaClient == null || !ollamaClient.isAvailable()) {
+        var aiClient = plugin.getAIClient();
+        if (aiClient == null || !aiClient.isAvailable()) {
             JsonObject response = new JsonObject();
             response.addProperty("type", "AI_MODERATION_TEST_RESULT");
             JsonObject result = new JsonObject();
             result.addProperty("action", "ALLOW");
             result.addProperty("confidence", 0.0);
-            result.addProperty("reason", "AI is not configured. Please set up the Ollama endpoint in settings.");
+            result.addProperty("reason", "AI is not configured. Please set up the AI endpoint in settings.");
             result.addProperty("category", "NONE");
             response.add("data", result);
             conn.send(GSON.toJson(response));
@@ -11585,7 +11585,7 @@ public class HybridPanelServer implements com.blockforge.moderex.gateway.Gateway
                 "advertising, inappropriate content, threats, and toxicity. " +
                 "Be strict but fair. Consider gaming context.";
 
-        ollamaClient.testModeration(content, systemPrompt)
+        aiClient.testModeration(content, systemPrompt)
                 .thenAccept(moderationResult -> {
                     JsonObject response = new JsonObject();
                     response.addProperty("type", "AI_MODERATION_TEST_RESULT");
@@ -11629,12 +11629,12 @@ public class HybridPanelServer implements com.blockforge.moderex.gateway.Gateway
             sendError(conn, "NO_PERMISSION", "No permission"); return;
         }
 
-        var ollamaClient = plugin.getOllamaClient();
-        if (ollamaClient == null || !ollamaClient.isAvailable()) {
+        var aiClient = plugin.getAIClient();
+        if (aiClient == null || !aiClient.isAvailable()) {
             JsonObject response = new JsonObject();
             response.addProperty("type", "AI_DESCRIPTION_RESULT");
             response.addProperty("ruleId", data.has("ruleId") ? data.get("ruleId").getAsInt() : 0);
-            response.addProperty("error", "AI is not configured. Please set up the Ollama endpoint in settings.");
+            response.addProperty("error", "AI is not configured. Please set up the AI endpoint in settings.");
             conn.send(GSON.toJson(response));
             return;
         }
@@ -11645,7 +11645,7 @@ public class HybridPanelServer implements com.blockforge.moderex.gateway.Gateway
             sendError(conn, "RULE_NOT_FOUND", "Rule not found"); return;
         }
 
-        ollamaClient.generateRuleDescription(rule.getTitle(), rule.getDescription())
+        aiClient.generateRuleDescription(rule.getTitle(), rule.getDescription())
                 .thenAccept(description -> {
                     if (description != null) {
                         rule.setAiDescription(description);
@@ -11671,12 +11671,12 @@ public class HybridPanelServer implements com.blockforge.moderex.gateway.Gateway
             sendError(conn, "NO_PERMISSION", "No permission"); return;
         }
 
-        var ollamaClient = plugin.getOllamaClient();
-        if (ollamaClient == null || !ollamaClient.isAvailable()) {
+        var aiClient = plugin.getAIClient();
+        if (aiClient == null || !aiClient.isAvailable()) {
             JsonObject response = new JsonObject();
             response.addProperty("type", "RULE_TRANSLATION_RESULT");
             response.addProperty("ruleId", data.has("ruleId") ? data.get("ruleId").getAsInt() : 0);
-            response.addProperty("error", "AI is not configured. Please set up the Ollama endpoint in settings.");
+            response.addProperty("error", "AI is not configured. Please set up the AI endpoint in settings.");
             conn.send(GSON.toJson(response));
             return;
         }
@@ -11689,7 +11689,7 @@ public class HybridPanelServer implements com.blockforge.moderex.gateway.Gateway
         }
 
         String textToTranslate = rule.getAiDescription() != null ? rule.getAiDescription() : rule.getDescription();
-        ollamaClient.translateRule(textToTranslate, targetLanguage)
+        aiClient.translateRule(textToTranslate, targetLanguage)
                 .thenAccept(translation -> {
                     if (translation != null) {
                         // Store translation in the rule's translations JSON

@@ -1087,7 +1087,7 @@ const server = http.createServer((req, res) => {
         return;
     }
 
-    // POST /api/ai/chat — AI proxy for MC servers (routes to Ollama cloud)
+    // POST /api/ai/chat — AI proxy for MC servers (routes to AI provider)
     if (url.pathname === '/api/ai/chat' && req.method === 'POST') {
         readJsonBody(req, async (body) => {
             // Authenticate: require server secret in Authorization header
@@ -1122,29 +1122,29 @@ const server = http.createServer((req, res) => {
                 return jsonResponse(res, 500, { error: 'Auth verification failed' });
             }
 
-            // Forward to Ollama cloud
+            // Forward to AI provider
             if (!body || !body.messages || !Array.isArray(body.messages)) {
                 return jsonResponse(res, 400, { error: 'Invalid request: messages array required' });
             }
 
             try {
-                const ollamaEndpoint = process.env.OLLAMA_ENDPOINT || 'https://ollama.com/api/chat';
-                const ollamaModel = process.env.OLLAMA_MODEL || 'nemotron-3-nano:30b-cloud';
-                const ollamaApiKey = process.env.OLLAMA_API_KEY || '';
+                const aiEndpoint = process.env.AI_ENDPOINT || 'https://ollama.com/api/chat';
+                const aiModel = process.env.AI_MODEL || 'nemotron-3-nano:30b-cloud';
+                const aiApiKey = process.env.AI_API_KEY || '';
 
                 const requestBody = JSON.stringify({
-                    model: body.model || ollamaModel,
+                    model: body.model || aiModel,
                     messages: body.messages,
                     stream: false
                 });
 
                 const headers = { 'Content-Type': 'application/json' };
-                if (ollamaApiKey) {
-                    headers['Authorization'] = `Bearer ${ollamaApiKey}`;
+                if (aiApiKey) {
+                    headers['Authorization'] = `Bearer ${aiApiKey}`;
                 }
 
                 const fetch = globalThis.fetch || require('node-fetch');
-                const aiRes = await fetch(ollamaEndpoint, {
+                const aiRes = await fetch(aiEndpoint, {
                     method: 'POST',
                     headers,
                     body: requestBody,
@@ -1153,7 +1153,7 @@ const server = http.createServer((req, res) => {
 
                 if (!aiRes.ok) {
                     const errText = await aiRes.text();
-                    console.error(`[AI] Ollama returned ${aiRes.status}: ${errText.substring(0, 200)}`);
+                    console.error(`[AI] AI provider returned ${aiRes.status}: ${errText.substring(0, 200)}`);
                     return jsonResponse(res, 502, { error: 'AI service unavailable' });
                 }
 

@@ -79,7 +79,7 @@ public final class ModereX extends JavaPlugin {
     private com.blockforge.moderex.rules.RulesManager rulesManager;
     private com.blockforge.moderex.rules.RuleAcceptanceManager ruleAcceptanceManager;
     private com.blockforge.moderex.rules.CodeOfConductManager codeOfConductManager;
-    private com.blockforge.moderex.ai.OllamaClient ollamaClient;
+    private com.blockforge.moderex.ai.AIClient aiClient;
     private com.blockforge.moderex.ai.AIModerationManager aiModerationManager;
     private com.blockforge.moderex.security.RaidProtectionManager raidProtectionManager;
     private com.blockforge.moderex.automod.AfkManager afkManager;
@@ -246,8 +246,8 @@ public final class ModereX extends JavaPlugin {
         codeOfConductManager.initialize();
 
         logStartup("Initializing AI client...");
-        this.ollamaClient = new com.blockforge.moderex.ai.OllamaClient(this);
-        ollamaClient.start();
+        this.aiClient = new com.blockforge.moderex.ai.AIClient(this);
+        aiClient.start();
 
         logStartup("Initializing AI moderation...");
         this.aiModerationManager = new com.blockforge.moderex.ai.AIModerationManager(this);
@@ -457,8 +457,8 @@ public final class ModereX extends JavaPlugin {
         }
 
         // Stop AI client
-        if (ollamaClient != null) {
-            ollamaClient.shutdown();
+        if (aiClient != null) {
+            aiClient.shutdown();
         }
 
         // Stop performance managers
@@ -751,8 +751,8 @@ public final class ModereX extends JavaPlugin {
         return codeOfConductManager;
     }
 
-    public com.blockforge.moderex.ai.OllamaClient getOllamaClient() {
-        return ollamaClient;
+    public com.blockforge.moderex.ai.AIClient getAIClient() {
+        return aiClient;
     }
 
     public com.blockforge.moderex.ai.AIModerationManager getAiModerationManager() {

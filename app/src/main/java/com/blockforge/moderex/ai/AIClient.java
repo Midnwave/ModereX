@@ -20,7 +20,7 @@ import java.util.concurrent.atomic.AtomicInteger;
  * MC servers never talk to the AI provider directly — all requests go through
  * the gateway's /api/ai/chat endpoint, which handles model selection and auth.
  */
-public class OllamaClient {
+public class AIClient {
 
     private static final Gson GSON = new Gson();
 
@@ -39,7 +39,7 @@ public class OllamaClient {
 
     private ScheduledExecutorService rateLimitResetScheduler;
 
-    public OllamaClient(ModereX plugin) {
+    public AIClient(ModereX plugin) {
         this.plugin = plugin;
         this.httpClient = HttpClient.newBuilder()
                 .connectTimeout(Duration.ofSeconds(10))
@@ -241,7 +241,7 @@ public class OllamaClient {
 
                 JsonObject responseJson = JsonParser.parseString(response.body()).getAsJsonObject();
 
-                // Handle Ollama chat API response format (gateway forwards as-is)
+                // Handle chat API response format (gateway forwards as-is)
                 if (responseJson.has("message")) {
                     return responseJson.getAsJsonObject("message").get("content").getAsString().trim();
                 }
