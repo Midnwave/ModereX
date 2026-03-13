@@ -16,11 +16,18 @@ import org.bukkit.event.player.AsyncPlayerPreLoginEvent;
 import org.bukkit.event.player.PlayerJoinEvent;
 import org.bukkit.event.player.PlayerQuitEvent;
 
+import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
+
+import org.bukkit.scheduler.BukkitTask;
 
 public class JoinQuitListener implements Listener {
 
     private final ModereX plugin;
+
+    /** Tracks repeating gateway-link reminder tasks per staff player. */
+    private final Map<UUID, BukkitTask> linkReminderTasks = new ConcurrentHashMap<>();
 
     public JoinQuitListener(ModereX plugin) {
         this.plugin = plugin;
@@ -144,6 +151,55 @@ public class JoinQuitListener implements Listener {
             }, 60L); // 3 seconds delay
         }
 
+        // Staff gateway link reminder — every 30 min if gateway enabled + not linked
+        if (PermissionUtil.hasPermission(player, "moderex.staff")
+                && plugin.getGatewayClient() != null
+                && plugin.getGatewayClient().isConnected()
+                && !plugin.getWebAuthManager().hasPermanentToken(uuid)) {
+
+            // 36000 ticks = 30 minutes
+            BukkitTask task = plugin.getServer().getScheduler().runTaskTimer(plugin, () -> {
+                if (!player.isOnline()) return;
+                // Stop reminding once they've linked
+                if (plugin.getWebAuthManager().hasPermanentToken(uuid)) {
+                    BukkitTask t = linkReminderTasks.remove(uuid);
+                    if (t != null) t.cancel();
+                    return;
+                }
+                Msg.send(player, TextUtil.parse(""));
+                Msg.send(player, TextUtil.parse("<gradient:#3b82f6:#8b5cf6>━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━</gradient>"));
+                Msg.send(player, TextUtil.parse("<bold><gradient:#f59e0b:#ef4444>⚠ Link Your Account</gradient></bold>"));
+                Msg.send(player, TextUtil.parse("<gray>You haven't linked your Minecraft account to"));
+                Msg.send(player, TextUtil.parse("<gray>the ModereX web panel yet. Link now for full access!"));
+                Msg.send(player, TextUtil.parse(""));
+                Msg.send(player, TextUtil.parse("<yellow><click:run_command:'/mx link'><hover:show_text:'<gray>Click to generate a link code'>▸ Run /mx link</hover></click></yellow>"));
+                Msg.send(player, TextUtil.parse("<gradient:#3b82f6:#8b5cf6>━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━</gradient>"));
+                Msg.send(player, TextUtil.parse(""));
+            }, 36000L, 36000L); // first at 30 min, repeat every 30 min
+            linkReminderTasks.put(uuid, task);
+        }
+
+        // Auto-scan skin on join if enabled
+        var aiModManager = plugin.getAiModerationManager();
+        if (aiModManager != null && aiModManager.getSkinScanner().isEnabled()
+                && aiModManager.getSkinScanner().isAutoScanOnJoin()) {
+            plugin.getServer().getScheduler().runTaskLaterAsynchronously(plugin, () -> {
+                aiModManager.getSkinScanner().scanPlayer(uuid, player.getName())
+                        .thenAccept(result -> {
+                            if (result.isFlagged()) {
+                                // Notify online staff
+                                for (var staff : plugin.getServer().getOnlinePlayers()) {
+                                    if (PermissionUtil.hasPermission(staff, "moderex.staff")) {
+                                        Msg.send(staff, TextUtil.parse(
+                                                "<red>[Skin Alert] <yellow>" + player.getName() +
+                                                "'s skin was flagged: <gray>" + result.getReason()));
+                                    }
+                                }
+                            }
+                        });
+            }, 100L); // 5 second delay to not slow down join
+        }
+
         // Check if player needs to accept rules
         if (plugin.getRuleAcceptanceManager() != null && plugin.getCodeOfConductManager() != null) {
             plugin.getRuleAcceptanceManager().hasAccepted(uuid).thenAccept(accepted -> {
@@ -221,6 +277,10 @@ public class JoinQuitListener implements Listener {
                 sendLeaveMessage(player, visibility);
             }
         }
+
+        // Cancel link reminder if running
+        BukkitTask reminderTask = linkReminderTasks.remove(uuid);
+        if (reminderTask != null) reminderTask.cancel();
 
         // Clear caches
         plugin.getPunishmentManager().unloadPlayerPunishments(uuid);
