@@ -561,10 +561,27 @@ public class ServerStatusManager {
 
     /**
      * Analyze a single chunk in detail for the expanded chunk lag viewer.
+     * Cheap checks (entity/tile counts) run first — expensive block scans only
+     * run if the chunk exceeds a threshold, avoiding the prior bug where every
+     * loaded chunk got a full block scan every second.
      */
     private LaggyChunk analyzeChunkDetail(Chunk chunk, String worldName) {
         Entity[] entities = chunk.getEntities();
         BlockState[] tileEntities = chunk.getTileEntities();
+
+        // ── Fast pre-check: skip chunks that are clearly fine ──
+        int redstoneScore = 0;
+        for (BlockState tile : tileEntities) {
+            if (isRedstoneTile(tile)) redstoneScore++;
+        }
+
+        boolean potentiallyLaggy = entities.length >= chunkEntityThreshold ||
+                tileEntities.length >= chunkTileEntityThreshold ||
+                redstoneScore > 20;
+
+        if (!potentiallyLaggy) return null; // skip expensive work
+
+        // ── Detailed analysis (only for flagged chunks) ──
 
         // Entity type breakdown
         Map<String, Integer> entityTypes = new HashMap<>();
@@ -576,14 +593,6 @@ public class ServerStatusManager {
         Map<String, Integer> tileTypes = new HashMap<>();
         for (BlockState tile : tileEntities) {
             tileTypes.merge(tile.getType().name(), 1, Integer::sum);
-        }
-
-        // Redstone complexity score
-        int redstoneScore = 0;
-        for (BlockState tile : tileEntities) {
-            if (isRedstoneTile(tile)) {
-                redstoneScore++;
-            }
         }
 
         // Hopper chain detection - find longest chain
@@ -599,19 +608,18 @@ public class ServerStatusManager {
             }
         }
 
-        // Fluid flow detection
+        // Fluid flow detection — only scan the Y range that actually has blocks
+        // (much cheaper than minHeight→maxHeight full scan)
         int fluidFlows = 0;
-        // Check a sample of blocks for flowing fluids (full scan would be too expensive)
         World world = chunk.getWorld();
-        int baseX = chunk.getX() << 4;
-        int baseZ = chunk.getZ() << 4;
-        for (int x = 0; x < 16; x += 2) {
-            for (int z = 0; z < 16; z += 2) {
-                for (int y = world.getMinHeight(); y < world.getMaxHeight(); y += 4) {
+        int minY = world.getMinHeight();
+        int maxY = Math.min(world.getMaxHeight(), world.getSeaLevel() + 32); // fluids mostly near/below sea level
+        for (int x = 0; x < 16; x += 4) {
+            for (int z = 0; z < 16; z += 4) {
+                for (int y = minY; y < maxY; y += 8) {
                     Block block = chunk.getBlock(x, y, z);
                     Material type = block.getType();
                     if (type == Material.WATER || type == Material.LAVA) {
-                        // Check if it's a flowing (non-source) block via block data level
                         if (block.getBlockData() instanceof org.bukkit.block.data.Levelled levelled) {
                             if (levelled.getLevel() > 0) {
                                 fluidFlows++;
@@ -629,12 +637,6 @@ public class ServerStatusManager {
         if (redstoneScore > 20) reasons.add(redstoneScore + " redstone components");
         if (maxHopperChain > 5) reasons.add("hopper chain (" + maxHopperChain + ")");
         if (fluidFlows > 10) reasons.add(fluidFlows + " fluid flows");
-
-        boolean isLaggy = entities.length >= chunkEntityThreshold ||
-                tileEntities.length >= chunkTileEntityThreshold ||
-                redstoneScore > 20 || maxHopperChain > 5;
-
-        if (!isLaggy) return null;
 
         return new LaggyChunk(worldName, chunk.getX(), chunk.getZ(),
                 entities.length, tileEntities.length, String.join(", ", reasons),

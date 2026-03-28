@@ -48,6 +48,44 @@ public class StaffInspectGui {
     private static final int OFFHAND_SLOT = 40;
     private static final int SEPARATOR_SLOT = 41;
 
+    // Cached static items — identical across all inspect GUIs
+    private static final ItemStack CACHED_PLACEHOLDER_GRAY = buildStaticItem(Material.GRAY_STAINED_GLASS_PANE, " ");
+    private static final ItemStack CACHED_NO_HELMET = buildStaticItem(Material.LIGHT_GRAY_STAINED_GLASS_PANE, "<gray>No Helmet");
+    private static final ItemStack CACHED_NO_CHESTPLATE = buildStaticItem(Material.LIGHT_GRAY_STAINED_GLASS_PANE, "<gray>No Chestplate");
+    private static final ItemStack CACHED_NO_LEGGINGS = buildStaticItem(Material.LIGHT_GRAY_STAINED_GLASS_PANE, "<gray>No Leggings");
+    private static final ItemStack CACHED_NO_BOOTS = buildStaticItem(Material.LIGHT_GRAY_STAINED_GLASS_PANE, "<gray>No Boots");
+    private static final ItemStack CACHED_NO_OFFHAND = buildStaticItem(Material.LIGHT_GRAY_STAINED_GLASS_PANE, "<gray>No Offhand");
+    private static final ItemStack CACHED_ENDER_CHEST = buildStaticAction(Material.ENDER_CHEST, "<light_purple>Ender Chest", "<gray>Click to view ender chest");
+    private static final ItemStack CACHED_REFRESH = buildStaticAction(Material.LIME_DYE, "<green>Refresh", "<gray>Click to reload inventory");
+    private static final ItemStack CACHED_CLOSE = buildStaticAction(Material.BARRIER, "<red>Close", "<gray>Click to close");
+
+    private static ItemStack buildStaticItem(Material material, String name) {
+        ItemStack item = new ItemStack(material);
+        ItemMeta meta = item.getItemMeta();
+        if (meta != null) {
+            Msg.displayName(meta, com.blockforge.moderex.util.TextUtil.parseLore(name));
+            item.setItemMeta(meta);
+        }
+        return item;
+    }
+
+    private static ItemStack buildStaticAction(Material material, String name, String... loreLines) {
+        ItemStack item = new ItemStack(material);
+        ItemMeta meta = item.getItemMeta();
+        if (meta != null) {
+            Msg.displayName(meta, com.blockforge.moderex.util.TextUtil.parseLore(name));
+            if (loreLines != null && loreLines.length > 0) {
+                List<net.kyori.adventure.text.Component> lore = new java.util.ArrayList<>();
+                for (String line : loreLines) {
+                    lore.add(com.blockforge.moderex.util.TextUtil.parseLore(line));
+                }
+                Msg.lore(meta, lore);
+            }
+            item.setItemMeta(meta);
+        }
+        return item;
+    }
+
     public StaffInspectGui(ModereX plugin, Player staff, Player target) {
         this.plugin = plugin;
         this.staff = staff;
@@ -99,32 +137,26 @@ public class StaffInspectGui {
         ItemStack leggings = playerInv.getLeggings();
         ItemStack boots = playerInv.getBoots();
 
-        inventory.setItem(HELMET_SLOT, helmet != null ? helmet.clone() : createPlaceholder("<gray>No Helmet", Material.LIGHT_GRAY_STAINED_GLASS_PANE));
-        inventory.setItem(CHESTPLATE_SLOT, chestplate != null ? chestplate.clone() : createPlaceholder("<gray>No Chestplate", Material.LIGHT_GRAY_STAINED_GLASS_PANE));
-        inventory.setItem(LEGGINGS_SLOT, leggings != null ? leggings.clone() : createPlaceholder("<gray>No Leggings", Material.LIGHT_GRAY_STAINED_GLASS_PANE));
-        inventory.setItem(BOOTS_SLOT, boots != null ? boots.clone() : createPlaceholder("<gray>No Boots", Material.LIGHT_GRAY_STAINED_GLASS_PANE));
+        inventory.setItem(HELMET_SLOT, helmet != null ? helmet.clone() : CACHED_NO_HELMET.clone());
+        inventory.setItem(CHESTPLATE_SLOT, chestplate != null ? chestplate.clone() : CACHED_NO_CHESTPLATE.clone());
+        inventory.setItem(LEGGINGS_SLOT, leggings != null ? leggings.clone() : CACHED_NO_LEGGINGS.clone());
+        inventory.setItem(BOOTS_SLOT, boots != null ? boots.clone() : CACHED_NO_BOOTS.clone());
 
         // Offhand (GUI slot 40)
         ItemStack offhand = playerInv.getItemInOffHand();
-        inventory.setItem(OFFHAND_SLOT, offhand.getType() != Material.AIR ? offhand.clone() : createPlaceholder("<gray>No Offhand", Material.LIGHT_GRAY_STAINED_GLASS_PANE));
+        inventory.setItem(OFFHAND_SLOT, offhand.getType() != Material.AIR ? offhand.clone() : CACHED_NO_OFFHAND.clone());
 
         // Separator
-        inventory.setItem(SEPARATOR_SLOT, createPlaceholder(" ", Material.GRAY_STAINED_GLASS_PANE));
+        inventory.setItem(SEPARATOR_SLOT, CACHED_PLACEHOLDER_GRAY.clone());
 
         // Ender Chest button
-        inventory.setItem(ENDER_CHEST_SLOT, createActionItem(Material.ENDER_CHEST,
-                "<light_purple>Ender Chest",
-                "<gray>Click to view ender chest"));
+        inventory.setItem(ENDER_CHEST_SLOT, CACHED_ENDER_CHEST.clone());
 
         // Refresh button
-        inventory.setItem(REFRESH_SLOT, createActionItem(Material.LIME_DYE,
-                "<green>Refresh",
-                "<gray>Click to reload inventory"));
+        inventory.setItem(REFRESH_SLOT, CACHED_REFRESH.clone());
 
         // Close button
-        inventory.setItem(CLOSE_SLOT, createActionItem(Material.BARRIER,
-                "<red>Close",
-                "<gray>Click to close"));
+        inventory.setItem(CLOSE_SLOT, CACHED_CLOSE.clone());
     }
 
     /**
@@ -172,7 +204,7 @@ public class StaffInspectGui {
         // Fill remaining empty info row slots with glass
         for (int i = 45; i <= 53; i++) {
             if (inventory.getItem(i) == null) {
-                inventory.setItem(i, createPlaceholder(" ", Material.GRAY_STAINED_GLASS_PANE));
+                inventory.setItem(i, CACHED_PLACEHOLDER_GRAY.clone());
             }
         }
     }

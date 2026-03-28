@@ -15,9 +15,13 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Consumer;
 
 public abstract class BaseGui {
+
+    /** Cache for static items (same material + name + lore = same item). Clone on retrieval. */
+    private static final Map<String, ItemStack> ITEM_CACHE = new ConcurrentHashMap<>();
 
     protected final ModereX plugin;
     protected Player viewer;
@@ -89,6 +93,10 @@ public abstract class BaseGui {
 
     // auto-wraps lore to 25 chars
     protected ItemStack createItem(Material material, String name, String... lore) {
+        String cacheKey = material.name() + "|" + name + "|" + String.join("|", lore);
+        ItemStack cached = ITEM_CACHE.get(cacheKey);
+        if (cached != null) return cached.clone();
+
         ItemStack item = new ItemStack(material);
         ItemMeta meta = item.getItemMeta();
 
@@ -108,15 +116,22 @@ public abstract class BaseGui {
         }
 
         item.setItemMeta(meta);
+        ITEM_CACHE.put(cacheKey, item.clone());
         return item;
     }
 
     protected ItemStack createItem(Material material, String name, List<String> lore) {
+        String cacheKey = material.name() + "|" + name + "|" + String.join("|", lore);
+        ItemStack cached = ITEM_CACHE.get(cacheKey);
+        if (cached != null) return cached.clone();
+
         List<String> wrappedLore = TextUtil.wrapLore(lore);
-        return createItemNoWrap(material, name, wrappedLore);
+        ItemStack item = createItemNoWrapUncached(material, name, wrappedLore);
+        ITEM_CACHE.put(cacheKey, item.clone());
+        return item;
     }
 
-    private ItemStack createItemNoWrap(Material material, String name, List<String> lore) {
+    private ItemStack createItemNoWrapUncached(Material material, String name, List<String> lore) {
         ItemStack item = new ItemStack(material);
         ItemMeta meta = item.getItemMeta();
 

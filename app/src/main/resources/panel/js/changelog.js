@@ -14,6 +14,24 @@
 
 window.MX_CHANGELOGS = [
   {
+    build: 330,
+    version: "2.0dev-330",
+    date: "2026-03-28",
+    title: "Performance Optimization",
+    sections: [
+      {
+        type: "improved",
+        title: "Improvements",
+        items: [
+          "**Chunk Analysis Fix** - `analyzeChunkDetail()` no longer scans every loaded chunk for fluid flows every second — cheap entity/tile checks run first, expensive block scans only run on flagged chunks (was consuming 35% of server thread)",
+          "**Fluid Scan Optimization** - Reduced fluid scan range to sea level + 32 blocks and increased sample stride from 2/4 to 4/8, cutting block lookups by ~90%",
+          "**GUI ItemStack Caching** - Static GUI items (glass panes, buttons, placeholders) are now cached in a `ConcurrentHashMap` and cloned on use, eliminating redundant `CraftItemMetas` lambda calls on every GUI open",
+          "**Staff Inspect GUI** - Cached 9 static items (placeholders, action buttons) as class-level constants instead of recreating them on every refresh"
+        ]
+      }
+    ]
+  },
+  {
     build: 328,
     version: "2.0dev-328",
     date: "2026-03-01",
