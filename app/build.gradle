@@ -30,6 +30,9 @@ dependencies {
     // Paper API for Minecraft 1.21
     compileOnly 'io.papermc.paper:paper-api:1.21.1-R0.1-SNAPSHOT'
 
+    // Mojang authlib — for NMS-level GameProfile manipulation in disguise
+    compileOnly 'com.mojang:authlib:6.0.54'
+
     // LuckPerms API
     compileOnly 'net.luckperms:api:5.4'
 

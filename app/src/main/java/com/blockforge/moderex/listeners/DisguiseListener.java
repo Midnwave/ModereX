@@ -66,8 +66,9 @@ public class DisguiseListener implements Listener {
         }
     }
 
-    @EventHandler(priority = EventPriority.HIGHEST)
+    @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
     public void onPlayerChat(AsyncPlayerChatEvent event) {
+        if (!plugin.getConfig().getBoolean("disguise.spoof-chat", true)) return;
         Player player = event.getPlayer();
 
         if (!plugin.getDisguiseManager().isDisguised(player)) {
